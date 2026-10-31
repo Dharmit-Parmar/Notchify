@@ -28,10 +28,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         _ = NowPlayingModule.shared
         _ = CalendarModule.shared
         
-        // Register secondary feature modules for header tabs (AirDrop, File Studio, Messages, Battery, Mirror, Notifications)
+        // Register secondary feature modules for header tabs (AirDrop, File Studio, Thock, Messages, Battery, Mirror, Notifications)
         let registry = ModuleRegistry.shared
         registry.register(AirDropModule.shared)
         registry.register(ShelfModule.shared)
+        registry.register(ThockModule.shared)
         registry.register(TelegramModule())
         registry.register(BatteryModule())
         registry.register(MirrorModule())
@@ -122,5 +123,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             AppDelegate.isSettingsOpen = false
             AppDelegate.settingsWindow = nil
         }
+    }
+    
+    public func applicationWillTerminate(_ notification: Notification) {
+        ThockModule.shared.terminateProcess()
     }
 }

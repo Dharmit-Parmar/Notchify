@@ -373,6 +373,8 @@ public struct NotchRootView: View {
             return AirDropModule.shared.statusMessage
         case "shelf":
             return ShelfModule.shared.selectedTool.subtitle
+        case "thock":
+            return ThockModule.shared.statusSubtitle
         case "telegram":
             return "Direct chat via WhatsApp & Telegram"
         case "battery":

@@ -477,8 +477,46 @@ func runAllVerificationTests() {
     try? FileManager.default.removeItem(at: testPDF)
     print("  ✓ AirDrop sharing delegate & full drop stage verified.")
     
+    // Test 23: Thock Mechanical Audio Engine Process Connectivity & Stdin/Stdout Pipeline
+    print("\n[TEST 23] Thock Audio Engine Process Connectivity & Stdin/Stdout...")
+    let thockBin = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound/target/release/thock-cli")
+    let thockPacks = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound/packs")
+    assert(FileManager.default.fileExists(atPath: thockBin.path), "thock-cli binary must exist")
+    assert(FileManager.default.fileExists(atPath: thockPacks.path), "thock packs directory must exist")
+    
+    let proc = Process()
+    proc.executableURL = thockBin
+    proc.currentDirectoryURL = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound")
+    let inP = Pipe()
+    let outP = Pipe()
+    proc.standardInput = inP
+    proc.standardOutput = outP
+    proc.standardError = outP
+    
+    var outputCaptured = ""
+    outP.fileHandleForReading.readabilityHandler = { handle in
+        let data = handle.availableData
+        guard !data.isEmpty, let str = String(data: data, encoding: .utf8) else { return }
+        outputCaptured += str
+    }
+    
+    try? proc.run()
+    assert(proc.isRunning, "thock-cli process must be running")
+    let pid = proc.processIdentifier
+    print("  thock-cli spawned with PID: \(pid)")
+    
+    if let cmdData = "status\nexit\n".data(using: .utf8) {
+        try? inP.fileHandleForWriting.write(contentsOf: cmdData)
+    }
+    
+    proc.waitUntilExit()
+    assert(!proc.isRunning, "thock-cli must exit cleanly on 'exit'")
+    assert(proc.terminationStatus == 0, "Exit status must be 0")
+    print("  Captured \(outputCaptured.count) characters of CLI telemetry")
+    print("  ✓ Thock CLI process connectivity & pipeline verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (22/22) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (23/23) ")
     print("=====================================================\n")
 }
 

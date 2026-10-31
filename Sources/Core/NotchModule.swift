@@ -65,6 +65,7 @@ public class SettingsStore: ObservableObject {
     @Published public var enabledModules: [String: Bool] = [
         "airdrop": true,
         "shelf": true,
+        "thock": true,
         "battery": true,
         "mirror": true,
         "notifications": true,
