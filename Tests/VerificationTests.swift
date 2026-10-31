@@ -515,8 +515,52 @@ func runAllVerificationTests() {
     print("  Captured \(outputCaptured.count) characters of CLI telemetry")
     print("  ✓ Thock CLI process connectivity & pipeline verified.")
     
+    // Test 24: Thock Dual Volume Control, ASMR Mixing & Sound Sample Audition Pipeline
+    print("\n[TEST 24] Thock Dual Volume Control, ASMR Mixing & Sound Sample Audition...")
+    let sampleDir = thockPacks.appendingPathComponent("banana_split_lubed")
+    let wavFiles = (try? FileManager.default.contentsOfDirectory(at: sampleDir, includingPropertiesForKeys: nil))?
+        .filter { $0.pathExtension.lowercased() == "wav" } ?? []
+    assert(!wavFiles.isEmpty, "Sample directory must contain WAV files")
+    if let firstWav = wavFiles.first {
+        let testSound = NSSound(contentsOf: firstWav, byReference: true)
+        assert(testSound != nil, "NSSound must be able to load pack sample")
+        assert((testSound?.duration ?? 0) > 0, "Sample duration must be positive")
+        print("  Verified authentic audio sample: \(firstWav.lastPathComponent) (duration: \(String(format: "%.3f", testSound?.duration ?? 0))s)")
+    }
+    
+    // Verify Dual Volume & ASMR Command Pipeline
+    let dualProc = Process()
+    dualProc.executableURL = thockBin
+    dualProc.currentDirectoryURL = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound")
+    let dualIn = Pipe()
+    let dualOut = Pipe()
+    dualProc.standardInput = dualIn
+    dualProc.standardOutput = dualOut
+    dualProc.standardError = dualOut
+    
+    var dualOutput = ""
+    dualOut.fileHandleForReading.readabilityHandler = { handle in
+        let data = handle.availableData
+        guard !data.isEmpty, let str = String(data: data, encoding: .utf8) else { return }
+        dualOutput += str
+    }
+    
+    try? dualProc.run()
+    assert(dualProc.isRunning, "Dual process must run")
+    
+    let commands = "vol 85\nasmr vol 45\nasmr rain on\nasmr none\nstatus\nexit\n"
+    if let cmdData = commands.data(using: .utf8) {
+        try? dualIn.fileHandleForWriting.write(contentsOf: cmdData)
+    }
+    
+    dualProc.waitUntilExit()
+    assert(dualProc.terminationStatus == 0, "Dual process exited cleanly")
+    assert(dualOutput.contains("Volume: 85%"), "Output must confirm Key Volume 85%")
+    assert(dualOutput.contains("vol → 45%"), "Output must confirm ASMR Volume 45%")
+    print("  ✓ Dual Volume (Key Vol: 85% / ASMR Vol: 45%) & ASMR layer switching verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (23/23) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (24/24) ")
     print("=====================================================\n")
 }
 
