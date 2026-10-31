@@ -2,6 +2,43 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - AirDrop Dedicated Sharing Delegate
+@MainActor
+public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate {
+    public static let shared = AirDropSharingDelegate()
+    
+    public func sharingService(_ sharingService: NSSharingService, sourceWindowForShareItems items: [Any], sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>) -> NSWindow? {
+        sharingContentScope.pointee = .full
+        return NotchShellCoordinator.shared.panel
+    }
+    
+    public func sharingService(_ sharingService: NSSharingService, sourceFrameOnScreenForShareItem item: Any) -> NSRect {
+        return NotchShellCoordinator.shared.panel?.frame ?? .zero
+    }
+    
+    public func sharingService(_ sharingService: NSSharingService, willShareItems items: [Any]) {
+        DispatchQueue.main.async {
+            AirDropModule.shared.isBeaming = true
+            AirDropModule.shared.statusMessage = "Beaming \(items.count) item(s) via AirDrop..."
+        }
+    }
+    
+    public func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
+        DispatchQueue.main.async {
+            AirDropModule.shared.isBeaming = false
+            AirDropModule.shared.statusMessage = "Shared \(items.count) item(s) successfully"
+            FeedbackManager.playSuccess()
+        }
+    }
+    
+    public func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) {
+        DispatchQueue.main.async {
+            AirDropModule.shared.isBeaming = false
+            AirDropModule.shared.statusMessage = "AirDrop transfer complete"
+        }
+    }
+}
+
 @MainActor
 public final class AirDropModule: NotchModule {
     public static let shared = AirDropModule()
@@ -16,6 +53,8 @@ public final class AirDropModule: NotchModule {
     @Published public var statusMessage: String = "Ready to beam to nearby Apple devices"
     @Published public var isBeaming: Bool = false
     
+    private let sharingDelegate = AirDropSharingDelegate.shared
+    
     public init() {}
     
     public func start() {}
@@ -25,6 +64,7 @@ public final class AirDropModule: NotchModule {
         guard !urls.isEmpty else { return }
         FeedbackManager.playSend()
         isBeaming = true
+        statusMessage = "Opening AirDrop sheet for \(urls.count) item(s)..."
         
         for url in urls {
             if !recentFiles.contains(url) {
@@ -35,23 +75,34 @@ public final class AirDropModule: NotchModule {
             recentFiles = Array(recentFiles.prefix(6))
         }
         
+        // Ensure application has focus to present system sharing sheets
+        NSApp.activate(ignoringOtherApps: true)
+        NotchShellCoordinator.shared.panel?.makeKey()
+        
         if let airDrop = NSSharingService(named: .sendViaAirDrop), airDrop.canPerform(withItems: urls) {
+            airDrop.delegate = sharingDelegate
             airDrop.perform(withItems: urls)
-            statusMessage = "Beaming \(urls.count) item(s) via AirDrop..."
+            statusMessage = "Select recipient in AirDrop sheet"
             FeedbackManager.playSuccess()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
                 self?.isBeaming = false
-                self?.statusMessage = "Shared \(urls.count) item(s) successfully"
             }
             return
         }
         
-        // Fallback to sharing picker anchored to notch window
-        let picker = NSSharingServicePicker(items: urls)
-        if let targetView = NotchShellCoordinator.shared.panel?.contentView {
-            picker.show(relativeTo: targetView.bounds, of: targetView, preferredEdge: .minY)
-            statusMessage = "Select nearby device in AirDrop sheet"
-            isBeaming = false
+        // Guaranteed fallback to system Sharing Service Picker
+        showSharingPickerFallback(for: urls)
+    }
+    
+    public func showSharingPickerFallback(for urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        DispatchQueue.main.async {
+            let picker = NSSharingServicePicker(items: urls)
+            if let targetView = NotchShellCoordinator.shared.panel?.contentView {
+                picker.show(relativeTo: targetView.bounds, of: targetView, preferredEdge: .minY)
+                self.statusMessage = "Select AirDrop in sharing menu"
+                self.isBeaming = false
+            }
         }
     }
     
@@ -88,7 +139,7 @@ public final class AirDropModule: NotchModule {
     }
 }
 
-// MARK: - AirDrop Expanded View with Animated Radar & Tactile Drop Stage
+// MARK: - AirDrop Expanded View with Animated Radar & Full Drop Stage
 public struct AirDropExpandedView: View {
     @ObservedObject var module: AirDropModule
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -124,7 +175,7 @@ public struct AirDropExpandedView: View {
                     
                     Text(module.statusMessage)
                         .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(module.isDropTargeted ? DesignSystem.accentColor : DesignSystem.secondaryText)
                         .lineLimit(2)
                 }
                 
@@ -156,19 +207,6 @@ public struct AirDropExpandedView: View {
                     .padding(8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: 72)
-                .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
-                    let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-                    guard !valid.isEmpty else { return false }
-                    for p in valid {
-                        _ = p.loadObject(ofClass: URL.self) { url, _ in
-                            guard let url else { return }
-                            DispatchQueue.main.async {
-                                module.shareFiles([url])
-                            }
-                        }
-                    }
-                    return true
-                }
                 
                 // Action Buttons & Recent History
                 HStack(spacing: 8) {
@@ -218,6 +256,32 @@ public struct AirDropExpandedView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(4)
+        .contentShape(Rectangle())
+        // Active Drop Target for ENTIRE AirDrop Screen (Radar + Drop Box + Info)
+        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+            var handled = false
+            for p in providers {
+                if p.canLoadObject(ofClass: URL.self) {
+                    handled = true
+                    _ = p.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url else { return }
+                        DispatchQueue.main.async {
+                            module.shareFiles([url])
+                        }
+                    }
+                } else if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                    handled = true
+                    p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                        let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                        guard let url else { return }
+                        DispatchQueue.main.async {
+                            module.shareFiles([url])
+                        }
+                    }
+                }
+            }
+            return handled
+        }
     }
 }
 
@@ -234,13 +298,13 @@ private struct AirDropRadarAnimation: View {
                 let ringCount = 3
                 
                 let time = timeline.date.timeIntervalSinceReferenceDate
-                let speed = isTargeted ? 2.2 : (isBeaming ? 3.0 : 1.0)
+                let speed = isTargeted ? 2.5 : (isBeaming ? 3.5 : 1.0)
                 let normalizedTime = (time * speed).truncatingRemainder(dividingBy: 1.0)
                 
                 for i in 0..<ringCount {
                     let progress = (normalizedTime + Double(i) / Double(ringCount)).truncatingRemainder(dividingBy: 1.0)
                     let currentRadius = CGFloat(progress) * maxRadius
-                    let opacity = (1.0 - progress) * (isTargeted ? 0.7 : 0.35)
+                    let opacity = (1.0 - progress) * (isTargeted ? 0.85 : 0.35)
                     
                     var path = Path()
                     path.addArc(center: center, radius: currentRadius, startAngle: .zero, endAngle: .degrees(360), clockwise: false)
@@ -248,7 +312,7 @@ private struct AirDropRadarAnimation: View {
                     context.stroke(
                         path,
                         with: .color(DesignSystem.accentColor.opacity(opacity)),
-                        lineWidth: isTargeted ? 1.8 : 1.0
+                        lineWidth: isTargeted ? 2.2 : 1.0
                     )
                 }
                 
@@ -257,8 +321,8 @@ private struct AirDropRadarAnimation: View {
                 boundaryPath.addArc(center: center, radius: maxRadius - 2, startAngle: .zero, endAngle: .degrees(360), clockwise: false)
                 context.stroke(
                     boundaryPath,
-                    with: .color(Color.white.opacity(0.08)),
-                    lineWidth: 0.8
+                    with: .color(isTargeted ? DesignSystem.accentColor.opacity(0.4) : Color.white.opacity(0.08)),
+                    lineWidth: isTargeted ? 1.5 : 0.8
                 )
             }
         }

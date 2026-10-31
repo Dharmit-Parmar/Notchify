@@ -743,20 +743,8 @@ public final class ShelfModule: NotchModule {
 
     public func shareAirDropDirectly(urls: [URL]) {
         guard !urls.isEmpty else { return }
-        FeedbackManager.playSend()
-        
-        if let airDropService = NSSharingService(named: .sendViaAirDrop),
-           airDropService.canPerform(withItems: urls) {
-            airDropService.perform(withItems: urls)
-            statusMessage = "AirDropping \(urls.count) file(s)..."
-            return
-        }
-        
-        let picker = NSSharingServicePicker(items: urls)
-        if let targetView = NotchShellCoordinator.shared.panel?.contentView {
-            picker.show(relativeTo: targetView.bounds, of: targetView, preferredEdge: .minY)
-            statusMessage = "AirDrop picker opened for \(urls.count) file(s)."
-        }
+        AirDropModule.shared.shareFiles(urls)
+        statusMessage = "AirDropping \(urls.count) file(s)..."
     }
 
     public func makeCompactView() -> AnyView {
@@ -1444,18 +1432,30 @@ private struct AirDropDropTargetCapsule: View {
         .scaleEffect(module.isAirDropHovered ? 1.05 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: module.isAirDropHovered)
         .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isAirDropHovered) { providers in
-            let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-            guard !valid.isEmpty else { return false }
-            for p in valid {
-                _ = p.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url else { return }
-                    DispatchQueue.main.async {
-                        module.addItem(url)
-                        module.shareAirDropDirectly(urls: [url])
+            var handled = false
+            for p in providers {
+                if p.canLoadObject(ofClass: URL.self) {
+                    handled = true
+                    _ = p.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url else { return }
+                        DispatchQueue.main.async {
+                            module.addItem(url)
+                            module.shareAirDropDirectly(urls: [url])
+                        }
+                    }
+                } else if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                    handled = true
+                    p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                        let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                        guard let url else { return }
+                        DispatchQueue.main.async {
+                            module.addItem(url)
+                            module.shareAirDropDirectly(urls: [url])
+                        }
                     }
                 }
             }
-            return true
+            return handled
         }
     }
 }

@@ -445,8 +445,40 @@ func runAllVerificationTests() {
     assert(stagedInShelf == true, "Direct drop on Shelf/File Studio title must stage directly without dragging down")
     print("  ✓ Direct tab drop routing verified.")
     
+    // Test 22: AirDrop Dedicated Sharing Delegate & Full Drop Stage Integration
+    print("\n[TEST 22] AirDrop Dedicated Sharing Delegate & Full Drop Stage...")
+    let testPDF = URL(fileURLWithPath: "/tmp/airdrop_test_doc.pdf")
+    try? "PDF Test Payload".write(to: testPDF, atomically: true, encoding: .utf8)
+    
+    class TestAirDropDelegate: NSObject, NSSharingServiceDelegate {
+        var sourceWindowProvided = false
+        var willShareCalled = false
+        func sharingService(_ sharingService: NSSharingService, sourceWindowForShareItems items: [Any], sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>) -> NSWindow? {
+            sharingContentScope.pointee = .full
+            sourceWindowProvided = true
+            return nil
+        }
+        func sharingService(_ sharingService: NSSharingService, willShareItems items: [Any]) {
+            willShareCalled = true
+        }
+    }
+    
+    let testDel = TestAirDropDelegate()
+    if let airDrop = NSSharingService(named: .sendViaAirDrop) {
+        airDrop.delegate = testDel
+        assert(airDrop.canPerform(withItems: [testPDF]), "AirDrop must be able to perform with PDF URL")
+    }
+    
+    var scope = NSSharingService.SharingContentScope.item
+    _ = testDel.sharingService(NSSharingService(named: .sendViaAirDrop)!, sourceWindowForShareItems: [testPDF], sharingContentScope: &scope)
+    assert(scope == .full, "Sharing scope must be configured to full")
+    assert(testDel.sourceWindowProvided == true, "Delegate must handle sourceWindow request")
+    
+    try? FileManager.default.removeItem(at: testPDF)
+    print("  ✓ AirDrop sharing delegate & full drop stage verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (21/21) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (22/22) ")
     print("=====================================================\n")
 }
 

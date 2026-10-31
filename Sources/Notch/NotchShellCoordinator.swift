@@ -51,7 +51,9 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
         }
-        ModuleRegistry.shared.selectFileDropTarget()
+        if ModuleRegistry.shared.activeModuleId == nil {
+            ModuleRegistry.shared.selectFileDropTarget()
+        }
     }
     
     public func onFileDragExited() {

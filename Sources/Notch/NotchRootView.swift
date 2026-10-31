@@ -70,24 +70,32 @@ public struct NotchRootView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: themeEngine.canvasColor)
         .contentShape(Rectangle())
         .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
-            let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-            guard !fileProviders.isEmpty else { return false }
             coordinator.fileDropWasAccepted = true
             coordinator.onFileDropFinished()
             
-            if registry.activeModuleId == "airdrop" {
-                for provider in fileProviders {
+            for provider in providers {
+                if provider.canLoadObject(ofClass: URL.self) {
                     _ = provider.loadObject(ofClass: URL.self) { url, _ in
                         guard let url else { return }
-                        DispatchQueue.main.async { AirDropModule.shared.shareFiles([url]) }
+                        DispatchQueue.main.async {
+                            if registry.activeModuleId == "airdrop" {
+                                AirDropModule.shared.shareFiles([url])
+                            } else {
+                                ShelfModule.shared.addItem(url)
+                            }
+                        }
                     }
-                }
-            } else {
-                registry.selectFileDropTarget(for: "shelf")
-                for provider in fileProviders {
-                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                    provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                        let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
                         guard let url else { return }
-                        DispatchQueue.main.async { ShelfModule.shared.addItem(url) }
+                        DispatchQueue.main.async {
+                            if registry.activeModuleId == "airdrop" {
+                                AirDropModule.shared.shareFiles([url])
+                            } else {
+                                ShelfModule.shared.addItem(url)
+                            }
+                        }
                     }
                 }
             }
@@ -525,20 +533,9 @@ public struct UniversalTabDropDelegate: DropDelegate {
         isTargeted = true
         let targetId = moduleId
         
-        // 1. FILE DRAG HOVER: If dragging any file URL from Finder/Desktop, immediately activate this tab!
-        if info.hasItemsConforming(to: [.fileURL]) {
-            FeedbackManager.playHover()
-            DispatchQueue.main.async {
-                self.registry.selectFileDropTarget(for: targetId)
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    self.scrollProxy.scrollTo(targetId, anchor: .center)
-                }
-            }
-            return
-        }
-        
-        // 2. TAB REORDERING: If dragging an internal tab title, reorder dynamically!
-        if let provider = info.itemProviders(for: [.text]).first {
+        // 1. Check if this is an internal tab reordering drag (only plain text with "tab:" prefix)
+        if let provider = info.itemProviders(for: [.text]).first,
+           !info.hasItemsConforming(to: [.fileURL, .pdf, .image, .movie, .audio, .archive]) {
             provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, error) in
                 var foundStr: String? = nil
                 if let data = item as? Data {
@@ -554,6 +551,16 @@ public struct UniversalTabDropDelegate: DropDelegate {
                         }
                     }
                 }
+            }
+            return
+        }
+        
+        // 2. EXTERNAL FILE DRAG HOVER: Immediate tab activation and tactile haptic response!
+        FeedbackManager.playHover()
+        DispatchQueue.main.async {
+            self.registry.selectFileDropTarget(for: targetId)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                self.scrollProxy.scrollTo(targetId, anchor: .center)
             }
         }
     }
