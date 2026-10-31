@@ -41,6 +41,10 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     public func clearCachedArtwork() {
         cachedArtworkData = nil
         cachedArtworkImage = nil
+        cachedAppIcon = nil
+        if appIconCache.count > 5 {
+            appIconCache.removeAll()
+        }
     }
     
     private init() {
@@ -180,18 +184,25 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     }
 
     private static func makeArtworkImage(from data: Data) -> NSImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return NSImage(data: data)
+        autoreleasepool {
+            let sourceOpts: [CFString: Any] = [
+                kCGImageSourceShouldCache: false,
+                kCGImageSourceShouldCacheImmediately: false
+            ]
+            guard let source = CGImageSourceCreateWithData(data as CFData, sourceOpts as CFDictionary) else {
+                return NSImage(data: data)
+            }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 128,
+                kCGImageSourceShouldCache: false
+            ]
+            guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+                return NSImage(data: data)
+            }
+            return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
         }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 256
-        ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
-            return NSImage(data: data)
-        }
-        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }
     
     // Command codes: 0 = Play, 1 = Pause, 2 = TogglePlayPause, 4 = NextTrack, 5 = PreviousTrack
@@ -222,7 +233,10 @@ public final class MediaRemoteBridge: @unchecked Sendable {
         }
         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             let icon = NSWorkspace.shared.icon(forFile: appURL.path)
-            icon.size = NSSize(width: 128, height: 128)
+            icon.size = NSSize(width: 64, height: 64)
+            if appIconCache.count > 10 {
+                appIconCache.removeAll()
+            }
             appIconCache[bundleId] = icon
             return icon
         }

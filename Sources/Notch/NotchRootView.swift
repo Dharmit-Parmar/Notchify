@@ -118,7 +118,6 @@ public struct NotchRootView: View {
         .onContinuousHover { phase in
             switch phase {
             case .active:
-                if !coordinator.isHovered { themeEngine.refreshColors() }
                 coordinator.onMouseEnter()
             case .ended:
                 coordinator.onMouseExit()
@@ -624,7 +623,11 @@ private struct CompactNotchIndicator: View {
             Spacer()
 
             if nowPlaying.isPlaying {
-                LiveEqualizerIndicator(isPlaying: true, color: DesignSystem.accentColor, barWidth: 2, maxHeight: 11)
+                HStack(spacing: 1.5) {
+                    RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 6)
+                    RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 11)
+                    RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 7)
+                }
             } else {
                 Image(systemName: "pause.fill")
                     .font(.system(size: 8))

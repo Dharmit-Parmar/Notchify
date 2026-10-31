@@ -4,6 +4,11 @@ import AppKit
 public struct PermissionsHelper {
     public static var appBundleURL: URL? {
         let fm = FileManager.default
+        let sysApp = URL(fileURLWithPath: "/Applications/NotchApp.app")
+        if fm.fileExists(atPath: sysApp.path) {
+            return sysApp
+        }
+        
         let home = fm.homeDirectoryForCurrentUser
         let userApp = home.appendingPathComponent("Applications/NotchApp.app")
         if fm.fileExists(atPath: userApp.path) {
@@ -21,6 +26,28 @@ public struct PermissionsHelper {
             return Bundle.main.bundleURL
         }
         return nil
+    }
+    
+    public static func ensureApplicationsSymlink() {
+        let fm = FileManager.default
+        let projectDir = dynamicProjectDirectory
+        let bundleURL = projectDir.appendingPathComponent("NotchApp.app")
+        guard fm.fileExists(atPath: bundleURL.path) else { return }
+        
+        let sysAppPath = "/Applications/NotchApp.app"
+        if !fm.fileExists(atPath: sysAppPath) {
+            try? fm.createSymbolicLink(atPath: sysAppPath, withDestinationPath: bundleURL.path)
+        }
+        
+        let home = fm.homeDirectoryForCurrentUser
+        let userAppsDir = home.appendingPathComponent("Applications")
+        if !fm.fileExists(atPath: userAppsDir.path) {
+            try? fm.createDirectory(at: userAppsDir, withIntermediateDirectories: true)
+        }
+        let userApp = userAppsDir.appendingPathComponent("NotchApp.app")
+        if !fm.fileExists(atPath: userApp.path) {
+            try? fm.createSymbolicLink(at: userApp, withDestinationURL: bundleURL)
+        }
     }
     
     public static var dynamicProjectDirectory: URL {

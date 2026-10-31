@@ -292,7 +292,7 @@ private struct AirDropRadarAnimation: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     var body: some View {
-        TimelineView(.animation(minimumInterval: (isTargeted || isBeaming) ? (1.0 / 30.0) : 0.1, paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: (isTargeted || isBeaming) ? (1.0 / 30.0) : 0.25, paused: reduceMotion || (!isTargeted && !isBeaming))) { timeline in
             Canvas { context, size in
                 let center = CGPoint(x: size.width / 2, y: size.height / 2)
                 let maxRadius = min(size.width, size.height) / 2

@@ -54,6 +54,10 @@ EOF
 mkdir -p "$HOME/Applications"
 ln -sfn "$APP_BUNDLE" "$HOME/Applications/NotchApp.app"
 echo "Standard Application bundle installed at: $HOME/Applications/NotchApp.app"
+
+# 4. Create system Applications symlink (/Applications/NotchApp.app) if writable
+ln -sfn "$APP_BUNDLE" "/Applications/NotchApp.app" 2>/dev/null || true
+echo "System Applications symlink installed at: /Applications/NotchApp.app"
 echo "(You can now select NotchApp directly in System Settings (+) without searching!)"
 
 echo "Launching NotchApp in background..."

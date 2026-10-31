@@ -143,11 +143,48 @@ public final class NotchPanel: NSPanel {
             let duration = SettingsStore.shared.motionPhysics.response
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = duration
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-                self.animator().setFrame(targetRect, display: true)
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                self.animator().setFrame(targetRect, display: false)
             }
         } else {
             self.setFrame(targetRect, display: true)
         }
+    }
+}
+
+@MainActor
+public final class NotchHostingView<Content: View>: NSHostingView<Content> {
+    private var trackingArea: NSTrackingArea?
+    
+    public override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+    
+    public override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        NotchShellCoordinator.shared.onMouseEnter()
+    }
+    
+    public override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        if !NotchShellCoordinator.shared.isHovered {
+            NotchShellCoordinator.shared.onMouseEnter()
+        }
+    }
+    
+    public override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        NotchShellCoordinator.shared.onMouseExit()
     }
 }

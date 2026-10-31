@@ -101,6 +101,7 @@ public class SettingsStore: ObservableObject {
     }
     
     @Published public var isAccessibilityGranted: Bool = AXIsProcessTrusted()
+    @Published public var isInputMonitoringGranted: Bool = false
     
     @Published public var enabledModules: [String: Bool] = [
         "airdrop": true,
@@ -186,10 +187,12 @@ public class SettingsStore: ObservableObject {
             self.enabledModules.merge(savedModules, uniquingKeysWith: { _, saved in saved })
         }
         self.isAccessibilityGranted = AXIsProcessTrusted()
+        self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
     }
     
     public func refreshAccessibility() {
         self.isAccessibilityGranted = AXIsProcessTrusted()
+        self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
     }
     
     public func isModuleEnabled(_ id: String) -> Bool {

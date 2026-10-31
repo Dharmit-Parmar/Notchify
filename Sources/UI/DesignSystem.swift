@@ -366,7 +366,8 @@ public struct LiveEqualizerIndicator: View {
     }
     
     public var body: some View {
-        TimelineView(.animation(minimumInterval: 0.12, paused: !isPlaying)) { timeline in
+        let isExpanded = NotchShellCoordinator.shared.state == .expanded
+        TimelineView(.animation(minimumInterval: 0.20, paused: !isPlaying || !isExpanded)) { timeline in
             let date = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 1.5) {
                 equalizerBar(height: isPlaying ? barHeight(offset: 0.0, time: date) : 6)
@@ -396,25 +397,20 @@ public struct SpringButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     public var scaleAmount: CGFloat = 0.97
-    public var response: Double = 0.24
+    public var response: Double = 0.22
     public var damping: Double = 1.0
     
-    public init(scaleAmount: CGFloat = 0.97, response: Double = 0.24, damping: Double = 1.0) {
+    public init(scaleAmount: CGFloat = 0.97, response: Double = 0.22, damping: Double = 1.0) {
         self.scaleAmount = scaleAmount
         self.response = response
         self.damping = damping
     }
     
     public func makeBody(configuration: Configuration) -> some View {
-        SpringButtonLabel(
-            label: configuration.label,
-            isPressed: configuration.isPressed,
-            reduceMotion: reduceMotion,
-            isEnabled: isEnabled,
-            scaleAmount: scaleAmount,
-            response: response,
-            damping: damping
-        )
+        configuration.label
+            .scaleEffect(isEnabled && configuration.isPressed && !reduceMotion ? scaleAmount : 1.0)
+            .opacity(!isEnabled ? 0.35 : (configuration.isPressed && !reduceMotion ? 0.88 : 1.0))
+            .animation(reduceMotion ? nil : .spring(response: response, dampingFraction: damping), value: configuration.isPressed)
     }
 }
 
@@ -426,30 +422,6 @@ public final class LocalUIState: ObservableObject {
     
     public init(text: String = "") {
         self.text = text
-    }
-}
-
-private final class SpringButtonHoverState: ObservableObject {
-    @Published var isHovered = false
-}
-
-private struct SpringButtonLabel<Label: View>: View {
-    let label: Label
-    let isPressed: Bool
-    let reduceMotion: Bool
-    let isEnabled: Bool
-    let scaleAmount: CGFloat
-    let response: Double
-    let damping: Double
-    @StateObject private var hoverState = SpringButtonHoverState()
-
-    var body: some View {
-        label
-            .scaleEffect(isEnabled && isPressed && !reduceMotion ? scaleAmount : (isEnabled && hoverState.isHovered && !reduceMotion ? 1.015 : 1))
-            .opacity(!isEnabled ? 0.35 : (isPressed && !reduceMotion ? 0.88 : 1))
-            .animation(reduceMotion ? nil : .spring(response: response, dampingFraction: damping), value: isPressed)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: hoverState.isHovered)
-            .onHover { hoverState.isHovered = isEnabled && $0 }
     }
 }
 
@@ -499,7 +471,7 @@ public final class DynamicThemeEngine: ObservableObject {
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    if NotchShellCoordinator.shared.state == .expanded || NotchShellCoordinator.shared.isHovered {
+                    if NotchShellCoordinator.shared.state == .expanded {
                         self.refreshColors()
                     }
                 }
@@ -656,88 +628,86 @@ public final class DynamicThemeEngine: ObservableObject {
     }
 
     nonisolated private static func sampleImageColor(_ image: NSImage) -> (CGFloat, CGFloat, CGFloat)? {
-        let size = CGSize(width: 16, height: 16)
-        var rawData = [UInt8](repeating: 0, count: 16 * 16 * 4)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: &rawData,
-            width: 16,
-            height: 16,
-            bitsPerComponent: 8,
-            bytesPerRow: 16 * 4,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-        
-        var proposedRect = CGRect(origin: .zero, size: size)
-        if let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
-            ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
-        } else if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let cg = rep.cgImage {
-            ctx.draw(cg, in: CGRect(origin: .zero, size: size))
-        } else {
-            return nil
-        }
-        
-        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, count: CGFloat = 0
-        for i in stride(from: 0, to: 16 * 16 * 4, by: 4) {
-            let a = CGFloat(rawData[i + 3]) / 255.0
-            if a > 0.15 {
-                red += (CGFloat(rawData[i]) / 255.0) / a
-                green += (CGFloat(rawData[i + 1]) / 255.0) / a
-                blue += (CGFloat(rawData[i + 2]) / 255.0) / a
-                count += 1
+        autoreleasepool {
+            let size = CGSize(width: 16, height: 16)
+            var rawData = [UInt8](repeating: 0, count: 16 * 16 * 4)
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: &rawData,
+                width: 16,
+                height: 16,
+                bitsPerComponent: 8,
+                bytesPerRow: 16 * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return nil }
+            
+            var proposedRect = CGRect(origin: .zero, size: size)
+            if let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+                ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
+            } else if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let cg = rep.cgImage {
+                ctx.draw(cg, in: CGRect(origin: .zero, size: size))
+            } else {
+                return nil
             }
+            
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, count: CGFloat = 0
+            for i in stride(from: 0, to: 16 * 16 * 4, by: 4) {
+                let a = CGFloat(rawData[i + 3]) / 255.0
+                if a > 0.15 {
+                    red += (CGFloat(rawData[i]) / 255.0) / a
+                    green += (CGFloat(rawData[i + 1]) / 255.0) / a
+                    blue += (CGFloat(rawData[i + 2]) / 255.0) / a
+                    count += 1
+                }
+            }
+            return count > 0 ? (red / count, green / count, blue / count) : nil
         }
-        return count > 0 ? (red / count, green / count, blue / count) : nil
     }
 
     nonisolated private static func sampleWallpaperColor(at imageURL: URL) -> (CGFloat, CGFloat, CGFloat)? {
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 128
-        ]
-        guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
-              let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        let rep = NSBitmapImageRep(cgImage: thumbnail)
-        let width = rep.pixelsWide
-        let height = rep.pixelsHigh
-        guard width > 0, height > 0 else { return nil }
-
-        let sampleXStart = Int(Double(width) * 0.20)
-        let sampleXEnd = Int(Double(width) * 0.80)
-        let sampleYStart = Int(Double(height) * 0.20)
-        let sampleYEnd = max(sampleYStart + 1, Int(Double(height) * 0.80))
-        let stepX = max(1, (sampleXEnd - sampleXStart) / 16)
-        let stepY = max(1, (sampleYEnd - sampleYStart) / 8)
-        var hueWeights = Array(repeating: CGFloat.zero, count: 24)
-        var reds = hueWeights, greens = hueWeights, blues = hueWeights
-        var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0, count: CGFloat = 0
-
-        for y in stride(from: sampleYStart, to: sampleYEnd, by: stepY) {
-            for x in stride(from: sampleXStart, to: sampleXEnd, by: stepX) {
-                guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-                let red = color.redComponent, green = color.greenComponent, blue = color.blueComponent
-                totalR += red; totalG += green; totalB += blue; count += 1
-
-                var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 1
-                color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-                guard saturation >= 0.12 else { continue }
-                let weight = saturation * max(0.25, brightness)
-                let bin = min(23, Int(hue * 24))
-                hueWeights[bin] += weight
-                reds[bin] += red * weight
-                greens[bin] += green * weight
-                blues[bin] += blue * weight
+        autoreleasepool {
+            let sourceOpts: [CFString: Any] = [
+                kCGImageSourceShouldCache: false,
+                kCGImageSourceShouldCacheImmediately: false
+            ]
+            guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, sourceOpts as CFDictionary) else { return nil }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 32,
+                kCGImageSourceShouldCache: false
+            ]
+            guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+            
+            let size = CGSize(width: 16, height: 16)
+            var rawData = [UInt8](repeating: 0, count: 16 * 16 * 4)
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: &rawData,
+                width: 16,
+                height: 16,
+                bitsPerComponent: 8,
+                bytesPerRow: 16 * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return nil }
+            
+            ctx.draw(thumbnail, in: CGRect(origin: .zero, size: size))
+            
+            var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0, count: CGFloat = 0
+            for i in stride(from: 0, to: 16 * 16 * 4, by: 4) {
+                let a = CGFloat(rawData[i + 3]) / 255.0
+                if a > 0.15 {
+                    totalR += (CGFloat(rawData[i]) / 255.0) / a
+                    totalG += (CGFloat(rawData[i + 1]) / 255.0) / a
+                    totalB += (CGFloat(rawData[i + 2]) / 255.0) / a
+                    count += 1
+                }
             }
+            guard count > 0 else { return nil }
+            return (totalR / count, totalG / count, totalB / count)
         }
-
-        guard count > 0 else { return nil }
-        if let dominantBin = hueWeights.indices.max(by: { hueWeights[$0] < hueWeights[$1] }), hueWeights[dominantBin] > 0 {
-            let weight = hueWeights[dominantBin]
-            return (reds[dominantBin] / weight, greens[dominantBin] / weight, blues[dominantBin] / weight)
-        }
-        return (totalR / count, totalG / count, totalB / count)
     }
 }
 

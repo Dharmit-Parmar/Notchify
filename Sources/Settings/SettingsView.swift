@@ -838,7 +838,7 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.isAccessibilityGranted ? "Accessibility Permission Granted" : "Accessibility Permission Required")
                         .font(.system(size: 12, weight: .semibold))
-                    Text(store.isAccessibilityGranted ? "1-Click Direct Sending in WhatsApp & Telegram is active." : "Required for Notch to auto-send in WhatsApp/Telegram and hide them back to background.")
+                    Text(store.isAccessibilityGranted ? "1-Click Direct Sending in WhatsApp & Telegram is active." : "Required for Notch to auto-send in WhatsApp/Telegram and window automation.")
                         .font(.system(size: 10))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
@@ -865,40 +865,94 @@ public struct SettingsView: View {
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.structureColor.opacity(0.5)))
 
+            // Input Monitoring Status Card (for Thock Mechanical Keyboard audio)
+            HStack(spacing: 12) {
+                Image(systemName: store.isInputMonitoringGranted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(store.isInputMonitoringGranted ? .green : .orange)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.isInputMonitoringGranted ? "Input Monitoring Granted" : "Input Monitoring Required")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(store.isInputMonitoringGranted ? "Thock mechanical keyboard sound engine active." : "Required for Thock to play tactile key sounds as you type anywhere.")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Spacer()
+                
+                if !store.isInputMonitoringGranted {
+                    Button("Grant Access") {
+                        ThockModule.requestIOHIDListenAccess()
+                        PermissionsHelper.openInputMonitoringSettings()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            store.refreshAccessibility()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                } else {
+                    Button("Settings") {
+                        PermissionsHelper.openInputMonitoringSettings()
+                    }
+                    .buttonStyle(.spring)
+                    .controlSize(.small)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.structureColor.opacity(0.5)))
+
             // Helper Guide
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 6) {
-                    Image(systemName: "questionmark.circle.fill")
+                    Image(systemName: "info.circle.fill")
                         .foregroundColor(DesignSystem.accentColor)
-                        .font(.system(size: 12))
-                    Text("How to add NotchApp in System Settings (+)")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 13))
+                    Text("Where to find NotchApp when clicking (+)")
+                        .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(.white)
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("• Method 1: Click (+) in System Settings, choose NotchApp directly from Applications.")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("NotchApp is installed directly in your system **Applications** folder:")
+                        .font(.system(size: 10))
+                        .foregroundColor(.white)
+                    
+                    Text("/Applications/NotchApp.app")
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .foregroundColor(DesignSystem.accentColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.35)))
+
+                    Text("When the (+) file window opens:")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.85))
+                        .padding(.top, 2)
+                    
+                    Text("1. Click **Applications** in the left sidebar, then select **NotchApp**.")
                         .font(.system(size: 9.5))
                         .foregroundColor(DesignSystem.secondaryText)
-                    Text("• Method 2: Click 'Reveal in Finder' below, then drag NotchApp directly into System Settings.")
+                    Text("2. OR press **⌘⇧G** (Command+Shift+G), paste the path, and hit Return.")
                         .font(.system(size: 9.5))
                         .foregroundColor(DesignSystem.secondaryText)
-                    Text("• Method 3: In the (+) file dialog, press ⌘⇧G, paste copied path, and press Return.")
+                    Text("3. OR drag NotchApp directly from Finder into the System Settings window!")
                         .font(.system(size: 9.5))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
 
                 HStack(spacing: 8) {
                     Button(action: {
+                        PermissionsHelper.copyAppPathToClipboard()
                         PermissionsHelper.revealAppInFinder()
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "arrow.up.right.square")
-                            Text("Reveal in Finder")
+                            Image(systemName: "arrow.up.right.square.fill")
+                            Text("Reveal in Finder (Drag-Ready)")
                         }
                         .font(.system(size: 10, weight: .bold))
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 5.5)
                         .background(Capsule().fill(DesignSystem.accentColor))
                         .foregroundColor(.black)
                     }
@@ -906,20 +960,22 @@ public struct SettingsView: View {
 
                     Button(action: {
                         PermissionsHelper.copyAppPathToClipboard()
+                        PermissionsHelper.openAccessibilitySettings()
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "doc.on.doc")
-                            Text("Copy App Path")
+                            Image(systemName: "hand.raised.fill")
+                            Text("Open Accessibility Settings")
                         }
                         .font(.system(size: 10, weight: .medium))
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 5.5)
                         .background(Capsule().fill(Color.white.opacity(0.08)))
                         .foregroundColor(.white)
                     }
                     .buttonStyle(.spring)
 
                     Button(action: {
+                        PermissionsHelper.copyAppPathToClipboard()
                         PermissionsHelper.openInputMonitoringSettings()
                     }) {
                         HStack(spacing: 3) {
@@ -928,7 +984,7 @@ public struct SettingsView: View {
                         }
                         .font(.system(size: 10, weight: .medium))
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, 5.5)
                         .background(Capsule().fill(Color.white.opacity(0.08)))
                         .foregroundColor(.white)
                     }

@@ -266,14 +266,14 @@ public final class ThockModule: NotchModule {
         return unsafeBitCast(sym, to: (@convention(c) (UInt32) -> Bool).self)
     }()
 
-    private static func checkIOHIDListenAccess() -> Bool {
+    public static func checkIOHIDListenAccess() -> Bool {
         guard let fn = hidCheckAccessFunc else { return false }
         // kIOHIDRequestTypeListenEvent = 1; 0 = granted, 1 = denied, 2 = not determined
         return fn(1) == 0
     }
     
     @discardableResult
-    private static func requestIOHIDListenAccess() -> Bool {
+    public static func requestIOHIDListenAccess() -> Bool {
         guard let fn = hidRequestAccessFunc else { return false }
         return fn(1)
     }

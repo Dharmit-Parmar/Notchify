@@ -45,6 +45,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         registry.register(MirrorModule())
         registry.register(NotificationModule())
         
+        // Ensure standard /Applications and ~/Applications bundle discovery
+        PermissionsHelper.ensureApplicationsSymlink()
+        
         setupStatusItem()
         setupNotchPanel()
         setupSettingsObserver()
@@ -79,7 +82,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let panel = NotchPanel(screen: screen)
         
-        let hostingView = NSHostingView(rootView: NotchRootView())
+        let hostingView = NotchHostingView(rootView: NotchRootView())
         hostingView.autoresizingMask = [.width, .height]
         panel.contentView = hostingView
         
