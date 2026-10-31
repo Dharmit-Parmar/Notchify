@@ -207,10 +207,15 @@ public struct CalendarHomeCardView: View {
                     .buttonStyle(.spring)
                     
                     Button(action: { module.snapToToday() }) {
-                        Text("Today")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .frame(height: 24)
+                        HStack(spacing: 3) {
+                            Circle()
+                                .fill(DesignSystem.accentColor)
+                                .frame(width: 4, height: 4)
+                            Text("Today")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                        .padding(.horizontal, 6)
+                        .frame(height: 24)
                     }
                     .buttonStyle(.spring)
                     
@@ -284,8 +289,29 @@ public struct CalendarHomeCardView: View {
                     .buttonStyle(.spring(scale: 0.97))
                 }
             }
-            .id(monthYearTitle)
-            .transition(.opacity)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: module.displayedMonthDate)
+            
+            // Selected Day Event Glance
+            let dayEvents = module.events(for: module.selectedDate)
+            if !dayEvents.isEmpty {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(dayEvents.first?.color ?? DesignSystem.accentColor)
+                        .frame(width: 5, height: 5)
+                    Text(dayEvents.first?.title ?? "")
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(dayEvents.first?.timeString ?? "")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3.5)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.06)))
+                .transition(.opacity)
+            }
         }
         .padding(10)
         .frame(maxHeight: .infinity, alignment: .top)

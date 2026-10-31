@@ -5,8 +5,15 @@ import Combine
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     public static var isSettingsOpen: Bool = false
-    private static var settingsWindow: NSWindow?
+    public private(set) static var settingsWindow: NSWindow?
     private static var delegateInstance: AppDelegate?
+    
+    public static var sharedDelegate: AppDelegate {
+        if let instance = delegateInstance { return instance }
+        let newInstance = AppDelegate()
+        delegateInstance = newInstance
+        return newInstance
+    }
     
     private var notchPanel: NotchPanel?
     private var statusItem: NSStatusItem?
@@ -34,7 +41,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         registry.register(ShelfModule.shared)
         registry.register(ThockModule.shared)
         registry.register(TelegramModule())
-        registry.register(BatteryModule())
+        registry.register(BatteryModule.shared)
         registry.register(MirrorModule())
         registry.register(NotificationModule())
         
@@ -93,13 +100,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     public static func openSettingsWindow() {
         if let window = settingsWindow {
             isSettingsOpen = true
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 620),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -109,7 +119,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         window.contentView = NSHostingView(rootView: SettingsView())
         window.isReleasedWhenClosed = false
         window.level = .floating
-        window.delegate = AppDelegate.delegateInstance
+        window.delegate = AppDelegate.sharedDelegate
+        
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak window] _ in
+            Task { @MainActor [weak window] in
+                guard AppDelegate.isSettingsOpen || AppDelegate.settingsWindow === window else { return }
+                AppDelegate.isSettingsOpen = false
+                AppDelegate.settingsWindow = nil
+                if NotchShellCoordinator.shared.state == .expanded,
+                   !NotchShellCoordinator.shared.isLockedOpen,
+                   let panel = NotchShellCoordinator.shared.panel,
+                   !panel.frame.contains(NSEvent.mouseLocation) {
+                    NotchShellCoordinator.shared.collapseImmediately()
+                }
+            }
+        }
         
         isSettingsOpen = true
         settingsWindow = window
@@ -117,11 +145,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         NSApp.activate(ignoringOtherApps: true)
     }
     
+    public static func closeSettingsWindow() {
+        guard isSettingsOpen || settingsWindow != nil else { return }
+        isSettingsOpen = false
+        let win = settingsWindow
+        settingsWindow = nil
+        win?.close()
+        
+        if NotchShellCoordinator.shared.state == .expanded,
+           !NotchShellCoordinator.shared.isLockedOpen,
+           let panel = NotchShellCoordinator.shared.panel,
+           !panel.frame.contains(NSEvent.mouseLocation) {
+            NotchShellCoordinator.shared.collapseImmediately()
+        }
+    }
+    
     public func windowWillClose(_ notification: Notification) {
         if let closingWindow = notification.object as? NSWindow,
            closingWindow === AppDelegate.settingsWindow {
             AppDelegate.isSettingsOpen = false
             AppDelegate.settingsWindow = nil
+            if NotchShellCoordinator.shared.state == .expanded,
+               !NotchShellCoordinator.shared.isLockedOpen,
+               let panel = NotchShellCoordinator.shared.panel,
+               !panel.frame.contains(NSEvent.mouseLocation) {
+                NotchShellCoordinator.shared.collapseImmediately()
+            }
         }
     }
     

@@ -37,6 +37,14 @@ public final class NotchShellCoordinator: ObservableObject {
         }
     }
     
+    private var transitionAnimation: Animation? {
+        if DesignSystem.reduceMotion { return nil }
+        return .spring(
+            response: DesignSystem.springResponse,
+            dampingFraction: DesignSystem.springDamping
+        )
+    }
+    
     public func onFileDragEntered() {
         isFileDraggingActive = true
         fileDropWasAccepted = false
@@ -46,7 +54,7 @@ public final class NotchShellCoordinator: ObservableObject {
         hoverWorkItem = nil
         
         if state != .expanded {
-            withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+            withAnimation(transitionAnimation) {
                 self.state = .expanded
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
@@ -61,7 +69,7 @@ public final class NotchShellCoordinator: ObservableObject {
         if !isHovered && !isLockedOpen {
             let item = DispatchWorkItem { [weak self] in
                 guard let self = self, !self.isFileDraggingActive else { return }
-                withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+                withAnimation(self.transitionAnimation) {
                     self.state = .collapsed
                 }
                 self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
@@ -103,7 +111,7 @@ public final class NotchShellCoordinator: ObservableObject {
         let delay = SettingsStore.shared.hoverDelay
         let item = DispatchWorkItem { [weak self] in
             guard let self = self, self.isHovered else { return }
-            withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+            withAnimation(self.transitionAnimation) {
                 self.state = .expanded
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
@@ -119,24 +127,30 @@ public final class NotchShellCoordinator: ObservableObject {
         isHovered = false
         
         guard !isLockedOpen, !isFileDraggingActive, state != .collapsed else { return }
+        if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
+            return
+        }
         
         collapseWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
+            if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
+                return
+            }
             if let panel = self.panel, panel.frame.contains(NSEvent.mouseLocation) {
                 self.isHovered = true
                 return
             }
             guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive else { return }
             
-            withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+            withAnimation(self.transitionAnimation) {
                 self.state = .collapsed
             }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.stopAll()
         }
         collapseWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + DesignSystem.defaultHoverCollapseDelay, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + SettingsStore.shared.autoCollapseDelay, execute: item)
     }
     
     public func collapseImmediately(force: Bool = false) {
@@ -151,7 +165,7 @@ public final class NotchShellCoordinator: ObservableObject {
         
         guard force || (!isLockedOpen && !isFileDraggingActive) else { return }
         if isHovered { isHovered = false }
-        withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+        withAnimation(transitionAnimation) {
             self.state = .collapsed
         }
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
@@ -161,13 +175,13 @@ public final class NotchShellCoordinator: ObservableObject {
     public func toggleLock() {
         isLockedOpen.toggle()
         if isLockedOpen {
-            withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+            withAnimation(transitionAnimation) {
                 state = .expanded
             }
             panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.activeModule?.start()
         } else if !isHovered {
-            withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
+            withAnimation(transitionAnimation) {
                 state = .collapsed
             }
             panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)

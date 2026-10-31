@@ -19,14 +19,14 @@ public struct NotchRootView: View {
         ZStack(alignment: .top) {
             // Clean Liquid Retina Glass: No drop shadow, deep continuous squircle radii
             NotchGlassBackground(
-                topRadius: isExpanded ? 14 : 4,
-                bottomRadius: isExpanded ? 34 : 14,
+                topRadius: isExpanded ? store.cornerStyle.topRadius : 4,
+                bottomRadius: isExpanded ? store.cornerStyle.bottomRadius : 14,
                 showsMaterial: isExpanded
             )
             
             VStack(spacing: 0) {
                 if !isExpanded {
-                    CompactNowPlayingIndicator(height: store.hoverTriggerHeight)
+                    CompactNotchIndicator(height: store.hoverTriggerHeight)
                         .transition(.opacity)
                 } else {
                     // Camera Clear Zone: Leaves 38pt+ clear at the top so nothing renders behind physical MacBook notch
@@ -289,55 +289,58 @@ public struct NotchRootView: View {
             if let active = registry.activeModule {
                 // Selected Secondary Module View
                 VStack(alignment: .leading, spacing: 6) {
-                    // Breadcrumb Ribbon (Situated inside the card, leaving top dock untouched)
-                    HStack(spacing: 5) {
-                        Button(action: {
-                            registry.returnToHome()
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "house.fill")
-                                    .font(.system(size: 9))
-                                Text("Dashboard")
-                                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    if store.showBreadcrumbs {
+                        // Breadcrumb Ribbon (Situated inside the card, leaving top dock untouched)
+                        HStack(spacing: 5) {
+                            Button(action: {
+                                registry.returnToHome()
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "house.fill")
+                                        .font(.system(size: 9))
+                                    Text("Dashboard")
+                                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                                }
+                                .foregroundColor(Color.white.opacity(0.7))
                             }
-                            .foregroundColor(Color.white.opacity(0.7))
-                        }
-                        .buttonStyle(.spring)
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundColor(Color.white.opacity(0.3))
-                        
-                        HStack(spacing: 4) {
-                            Image(systemName: active.iconName)
-                                .font(.system(size: 9))
-                                .foregroundColor(DesignSystem.accentColor)
-                            Text(active.title)
-                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        }
-                        
-                        if active.id == "shelf" {
+                            .buttonStyle(.spring)
+                            
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 7, weight: .bold))
                                 .foregroundColor(Color.white.opacity(0.3))
                             
-                            Text(ShelfModule.shared.selectedTool.title)
-                                .font(.system(size: 9, weight: .semibold, design: .rounded))
-                                .foregroundColor(DesignSystem.accentColor)
+                            HStack(spacing: 4) {
+                                Image(systemName: active.iconName)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(DesignSystem.accentColor)
+                                Text(active.title)
+                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            if active.id == "shelf" {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundColor(Color.white.opacity(0.3))
+                                
+                                Text(ShelfModule.shared.selectedTool.title)
+                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                    .foregroundColor(DesignSystem.accentColor)
+                            }
+                            
+                            Spacer()
+                            
+                            Text(moduleSubtitle(for: active))
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(DesignSystem.secondaryText)
+                                .lineLimit(1)
                         }
-                        
-                        Spacer()
-                        
-                        Text(moduleSubtitle(for: active))
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundColor(DesignSystem.secondaryText)
-                            .lineLimit(1)
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 2)
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 2)
                     
                     active.makeExpandedView()
+                        .id(active.id)
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
                 .padding(12)
@@ -572,50 +575,125 @@ public struct UniversalTabDropDelegate: DropDelegate {
     }
 }
 
-private struct CompactNowPlayingIndicator: View {
+private struct CompactNotchIndicator: View {
+    @ObservedObject private var store = SettingsStore.shared
     @ObservedObject private var nowPlaying = NowPlayingModule.shared
+    @ObservedObject private var battery = BatteryModule.shared
+    @ObservedObject private var themeEngine = DynamicThemeEngine.shared
     let height: CGFloat
 
     var body: some View {
         HStack(spacing: 8) {
-            if nowPlaying.hasActiveMedia {
-                if let art = nowPlaying.artwork {
-                    Image(nsImage: art)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 13, height: 13)
-                        .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-                } else {
-                    Circle()
-                        .fill(DesignSystem.accentColor)
-                        .frame(width: 5, height: 5)
-                }
-
-                Text(nowPlaying.trackTitle)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if nowPlaying.isPlaying {
-                    HStack(spacing: 1.5) {
-                        RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 6)
-                        RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 11)
-                        RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 7)
-                    }
-                } else {
-                    Image(systemName: "pause.fill")
-                        .font(.system(size: 8))
-                        .foregroundColor(Color.white.opacity(0.45))
-                }
-            } else {
-                Spacer()
-                Circle().fill(DesignSystem.accentColor).frame(width: 5, height: 5)
-                Spacer()
+            switch store.compactIndicatorStyle {
+            case .media:
+                mediaIndicator
+            case .minimal:
+                minimalIndicator
+            case .battery:
+                batteryIndicator
+            case .dateTime:
+                dateTimeIndicator
+            case .circadian:
+                circadianIndicator
             }
         }
         .padding(.horizontal, 10)
         .frame(height: height)
+    }
+    
+    @ViewBuilder
+    private var mediaIndicator: some View {
+        if nowPlaying.hasActiveMedia {
+            if let art = nowPlaying.artwork {
+                Image(nsImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 14, height: 14)
+                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
+            } else {
+                Circle()
+                    .fill(DesignSystem.accentColor)
+                    .frame(width: 5, height: 5)
+            }
+
+            Text(nowPlaying.trackTitle)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+
+            Spacer()
+
+            if nowPlaying.isPlaying {
+                LiveEqualizerIndicator(isPlaying: true, color: DesignSystem.accentColor, barWidth: 2, maxHeight: 11)
+            } else {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 8))
+                    .foregroundColor(Color.white.opacity(0.45))
+            }
+        } else {
+            Spacer()
+            Circle().fill(DesignSystem.accentColor).frame(width: 5, height: 5)
+            Spacer()
+        }
+    }
+    
+    private var minimalIndicator: some View {
+        HStack {
+            Spacer()
+            Capsule()
+                .fill(DesignSystem.accentColor)
+                .frame(width: 16, height: 4)
+            Spacer()
+        }
+    }
+    
+    private var batteryIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                .font(.system(size: 10))
+                .foregroundColor(battery.percentage < 20 ? .red : (battery.isCharging ? DesignSystem.accentColor : .green))
+            Text("\(battery.percentage)%")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+            Spacer()
+            Text(battery.isCharging ? "Charging" : "Battery")
+                .font(.system(size: 9))
+                .foregroundColor(DesignSystem.secondaryText)
+        }
+    }
+    
+    private var dateTimeIndicator: some View {
+        TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 9))
+                    .foregroundColor(DesignSystem.accentColor)
+                Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white)
+                Spacer()
+                Text(timeline.date.formatted(.dateTime.weekday(.abbreviated)))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundColor(DesignSystem.secondaryText)
+            }
+        }
+    }
+    
+    private var circadianIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 9))
+                .foregroundColor(DesignSystem.accentColor)
+            Text(themeEngine.paletteSource)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+            Spacer()
+            TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+                Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(DesignSystem.secondaryText)
+            }
+        }
     }
 }

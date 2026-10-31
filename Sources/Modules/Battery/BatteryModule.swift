@@ -4,6 +4,8 @@ import IOKit.ps
 import Combine
 
 public final class BatteryModule: NotchModule {
+    public static let shared = BatteryModule()
+    
     public let id = "battery"
     public let title = "Battery"
     public let iconName = "battery.100.bolt"
@@ -90,11 +92,12 @@ public final class BatteryModule: NotchModule {
                         Circle()
                             .trim(from: 0, to: CGFloat(percentage) / 100.0)
                             .stroke(
-                                percentage < 20 ? Color.red : DesignSystem.accentColor,
+                                percentage < 20 ? Color.red : (isCharging ? Color.green : DesignSystem.accentColor),
                                 style: StrokeStyle(lineWidth: 8, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
                             .frame(width: 70, height: 70)
+                            .animation(DesignSystem.reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85), value: percentage)
                         
                         VStack(spacing: 0) {
                             Text("\(percentage)%")

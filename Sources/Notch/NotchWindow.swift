@@ -55,6 +55,13 @@ public final class NotchPanel: NSPanel {
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
+                    if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
+                        return
+                    }
+                    if let settingsWin = AppDelegate.settingsWindow, settingsWin.frame.contains(NSEvent.mouseLocation) {
+                        return
+                    }
+                    guard SettingsStore.shared.closeOnOutsideClick else { return }
                     if !self.frame.contains(NSEvent.mouseLocation),
                        NotchShellCoordinator.shared.state == .expanded,
                        !NotchShellCoordinator.shared.isLockedOpen {
@@ -64,10 +71,16 @@ public final class NotchPanel: NSPanel {
             }
             localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 if event.keyCode == 53 { // ESC key
-                    Task { @MainActor in
-                        NotchShellCoordinator.shared.collapseImmediately(force: true)
+                    // If Settings window is currently open, DO NOT collapse notch on Esc — let Settings window handle Esc!
+                    if AppDelegate.isSettingsOpen {
+                        return event
                     }
-                    return nil
+                    if SettingsStore.shared.closeOnEsc {
+                        Task { @MainActor in
+                            NotchShellCoordinator.shared.collapseImmediately(force: true)
+                        }
+                        return nil
+                    }
                 }
                 return event
             }
@@ -116,7 +129,7 @@ public final class NotchPanel: NSPanel {
     }
     
     public func updateFrame(for state: NotchState, animated: Bool) {
-        setOutsideClickMonitorEnabled(state == .expanded && !NotchShellCoordinator.shared.isLockedOpen)
+        setOutsideClickMonitorEnabled(state == .expanded)
 
         let targetRect = NotchPanel.calculateFrame(
             for: state,
@@ -126,10 +139,11 @@ public final class NotchPanel: NSPanel {
         
         guard self.frame != targetRect else { return }
         
-        if animated {
+        if animated && !DesignSystem.reduceMotion {
+            let duration = SettingsStore.shared.motionPhysics.response
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = DesignSystem.notchTransitionDuration
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                context.duration = duration
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
                 self.animator().setFrame(targetRect, display: true)
             }
         } else {

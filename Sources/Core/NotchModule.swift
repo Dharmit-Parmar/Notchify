@@ -41,6 +41,44 @@ public class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(hoverDelay, forKey: "NotchApp_HoverDelay") }
     }
     
+    // Appearance & Glass Customization
+    @Published public var glassMaterialStyle: GlassMaterialStyle = .frosted {
+        didSet { UserDefaults.standard.set(glassMaterialStyle.rawValue, forKey: "NotchApp_GlassMaterialStyle") }
+    }
+    @Published public var cornerStyle: NotchCornerStyle = .continuous {
+        didSet { UserDefaults.standard.set(cornerStyle.rawValue, forKey: "NotchApp_CornerStyle") }
+    }
+    @Published public var motionPhysics: MotionPhysicsStyle = .appleFluid {
+        didSet { UserDefaults.standard.set(motionPhysics.rawValue, forKey: "NotchApp_MotionPhysics") }
+    }
+    @Published public var compactIndicatorStyle: CompactIndicatorStyle = .media {
+        didSet { UserDefaults.standard.set(compactIndicatorStyle.rawValue, forKey: "NotchApp_CompactIndicatorStyle") }
+    }
+    @Published public var autoCollapseDelay: Double = 0.25 {
+        didSet { UserDefaults.standard.set(autoCollapseDelay, forKey: "NotchApp_AutoCollapseDelay") }
+    }
+    @Published public var showBreadcrumbs: Bool = true {
+        didSet { UserDefaults.standard.set(showBreadcrumbs, forKey: "NotchApp_ShowBreadcrumbs") }
+    }
+    @Published public var specularGlowEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(specularGlowEnabled, forKey: "NotchApp_SpecularGlowEnabled") }
+    }
+    @Published public var keepOpenWhileSettingsActive: Bool = true {
+        didSet { UserDefaults.standard.set(keepOpenWhileSettingsActive, forKey: "NotchApp_KeepOpenWhileSettings") }
+    }
+    @Published public var closeOnOutsideClick: Bool = true {
+        didSet { UserDefaults.standard.set(closeOnOutsideClick, forKey: "NotchApp_CloseOnOutsideClick") }
+    }
+    @Published public var closeOnEsc: Bool = true {
+        didSet { UserDefaults.standard.set(closeOnEsc, forKey: "NotchApp_CloseOnEsc") }
+    }
+    @Published public var dynamicVibrancy: DynamicVibrancy = .balanced {
+        didSet {
+            UserDefaults.standard.set(dynamicVibrancy.rawValue, forKey: "NotchApp_DynamicVibrancy")
+            DynamicThemeEngine.shared.refreshColors()
+        }
+    }
+    
     // Themes & Dynamic Wallpaper Glass Customization
     @Published public var currentTheme: AppTheme = .adaptive {
         didSet {
@@ -94,6 +132,44 @@ public class SettingsStore: ObservableObject {
         if let savedTheme = UserDefaults.standard.string(forKey: "NotchApp_CurrentTheme"),
            let theme = AppTheme(rawValue: savedTheme) {
             self.currentTheme = theme
+        }
+        if let savedStyle = UserDefaults.standard.string(forKey: "NotchApp_GlassMaterialStyle"),
+           let style = GlassMaterialStyle(rawValue: savedStyle) {
+            self.glassMaterialStyle = style
+        }
+        if let savedCorner = UserDefaults.standard.string(forKey: "NotchApp_CornerStyle"),
+           let corner = NotchCornerStyle(rawValue: savedCorner) {
+            self.cornerStyle = corner
+        }
+        if let savedMotion = UserDefaults.standard.string(forKey: "NotchApp_MotionPhysics"),
+           let motion = MotionPhysicsStyle(rawValue: savedMotion) {
+            self.motionPhysics = motion
+        }
+        if let savedCompact = UserDefaults.standard.string(forKey: "NotchApp_CompactIndicatorStyle"),
+           let compact = CompactIndicatorStyle(rawValue: savedCompact) {
+            self.compactIndicatorStyle = compact
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_AutoCollapseDelay") != nil {
+            self.autoCollapseDelay = min(0.8, max(0.1, UserDefaults.standard.double(forKey: "NotchApp_AutoCollapseDelay")))
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_ShowBreadcrumbs") != nil {
+            self.showBreadcrumbs = UserDefaults.standard.bool(forKey: "NotchApp_ShowBreadcrumbs")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_SpecularGlowEnabled") != nil {
+            self.specularGlowEnabled = UserDefaults.standard.bool(forKey: "NotchApp_SpecularGlowEnabled")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_KeepOpenWhileSettings") != nil {
+            self.keepOpenWhileSettingsActive = UserDefaults.standard.bool(forKey: "NotchApp_KeepOpenWhileSettings")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_CloseOnOutsideClick") != nil {
+            self.closeOnOutsideClick = UserDefaults.standard.bool(forKey: "NotchApp_CloseOnOutsideClick")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_CloseOnEsc") != nil {
+            self.closeOnEsc = UserDefaults.standard.bool(forKey: "NotchApp_CloseOnEsc")
+        }
+        if let savedVibrancy = UserDefaults.standard.string(forKey: "NotchApp_DynamicVibrancy"),
+           let vib = DynamicVibrancy(rawValue: savedVibrancy) {
+            self.dynamicVibrancy = vib
         }
         if UserDefaults.standard.object(forKey: "NotchApp_SoundFeedback") != nil {
             self.soundFeedbackEnabled = UserDefaults.standard.bool(forKey: "NotchApp_SoundFeedback")

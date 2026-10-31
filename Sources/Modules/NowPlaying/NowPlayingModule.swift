@@ -80,7 +80,12 @@ public final class NowPlayingModule: ObservableObject {
                     self.storedProgress = progress
                     self.lastProgressUpdate = Date()
                     if !self.hasActiveMedia { self.hasActiveMedia = true }
-                    if self.artwork !== track.artwork { self.artwork = track.artwork }
+                    if self.artwork !== track.artwork {
+                        self.artwork = track.artwork
+                        if SettingsStore.shared.currentTheme == .musicReactive {
+                            DynamicThemeEngine.shared.refreshColors()
+                        }
+                    }
                 } else {
                     if self.trackTitle != "No Media Playing" { self.trackTitle = "No Media Playing" }
                     if self.artistName != "Play YouTube, Spotify, Music or Safari" { self.artistName = "Play YouTube, Spotify, Music or Safari" }
@@ -139,6 +144,13 @@ public struct NowPlayingHomeCardView: View {
             HStack(spacing: 12) {
                 // Double-Bezel Squircle Album Art / App Icon
                 ZStack {
+                    if module.isPlaying && SettingsStore.shared.currentTheme == .musicReactive {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(DesignSystem.accentColor.opacity(0.35))
+                            .frame(width: 58, height: 58)
+                            .blur(radius: 6)
+                    }
+                    
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Color.white.opacity(0.06))
                         .frame(width: 58, height: 58)
@@ -149,6 +161,7 @@ public struct NowPlayingHomeCardView: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(width: 54, height: 54)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     } else {
                         Image(systemName: module.hasActiveMedia ? "tv.music.note.fill" : "music.note")
                             .font(.system(size: 22))
@@ -178,11 +191,7 @@ public struct NowPlayingHomeCardView: View {
                         Spacer()
                         
                         if module.hasActiveMedia && module.isPlaying {
-                            HStack(spacing: 1.5) {
-                                RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 6)
-                                RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 11)
-                                RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 7)
-                            }
+                            LiveEqualizerIndicator(isPlaying: true, color: DesignSystem.accentColor, barWidth: 2, maxHeight: 11)
                         }
                     }
                     
