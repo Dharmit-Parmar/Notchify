@@ -75,7 +75,9 @@ public class SettingsStore: ObservableObject {
     @Published public var dynamicVibrancy: DynamicVibrancy = .balanced {
         didSet {
             UserDefaults.standard.set(dynamicVibrancy.rawValue, forKey: "NotchApp_DynamicVibrancy")
-            DynamicThemeEngine.shared.refreshColors()
+            DispatchQueue.main.async {
+                DynamicThemeEngine.shared.refreshColors()
+            }
         }
     }
     

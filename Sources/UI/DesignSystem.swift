@@ -476,7 +476,9 @@ public final class DynamicThemeEngine: ObservableObject {
     private var activationObserver: NSObjectProtocol?
 
     private init() {
-        refreshColors()
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshColors()
+        }
     }
     
     public func refreshColors() {
