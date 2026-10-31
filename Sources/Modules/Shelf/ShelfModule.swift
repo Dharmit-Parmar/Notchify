@@ -643,6 +643,16 @@ public final class ShelfModule: NotchModule {
         FeedbackManager.playDrop()
     }
 
+    // Clear Preview and return to normal Tools Wheel mode
+    public func clearPreview() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            self.resultantDocument = nil
+            self.leftStageMode = .wheel
+            self.statusMessage = nil
+        }
+        FeedbackManager.playClick()
+    }
+
     private func renderPageThumbnail(page: PDFPage?) -> Data? {
         guard let page = page else { return nil }
         let box = page.bounds(for: .mediaBox)
@@ -848,6 +858,22 @@ public struct ShelfModuleExpandedView: View {
                             .foregroundColor(module.leftStageMode == .preview ? .black : DesignSystem.secondaryText)
                         }
                         .buttonStyle(.plain)
+                        
+                        Button {
+                            module.clearPreview()
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                Text("Clear")
+                                    .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3.5)
+                            .foregroundColor(Color.white.opacity(0.65))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear preview and reset to tools wheel")
                     }
                     .padding(2)
                     .background(Capsule().fill(Color.white.opacity(0.06)))
@@ -1106,43 +1132,60 @@ public struct ResultantPDFPreviewCard: View {
     
     public var body: some View {
         VStack(spacing: 6) {
-            // Document Page 1 Thumbnail with Drag-Out Ability
-            ZStack(alignment: .bottom) {
-                if let thumbData = doc.thumbnailData, let nsImage = NSImage(data: thumbData) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 140, height: 86)
-                        .cornerRadius(8)
-                        .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 2)
-                } else {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 140, height: 86)
-                        .overlay(
-                            Image(systemName: "doc.richtext.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(DesignSystem.accentColor)
-                        )
+            // Document Page 1 Thumbnail with Drag-Out Ability & Top-Right Clear Button
+            ZStack(alignment: .topTrailing) {
+                ZStack(alignment: .bottom) {
+                    if let thumbData = doc.thumbnailData, let nsImage = NSImage(data: thumbData) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 140, height: 86)
+                            .cornerRadius(8)
+                            .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 2)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 140, height: 86)
+                            .overlay(
+                                Image(systemName: "doc.richtext.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(DesignSystem.accentColor)
+                            )
+                    }
+                    
+                    // Page count & Size Badges
+                    HStack(spacing: 4) {
+                        Text("\(doc.pageCount) pgs")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(DesignSystem.accentColor))
+                        
+                        Text(doc.formattedSize)
+                            .font(.system(size: 8, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.black.opacity(0.7)))
+                    }
+                    .padding(4)
                 }
                 
-                // Page count & Size Badges
-                HStack(spacing: 4) {
-                    Text("\(doc.pageCount) pgs")
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(DesignSystem.accentColor))
-                    
-                    Text(doc.formattedSize)
-                        .font(.system(size: 8, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.black.opacity(0.7)))
+                // Clear Preview Floating Button in Thumbnail Top-Right
+                Button(action: module.clearPreview) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.75))
+                            .frame(width: 18, height: 18)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7.5, weight: .bold))
+                            .foregroundColor(Color.white.opacity(0.9))
+                    }
                 }
+                .buttonStyle(.spring)
                 .padding(4)
+                .help("Clear preview and return to normal tools wheel")
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
@@ -1175,20 +1218,20 @@ public struct ResultantPDFPreviewCard: View {
             .padding(.vertical, 3)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.06)))
             
-            // Action Buttons: Save As & AirDrop
-            HStack(spacing: 5) {
+            // Action Buttons: Save As, AirDrop & Clear Preview
+            HStack(spacing: 4) {
                 // Download / Save As Button
                 Button {
                     module.saveResultantToDisk()
                 } label: {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 2) {
                         Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7.5))
                         Text("Save...")
-                            .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
                     }
                     .foregroundColor(.black)
-                    .padding(.horizontal, 7)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(DesignSystem.accentColor))
                 }
@@ -1199,19 +1242,37 @@ public struct ResultantPDFPreviewCard: View {
                 Button {
                     module.shareResultantViaAirDrop()
                 } label: {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 2) {
                         Image(systemName: "airdrop")
-                            .font(.system(size: 8))
+                            .font(.system(size: 7.5))
                         Text("AirDrop")
-                            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 8, weight: .semibold, design: .rounded))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 7)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color.white.opacity(0.12)))
                 }
                 .buttonStyle(.spring)
                 .help("AirDrop directly to iPhone, iPad or Mac")
+                
+                // Explicit Clear Preview Button
+                Button {
+                    module.clearPreview()
+                } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 7.5))
+                        Text("Clear")
+                            .font(.system(size: 8, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(Color.white.opacity(0.75))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                }
+                .buttonStyle(.spring)
+                .help("Clear preview and reset to tools wheel")
             }
         }
         .padding(6)

@@ -69,7 +69,7 @@ public struct NotchRootView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: store.currentTheme)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: themeEngine.canvasColor)
         .contentShape(Rectangle())
-        .onDrop(of: [.fileURL], isTargeted: $coordinator.isFileDragTargeted) { providers in
+        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
             let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
             guard !fileProviders.isEmpty else { return false }
             coordinator.fileDropWasAccepted = true
@@ -148,6 +148,21 @@ public struct NotchRootView: View {
             }
             .buttonStyle(.spring)
             .help("Home Media & Calendar")
+            .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: nil) { providers in
+                let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+                guard !valid.isEmpty else { return false }
+                for p in valid {
+                    _ = p.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url else { return }
+                        DispatchQueue.main.async {
+                            ShelfModule.shared.addItem(url)
+                            registry.selectFileDropTarget(for: "shelf")
+                        }
+                    }
+                }
+                NotchShellCoordinator.shared.onFileDropFinished()
+                return true
+            }
             
             // Specular Vertical Separator
             Rectangle()
@@ -425,7 +440,7 @@ public struct DraggableTabChip: View {
             return NSItemProvider(object: "tab:\(module.id)" as NSString)
         }
         // Drop target supporting both Tab Reordering AND External File Drag-Hover!
-        .onDrop(of: [.text, .fileURL], delegate: UniversalTabDropDelegate(
+        .onDrop(of: [.text, .fileURL, .item, .data, .content], delegate: UniversalTabDropDelegate(
             module: module,
             registry: registry,
             scrollProxy: scrollProxy,
@@ -451,17 +466,19 @@ public struct UniversalTabDropDelegate: DropDelegate {
     public func performDrop(info: DropInfo) -> Bool {
         isTargeted = false
         let targetId = moduleId
-        // Check for File Drop directly onto this tab
-        if info.hasItemsConforming(to: [.fileURL]) {
-            let providers = info.itemProviders(for: [.fileURL])
-            for p in providers {
+        
+        let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
+        let validProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+        if !validProviders.isEmpty {
+            for p in validProviders {
                 _ = p.loadObject(ofClass: URL.self) { url, _ in
                     guard let url else { return }
                     DispatchQueue.main.async {
                         if targetId == "airdrop" {
                             AirDropModule.shared.shareFiles([url])
-                        } else if targetId == "shelf" {
+                        } else {
                             ShelfModule.shared.addItem(url)
+                            self.registry.selectFileDropTarget(for: targetId)
                         }
                     }
                 }
@@ -475,8 +492,11 @@ public struct UniversalTabDropDelegate: DropDelegate {
     public func dropEntered(info: DropInfo) {
         isTargeted = true
         let targetId = moduleId
+        
         // 1. FILE DRAG HOVER: If dragging a file, immediately activate this tab!
-        if info.hasItemsConforming(to: [.fileURL]) {
+        let hasFiles = info.hasItemsConforming(to: [.fileURL, .item, .data, .content])
+        let hasText = info.hasItemsConforming(to: [.text])
+        if hasFiles && !hasText {
             DispatchQueue.main.async {
                 self.registry.selectFileDropTarget(for: targetId)
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
