@@ -5,6 +5,7 @@ import SwiftUI
 public final class NotchPanel: NSPanel {
     public private(set) var currentScreen: NSScreen
     private var outsideClickMonitor: Any?
+    private var localKeyMonitor: Any?
     
     public init(screen: NSScreen = NSScreen.main ?? NSScreen.screens[0]) {
         self.currentScreen = screen
@@ -44,6 +45,9 @@ public final class NotchPanel: NSPanel {
         if let monitor = outsideClickMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        if let keyMon = localKeyMonitor {
+            NSEvent.removeMonitor(keyMon)
+        }
     }
     
     private func setOutsideClickMonitorEnabled(_ enabled: Bool) {
@@ -54,13 +58,28 @@ public final class NotchPanel: NSPanel {
                     if !self.frame.contains(NSEvent.mouseLocation),
                        NotchShellCoordinator.shared.state == .expanded,
                        !NotchShellCoordinator.shared.isLockedOpen {
-                        NotchShellCoordinator.shared.collapseImmediately()
+                        NotchShellCoordinator.shared.collapseImmediately(force: true)
                     }
                 }
             }
-        } else if !enabled, let monitor = outsideClickMonitor {
-            NSEvent.removeMonitor(monitor)
-            outsideClickMonitor = nil
+            localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 53 { // ESC key
+                    Task { @MainActor in
+                        NotchShellCoordinator.shared.collapseImmediately(force: true)
+                    }
+                    return nil
+                }
+                return event
+            }
+        } else if !enabled {
+            if let monitor = outsideClickMonitor {
+                NSEvent.removeMonitor(monitor)
+                outsideClickMonitor = nil
+            }
+            if let keyMon = localKeyMonitor {
+                NSEvent.removeMonitor(keyMon)
+                localKeyMonitor = nil
+            }
         }
     }
     

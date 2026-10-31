@@ -39,6 +39,7 @@ public final class NotchShellCoordinator: ObservableObject {
     
     public func onFileDragEntered() {
         isFileDraggingActive = true
+        fileDropWasAccepted = false
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
         hoverWorkItem?.cancel()
@@ -69,6 +70,20 @@ public final class NotchShellCoordinator: ObservableObject {
         }
     }
     
+    public func onFileDropFinished() {
+        isFileDraggingActive = false
+        fileDropWasAccepted = true
+        // Allow user to see what was dropped, then schedule normal hover collapse if mouse left
+        if !isHovered && !isLockedOpen {
+            let item = DispatchWorkItem { [weak self] in
+                guard let self = self, !self.isHovered, !self.isLockedOpen else { return }
+                self.collapseImmediately()
+            }
+            collapseWorkItem = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: item)
+        }
+    }
+    
     public func onMouseEnter() {
         guard !isHovered else { return }
         isHovered = true
@@ -95,6 +110,11 @@ public final class NotchShellCoordinator: ObservableObject {
         hoverWorkItem = nil
         if isHovered { isHovered = false }
         
+        // If mouse has physically exited the panel bounds, clear lingering drag state
+        if let panel = panel, !panel.frame.contains(NSEvent.mouseLocation) {
+            isFileDraggingActive = false
+        }
+        
         guard !isLockedOpen, !isFileDraggingActive, state != .collapsed else { return }
         
         let item = DispatchWorkItem { [weak self] in
@@ -109,14 +129,17 @@ public final class NotchShellCoordinator: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + DesignSystem.defaultHoverCollapseDelay, execute: item)
     }
     
-    public func collapseImmediately() {
-        guard !isFileDraggingActive else { return }
+    public func collapseImmediately(force: Bool = false) {
+        if force {
+            isLockedOpen = false
+            isFileDraggingActive = false
+        }
         hoverWorkItem?.cancel()
         hoverWorkItem = nil
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
         
-        guard !isLockedOpen else { return }
+        guard force || (!isLockedOpen && !isFileDraggingActive) else { return }
         if isHovered { isHovered = false }
         withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
             self.state = .collapsed

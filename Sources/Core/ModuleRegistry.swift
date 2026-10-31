@@ -161,20 +161,22 @@ public final class ModuleRegistry: ObservableObject {
         FeedbackManager.playClick()
     }
 
-    public func selectFileDropTarget() {
-        guard isModuleValidAndEnabled("shelf") else { return }
+    public func selectFileDropTarget(for id: String = "shelf") {
+        guard isModuleValidAndEnabled(id) else { return }
         cancelPendingTabHover()
         let previous = activeModuleId
-        pinnedModuleId = "shelf"
-        hoveredModuleId = "shelf"
-        if previous != "shelf" {
+        pinnedModuleId = id
+        hoveredModuleId = id
+        if previous != id {
             if let previous { modules.first(where: { $0.id == previous })?.stop() }
             activeModule?.start()
+            FeedbackManager.playHover()
         }
     }
 
     public func cancelFileDropTarget() {
         guard !NotchShellCoordinator.shared.isFileDraggingActive else { return }
+        guard NotchShellCoordinator.shared.state == .collapsed else { return }
         guard pinnedModuleId == "shelf" else { return }
         modules.first(where: { $0.id == "shelf" })?.stop()
         pinnedModuleId = nil

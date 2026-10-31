@@ -29,11 +29,11 @@ public struct NotchRootView: View {
                     CompactNowPlayingIndicator(height: store.hoverTriggerHeight)
                         .transition(.opacity)
                 } else {
-                    // Camera Clear Zone: Leaves 38pt+ clear at the top so nothing renders behind the physical MacBook notch
+                    // Camera Clear Zone: Leaves 38pt+ clear at the top so nothing renders behind physical MacBook notch
                     Spacer()
                         .frame(height: max(38.0, coordinator.geometry.physicalNotchHeight + 6))
                     
-                    // Persistent Navigation Dock (Stable layout, never mutates under cursor)
+                    // Persistent Navigation Dock (Reorderable Tabs, Edge Auto-Scroll, Close Button)
                     expandedHeaderTabs
                         .padding(.horizontal, store.contentHorizontalPadding)
                         .padding(.bottom, 8)
@@ -73,11 +73,22 @@ public struct NotchRootView: View {
             let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
             guard !fileProviders.isEmpty else { return false }
             coordinator.fileDropWasAccepted = true
-            registry.selectFileDropTarget()
-            for provider in fileProviders {
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url else { return }
-                    DispatchQueue.main.async { ShelfModule.shared.addItem(url) }
+            coordinator.onFileDropFinished()
+            
+            if registry.activeModuleId == "airdrop" {
+                for provider in fileProviders {
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url else { return }
+                        DispatchQueue.main.async { AirDropModule.shared.shareFiles([url]) }
+                    }
+                }
+            } else {
+                registry.selectFileDropTarget(for: "shelf")
+                for provider in fileProviders {
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url else { return }
+                        DispatchQueue.main.async { ShelfModule.shared.addItem(url) }
+                    }
                 }
             }
             return true
@@ -87,8 +98,13 @@ public struct NotchRootView: View {
                 coordinator.fileDropWasAccepted = false
                 coordinator.onFileDragEntered()
             } else if !coordinator.fileDropWasAccepted {
-                coordinator.onFileDragExited()
-                registry.cancelFileDropTarget()
+                // Debounce exit check to prevent flicker between child views
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    if !coordinator.isFileDragTargeted && !coordinator.fileDropWasAccepted {
+                        coordinator.onFileDragExited()
+                        registry.cancelFileDropTarget()
+                    }
+                }
             }
         }
         .onContinuousHover { phase in
@@ -102,10 +118,10 @@ public struct NotchRootView: View {
         }
     }
     
-    // Persistent Navigation Dock (Stable geometry: NEVER swaps view hierarchy under mouse)
+    // Persistent Navigation Dock with Reorderable Tabs & Edge Auto-Scroll
     private var expandedHeaderTabs: some View {
         HStack(spacing: 8) {
-            // Dashboard Home Tab Button
+            // Dashboard Home Tab Button (Locked at Far Left)
             let isDashboardActive = (registry.activeModuleId == nil)
             Button(action: {
                 registry.returnToHome()
@@ -139,59 +155,52 @@ public struct NotchRootView: View {
                 .frame(width: 1, height: 16)
                 .padding(.horizontal, 1)
             
-            // Scrollable Module Dock (AirDrop, File Studio, Messages, Battery, Alerts, Mirror)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 5) {
-                    ForEach(registry.orderedModules.filter { $0.isEnabled }, id: \.id) { module in
-                        let isSelected = (registry.activeModuleId == module.id)
-                        let isPinned = (registry.pinnedModuleId == module.id)
-                        
-                        Button(action: {
-                            registry.togglePin(module.id)
-                        }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: module.iconName)
-                                    .font(.system(size: 10.5, weight: .semibold))
-                                    .foregroundColor(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.75))
-                                
-                                Text(module.title)
-                                    .font(.system(size: 10.5, weight: isSelected ? .bold : .medium, design: .rounded))
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
-                                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
-                                
-                                if isPinned {
-                                    Image(systemName: "pin.fill")
-                                        .font(.system(size: 7))
-                                        .foregroundColor(DesignSystem.accentColor)
-                                }
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(isSelected ? DesignSystem.structureColor : Color.white.opacity(0.05))
-                            )
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(
-                                        isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08),
-                                        lineWidth: isPinned ? 1.4 : 0.8
-                                    )
-                            )
-                        }
-                        .buttonStyle(.spring)
-                        .onHover { isHovering in
-                            if isHovering {
-                                registry.onTabHover(module.id)
+            // Scrollable & Reorderable Module Dock with Edge Auto-Scroll
+            ScrollViewReader { scrollProxy in
+                HStack(spacing: 4) {
+                    // Scroll Left Edge Arrow
+                    Button {
+                        if let first = registry.orderedModules.first?.id {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                scrollProxy.scrollTo(first, anchor: .leading)
                             }
                         }
-                        .onDrag {
-                            FeedbackManager.playHover()
-                            return NSItemProvider(object: module.id as NSString)
-                        }
-                        .onDrop(of: [.text], delegate: TabDropDelegate(item: module.id, registry: registry))
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(Color.white.opacity(0.4))
+                            .padding(.horizontal, 2)
                     }
+                    .buttonStyle(.plain)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 5) {
+                            ForEach(registry.orderedModules.filter { $0.isEnabled }, id: \.id) { module in
+                                DraggableTabChip(
+                                    module: module,
+                                    registry: registry,
+                                    scrollProxy: scrollProxy
+                                )
+                                .id(module.id)
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                    }
+                    
+                    // Scroll Right Edge Arrow
+                    Button {
+                        if let last = registry.orderedModules.last?.id {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                scrollProxy.scrollTo(last, anchor: .trailing)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(Color.white.opacity(0.4))
+                            .padding(.horizontal, 2)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             
@@ -230,6 +239,23 @@ public struct NotchRootView: View {
             }
             .buttonStyle(.spring)
             .help("Open Preferences & Themes")
+            
+            // Dedicated Close / Collapse Notch Button
+            Button(action: {
+                FeedbackManager.playClick()
+                coordinator.collapseImmediately(force: true)
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(DesignSystem.structureColor)
+                        .frame(width: 24, height: 24)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(Color.white.opacity(0.65))
+                }
+            }
+            .buttonStyle(.spring)
+            .help("Collapse Notch (Esc)")
         }
     }
     
@@ -240,7 +266,7 @@ public struct NotchRootView: View {
             if let active = registry.activeModule {
                 // Selected Secondary Module View
                 VStack(alignment: .leading, spacing: 6) {
-                    // Breadcrumb Ribbon (Situated inside the card, leaving the top dock untouched)
+                    // Breadcrumb Ribbon (Situated inside the card, leaving top dock untouched)
                     HStack(spacing: 5) {
                         Button(action: {
                             registry.returnToHome()
@@ -338,6 +364,154 @@ public struct NotchRootView: View {
     }
 }
 
+// MARK: - Draggable & Drop-Targetable Tab Chip
+public struct DraggableTabChip: View {
+    let module: any NotchModule
+    @ObservedObject var registry: ModuleRegistry
+    let scrollProxy: ScrollViewProxy
+    @StateObject private var uiState = LocalUIState()
+    
+    public var body: some View {
+        let isSelected = (registry.activeModuleId == module.id)
+        let isPinned = (registry.pinnedModuleId == module.id)
+        
+        HStack(spacing: 5) {
+            Image(systemName: module.iconName)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundColor(isSelected || uiState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.75))
+            
+            Text(module.title)
+                .font(.system(size: 10.5, weight: isSelected ? .bold : .medium, design: .rounded))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .foregroundColor(isSelected || uiState.isTargeted ? .white : DesignSystem.secondaryText)
+            
+            if isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 7))
+                    .foregroundColor(DesignSystem.accentColor)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(isSelected || uiState.isTargeted ? DesignSystem.structureColor : Color.white.opacity(0.05))
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    uiState.isTargeted ? DesignSystem.accentColor : (isSelected ? DesignSystem.accentColor.opacity(0.8) : Color.white.opacity(0.08)),
+                    lineWidth: isPinned || uiState.isTargeted ? 1.4 : 0.8
+                )
+        )
+        .scaleEffect(uiState.isHovered ? 1.02 : 1.0)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            registry.togglePin(module.id)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                scrollProxy.scrollTo(module.id, anchor: .center)
+            }
+        }
+        .onHover { hovering in
+            uiState.isHovered = hovering
+            if hovering {
+                registry.onTabHover(module.id)
+            }
+        }
+        // Draggable tab source for manual reordering
+        .onDrag {
+            FeedbackManager.playHover()
+            return NSItemProvider(object: "tab:\(module.id)" as NSString)
+        }
+        // Drop target supporting both Tab Reordering AND External File Drag-Hover!
+        .onDrop(of: [.text, .fileURL], delegate: UniversalTabDropDelegate(
+            module: module,
+            registry: registry,
+            scrollProxy: scrollProxy,
+            isTargeted: $uiState.isTargeted
+        ))
+    }
+}
+
+// Universal Drop Delegate: Handles Tab Reordering & File Drag-Hover Switching
+public struct UniversalTabDropDelegate: DropDelegate {
+    let moduleId: String
+    let registry: ModuleRegistry
+    let scrollProxy: ScrollViewProxy
+    @Binding var isTargeted: Bool
+    
+    public init(module: any NotchModule, registry: ModuleRegistry, scrollProxy: ScrollViewProxy, isTargeted: Binding<Bool>) {
+        self.moduleId = module.id
+        self.registry = registry
+        self.scrollProxy = scrollProxy
+        self._isTargeted = isTargeted
+    }
+    
+    public func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        let targetId = moduleId
+        // Check for File Drop directly onto this tab
+        if info.hasItemsConforming(to: [.fileURL]) {
+            let providers = info.itemProviders(for: [.fileURL])
+            for p in providers {
+                _ = p.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    DispatchQueue.main.async {
+                        if targetId == "airdrop" {
+                            AirDropModule.shared.shareFiles([url])
+                        } else if targetId == "shelf" {
+                            ShelfModule.shared.addItem(url)
+                        }
+                    }
+                }
+            }
+            NotchShellCoordinator.shared.onFileDropFinished()
+            return true
+        }
+        return true
+    }
+    
+    public func dropEntered(info: DropInfo) {
+        isTargeted = true
+        let targetId = moduleId
+        // 1. FILE DRAG HOVER: If dragging a file, immediately activate this tab!
+        if info.hasItemsConforming(to: [.fileURL]) {
+            DispatchQueue.main.async {
+                self.registry.selectFileDropTarget(for: targetId)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    self.scrollProxy.scrollTo(targetId, anchor: .center)
+                }
+            }
+            return
+        }
+        
+        // 2. TAB REORDERING: If dragging a tab title, reorder dynamically!
+        if let provider = info.itemProviders(for: [.text]).first {
+            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, error) in
+                var foundStr: String? = nil
+                if let data = item as? Data {
+                    foundStr = String(data: data, encoding: .utf8)
+                } else if let str = item as? String {
+                    foundStr = str
+                }
+                if let text = foundStr, text.hasPrefix("tab:") {
+                    let sourceId = String(text.dropFirst(4))
+                    if sourceId != targetId {
+                        DispatchQueue.main.async {
+                            self.registry.moveModule(from: sourceId, to: targetId)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    public func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+}
+
 private struct CompactNowPlayingIndicator: View {
     @ObservedObject private var nowPlaying = NowPlayingModule.shared
     let height: CGFloat
@@ -383,37 +557,5 @@ private struct CompactNowPlayingIndicator: View {
         }
         .padding(.horizontal, 10)
         .frame(height: height)
-    }
-}
-
-// Drag & Drop Delegate for Tab Reordering
-public struct TabDropDelegate: DropDelegate {
-    let item: String
-    let registry: ModuleRegistry
-    
-    public init(item: String, registry: ModuleRegistry) {
-        self.item = item
-        self.registry = registry
-    }
-    
-    public func performDrop(info: DropInfo) -> Bool {
-        return true
-    }
-    
-    public func dropEntered(info: DropInfo) {
-        guard let itemProvider = info.itemProviders(for: [.text]).first else { return }
-        itemProvider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, error) in
-            var foundId: String? = nil
-            if let data = item as? Data {
-                foundId = String(data: data, encoding: .utf8)
-            } else if let str = item as? String {
-                foundId = str
-            }
-            if let sourceId = foundId, sourceId != self.item {
-                DispatchQueue.main.async {
-                    self.registry.moveModule(from: sourceId, to: self.item)
-                }
-            }
-        }
     }
 }

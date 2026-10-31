@@ -146,6 +146,17 @@ public struct SpringButtonStyle: ButtonStyle {
     }
 }
 
+@MainActor
+public final class LocalUIState: ObservableObject {
+    @Published public var isHovered: Bool = false
+    @Published public var isTargeted: Bool = false
+    @Published public var text: String = ""
+    
+    public init(text: String = "") {
+        self.text = text
+    }
+}
+
 private final class SpringButtonHoverState: ObservableObject {
     @Published var isHovered = false
 }
