@@ -22,7 +22,6 @@ public final class NotchShellCoordinator: ObservableObject {
     
     private var hoverWorkItem: DispatchWorkItem?
     private var collapseWorkItem: DispatchWorkItem?
-    private var expansionCooldownUntil: Date = Date.distantPast
     
     private init() {
         NotificationCenter.default.addObserver(
@@ -45,7 +44,6 @@ public final class NotchShellCoordinator: ObservableObject {
         collapseWorkItem = nil
         hoverWorkItem?.cancel()
         hoverWorkItem = nil
-        expansionCooldownUntil = Date().addingTimeInterval(DesignSystem.notchTransitionDuration + 0.30)
         
         if state != .expanded {
             withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
@@ -87,17 +85,15 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func onMouseEnter() {
-        guard !isHovered else { return }
-        isHovered = true
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
+        isHovered = true
         
         guard state != .expanded, hoverWorkItem == nil else { return }
         
         let delay = SettingsStore.shared.hoverDelay
         let item = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-            self.expansionCooldownUntil = Date().addingTimeInterval(DesignSystem.notchTransitionDuration + 0.25)
+            guard let self = self, self.isHovered else { return }
             withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
                 self.state = .expanded
             }
@@ -111,47 +107,18 @@ public final class NotchShellCoordinator: ObservableObject {
     public func onMouseExit() {
         hoverWorkItem?.cancel()
         hoverWorkItem = nil
+        isHovered = false
         
-        // 1. Mid-expansion immunity: do NOT collapse while animation is in flight!
-        if Date() < expansionCooldownUntil {
-            return
-        }
+        guard !isLockedOpen, !isFileDraggingActive, state != .collapsed else { return }
         
-        // 2. Target Frame Check: If cursor is anywhere inside the target expanded notch bounds, keep open!
-        if let panel = panel {
-            let targetExpandedRect = NotchPanel.calculateFrame(
-                for: .expanded,
-                store: SettingsStore.shared,
-                screen: panel.currentScreen
-            )
-            if targetExpandedRect.contains(NSEvent.mouseLocation) {
-                isHovered = true
+        collapseWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if let panel = self.panel, panel.frame.contains(NSEvent.mouseLocation) {
+                self.isHovered = true
                 return
             }
-        }
-        
-        if isHovered { isHovered = false }
-        
-        // If mouse has physically exited the target bounds, clear lingering drag state
-        isFileDraggingActive = false
-        
-        guard !isLockedOpen, state != .collapsed else { return }
-        
-        let item = DispatchWorkItem { [weak self] in
-            guard let self = self, !self.isFileDraggingActive else { return }
-            
-            // Final safety check: if cursor moved back inside target expanded bounds, do not collapse!
-            if let panel = self.panel {
-                let targetExpandedRect = NotchPanel.calculateFrame(
-                    for: .expanded,
-                    store: SettingsStore.shared,
-                    screen: panel.currentScreen
-                )
-                if targetExpandedRect.contains(NSEvent.mouseLocation) {
-                    self.isHovered = true
-                    return
-                }
-            }
+            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive else { return }
             
             withAnimation(DesignSystem.reduceMotion ? nil : .easeOut(duration: DesignSystem.notchTransitionDuration)) {
                 self.state = .collapsed

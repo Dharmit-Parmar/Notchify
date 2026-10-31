@@ -1092,7 +1092,7 @@ public struct ShelfModuleExpandedView: View {
                             style: StrokeStyle(lineWidth: 1, dash: [4, 4])
                         )
                 )
-                .onDrop(of: [.fileURL], isTargeted: $module.isTrayHovered) { providers in
+                .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isTrayHovered) { providers in
                     let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
                     guard !valid.isEmpty else { return false }
                     for p in valid {
@@ -1443,7 +1443,7 @@ private struct AirDropDropTargetCapsule: View {
         )
         .scaleEffect(module.isAirDropHovered ? 1.05 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: module.isAirDropHovered)
-        .onDrop(of: [.fileURL], isTargeted: $module.isAirDropHovered) { providers in
+        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isAirDropHovered) { providers in
             let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
             guard !valid.isEmpty else { return false }
             for p in valid {

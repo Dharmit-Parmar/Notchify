@@ -156,7 +156,7 @@ public struct AirDropExpandedView: View {
                     .padding(8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: 72)
-                .onDrop(of: [.fileURL], isTargeted: $module.isDropTargeted) { providers in
+                .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
                     let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
                     guard !valid.isEmpty else { return false }
                     for p in valid {

@@ -392,11 +392,11 @@ public struct DraggableTabChip: View {
         
         HStack(spacing: 5) {
             Image(systemName: module.iconName)
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundColor(isSelected || uiState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.75))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(isSelected || uiState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.8))
             
             Text(module.title)
-                .font(.system(size: 10.5, weight: isSelected ? .bold : .medium, design: .rounded))
+                .font(.system(size: 11, weight: isSelected || uiState.isTargeted ? .bold : .medium, design: .rounded))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .foregroundColor(isSelected || uiState.isTargeted ? .white : DesignSystem.secondaryText)
@@ -407,20 +407,21 @@ public struct DraggableTabChip: View {
                     .foregroundColor(DesignSystem.accentColor)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(
             Capsule()
-                .fill(isSelected || uiState.isTargeted ? DesignSystem.structureColor : Color.white.opacity(0.05))
+                .fill(uiState.isTargeted ? DesignSystem.accentColor.opacity(0.25) : (isSelected ? DesignSystem.structureColor : Color.white.opacity(0.05)))
         )
         .overlay(
             Capsule()
                 .strokeBorder(
                     uiState.isTargeted ? DesignSystem.accentColor : (isSelected ? DesignSystem.accentColor.opacity(0.8) : Color.white.opacity(0.08)),
-                    lineWidth: isPinned || uiState.isTargeted ? 1.4 : 0.8
+                    lineWidth: uiState.isTargeted ? 1.8 : (isPinned ? 1.4 : 0.8)
                 )
         )
-        .scaleEffect(uiState.isHovered ? 1.02 : 1.0)
+        .scaleEffect(uiState.isTargeted ? 1.08 : (uiState.isHovered ? 1.02 : 1.0))
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: uiState.isTargeted)
         .contentShape(Rectangle())
         .onTapGesture {
             registry.togglePin(module.id)
@@ -463,26 +464,57 @@ public struct UniversalTabDropDelegate: DropDelegate {
         self._isTargeted = isTargeted
     }
     
+    public func validateDrop(info: DropInfo) -> Bool {
+        return true
+    }
+    
+    public func dropUpdated(info: DropInfo) -> NSDragOperation? {
+        return .copy
+    }
+    
     public func performDrop(info: DropInfo) -> Bool {
         isTargeted = false
         let targetId = moduleId
         
         let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
-        let validProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-        if !validProviders.isEmpty {
-            for p in validProviders {
+        var handled = false
+        
+        for p in providers {
+            if p.canLoadObject(ofClass: URL.self) {
+                handled = true
                 _ = p.loadObject(ofClass: URL.self) { url, _ in
                     guard let url else { return }
                     DispatchQueue.main.async {
+                        FeedbackManager.playDrop()
                         if targetId == "airdrop" {
                             AirDropModule.shared.shareFiles([url])
+                            self.registry.selectFileDropTarget(for: "airdrop")
                         } else {
                             ShelfModule.shared.addItem(url)
-                            self.registry.selectFileDropTarget(for: targetId)
+                            self.registry.selectFileDropTarget(for: "shelf")
+                        }
+                    }
+                }
+            } else if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                handled = true
+                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                    guard let url else { return }
+                    DispatchQueue.main.async {
+                        FeedbackManager.playDrop()
+                        if targetId == "airdrop" {
+                            AirDropModule.shared.shareFiles([url])
+                            self.registry.selectFileDropTarget(for: "airdrop")
+                        } else {
+                            ShelfModule.shared.addItem(url)
+                            self.registry.selectFileDropTarget(for: "shelf")
                         }
                     }
                 }
             }
+        }
+        
+        if handled {
             NotchShellCoordinator.shared.onFileDropFinished()
             return true
         }
@@ -493,10 +525,9 @@ public struct UniversalTabDropDelegate: DropDelegate {
         isTargeted = true
         let targetId = moduleId
         
-        // 1. FILE DRAG HOVER: If dragging a file, immediately activate this tab!
-        let hasFiles = info.hasItemsConforming(to: [.fileURL, .item, .data, .content])
-        let hasText = info.hasItemsConforming(to: [.text])
-        if hasFiles && !hasText {
+        // 1. FILE DRAG HOVER: If dragging any file URL from Finder/Desktop, immediately activate this tab!
+        if info.hasItemsConforming(to: [.fileURL]) {
+            FeedbackManager.playHover()
             DispatchQueue.main.async {
                 self.registry.selectFileDropTarget(for: targetId)
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -506,7 +537,7 @@ public struct UniversalTabDropDelegate: DropDelegate {
             return
         }
         
-        // 2. TAB REORDERING: If dragging a tab title, reorder dynamically!
+        // 2. TAB REORDERING: If dragging an internal tab title, reorder dynamically!
         if let provider = info.itemProviders(for: [.text]).first {
             provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, error) in
                 var foundStr: String? = nil

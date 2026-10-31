@@ -400,36 +400,30 @@ func runAllVerificationTests() {
     assert(statusMessage == nil, "Clear preview must clear status bar message")
     print("  ✓ Clear preview state reset verified.")
     
-    // Test 20: Mid-Flight Expansion Protection & Target Frame Containment
-    print("\n[TEST 20] Mid-Flight Expansion Protection & Target Rect Containment...")
-    let expandedTargetRect = NSRect(x: 425.0, y: 626.0, width: 620.0, height: 330.0)
-    let inFlightAnimatedRect = NSRect(x: 580.0, y: 856.0, width: 310.0, height: 100.0) // 30% progress
-    let userMousePoint = NSPoint(x: 500.0, y: 700.0) // inside expandedTargetRect, outside inFlightAnimatedRect
+    // Test 20: Auto-Collapse on Mouse Exit & Frame Containment Protection
+    print("\n[TEST 20] Auto-Collapse on Mouse Exit & Frame Containment Protection...")
+    let panelFrame = NSRect(x: 425.0, y: 626.0, width: 620.0, height: 330.0)
+    let userInsidePoint = NSPoint(x: 500.0, y: 700.0) // inside panelFrame
+    let userOutsidePoint = NSPoint(x: 100.0, y: 100.0) // far away outside
     
-    assert(expandedTargetRect.contains(userMousePoint), "Cursor must be inside target expanded bounds")
-    assert(!inFlightAnimatedRect.contains(userMousePoint), "Cursor is outside in-flight partial animated rect")
+    assert(panelFrame.contains(userInsidePoint), "Cursor inside panel frame must be detected")
+    assert(!panelFrame.contains(userOutsidePoint), "Cursor outside panel frame must be detected")
     
-    let expansionCooldownUntil = Date().addingTimeInterval(0.35)
-    
-    func onMouseExitSimulated(mousePoint: NSPoint, currentTime: Date) -> Bool {
-        // Rule 1: Mid-expansion immunity
-        if currentTime < expansionCooldownUntil {
-            return false // do not collapse
+    // Simulate coordinator collapse decision logic
+    func checkShouldCollapse(mousePoint: NSPoint, isHovered: Bool, isLockedOpen: Bool, isFileDraggingActive: Bool) -> Bool {
+        if isLockedOpen || isFileDraggingActive { return false }
+        if panelFrame.contains(mousePoint) {
+            return false // cursor still inside panel, abort collapse
         }
-        // Rule 2: Target rect containment
-        if expandedTargetRect.contains(mousePoint) {
-            return false // do not collapse
-        }
-        return true // can collapse
+        return !isHovered // cursor outside and not hovered -> collapse!
     }
     
-    let shouldCollapseMidFlight = onMouseExitSimulated(mousePoint: userMousePoint, currentTime: Date())
-    assert(shouldCollapseMidFlight == false, "Must NOT collapse mid-flight while cursor is within target expanded bounds")
+    let shouldCollapseInside = checkShouldCollapse(mousePoint: userInsidePoint, isHovered: false, isLockedOpen: false, isFileDraggingActive: false)
+    assert(shouldCollapseInside == false, "Must NOT collapse if cursor is still within panel frame")
     
-    let mouseFarAway = NSPoint(x: 100.0, y: 100.0)
-    let shouldCollapseFarAway = onMouseExitSimulated(mousePoint: mouseFarAway, currentTime: Date().addingTimeInterval(0.5))
-    assert(shouldCollapseFarAway == true, "Must collapse once mouse moves outside target bounds after expansion")
-    print("  ✓ Mid-flight expansion protection & target containment verified.")
+    let shouldCollapseOutside = checkShouldCollapse(mousePoint: userOutsidePoint, isHovered: false, isLockedOpen: false, isFileDraggingActive: false)
+    assert(shouldCollapseOutside == true, "Must automatically collapse when cursor moves outside notch frame without clicking")
+    print("  ✓ Automatic exit collapse and frame containment verified.")
     
     // Test 21: Direct Tab Drop Routing (AirDrop vs File Studio vs Dashboard)
     print("\n[TEST 21] Direct Tab Drop Routing (Direct Drop on Titles)...")
