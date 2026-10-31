@@ -75,16 +75,18 @@ public final class ThockModule: NotchModule {
     @Published public var keyVolume: Double = 70.0 {
         didSet {
             volume = keyVolume
-            if !isKeyEditingText {
-                keyVolumeText = "\(Int(keyVolume.rounded()))"
+            let intVal = Int(keyVolume.rounded())
+            if keyVolumeText != "\(intVal)" {
+                keyVolumeText = "\(intVal)"
             }
         }
     }
     @Published public var volume: Double = 70.0 // Kept for backwards compatibility
     @Published public var asmrVolume: Double = 50.0 {
         didSet {
-            if !isAsmrEditingText {
-                asmrVolumeText = "\(Int(asmrVolume.rounded()))"
+            let intVal = Int(asmrVolume.rounded())
+            if asmrVolumeText != "\(intVal)" {
+                asmrVolumeText = "\(intVal)"
             }
         }
     }
@@ -99,8 +101,6 @@ public final class ThockModule: NotchModule {
     // Editable Percentage Strings for Direct User Typing
     @Published public var keyVolumeText: String = "70"
     @Published public var asmrVolumeText: String = "50"
-    public var isKeyEditingText: Bool = false
-    public var isAsmrEditingText: Bool = false
     
     // Switch Pack State
     @Published public var currentPack: String = "nk_cream"
@@ -213,18 +213,26 @@ public final class ThockModule: NotchModule {
         let axGranted = AXIsProcessTrustedWithOptions(options)
         self.hasAccessibilityPermission = axGranted
         
-        // 2. Input Monitoring system prompt
+        // 2. Input Monitoring system prompt via IOHIDRequestAccess
         Self.requestIOHIDListenAccess()
+        
+        // 3. Trigger CGEvent tap creation to register with TCC Input Monitoring
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        _ = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: mask,
+            callback: { _, _, event, _ in Unmanaged.passUnretained(event) },
+            userInfo: nil
+        )
+        
         self.hasInputMonitoringPermission = Self.checkIOHIDListenAccess()
         self.isAccessibilityGranted = hasAccessibilityPermission && hasInputMonitoringPermission
         
-        // 3. Proactively open both System Settings panes so user can directly toggle switches!
-        if !hasAccessibilityPermission {
-            openAccessibilitySettings()
-        }
-        if !hasInputMonitoringPermission {
-            openInputMonitoringSettings()
-        }
+        // 4. Proactively open both System Settings panes so user can directly toggle switches!
+        openAccessibilitySettings()
+        openInputMonitoringSettings()
     }
     
     public func openAccessibilitySettings() {
@@ -509,7 +517,12 @@ public final class ThockModule: NotchModule {
         if let val = Double(digits) {
             let clamped = max(0, min(100, val))
             if isKeyMuted && clamped > 0 { isKeyMuted = false }
-            updateKeyVolume(clamped)
+            self.keyVolume = clamped
+            self.volume = clamped
+            saveSettingsToDisk()
+            if isRunning {
+                sendCommand("vol \(Int(clamped.rounded()))", echo: false)
+            }
         }
     }
     
@@ -518,7 +531,11 @@ public final class ThockModule: NotchModule {
         if let val = Double(digits) {
             let clamped = max(0, min(100, val))
             if isAsmrMuted && clamped > 0 { isAsmrMuted = false }
-            updateAsmrVolume(clamped)
+            self.asmrVolume = clamped
+            saveSettingsToDisk()
+            if isRunning {
+                sendCommand("asmr vol \(Int(clamped.rounded()))", echo: false)
+            }
         }
     }
     
@@ -544,12 +561,15 @@ public final class ThockModule: NotchModule {
     public func updateKeyVolume(_ newVol: Double) {
         self.keyVolume = newVol
         self.volume = newVol
+        let intVal = Int(newVol.rounded())
+        if self.keyVolumeText != "\(intVal)" {
+            self.keyVolumeText = "\(intVal)"
+        }
         if newVol > 0 && isKeyMuted { isKeyMuted = false }
         saveSettingsToDisk()
         
         if isRunning {
-            let intVol = Int(newVol.rounded())
-            sendCommand("vol \(intVol)", echo: false)
+            sendCommand("vol \(intVal)", echo: false)
         }
     }
     
@@ -559,12 +579,15 @@ public final class ThockModule: NotchModule {
     
     public func updateAsmrVolume(_ newVol: Double) {
         self.asmrVolume = newVol
+        let intVal = Int(newVol.rounded())
+        if self.asmrVolumeText != "\(intVal)" {
+            self.asmrVolumeText = "\(intVal)"
+        }
         if newVol > 0 && isAsmrMuted { isAsmrMuted = false }
         saveSettingsToDisk()
         
         if isRunning {
-            let intVol = Int(newVol.rounded())
-            sendCommand("asmr vol \(intVol)", echo: false)
+            sendCommand("asmr vol \(intVal)", echo: false)
         }
     }
     
@@ -940,10 +963,10 @@ public struct ThockExpandedView: View {
                     // Mute Button
                     Button(action: { module.toggleKeyMute() }) {
                         Image(systemName: module.isKeyMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 9))
+                            .font(.system(size: 9.5))
                             .foregroundColor(module.isKeyMuted ? Color.red : DesignSystem.accentColor)
                             .padding(4)
-                            .background(Circle().fill(module.isKeyMuted ? Color.red.opacity(0.15) : Color.white.opacity(0.06)))
+                            .background(Circle().fill(module.isKeyMuted ? Color.red.opacity(0.18) : Color.white.opacity(0.06)))
                     }
                     .buttonStyle(.plain)
                     .help(module.isKeyMuted ? "Unmute Key Sound" : "Mute Key Sound")
@@ -959,30 +982,33 @@ public struct ThockExpandedView: View {
                             module.updateKeyVolume(module.keyVolume)
                         }
                     }
-                    .frame(width: 75)
+                    .frame(width: 70)
                     .accentColor(DesignSystem.accentColor)
                     
                     // Direct Type Input Box with % Suffix
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         TextField("70", text: $module.keyVolumeText)
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                             .foregroundColor(DesignSystem.accentColor)
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 22)
+                            .frame(width: 28)
                             .textFieldStyle(.plain)
+                            .onChange(of: module.keyVolumeText) { _, newText in
+                                module.setKeyVolumeFromText(newText)
+                            }
                             .onSubmit {
                                 module.setKeyVolumeFromText(module.keyVolumeText)
                             }
                         
                         Text("%")
-                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(DesignSystem.accentColor.opacity(0.8))
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.1), lineWidth: 0.6))
-                    .help("Type exact volume percentage and press Enter")
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+                    .help("Type exact volume percentage (0–100) and press Enter")
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
@@ -1082,10 +1108,10 @@ public struct ThockExpandedView: View {
                     // ASMR Mute Button
                     Button(action: { module.toggleAsmrMute() }) {
                         Image(systemName: module.isAsmrMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 9))
+                            .font(.system(size: 9.5))
                             .foregroundColor(module.isAsmrMuted ? Color.red : Color(red: 0.35, green: 0.8, blue: 1.0))
                             .padding(4)
-                            .background(Circle().fill(module.isAsmrMuted ? Color.red.opacity(0.15) : Color.white.opacity(0.06)))
+                            .background(Circle().fill(module.isAsmrMuted ? Color.red.opacity(0.18) : Color.white.opacity(0.06)))
                     }
                     .buttonStyle(.plain)
                     .help(module.isAsmrMuted ? "Unmute ASMR" : "Mute ASMR")
@@ -1101,30 +1127,33 @@ public struct ThockExpandedView: View {
                             module.updateAsmrVolume(module.asmrVolume)
                         }
                     }
-                    .frame(width: 85)
+                    .frame(width: 80)
                     .accentColor(Color(red: 0.35, green: 0.8, blue: 1.0))
                     
                     // Direct Type Input Box with % Suffix
-                    HStack(spacing: 1) {
+                    HStack(spacing: 2) {
                         TextField("50", text: $module.asmrVolumeText)
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                             .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0))
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 22)
+                            .frame(width: 28)
                             .textFieldStyle(.plain)
+                            .onChange(of: module.asmrVolumeText) { _, newText in
+                                module.setAsmrVolumeFromText(newText)
+                            }
                             .onSubmit {
                                 module.setAsmrVolumeFromText(module.asmrVolumeText)
                             }
                         
                         Text("%")
-                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0).opacity(0.8))
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.1), lineWidth: 0.6))
-                    .help("Type exact ASMR volume percentage and press Enter")
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+                    .help("Type exact ASMR volume percentage (0–100) and press Enter")
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
