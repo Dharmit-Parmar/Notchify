@@ -1,62 +1,113 @@
-# Xcode
-#
-# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+# ==============================================================================
+#                      NOTCHIFY — GITIGNORE SPECIFICATION
+# ==============================================================================
 
-## User settings
-xcuserdata/
+# ------------------------------------------------------------------------------
+# 1. SENSITIVE CREDENTIALS, KEYS & SECRETS (STRICT SECURITY LEAK PREVENTION)
+# ------------------------------------------------------------------------------
+*.env
+*.env.*
+.env
+.env.*
+.env.local
+.env.development
+.env.test
+.env.production
 
-## Obj-C/Swift specific
-*.hmap
+# Private Keys, Certificates & Identities
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.crt
+*.der
+*.kdbx
+*.keystore
+*.jks
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+id_ecdsa
+id_dsa
 
-## App packaging
-*.ipa
-*.dSYM.zip
-*.dSYM
+# Secret Tokens, API Keys & Cloud Credentials
+*api_key*
+*apikey*
+*secret*
+*token*
+*credential*
+credentials.json
+service-account*.json
+google-services.json
+auth.json
+key.txt
+keys.json
+secrets.yaml
+secrets.json
 
-## Playgrounds
-timeline.xctimeline
-playground.xcworkspace
+# Apple Developer Provisioning & Certificates
+*.mobileprovision
+*.provisionprofile
+*.signingKey
 
-# Swift Package Manager
-#
-# Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
-# Packages/
-# Package.pins
-# Package.resolved
-# *.xcodeproj
-#
-# Xcode automatically generates this directory with a .xcworkspacedata file and xcuserdata
-# hence it is not needed unless you have added a package configuration file to your project
-# .swiftpm
+# Cloud Provider & Shell Credentials
+.aws/
+.gcp/
+.azure/
+.zsh_history
+.bash_history
+.history
 
+# ------------------------------------------------------------------------------
+# 2. SWIFT PACKAGE MANAGER & BUILD ARTIFACTS
+# ------------------------------------------------------------------------------
 .build/
+Packages/
+Package.resolved
 
-# CocoaPods
-#
-# We recommend against adding the Pods directory to your .gitignore. However
-# you should judge for yourself, the pros and cons are mentioned at:
-# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
-#
-# Pods/
-#
-# Add this line if you want to avoid checking in source code from the Xcode workspace
-# *.xcworkspace
+# ------------------------------------------------------------------------------
+# 3. XCODE & DERIVED DATA
+# ------------------------------------------------------------------------------
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.moved-aside
 
-# Carthage
-#
-# Add this line if you want to avoid checking in source code from Carthage dependencies.
-# Carthage/Checkouts
+# ------------------------------------------------------------------------------
+# 4. MACOS SYSTEM ARTIFACTS & METADATA
+# ------------------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 
-Carthage/Build/
+# ------------------------------------------------------------------------------
+# 5. LOGS, DUMPS & SCRATCH FILES
+# ------------------------------------------------------------------------------
+*.log
+crashlog/
+/tmp/
+scratch/
 
-# fastlane
-#
-# It is recommended to not store the screenshots in the git repo.
-# Instead, use fastlane to re-generate the screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/#source-control
-
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots/**/*.png
-fastlane/test_output
+# ------------------------------------------------------------------------------
+# 6. LOCAL TOOLING & AGENT CACHES
+# ------------------------------------------------------------------------------
+.gemini/
+.claude/
+.planning/
+graphify-out/
+.idea/
+.vscode/
+*.swp
+*~

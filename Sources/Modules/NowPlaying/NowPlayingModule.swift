@@ -1,0 +1,278 @@
+import SwiftUI
+
+@MainActor
+public final class NowPlayingModule: ObservableObject {
+    public static let shared = NowPlayingModule()
+    
+    public let id = "nowPlaying"
+    public let title = "Now Playing"
+    public let iconName = "play.fill"
+    
+    @Published public var trackTitle: String = "No Media Playing"
+    @Published public var artistName: String = "Play YouTube, Spotify, Music or Safari"
+    @Published public var sourceApp: String = ""
+    @Published public var isPlaying: Bool = false
+    @Published public var duration: Double = 0.0
+    @Published public var hasActiveMedia: Bool = false
+    @Published public var artwork: NSImage? = nil
+    
+    private var storedProgress: Double = 0.0
+    private var lastProgressUpdate = Date()
+
+    public var progress: Double {
+        guard duration > 0 else { return 0 }
+        let elapsed = isPlaying ? Date().timeIntervalSince(lastProgressUpdate) / duration : 0
+        return min(1, max(0, storedProgress + elapsed))
+    }
+    
+    public init() {
+        refreshMediaState()
+        // MediaRemote events update track state; progress is extrapolated locally, so polling is unnecessary.
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("kMRMediaRemoteNowPlayingInfoDidChangeNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshMediaState()
+            }
+        }
+    }
+    
+    public func refreshMediaState() {
+        MediaRemoteBridge.shared.fetchCurrentTrack { [weak self] track in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                if let track = track {
+                    if self.trackTitle != track.title { self.trackTitle = track.title }
+                    if self.artistName != track.artist { self.artistName = track.artist }
+                    if self.sourceApp != track.sourceApp { self.sourceApp = track.sourceApp }
+                    if self.isPlaying != track.isPlaying { self.isPlaying = track.isPlaying }
+                    let duration = max(0.0, track.duration)
+                    if self.duration != duration { self.duration = duration }
+                    let progress = track.duration > 0 ? min(1, max(0, track.elapsedTime / track.duration)) : 0.0
+                    self.storedProgress = progress
+                    self.lastProgressUpdate = Date()
+                    if !self.hasActiveMedia { self.hasActiveMedia = true }
+                    if self.artwork !== track.artwork { self.artwork = track.artwork }
+                } else {
+                    if self.trackTitle != "No Media Playing" { self.trackTitle = "No Media Playing" }
+                    if self.artistName != "Play YouTube, Spotify, Music or Safari" { self.artistName = "Play YouTube, Spotify, Music or Safari" }
+                    if !self.sourceApp.isEmpty { self.sourceApp = "" }
+                    if self.isPlaying { self.isPlaying = false }
+                    self.storedProgress = 0
+                    self.lastProgressUpdate = Date()
+                    if self.duration != 0 { self.duration = 0 }
+                    if self.hasActiveMedia { self.hasActiveMedia = false }
+                    if self.artwork != nil { self.artwork = nil }
+                }
+            }
+        }
+    }
+    
+    public func togglePlayPause() {
+        isPlaying.toggle()
+        lastProgressUpdate = Date()
+        MediaRemoteBridge.shared.togglePlayPause()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.refreshMediaState()
+        }
+    }
+    
+    public func nextTrack() {
+        MediaRemoteBridge.shared.nextTrack()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.refreshMediaState()
+        }
+    }
+    
+    public func previousTrack() {
+        MediaRemoteBridge.shared.previousTrack()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.refreshMediaState()
+        }
+    }
+    
+    public func formatTime(_ seconds: Double) -> String {
+        guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
+        let total = Int(max(0, seconds))
+        let mins = total / 60
+        let secs = total % 60
+        return String(format: "%d:%02d", mins, secs)
+    }
+}
+
+// Left-side Now Playing Media Card for Home Dashboard
+public struct NowPlayingHomeCardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject var module: NowPlayingModule = NowPlayingModule.shared
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                // Double-Bezel Squircle Album Art / App Icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 58, height: 58)
+                    
+                    if let art = module.artwork {
+                        Image(nsImage: art)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 54, height: 54)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    } else {
+                        Image(systemName: module.hasActiveMedia ? "tv.music.note.fill" : "music.note")
+                            .font(.system(size: 22))
+                            .foregroundColor(DesignSystem.accentColor)
+                    }
+                    
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.25), Color.clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.8
+                        )
+                }
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(module.trackTitle)
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .contentTransition(.opacity)
+                            .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: module.trackTitle)
+                        
+                        Spacer()
+                        
+                        if module.hasActiveMedia && module.isPlaying {
+                            HStack(spacing: 1.5) {
+                                RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 6)
+                                RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 11)
+                                RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 7)
+                            }
+                        }
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Text(module.artistName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(DesignSystem.secondaryText)
+                            .lineLimit(1)
+                        
+                        if !module.sourceApp.isEmpty && module.hasActiveMedia {
+                            Text(module.sourceApp)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(DesignSystem.accentColor)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(DesignSystem.accentColor.opacity(0.16)))
+                                .lineLimit(1)
+                        }
+                    }
+                    
+                    // Scrubber progress bar
+                    if module.duration > 0 {
+                        TimelineView(.animation(minimumInterval: 1, paused: !module.isPlaying)) { _ in
+                            let progress = module.progress
+                            VStack(spacing: 2) {
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule()
+                                            .fill(Color.white.opacity(0.12))
+                                            .frame(height: 3)
+
+                                        Capsule()
+                                            .fill(DesignSystem.accentColor)
+                                            .frame(width: geo.size.width * CGFloat(progress), height: 3)
+                                            .animation(reduceMotion ? nil : .linear(duration: 1), value: progress)
+                                    }
+                                }
+                                .frame(height: 3)
+
+                                HStack {
+                                    Text(module.formatTime(module.duration * progress))
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundColor(Color.white.opacity(0.4))
+                                    Spacer()
+                                    Text(module.formatTime(module.duration))
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundColor(Color.white.opacity(0.4))
+                                }
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+            }
+
+            Spacer(minLength: 8)
+            
+            // Transport Controls with Spring Physics
+            HStack(spacing: 24) {
+                Spacer()
+                
+                Button(action: {
+                    FeedbackManager.playClick()
+                    module.previousTrack()
+                }) {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(DesignSystem.surfaceFill))
+                }
+                .buttonStyle(.spring)
+                
+                Button(action: {
+                    FeedbackManager.playClick()
+                    module.togglePlayPause()
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(DesignSystem.accentColor)
+                            .frame(width: 38, height: 38)
+                        Image(systemName: module.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.black)
+                            .offset(x: module.isPlaying ? 0 : 1)
+                            .contentTransition(.symbolEffect(.replace))
+                            .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: module.isPlaying)
+                    }
+                }
+                .buttonStyle(.spring(scale: 0.97))
+                
+                Button(action: {
+                    FeedbackManager.playClick()
+                    module.nextTrack()
+                }) {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(DesignSystem.surfaceFill))
+                }
+                .buttonStyle(.spring)
+                
+                Spacer()
+            }
+        }
+        .padding(10)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .fill(DesignSystem.cardGradient)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+        )
+        .onAppear { module.refreshMediaState() }
+    }
+}
