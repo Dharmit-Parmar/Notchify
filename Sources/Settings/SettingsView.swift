@@ -112,19 +112,40 @@ public struct SettingsView: View {
                     .settingsCard()
                     
                     // Section 2: Direct Messaging & Accessibility
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("System Permissions & Direct Messaging")
-                            .font(.system(size: 13, weight: .bold))
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("System Permissions & macOS Privacy")
+                                .font(.system(size: 13, weight: .bold))
+                            Spacer()
+                            Button(action: {
+                                PermissionsHelper.revealAppInFinder()
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 10))
+                                    Text("Reveal App in Finder")
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                }
+                                .foregroundColor(DesignSystem.accentColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(DesignSystem.accentColor.opacity(0.12)))
+                                .overlay(Capsule().strokeBorder(DesignSystem.accentColor.opacity(0.3), lineWidth: 0.8))
+                            }
+                            .buttonStyle(.spring)
+                            .help("Reveal NotchApp binary in Finder to drag directly into System Settings (+)")
+                        }
                         
+                        // Accessibility Status Card
                         HStack(spacing: 12) {
                             Image(systemName: store.isAccessibilityGranted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
                                 .font(.system(size: 18))
                                 .foregroundColor(store.isAccessibilityGranted ? .green : .orange)
                             
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(store.isAccessibilityGranted ? "1-Click Direct Sending Enabled" : "Accessibility Permission Required")
+                                Text(store.isAccessibilityGranted ? "Accessibility Permission Granted" : "Accessibility Permission Required")
                                     .font(.system(size: 12, weight: .semibold))
-                                Text(store.isAccessibilityGranted ? "WhatsApp and Telegram messages are dispatched directly without leaving drafts." : "Required for Notch to auto-press Enter in WhatsApp/Telegram and hide them back to background.")
+                                Text(store.isAccessibilityGranted ? "1-Click Direct Sending in WhatsApp & Telegram is active." : "Required for Notch to auto-press Enter in WhatsApp/Telegram and hide them back to background.")
                                     .font(.system(size: 10))
                                     .foregroundColor(DesignSystem.secondaryText)
                             }
@@ -140,10 +161,95 @@ public struct SettingsView: View {
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
+                            } else {
+                                Button("Settings") {
+                                    PermissionsHelper.openAccessibilitySettings()
+                                }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
                             }
                         }
                         .padding(10)
                         .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.structureColor.opacity(0.5)))
+
+                        // Drag & Drop / Hidden Folder Helper Card
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "questionmark.circle.fill")
+                                    .foregroundColor(DesignSystem.accentColor)
+                                    .font(.system(size: 12))
+                                Text("Where to add NotchApp in System Settings (+)?")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("• Method 1 (Easiest): Click (+) in System Settings, choose NotchApp directly from your Applications list.")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                                Text("• Method 2 (Drag & Drop): Click 'Reveal in Finder' below, then drag the highlighted NotchApp directly into System Settings.")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                                Text("• Method 3 (Open Dialog): In the (+) file dialog, press ⌘⇧G (Go to folder), paste the copied path (⌘V), and press Return.")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    PermissionsHelper.revealAppInFinder()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.up.right.square")
+                                        Text("Reveal in Finder")
+                                    }
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(DesignSystem.accentColor))
+                                    .foregroundColor(.black)
+                                }
+                                .buttonStyle(.spring)
+
+                                Button(action: {
+                                    PermissionsHelper.copyAppPathToClipboard()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "doc.on.doc")
+                                        Text("Copy App Path")
+                                    }
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                                    .foregroundColor(.white)
+                                }
+                                .buttonStyle(.spring)
+                                .help("Copy executable path: in file dialog press ⌘⇧G, paste and press Return")
+
+                                Button(action: {
+                                    PermissionsHelper.openInputMonitoringSettings()
+                                }) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "slider.horizontal.3")
+                                        Text("Input Monitoring")
+                                    }
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                                    .foregroundColor(.white)
+                                }
+                                .buttonStyle(.spring)
+                                .help("Open System Settings > Privacy & Security > Input Monitoring")
+
+                                Spacer()
+                            }
+                            .padding(.top, 2)
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.7))
                     }
                     .settingsCard()
                     

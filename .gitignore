@@ -66,6 +66,8 @@ secrets.json
 .build/
 Packages/
 Package.resolved
+NotchApp
+NotchApp.app/
 
 # ------------------------------------------------------------------------------
 # 3. XCODE & DERIVED DATA

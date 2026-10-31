@@ -36,6 +36,12 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     private var cachedIsPlaying: Bool = false
     private var cachedArtworkData: Data?
     private var cachedArtworkImage: NSImage?
+    private var appIconCache: [String: NSImage] = [:]
+    
+    public func clearCachedArtwork() {
+        cachedArtworkData = nil
+        cachedArtworkImage = nil
+    }
     
     private init() {
         if let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW) {
@@ -70,15 +76,16 @@ public final class MediaRemoteBridge: @unchecked Sendable {
         // 1. Query PID of active media application first
         if let getPID = getNowPlayingApplicationPID {
             getPID(DispatchQueue.main) { [weak self] pid in
+                guard let self = self else { completion(nil); return }
                 if pid > 0, let app = NSRunningApplication(processIdentifier: pid) {
-                    if self?.cachedBundleId != app.bundleIdentifier {
-                        self?.cachedBundleId = app.bundleIdentifier
+                    if self.cachedBundleId != app.bundleIdentifier {
+                        self.cachedBundleId = app.bundleIdentifier
                         let icon = app.icon
                         icon?.size = NSSize(width: 128, height: 128)
-                        self?.cachedAppIcon = icon
+                        self.cachedAppIcon = icon
                     }
                 }
-                self?.fetchPlaybackStatusAndInfo(getInfo: getInfo, completion: completion)
+                self.fetchPlaybackStatusAndInfo(getInfo: getInfo, completion: completion)
             }
         } else {
             fetchPlaybackStatusAndInfo(getInfo: getInfo, completion: completion)
@@ -92,8 +99,9 @@ public final class MediaRemoteBridge: @unchecked Sendable {
         // 2. Query system playback active state
         if let getPlaying = getNowPlayingApplicationIsPlaying {
             getPlaying(DispatchQueue.main) { [weak self] isPlaying in
-                self?.cachedIsPlaying = isPlaying
-                self?.fetchTrackMetadata(getInfo: getInfo, completion: completion)
+                guard let self = self else { completion(nil); return }
+                self.cachedIsPlaying = isPlaying
+                self.fetchTrackMetadata(getInfo: getInfo, completion: completion)
             }
         } else {
             fetchTrackMetadata(getInfo: getInfo, completion: completion)
@@ -106,7 +114,7 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     ) {
         // 3. Fetch track metadata
         getInfo(DispatchQueue.main) { [weak self] info in
-            guard let self = self else { return }
+            guard let self = self else { completion(nil); return }
             
             let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String ?? ""
             let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
@@ -118,7 +126,7 @@ public final class MediaRemoteBridge: @unchecked Sendable {
             
             var artworkImage: NSImage? = nil
             if let artData = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data {
-                if self.cachedArtworkData != artData {
+                if self.cachedArtworkData?.count != artData.count || self.cachedArtworkData != artData {
                     self.cachedArtworkData = artData
                     self.cachedArtworkImage = Self.makeArtworkImage(from: artData)
                 }
@@ -209,9 +217,13 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     }
     
     public func iconForBundle(_ bundleId: String) -> NSImage? {
+        if let cached = appIconCache[bundleId] {
+            return cached
+        }
         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             let icon = NSWorkspace.shared.icon(forFile: appURL.path)
             icon.size = NSSize(width: 128, height: 128)
+            appIconCache[bundleId] = icon
             return icon
         }
         return nil
@@ -225,7 +237,14 @@ public final class MediaRemoteBridge: @unchecked Sendable {
         return FileManager.default.displayName(atPath: appURL.path)
     }
     
+    private var cachedRunningPlayerId: String? = nil
+    private var lastRunningAppsScan: Date = .distantPast
+
     private func findActiveMediaAppBundleId() -> String? {
+        let now = Date()
+        if let cached = cachedRunningPlayerId, now.timeIntervalSince(lastRunningAppsScan) < 4.0 {
+            return cached
+        }
         let knownPlayers = [
             "com.brave.Browser",
             "com.google.Chrome",
@@ -236,12 +255,15 @@ public final class MediaRemoteBridge: @unchecked Sendable {
             "com.colliderli.iina",
             "org.videolan.vlc"
         ]
-        let running = NSWorkspace.shared.runningApplications
+        let runningSet = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        lastRunningAppsScan = now
         for player in knownPlayers {
-            if running.contains(where: { $0.bundleIdentifier == player }) {
+            if runningSet.contains(player) {
+                cachedRunningPlayerId = player
                 return player
             }
         }
+        cachedRunningPlayerId = nil
         return nil
     }
     

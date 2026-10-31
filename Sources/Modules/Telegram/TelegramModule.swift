@@ -244,15 +244,19 @@ public final class TelegramModule: NotchModule {
         FeedbackManager.playDelete()
     }
     
+    private static let chatDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
+    
     public func sendMessage() {
         let textToSend = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !textToSend.isEmpty,
               let contact = selectedContact,
               let idx = contacts.firstIndex(where: { $0.id == contact.id }) else { return }
         
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let timeString = formatter.string(from: Date())
+        let timeString = Self.chatDateFormatter.string(from: Date())
         
         let msg = ChatMessage(
             sender: "Me",
@@ -262,6 +266,9 @@ public final class TelegramModule: NotchModule {
         )
         
         contacts[idx].messages.append(msg)
+        if contacts[idx].messages.count > 50 {
+            contacts[idx].messages.removeFirst(contacts[idx].messages.count - 50)
+        }
         draftText = ""
         persistContacts()
         isDispatching = true

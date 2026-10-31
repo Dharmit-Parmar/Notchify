@@ -135,8 +135,10 @@ public final class ThockModule: NotchModule {
     
     // MARK: - NotchModule Protocol Lifecycle
     public func start() {
-        loadPacksFromDisk()
-        loadSettingsFromDisk()
+        if availablePacks.isEmpty {
+            loadPacksFromDisk()
+            loadSettingsFromDisk()
+        }
         checkAllPermissions()
         checkProcessStateZeroOverhead()
         startLightweightMonitor()
@@ -248,27 +250,37 @@ public final class ThockModule: NotchModule {
     }
     
     // Dynamic IOKit loader for Input Monitoring access checks
-    private static func checkIOHIDListenAccess() -> Bool {
+    private static let hidCheckAccessFunc: (@convention(c) (UInt32) -> Int32)? = {
         guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
               let sym = dlsym(handle, "IOHIDCheckAccess") else {
-            return false
+            return nil
         }
-        typealias IOHIDCheckAccessFunc = @convention(c) (UInt32) -> Int32
-        let fn = unsafeBitCast(sym, to: IOHIDCheckAccessFunc.self)
+        return unsafeBitCast(sym, to: (@convention(c) (UInt32) -> Int32).self)
+    }()
+    
+    private static let hidRequestAccessFunc: (@convention(c) (UInt32) -> Bool)? = {
+        guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
+              let sym = dlsym(handle, "IOHIDRequestAccess") else {
+            return nil
+        }
+        return unsafeBitCast(sym, to: (@convention(c) (UInt32) -> Bool).self)
+    }()
+
+    private static func checkIOHIDListenAccess() -> Bool {
+        guard let fn = hidCheckAccessFunc else { return false }
         // kIOHIDRequestTypeListenEvent = 1; 0 = granted, 1 = denied, 2 = not determined
         return fn(1) == 0
     }
     
     @discardableResult
     private static func requestIOHIDListenAccess() -> Bool {
-        guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
-              let sym = dlsym(handle, "IOHIDRequestAccess") else {
-            return false
-        }
-        typealias IOHIDRequestAccessFunc = @convention(c) (UInt32) -> Bool
-        let fn = unsafeBitCast(sym, to: IOHIDRequestAccessFunc.self)
+        guard let fn = hidRequestAccessFunc else { return false }
         return fn(1)
     }
+
+    nonisolated private static let ansiRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"\x1b\[[0-9;]*[a-zA-Z]"#, options: [])
+    }()
     
     // MARK: - Pack Discovery & Settings Sync
     public func loadPacksFromDisk() {
@@ -395,7 +407,13 @@ public final class ThockModule: NotchModule {
         outP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty, let rawStr = String(data: data, encoding: .utf8) else { return }
-            let clean = rawStr.replacingOccurrences(of: #"\x1b\[[0-9;]*[a-zA-Z]"#, with: "", options: .regularExpression)
+            let clean: String
+            if let regex = Self.ansiRegex {
+                let range = NSRange(location: 0, length: rawStr.utf16.count)
+                clean = regex.stringByReplacingMatches(in: rawStr, options: [], range: range, withTemplate: "")
+            } else {
+                clean = rawStr
+            }
             
             DispatchQueue.main.async {
                 self?.appendLog(clean)
@@ -405,6 +423,10 @@ public final class ThockModule: NotchModule {
         
         proc.terminationHandler = { [weak self] p in
             DispatchQueue.main.async {
+                self?.outPipe?.fileHandleForReading.readabilityHandler = nil
+                self?.inPipe = nil
+                self?.outPipe = nil
+                self?.process = nil
                 self?.isRunning = false
                 self?.processPID = nil
                 self?.statusSubtitle = "Engine Stopped"
@@ -445,6 +467,10 @@ public final class ThockModule: NotchModule {
                 self.processPID = nil
                 self.isRunning = false
             }
+            outPipe?.fileHandleForReading.readabilityHandler = nil
+            inPipe = nil
+            outPipe = nil
+            process = nil
             return
         }
         
@@ -455,6 +481,10 @@ public final class ThockModule: NotchModule {
             if self.process?.isRunning == true {
                 self.process?.terminate()
             }
+            self.outPipe?.fileHandleForReading.readabilityHandler = nil
+            self.inPipe = nil
+            self.outPipe = nil
+            self.process = nil
             self.isRunning = false
             self.processPID = nil
             self.statusSubtitle = "Engine Stopped"
@@ -652,8 +682,8 @@ public final class ThockModule: NotchModule {
                 terminalLogs.append(trimmed)
             }
         }
-        if terminalLogs.count > 300 {
-            terminalLogs.removeFirst(terminalLogs.count - 300)
+        if terminalLogs.count > 60 {
+            terminalLogs.removeFirst(terminalLogs.count - 60)
         }
     }
     
@@ -802,6 +832,9 @@ public struct ThockExpandedView: View {
             module.checkAllPermissions()
             module.startLightweightMonitor()
         }
+        .onDisappear {
+            module.stopLightweightMonitor()
+        }
     }
     
     // MARK: - Subsection 1: Key Sound View
@@ -840,8 +873,8 @@ public struct ThockExpandedView: View {
                         .help("Trigger system authorization dialogs and open settings panes")
                     }
                     
-                    // Detailed Permission Checklist Row
-                    HStack(spacing: 8) {
+                    // Detailed Permission Checklist Row with Reveal App in Finder
+                    HStack(spacing: 6) {
                         // Accessibility Status Badge
                         HStack(spacing: 4) {
                             Image(systemName: module.hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -885,6 +918,37 @@ public struct ThockExpandedView: View {
                         .background(Capsule().fill(Color.white.opacity(0.05)))
                         
                         Spacer()
+                        
+                        // Reveal in Finder & Copy Path for Easy Drag-and-Drop
+                        Button(action: { PermissionsHelper.revealAppInFinder() }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 7.5))
+                                Text("Reveal in Finder")
+                                    .font(.system(size: 8, weight: .bold))
+                            }
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
+                        }
+                        .buttonStyle(.spring)
+                        .help("Highlight NotchApp in Finder to drag directly into System Settings (+)")
+
+                        Button(action: { PermissionsHelper.copyAppPathToClipboard() }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 7))
+                                Text("Copy Path")
+                                    .font(.system(size: 8, weight: .medium))
+                            }
+                            .foregroundColor(Color.white.opacity(0.85))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                        }
+                        .buttonStyle(.spring)
+                        .help("Copy executable path: in Open File dialog press ⌘⇧G and paste")
                     }
                 }
                 .padding(7)

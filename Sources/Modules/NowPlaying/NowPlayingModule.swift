@@ -39,10 +39,36 @@ public final class NowPlayingModule: ObservableObject {
         }
     }
     
+    private var pendingRefreshWorkItem: DispatchWorkItem?
+    private var isFetching = false
+    private var lastFetchTimestamp: Date = .distantPast
+    
     public func refreshMediaState() {
+        pendingRefreshWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.performFetchMediaState()
+        }
+        pendingRefreshWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: item)
+    }
+
+    private func performFetchMediaState() {
+        let now = Date()
+        if isFetching {
+            if now.timeIntervalSince(lastFetchTimestamp) > 2.5 {
+                isFetching = false
+            } else {
+                return
+            }
+        }
+        isFetching = true
+        lastFetchTimestamp = now
+
         MediaRemoteBridge.shared.fetchCurrentTrack { [weak self] track in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
+                self.isFetching = false
                 if let track = track {
                     if self.trackTitle != track.title { self.trackTitle = track.title }
                     if self.artistName != track.artist { self.artistName = track.artist }
@@ -65,6 +91,7 @@ public final class NowPlayingModule: ObservableObject {
                     if self.duration != 0 { self.duration = 0 }
                     if self.hasActiveMedia { self.hasActiveMedia = false }
                     if self.artwork != nil { self.artwork = nil }
+                    MediaRemoteBridge.shared.clearCachedArtwork()
                 }
             }
         }

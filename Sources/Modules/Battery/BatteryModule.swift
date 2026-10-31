@@ -1,6 +1,8 @@
 import SwiftUI
 import IOKit.ps
 
+import Combine
+
 public final class BatteryModule: NotchModule {
     public let id = "battery"
     public let title = "Battery"
@@ -11,15 +13,27 @@ public final class BatteryModule: NotchModule {
     @Published public var isCharging: Bool = true
     @Published public var timeRemaining: String = "Fully Charged"
     
+    private var updateTimer: AnyCancellable?
+    
     public init() {
         refresh()
     }
     
     public func start() {
         refresh()
+        if updateTimer == nil {
+            updateTimer = Timer.publish(every: 15.0, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in
+                    self?.refresh()
+                }
+        }
     }
     
-    public func stop() {}
+    public func stop() {
+        updateTimer?.cancel()
+        updateTimer = nil
+    }
     
     public func refresh() {
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
@@ -107,6 +121,8 @@ public final class BatteryModule: NotchModule {
                     }
                 }
             }
+            .onAppear { [weak self] in self?.start() }
+            .onDisappear { [weak self] in self?.stop() }
         )
     }
 }

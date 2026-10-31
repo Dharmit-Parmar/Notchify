@@ -33,6 +33,15 @@ public struct CalendarEventItem: Identifiable, Sendable {
     }
 }
 
+public struct CalendarCellData: Identifiable, Sendable {
+    public let id: Int
+    public let date: Date
+    public let dayNumber: Int
+    public let isCurrentMonth: Bool
+    public let isToday: Bool
+    public let hasEvents: Bool
+}
+
 @MainActor
 public final class CalendarModule: ObservableObject {
     public static let shared = CalendarModule()
@@ -45,16 +54,62 @@ public final class CalendarModule: ObservableObject {
     @Published public var displayedMonthDate: Date = Date()
     @Published public var selectedDate: Date = Date()
     @Published public var upcomingEvents: [CalendarEventItem] = []
+    @Published public var monthGridCells: [CalendarCellData] = []
     
     public init() {
         loadEvents()
+        updateGridCells()
     }
     
     public func start() {
         loadEvents()
+        updateGridCells()
     }
     
     public func stop() {}
+
+    public func updateGridCells() {
+        let calendar = Calendar.current
+        guard let monthInterval = calendar.dateInterval(of: .month, for: displayedMonthDate) else {
+            monthGridCells = []
+            return
+        }
+        
+        let startOfMonth = monthInterval.start
+        let weekday = calendar.component(.weekday, from: startOfMonth)
+        let leadingDays = (weekday - calendar.firstWeekday + 7) % 7
+        
+        guard let gridStartDate = calendar.date(byAdding: .day, value: -leadingDays, to: startOfMonth) else {
+            monthGridCells = []
+            return
+        }
+        
+        let numberOfDaysInMonth = calendar.range(of: .day, in: .month, for: startOfMonth)?.count ?? 30
+        let totalCellsNeeded = leadingDays + numberOfDaysInMonth
+        let totalCells = totalCellsNeeded > 35 ? 42 : 35
+        let currentMonth = calendar.component(.month, from: displayedMonthDate)
+        
+        var cells: [CalendarCellData] = []
+        cells.reserveCapacity(totalCells)
+        
+        for i in 0..<totalCells {
+            if let date = calendar.date(byAdding: .day, value: i, to: gridStartDate) {
+                let dayNum = calendar.component(.day, from: date)
+                let isCurr = calendar.component(.month, from: date) == currentMonth
+                let isTod = calendar.isDateInToday(date)
+                let hasEv = upcomingEvents.contains(where: { calendar.isDate($0.date, inSameDayAs: date) })
+                cells.append(CalendarCellData(
+                    id: i,
+                    date: date,
+                    dayNumber: dayNum,
+                    isCurrentMonth: isCurr,
+                    isToday: isTod,
+                    hasEvents: hasEv
+                ))
+            }
+        }
+        monthGridCells = cells
+    }
     
     private func loadEvents() {
         let calendar = Calendar.current
@@ -91,6 +146,7 @@ public final class CalendarModule: ObservableObject {
         if let newDate = Calendar.current.date(byAdding: .month, value: amount, to: displayedMonthDate) {
             withAnimation(DesignSystem.reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1)) {
                 displayedMonthDate = newDate
+                updateGridCells()
             }
             FeedbackManager.playClick()
         }
@@ -101,6 +157,7 @@ public final class CalendarModule: ObservableObject {
         withAnimation(DesignSystem.reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1)) {
             displayedMonthDate = today
             selectedDate = today
+            updateGridCells()
         }
         FeedbackManager.playClick()
     }
@@ -118,32 +175,7 @@ public struct CalendarHomeCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var module: CalendarModule = CalendarModule.shared
     
-    private var daysInMonth: [Date] {
-        let calendar = Calendar.current
-        guard let monthInterval = calendar.dateInterval(of: .month, for: module.displayedMonthDate) else {
-            return []
-        }
-        
-        let startOfMonth = monthInterval.start
-        let weekday = calendar.component(.weekday, from: startOfMonth)
-        let leadingDays = (weekday - calendar.firstWeekday + 7) % 7
-        
-        guard let gridStartDate = calendar.date(byAdding: .day, value: -leadingDays, to: startOfMonth) else {
-            return []
-        }
-        
-        let numberOfDaysInMonth = calendar.range(of: .day, in: .month, for: startOfMonth)?.count ?? 30
-        let totalCellsNeeded = leadingDays + numberOfDaysInMonth
-        let totalCells = totalCellsNeeded > 35 ? 42 : 35
-        
-        var dates: [Date] = []
-        for i in 0..<totalCells {
-            if let date = calendar.date(byAdding: .day, value: i, to: gridStartDate) {
-                dates.append(date)
-            }
-        }
-        return dates
-    }
+    private static let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
     
     private var monthYearTitle: String {
         module.displayedMonthDate.formatted(.dateTime.month(.abbreviated).year())
@@ -213,33 +245,28 @@ public struct CalendarHomeCardView: View {
             
             // Days Grid
             let calendar = Calendar.current
-            let currentMonth = calendar.component(.month, from: module.displayedMonthDate)
-            
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
-                ForEach(daysInMonth, id: \.self) { date in
-                    let dayNum = calendar.component(.day, from: date)
-                    let isCurrentMonth = calendar.component(.month, from: date) == currentMonth
-                    let isToday = calendar.isDateInToday(date)
-                    let isSelected = calendar.isDate(date, inSameDayAs: module.selectedDate)
-                    let hasEvents = !module.events(for: date).isEmpty
+            LazyVGrid(columns: Self.gridColumns, spacing: 2) {
+                ForEach(module.monthGridCells) { cell in
+                    let isSelected = calendar.isDate(cell.date, inSameDayAs: module.selectedDate)
+                    let hasEvents = cell.hasEvents
                     
                     Button(action: {
                         FeedbackManager.playClick()
-                        module.selectedDate = date
+                        module.selectedDate = cell.date
                     }) {
                         ZStack {
                             if isSelected {
                                 Circle().fill(DesignSystem.accentColor)
-                            } else if isToday {
+                            } else if cell.isToday {
                                 Circle().strokeBorder(DesignSystem.accentColor, lineWidth: 1)
                             }
 
-                            Text("\(dayNum)")
-                                .font(.system(size: 10, weight: isToday || isSelected ? .semibold : .regular, design: .rounded))
+                            Text("\(cell.dayNumber)")
+                                .font(.system(size: 10, weight: cell.isToday || isSelected ? .semibold : .regular, design: .rounded))
                                 .foregroundColor(
                                     isSelected ? DesignSystem.canvasColor :
-                                    (isToday ? DesignSystem.accentColor :
-                                    (isCurrentMonth ? .white : Color.white.opacity(0.20)))
+                                    (cell.isToday ? DesignSystem.accentColor :
+                                    (cell.isCurrentMonth ? .white : Color.white.opacity(0.20)))
                                 )
 
                             if hasEvents {

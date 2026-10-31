@@ -59,6 +59,12 @@ public final class CameraSessionManager: @unchecked Sendable {
             if self.captureSession.isRunning {
                 self.captureSession.stopRunning()
             }
+            self.captureSession.beginConfiguration()
+            for input in self.captureSession.inputs {
+                self.captureSession.removeInput(input)
+            }
+            self.captureSession.commitConfiguration()
+            self.isConfigured = false
             DispatchQueue.main.async {
                 completion()
             }

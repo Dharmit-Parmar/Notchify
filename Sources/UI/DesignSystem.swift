@@ -217,7 +217,10 @@ public final class DynamicThemeEngine: ObservableObject {
                     queue: .main
                 ) { [weak self] _ in
                     Task { @MainActor [weak self] in
-                        self?.refreshColors()
+                        guard let self = self else { return }
+                        if NotchShellCoordinator.shared.state == .expanded || NotchShellCoordinator.shared.isHovered {
+                            self.refreshColors()
+                        }
                     }
                 }
             }
@@ -273,6 +276,7 @@ public final class DynamicThemeEngine: ObservableObject {
                         Task { @MainActor [weak self] in
                             guard let self else { return }
                             self.samplingAppBundleIDs.remove(bundleID)
+                            if self.sampledAppColors.count > 50 { self.sampledAppColors.removeAll() }
                             if let color { self.sampledAppColors[bundleID] = color }
                             if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID,
                                SettingsStore.shared.currentTheme == .activeApp || SettingsStore.shared.currentTheme == .adaptive {
@@ -313,13 +317,36 @@ public final class DynamicThemeEngine: ObservableObject {
     }
 
     nonisolated private static func sampleImageColor(_ image: NSImage) -> (CGFloat, CGFloat, CGFloat)? {
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff), rep.pixelsWide > 0, rep.pixelsHigh > 0 else { return nil }
+        let size = CGSize(width: 16, height: 16)
+        var rawData = [UInt8](repeating: 0, count: 16 * 16 * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &rawData,
+            width: 16,
+            height: 16,
+            bitsPerComponent: 8,
+            bytesPerRow: 16 * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        
+        var proposedRect = CGRect(origin: .zero, size: size)
+        if let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+            ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
+        } else if let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let cg = rep.cgImage {
+            ctx.draw(cg, in: CGRect(origin: .zero, size: size))
+        } else {
+            return nil
+        }
+        
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, count: CGFloat = 0
-        for y in stride(from: 0, to: rep.pixelsHigh, by: max(1, rep.pixelsHigh / 12)) {
-            for x in stride(from: 0, to: rep.pixelsWide, by: max(1, rep.pixelsWide / 12)) {
-                guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-                red += color.redComponent; green += color.greenComponent; blue += color.blueComponent; count += 1
+        for i in stride(from: 0, to: 16 * 16 * 4, by: 4) {
+            let a = CGFloat(rawData[i + 3]) / 255.0
+            if a > 0.15 {
+                red += (CGFloat(rawData[i]) / 255.0) / a
+                green += (CGFloat(rawData[i + 1]) / 255.0) / a
+                blue += (CGFloat(rawData[i + 2]) / 255.0) / a
+                count += 1
             }
         }
         return count > 0 ? (red / count, green / count, blue / count) : nil

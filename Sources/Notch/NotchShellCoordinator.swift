@@ -87,6 +87,13 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func onMouseEnter() {
+        if state == .expanded && isHovered {
+            if collapseWorkItem != nil {
+                collapseWorkItem?.cancel()
+                collapseWorkItem = nil
+            }
+            return
+        }
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
         isHovered = true

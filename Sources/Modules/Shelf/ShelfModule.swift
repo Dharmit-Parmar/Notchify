@@ -68,10 +68,7 @@ public struct ShelfItem: Identifiable, Sendable {
         if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
            let fileSize = attrs[.size] as? Int64 {
             self.byteCount = fileSize
-            let formatter = ByteCountFormatter()
-            formatter.allowedUnits = [.useAll]
-            formatter.countStyle = .file
-            self.size = formatter.string(fromByteCount: fileSize)
+            self.size = ShelfModule.byteFormatter.string(fromByteCount: fileSize)
         } else {
             self.byteCount = 0
             self.size = "File"
@@ -123,11 +120,7 @@ public struct ResultantPDF: Identifiable, Sendable {
         self.summary = summary
         self.tool = tool
         self.thumbnailData = thumbnailData
-
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useAll]
-        formatter.countStyle = .file
-        self.formattedSize = formatter.string(fromByteCount: byteCount)
+        self.formattedSize = ShelfModule.byteFormatter.string(fromByteCount: byteCount)
     }
 }
 
@@ -139,6 +132,14 @@ public enum LeftStageMode {
 @MainActor
 public final class ShelfModule: NotchModule {
     public static let shared = ShelfModule()
+    
+    nonisolated(unsafe) public static let byteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useAll]
+        formatter.countStyle = .file
+        return formatter
+    }()
+    
     public let id = "shelf"
     public let title = "File Studio"
     public let iconName = "doc.badge.gearshape.fill"
@@ -166,10 +167,24 @@ public final class ShelfModule: NotchModule {
         let baseTemp = FileManager.default.temporaryDirectory.appendingPathComponent("NotchifyStudio", isDirectory: true)
         try? FileManager.default.createDirectory(at: baseTemp, withIntermediateDirectories: true)
         self.tempCacheDirectory = baseTemp
+        cleanStaleTempFiles()
     }
     
     public func start() {}
     public func stop() {}
+
+    public func cleanStaleTempFiles(all: Bool = false) {
+        guard let files = try? FileManager.default.contentsOfDirectory(at: tempCacheDirectory, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        let now = Date()
+        for file in files {
+            if all {
+                try? FileManager.default.removeItem(at: file)
+            } else if let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+               now.timeIntervalSince(date) > 900 {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
     
     public func addItem(_ url: URL) {
         guard !items.contains(where: { $0.url == url }) else { return }
@@ -199,6 +214,7 @@ public final class ShelfModule: NotchModule {
         items.removeAll()
         statusMessage = nil
         FeedbackManager.playDelete()
+        cleanStaleTempFiles(all: true)
     }
     
     // Manual File Selection via Finder (NSOpenPanel)
@@ -433,11 +449,8 @@ public final class ShelfModule: NotchModule {
             finalBytes = newBytes
         }
         
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useAll]
-        formatter.countStyle = .file
-        let oldStr = formatter.string(fromByteCount: originalBytes)
-        let newStr = formatter.string(fromByteCount: finalBytes)
+        let oldStr = ShelfModule.byteFormatter.string(fromByteCount: originalBytes)
+        let newStr = ShelfModule.byteFormatter.string(fromByteCount: finalBytes)
         let reduction = originalBytes > finalBytes ? Int((Double(originalBytes - finalBytes) / Double(max(1, originalBytes))) * 100) : 0
         
         let thumbnail = renderPageThumbnail(page: compressedDoc.page(at: 0))
@@ -668,6 +681,9 @@ public final class ShelfModule: NotchModule {
 
     // Clear Preview and return to normal Tools Wheel mode
     public func clearPreview() {
+        if let doc = resultantDocument, doc.fileURL.path.contains("NotchifyStudio") {
+            try? FileManager.default.removeItem(at: doc.fileURL)
+        }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             self.resultantDocument = nil
             self.leftStageMode = .wheel
@@ -684,27 +700,28 @@ public final class ShelfModule: NotchModule {
         let targetHeight = max(80, box.height * scale)
         let targetSize = NSSize(width: targetWidth, height: targetHeight)
         
-        let img = NSImage(size: targetSize, flipped: false) { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            ctx.setFillColor(NSColor.white.cgColor)
-            ctx.fill(rect)
-            ctx.saveGState()
-            ctx.scaleBy(x: scale, y: scale)
-            page.draw(with: .mediaBox, to: ctx)
-            ctx.restoreGState()
-            return true
+        let thumb = page.thumbnail(of: targetSize, for: .mediaBox)
+        var proposedRect = CGRect(origin: .zero, size: targetSize)
+        if let cg = thumb.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+            let rep = NSBitmapImageRep(cgImage: cg)
+            return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
         }
-        
-        if let tiff = img.tiffRepresentation,
-           let rep = NSBitmapImageRep(data: tiff) {
+        if let tiff = thumb.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
             return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
         }
         return nil
     }
 
     private func enhanceImage(_ image: NSImage, ciContext: CIContext) -> NSImage? {
-        guard let tiffData = image.tiffRepresentation,
-              let ciImage = CIImage(data: tiffData) else { return nil }
+        var proposedRect = CGRect(origin: .zero, size: image.size)
+        let ciImage: CIImage
+        if let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+            ciImage = CIImage(cgImage: cgImage)
+        } else if let tiffData = image.tiffRepresentation, let ci = CIImage(data: tiffData) {
+            ciImage = ci
+        } else {
+            return nil
+        }
         
         let colorFilter = CIFilter(name: "CIColorControls")
         colorFilter?.setValue(ciImage, forKey: kCIInputImageKey)

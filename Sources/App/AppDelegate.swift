@@ -127,5 +127,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     
     public func applicationWillTerminate(_ notification: Notification) {
         ThockModule.shared.terminateProcess()
+        ShelfModule.shared.cleanStaleTempFiles(all: true)
     }
 }
