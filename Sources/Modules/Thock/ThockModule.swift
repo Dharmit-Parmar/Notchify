@@ -20,10 +20,15 @@ public struct ThockPackMeta: Identifiable, Hashable {
     }
 }
 
-// MARK: - Thock Engine Process Manager (CLI Connectivity)
+// MARK: - Thock Module & Engine Process Manager
 @MainActor
-public final class ThockManager: ObservableObject {
-    public static let shared = ThockManager()
+public final class ThockModule: NotchModule {
+    public static let shared = ThockModule()
+    
+    public let id = "thock"
+    public let title = "Thock"
+    public let iconName = "keyboard"
+    @Published public var isEnabled: Bool = true
     
     // File Paths
     public let projectDir = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound")
@@ -57,20 +62,37 @@ public final class ThockManager: ObservableObject {
     private var inPipe: Pipe?
     private var outPipe: Pipe?
     private var heartbeatTimer: AnyCancellable?
-    private var logBufferQueue = DispatchQueue(label: "com.notch.thock.logqueue", qos: .userInitiated)
     
-    private init() {
+    public init() {
+        // Fast, non-blocking synchronous file reads
         loadPacksFromDisk()
         loadFavoritesFromDisk()
         loadSettingsFromDisk()
-        checkRunningProcess()
         
-        // Periodic heartbeat monitor (detects external starts, crashes, or quits)
-        heartbeatTimer = Timer.publish(every: 2.0, on: .main, in: .common)
+        // Asynchronously check running processes on background queue - NEVER block init or pump runloop
+        checkRunningProcessInBackground()
+        
+        // Periodic background heartbeat
+        heartbeatTimer = Timer.publish(every: 3.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.checkRunningProcess()
+                self?.checkRunningProcessInBackground()
             }
+    }
+    
+    // MARK: - NotchModule Protocol Lifecycle
+    public func start() {
+        loadPacksFromDisk()
+        loadSettingsFromDisk()
+        checkRunningProcessInBackground()
+    }
+    
+    public func stop() {
+        // Audio continues in background across macOS typing sessions
+    }
+    
+    public func terminateProcess() {
+        stopEngine()
     }
     
     // MARK: - Pack Discovery & Settings Sync
@@ -93,7 +115,7 @@ public final class ThockManager: ObservableObject {
             return a < b
         }).map { name in
             let display = name.replacingOccurrences(of: "_", with: " ").capitalized
-            let meta = ThockManager.knownPackMetadata(for: name)
+            let meta = ThockModule.knownPackMetadata(for: name)
             return ThockPackMeta(
                 name: name,
                 displayName: display,
@@ -139,7 +161,6 @@ public final class ThockManager: ObservableObject {
         guard !isRunning else { return }
         FeedbackManager.playClick()
         
-        // Ensure binary is available
         guard FileManager.default.fileExists(atPath: binaryURL.path) else {
             appendLog("❌ Binary missing at \(binaryURL.path). Build with 'cargo build --release' in KeySound.")
             return
@@ -166,8 +187,6 @@ public final class ThockManager: ObservableObject {
         outP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty, let rawStr = String(data: data, encoding: .utf8) else { return }
-            
-            // Clean ANSI formatting for pristine GUI terminal rendering
             let clean = rawStr.replacingOccurrences(of: #"\x1b\[[0-9;]*[a-zA-Z]"#, with: "", options: .regularExpression)
             
             DispatchQueue.main.async {
@@ -202,7 +221,6 @@ public final class ThockManager: ObservableObject {
     public func stopEngine() {
         FeedbackManager.playClick()
         guard isRunning else {
-            // Check if external process is lingering and kill it
             if let pid = processPID {
                 kill(pid, SIGTERM)
                 self.processPID = nil
@@ -211,7 +229,6 @@ public final class ThockManager: ObservableObject {
             return
         }
         
-        // Send graceful 'exit' command over standard input
         sendCommand("exit", echo: false)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
@@ -325,7 +342,6 @@ public final class ThockManager: ObservableObject {
                 terminalLogs.append(trimmed)
             }
         }
-        // Retain max 300 lines for zero memory pressure
         if terminalLogs.count > 300 {
             terminalLogs.removeFirst(terminalLogs.count - 300)
         }
@@ -340,37 +356,46 @@ public final class ThockManager: ObservableObject {
         if text.contains("Thunder [OFF") { self.thunderActive = false }
     }
     
-    private func checkRunningProcess() {
-        // Run a lightweight pgrep to detect if thock-cli is running
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        task.arguments = ["-x", "thock-cli"]
-        let out = Pipe()
-        task.standardOutput = out
-        
-        do {
-            try task.run()
-            task.waitUntilExit()
-            if task.terminationStatus == 0 {
-                let data = out.fileHandleForReading.readDataToEndOfFile()
-                if let str = String(data: data, encoding: .utf8),
-                   let firstPIDStr = str.components(separatedBy: .newlines).first,
-                   let pid = Int32(firstPIDStr.trimmingCharacters(in: .whitespaces)) {
-                    if !self.isRunning {
-                        self.isRunning = true
-                        self.processPID = pid
-                        self.statusSubtitle = "Active · PID \(pid)"
+    public func checkRunningProcessInBackground() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+            task.arguments = ["-x", "thock-cli"]
+            let out = Pipe()
+            task.standardOutput = out
+            
+            do {
+                try task.run()
+                task.waitUntilExit()
+                if task.terminationStatus == 0 {
+                    let data = out.fileHandleForReading.readDataToEndOfFile()
+                    if let str = String(data: data, encoding: .utf8),
+                       let firstPIDStr = str.components(separatedBy: .newlines).first,
+                       let pid = Int32(firstPIDStr.trimmingCharacters(in: .whitespaces)) {
+                        DispatchQueue.main.async {
+                            guard let self = self else { return }
+                            if !self.isRunning {
+                                self.isRunning = true
+                                self.processPID = pid
+                                self.statusSubtitle = "Active · PID \(pid)"
+                            }
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        guard let self = self else { return }
+                        if self.process == nil || self.process?.isRunning == false {
+                            if self.isRunning {
+                                self.isRunning = false
+                                self.processPID = nil
+                                self.statusSubtitle = "Engine Offline"
+                            }
+                        }
                     }
                 }
-            } else if self.process == nil || self.process?.isRunning == false {
-                if self.isRunning {
-                    self.isRunning = false
-                    self.processPID = nil
-                    self.statusSubtitle = "Engine Offline"
-                }
+            } catch {
+                // Ignore pgrep failure
             }
-        } catch {
-            // Ignore pgrep failure
         }
     }
     
@@ -408,51 +433,20 @@ public final class ThockManager: ObservableObject {
             return ("Mechanical Switch", "High-fidelity acoustic capture")
         }
     }
-}
-
-// MARK: - Notch Module Conformance
-@MainActor
-public final class ThockModule: NotchModule {
-    public static let shared = ThockModule()
     
-    public let id = "thock"
-    public let title = "Thock"
-    public let iconName = "keyboard"
-    @Published public var isEnabled: Bool = true
-    
-    public var statusSubtitle: String {
-        ThockManager.shared.statusSubtitle
-    }
-    
-    public init() {}
-    
-    public func start() {
-        // Module focused: reload settings and state
-        ThockManager.shared.loadPacksFromDisk()
-        ThockManager.shared.loadSettingsFromDisk()
-    }
-    
-    public func stop() {
-        // Do NOT stop the background audio engine when switching tabs!
-        // The user wants thock to continue playing while they type across macOS!
-    }
-    
-    public func terminateProcess() {
-        ThockManager.shared.stopEngine()
-    }
-    
+    // MARK: - Views
     public func makeCompactView() -> AnyView {
         AnyView(
             HStack(spacing: 5) {
                 Image(systemName: "keyboard")
                     .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundColor(ThockManager.shared.isRunning ? DesignSystem.accentColor : Color.white.opacity(0.8))
+                    .foregroundColor(isRunning ? DesignSystem.accentColor : Color.white.opacity(0.8))
                 
                 Text("Thock")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.white)
                 
-                if ThockManager.shared.isRunning {
+                if isRunning {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 5, height: 5)
@@ -464,19 +458,19 @@ public final class ThockModule: NotchModule {
     
     public func makeExpandedView() -> AnyView {
         AnyView(
-            ThockExpandedView(manager: ThockManager.shared)
+            ThockExpandedView(module: self)
         )
     }
 }
 
 // MARK: - Thock Expanded View (Hardware Control & Terminal Console)
 public struct ThockExpandedView: View {
-    @ObservedObject var manager: ThockManager
+    @ObservedObject var module: ThockModule
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     public var body: some View {
         HStack(spacing: 12) {
-            // LEFT COLUMN: Hardware Controls & ASMR Layers (Width ~215pt)
+            // LEFT COLUMN: Hardware Controls & ASMR Layers (Width ~205pt)
             VStack(alignment: .leading, spacing: 8) {
                 // Header & Status Pill
                 HStack(spacing: 8) {
@@ -495,7 +489,7 @@ public struct ThockExpandedView: View {
                         
                         Image(systemName: "keyboard.fill")
                             .font(.system(size: 14))
-                            .foregroundColor(manager.isRunning ? DesignSystem.accentColor : Color.white.opacity(0.7))
+                            .foregroundColor(module.isRunning ? DesignSystem.accentColor : Color.white.opacity(0.7))
                     }
                     
                     VStack(alignment: .leading, spacing: 1) {
@@ -505,38 +499,38 @@ public struct ThockExpandedView: View {
                         
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(manager.isRunning ? Color.green : Color.white.opacity(0.3))
+                                .fill(module.isRunning ? Color.green : Color.white.opacity(0.3))
                                 .frame(width: 6, height: 6)
-                                .shadow(color: manager.isRunning ? Color.green.opacity(0.8) : Color.clear, radius: 4)
+                                .shadow(color: module.isRunning ? Color.green.opacity(0.8) : Color.clear, radius: 4)
                             
-                            Text(manager.isRunning ? "Running (PID \(manager.processPID ?? 0))" : "Engine Offline")
+                            Text(module.isRunning ? "Running (PID \(module.processPID ?? 0))" : "Engine Offline")
                                 .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                .foregroundColor(manager.isRunning ? Color.green : DesignSystem.secondaryText)
+                                .foregroundColor(module.isRunning ? Color.green : DesignSystem.secondaryText)
                         }
                     }
                 }
                 
                 // Primary Action Button (Start / Stop)
-                Button(action: { manager.toggleEngine() }) {
+                Button(action: { module.toggleEngine() }) {
                     HStack(spacing: 6) {
-                        Image(systemName: manager.isRunning ? "stop.fill" : "play.fill")
+                        Image(systemName: module.isRunning ? "stop.fill" : "play.fill")
                             .font(.system(size: 10, weight: .bold))
                         
-                        Text(manager.isRunning ? "Stop Engine" : "Start Engine")
+                        Text(module.isRunning ? "Stop Engine" : "Start Engine")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                     }
-                    .foregroundColor(manager.isRunning ? Color.white : Color.black)
+                    .foregroundColor(module.isRunning ? Color.white : Color.black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 7)
                     .background(
                         Capsule()
-                            .fill(manager.isRunning ? Color.red.opacity(0.8) : DesignSystem.accentColor)
+                            .fill(module.isRunning ? Color.red.opacity(0.8) : DesignSystem.accentColor)
                     )
                     .overlay(
                         Capsule()
-                            .strokeBorder(Color.white.opacity(manager.isRunning ? 0.3 : 0.6), lineWidth: 0.8)
+                            .strokeBorder(Color.white.opacity(module.isRunning ? 0.3 : 0.6), lineWidth: 0.8)
                     )
-                    .shadow(color: (manager.isRunning ? Color.red : DesignSystem.accentColor).opacity(0.25), radius: 6, y: 2)
+                    .shadow(color: (module.isRunning ? Color.red : DesignSystem.accentColor).opacity(0.25), radius: 6, y: 2)
                 }
                 .buttonStyle(.spring)
                 
@@ -553,16 +547,16 @@ public struct ThockExpandedView: View {
                         
                         Spacer()
                         
-                        Text("\(Int(manager.volume))%")
+                        Text("\(Int(module.volume))%")
                             .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                             .foregroundColor(DesignSystem.accentColor)
                     }
                     
-                    Slider(value: $manager.volume, in: 0...100, step: 1) {
+                    Slider(value: $module.volume, in: 0...100, step: 1) {
                         Text("Volume")
                     } onEditingChanged: { editing in
                         if !editing {
-                            manager.updateVolume(manager.volume)
+                            module.updateVolume(module.volume)
                         }
                     }
                     .accentColor(DesignSystem.accentColor)
@@ -587,25 +581,25 @@ public struct ThockExpandedView: View {
                         AsmrPillButton(
                             title: "Rain",
                             icon: "cloud.rain.fill",
-                            isActive: manager.rainActive,
+                            isActive: module.rainActive,
                             activeColor: Color(red: 0.3, green: 0.75, blue: 1.0),
-                            action: { manager.toggleRain() }
+                            action: { module.toggleRain() }
                         )
                         
                         AsmrPillButton(
                             title: "Wind",
                             icon: "wind",
-                            isActive: manager.windActive,
+                            isActive: module.windActive,
                             activeColor: Color(red: 0.5, green: 0.85, blue: 0.9),
-                            action: { manager.toggleWind() }
+                            action: { module.toggleWind() }
                         )
                         
                         AsmrPillButton(
                             title: "Thunder",
                             icon: "bolt.fill",
-                            isActive: manager.thunderActive,
+                            isActive: module.thunderActive,
                             activeColor: Color(red: 1.0, green: 0.82, blue: 0.3),
-                            action: { manager.toggleThunder() }
+                            action: { module.toggleThunder() }
                         )
                     }
                 }
@@ -621,7 +615,7 @@ public struct ThockExpandedView: View {
             }
             .frame(width: 205)
             
-            // RIGHT COLUMN: Sound Packs & Live Terminal Window (Width ~380pt)
+            // RIGHT COLUMN: Sound Packs & Live Terminal Window
             VStack(alignment: .leading, spacing: 8) {
                 // Sound Pack Selector Row
                 VStack(alignment: .leading, spacing: 4) {
@@ -632,16 +626,16 @@ public struct ThockExpandedView: View {
                         
                         Spacer()
                         
-                        Text("\(manager.availablePacks.count) Available")
+                        Text("\(module.availablePacks.count) Available")
                             .font(.system(size: 8.5, weight: .medium))
                             .foregroundColor(DesignSystem.secondaryText)
                     }
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
-                            ForEach(manager.availablePacks) { pack in
-                                let isSelected = (manager.currentPack == pack.name)
-                                Button(action: { manager.selectPack(pack.name) }) {
+                            ForEach(module.availablePacks) { pack in
+                                let isSelected = (module.currentPack == pack.name)
+                                Button(action: { module.selectPack(pack.name) }) {
                                     HStack(spacing: 5) {
                                         if pack.isFavorite {
                                             Image(systemName: "star.fill")
@@ -691,7 +685,6 @@ public struct ThockExpandedView: View {
                 VStack(spacing: 0) {
                     // Terminal Window Header Bar
                     HStack(spacing: 6) {
-                        // Window controls (Red / Yellow / Green micro-dots)
                         Circle().fill(Color(red: 1.0, green: 0.37, blue: 0.34)).frame(width: 7, height: 7)
                         Circle().fill(Color(red: 1.0, green: 0.74, blue: 0.18)).frame(width: 7, height: 7)
                         Circle().fill(Color(red: 0.15, green: 0.79, blue: 0.25)).frame(width: 7, height: 7)
@@ -703,7 +696,7 @@ public struct ThockExpandedView: View {
                         
                         Spacer()
                         
-                        Button(action: { manager.clearTerminal() }) {
+                        Button(action: { module.clearTerminal() }) {
                             HStack(spacing: 3) {
                                 Image(systemName: "trash")
                                     .font(.system(size: 7))
@@ -725,13 +718,13 @@ public struct ThockExpandedView: View {
                     ScrollViewReader { proxy in
                         ScrollView(.vertical, showsIndicators: true) {
                             LazyVStack(alignment: .leading, spacing: 2) {
-                                if manager.terminalLogs.isEmpty {
+                                if module.terminalLogs.isEmpty {
                                     Text("thock-cli offline. Press 'Start Engine' to launch.")
                                         .font(.system(size: 8.5, design: .monospaced))
                                         .foregroundColor(Color.white.opacity(0.4))
                                         .padding(6)
                                 } else {
-                                    ForEach(Array(manager.terminalLogs.enumerated()), id: \.offset) { index, line in
+                                    ForEach(Array(module.terminalLogs.enumerated()), id: \.offset) { index, line in
                                         Text(line)
                                             .font(.system(size: 8.5, weight: .regular, design: .monospaced))
                                             .foregroundColor(terminalLineColor(for: line))
@@ -744,7 +737,7 @@ public struct ThockExpandedView: View {
                             .padding(.vertical, 4)
                         }
                         .frame(maxHeight: 90)
-                        .onChange(of: manager.terminalLogs.count) { _, newCount in
+                        .onChange(of: module.terminalLogs.count) { _, newCount in
                             if newCount > 0 {
                                 withAnimation {
                                     proxy.scrollTo(newCount - 1, anchor: .bottom)
@@ -759,21 +752,21 @@ public struct ThockExpandedView: View {
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(DesignSystem.accentColor)
                         
-                        TextField("Type command (e.g. status, help, vol 90)...", text: $manager.cliCommandInput)
+                        TextField("Type command (e.g. status, help, vol 90)...", text: $module.cliCommandInput)
                             .font(.system(size: 8.5, design: .monospaced))
                             .textFieldStyle(.plain)
                             .foregroundColor(.white)
                             .onSubmit {
-                                let cmd = manager.cliCommandInput
-                                manager.cliCommandInput = ""
-                                manager.sendCommand(cmd)
+                                let cmd = module.cliCommandInput
+                                module.cliCommandInput = ""
+                                module.sendCommand(cmd)
                             }
                         
-                        if !manager.cliCommandInput.isEmpty {
+                        if !module.cliCommandInput.isEmpty {
                             Button(action: {
-                                let cmd = manager.cliCommandInput
-                                manager.cliCommandInput = ""
-                                manager.sendCommand(cmd)
+                                let cmd = module.cliCommandInput
+                                module.cliCommandInput = ""
+                                module.sendCommand(cmd)
                             }) {
                                 Image(systemName: "arrow.up.circle.fill")
                                     .font(.system(size: 12))
