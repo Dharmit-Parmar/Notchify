@@ -201,6 +201,29 @@ public final class ShelfModule: NotchModule {
         FeedbackManager.playDelete()
     }
     
+    // Manual File Selection via Finder (NSOpenPanel)
+    public func chooseFilesFromFinder() {
+        FeedbackManager.playClick()
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.prompt = "Add to Tray"
+        panel.title = "Select Files for File Studio"
+        
+        NSApp.activate(ignoringOtherApps: true)
+        panel.begin { [weak self] response in
+            if response == .OK {
+                DispatchQueue.main.async {
+                    for url in panel.urls {
+                        self?.addItem(url)
+                    }
+                    FeedbackManager.playDrop()
+                }
+            }
+        }
+    }
+    
     // Multi-PDF Drag Reordering
     public func moveItem(from sourceId: UUID, to targetId: UUID) {
         guard sourceId != targetId,
@@ -868,6 +891,23 @@ public struct ShelfModuleExpandedView: View {
                     .padding(.trailing, 4)
                 }
                 
+                // Manual Upload Button (Select files from Finder)
+                Button(action: module.chooseFilesFromFinder) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Add Files")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(DesignSystem.accentColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(DesignSystem.accentColor.opacity(0.15)))
+                    .overlay(Capsule().strokeBorder(DesignSystem.accentColor.opacity(0.35), lineWidth: 0.8))
+                }
+                .buttonStyle(.spring)
+                .help("Select files manually from Finder (PDFs, images, documents)")
+
                 if !module.items.isEmpty {
                     Button(action: module.clearAll) {
                         HStack(spacing: 4) {
@@ -1061,11 +1101,26 @@ public struct ShelfModuleExpandedView: View {
                         Text("Drop PDFs, images, or docs here")
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
-                        Text("Drag files to reorder merge sequence • Click AirDrop to beam instantly")
+                        Text("Drag files or choose manually from Finder")
                             .font(.system(size: 8, weight: .medium))
                             .foregroundColor(DesignSystem.secondaryText)
                     }
                     Spacer()
+                    
+                    Button(action: module.chooseFilesFromFinder) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder.badge.plus")
+                                .font(.system(size: 9))
+                            Text("Browse")
+                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4.5)
+                        .background(Capsule().fill(DesignSystem.structureColor))
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.8))
+                    }
+                    .buttonStyle(.spring)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -1098,6 +1153,29 @@ public struct ShelfModuleExpandedView: View {
                         ForEach(Array(module.items.enumerated()), id: \.element.id) { index, item in
                             StagedFileChip(module: module, item: item, index: index, total: module.items.count)
                         }
+                        
+                        // Add More Files Button
+                        Button(action: module.chooseFilesFromFinder) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                Text("Add")
+                                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                            }
+                            .foregroundColor(Color.white.opacity(0.75))
+                            .padding(.horizontal, 8)
+                            .frame(height: 32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.white.opacity(0.04))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(0.12), style: StrokeStyle(lineWidth: 0.8, dash: [3, 3]))
+                            )
+                        }
+                        .buttonStyle(.spring)
+                        .help("Add more files from Finder")
                     }
                     .padding(.vertical, 2)
                 }

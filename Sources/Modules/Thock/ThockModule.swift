@@ -58,8 +58,13 @@ public final class ThockModule: NotchModule {
     // Active Subsection
     @Published public var selectedSection: ThockSubSection = .keySound
     
-    // Permissions State
-    @Published public var isAccessibilityGranted: Bool = false
+    // Permissions State (Both Accessibility & Input Monitoring)
+    @Published public var hasAccessibilityPermission: Bool = false
+    @Published public var hasInputMonitoringPermission: Bool = false
+    public var allPermissionsGranted: Bool {
+        hasAccessibilityPermission && hasInputMonitoringPermission
+    }
+    @Published public var isAccessibilityGranted: Bool = false // Backwards compatibility
     
     // Engine State
     @Published public var isRunning: Bool = false
@@ -68,10 +73,34 @@ public final class ThockModule: NotchModule {
     
     // Dedicated Volume Controls (Key Sound vs ASMR)
     @Published public var keyVolume: Double = 70.0 {
-        didSet { volume = keyVolume }
+        didSet {
+            volume = keyVolume
+            if !isKeyEditingText {
+                keyVolumeText = "\(Int(keyVolume.rounded()))"
+            }
+        }
     }
     @Published public var volume: Double = 70.0 // Kept for backwards compatibility
-    @Published public var asmrVolume: Double = 50.0
+    @Published public var asmrVolume: Double = 50.0 {
+        didSet {
+            if !isAsmrEditingText {
+                asmrVolumeText = "\(Int(asmrVolume.rounded()))"
+            }
+        }
+    }
+    
+    // Mute States & Pre-Mute Memory
+    @Published public var isKeyMuted: Bool = false
+    private var preMuteKeyVolume: Double = 70.0
+    
+    @Published public var isAsmrMuted: Bool = false
+    private var preMuteAsmrVolume: Double = 50.0
+    
+    // Editable Percentage Strings for Direct User Typing
+    @Published public var keyVolumeText: String = "70"
+    @Published public var asmrVolumeText: String = "50"
+    public var isKeyEditingText: Bool = false
+    public var isAsmrEditingText: Bool = false
     
     // Switch Pack State
     @Published public var currentPack: String = "nk_cream"
@@ -91,57 +120,116 @@ public final class ThockModule: NotchModule {
     private var process: Process?
     private var inPipe: Pipe?
     private var outPipe: Pipe?
-    private var heartbeatTimer: AnyCancellable?
+    private var activeHeartbeatTimer: AnyCancellable?
     
     public init() {
         // Fast, non-blocking synchronous file reads
         loadPacksFromDisk()
         loadFavoritesFromDisk()
         loadSettingsFromDisk()
-        checkAccessibilityStatus()
+        checkAllPermissions()
         
-        // Asynchronously check running processes on background queue - NEVER block init or pump runloop
-        checkRunningProcessInBackground()
-        
-        // Periodic background heartbeat (checks process & permissions dynamically)
-        heartbeatTimer = Timer.publish(every: 3.0, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.checkRunningProcessInBackground()
-                self?.checkAccessibilityStatus()
-            }
+        // Zero-overhead check for running process
+        checkProcessStateZeroOverhead()
     }
     
     // MARK: - NotchModule Protocol Lifecycle
     public func start() {
         loadPacksFromDisk()
         loadSettingsFromDisk()
-        checkAccessibilityStatus()
-        checkRunningProcessInBackground()
+        checkAllPermissions()
+        checkProcessStateZeroOverhead()
+        startLightweightMonitor()
     }
     
     public func stop() {
-        // Audio continues in background across macOS typing sessions
+        // Stop the heartbeat when notch collapses to conserve CPU & prevent thermal load!
+        stopLightweightMonitor()
     }
     
     public func terminateProcess() {
         stopEngine()
+        stopLightweightMonitor()
     }
     
-    // MARK: - Permissions & TCC Monitoring
-    public func checkAccessibilityStatus() {
-        self.isAccessibilityGranted = AXIsProcessTrusted()
+    // MARK: - Thermal-Optimized Zero-Overhead Monitor (No fork/exec pgrep loops!)
+    public func startLightweightMonitor() {
+        guard activeHeartbeatTimer == nil else { return }
+        // 5-second cadence only while notch is expanded, using zero-cost kill(pid, 0)
+        activeHeartbeatTimer = Timer.publish(every: 5.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.checkProcessStateZeroOverhead()
+                self?.checkAllPermissions()
+            }
     }
     
-    public func requestAccessibilityPermission() {
+    public func stopLightweightMonitor() {
+        activeHeartbeatTimer?.cancel()
+        activeHeartbeatTimer = nil
+    }
+    
+    public func checkProcessStateZeroOverhead() {
+        if let pid = self.processPID {
+            // kill(pid, 0) is a 5-nanosecond POSIX syscall: returns 0 if alive, -1 if exited.
+            if kill(pid, 0) == 0 {
+                if !self.isRunning {
+                    self.isRunning = true
+                    self.statusSubtitle = "Active · PID \(pid)"
+                }
+                return
+            } else {
+                // Process terminated externally
+                self.isRunning = false
+                self.processPID = nil
+                self.statusSubtitle = "Engine Offline"
+                return
+            }
+        }
+        
+        if let proc = self.process, proc.isRunning {
+            self.isRunning = true
+            self.processPID = proc.processIdentifier
+            self.statusSubtitle = "Active · PID \(proc.processIdentifier)"
+            return
+        }
+    }
+    
+    // MARK: - Permissions & TCC Monitoring (Both Accessibility & Input Monitoring)
+    public func checkAllPermissions() {
+        let ax = AXIsProcessTrusted()
+        let hid = Self.checkIOHIDListenAccess()
+        self.hasAccessibilityPermission = ax
+        self.hasInputMonitoringPermission = hid
+        self.isAccessibilityGranted = ax && hid
+    }
+    
+    public func requestAllPermissions() {
+        FeedbackManager.playClick()
+        
+        // 1. Accessibility system prompt
         let key = "AXTrustedCheckOptionPrompt" as CFString
         let options = [key: true] as CFDictionary
-        let granted = AXIsProcessTrustedWithOptions(options)
-        self.isAccessibilityGranted = granted
-        if !granted {
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                NSWorkspace.shared.open(url)
-            }
+        let axGranted = AXIsProcessTrustedWithOptions(options)
+        self.hasAccessibilityPermission = axGranted
+        
+        // 2. Input Monitoring system prompt
+        Self.requestIOHIDListenAccess()
+        self.hasInputMonitoringPermission = Self.checkIOHIDListenAccess()
+        self.isAccessibilityGranted = hasAccessibilityPermission && hasInputMonitoringPermission
+        
+        // 3. Proactively open both System Settings panes so user can directly toggle switches!
+        if !hasAccessibilityPermission {
+            openAccessibilitySettings()
+        }
+        if !hasInputMonitoringPermission {
+            openInputMonitoringSettings()
+        }
+    }
+    
+    public func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
         }
     }
     
@@ -149,6 +237,29 @@ public final class ThockModule: NotchModule {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEventAccess") {
             NSWorkspace.shared.open(url)
         }
+    }
+    
+    // Dynamic IOKit loader for Input Monitoring access checks
+    private static func checkIOHIDListenAccess() -> Bool {
+        guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
+              let sym = dlsym(handle, "IOHIDCheckAccess") else {
+            return false
+        }
+        typealias IOHIDCheckAccessFunc = @convention(c) (UInt32) -> Int32
+        let fn = unsafeBitCast(sym, to: IOHIDCheckAccessFunc.self)
+        // kIOHIDRequestTypeListenEvent = 1; 0 = granted, 1 = denied, 2 = not determined
+        return fn(1) == 0
+    }
+    
+    @discardableResult
+    private static func requestIOHIDListenAccess() -> Bool {
+        guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
+              let sym = dlsym(handle, "IOHIDRequestAccess") else {
+            return false
+        }
+        typealias IOHIDRequestAccessFunc = @convention(c) (UInt32) -> Bool
+        let fn = unsafeBitCast(sym, to: IOHIDRequestAccessFunc.self)
+        return fn(1)
     }
     
     // MARK: - Pack Discovery & Settings Sync
@@ -199,9 +310,11 @@ public final class ThockModule: NotchModule {
            let s = try? JSONDecoder().decode(Settings.self, from: data) {
             self.keyVolume = s.volume
             self.volume = s.volume
+            self.keyVolumeText = "\(Int(s.volume.rounded()))"
             self.currentPack = s.pack
             if let asmr = s.asmrVolume {
                 self.asmrVolume = asmr
+                self.asmrVolumeText = "\(Int(asmr.rounded()))"
             }
         }
     }
@@ -300,13 +413,15 @@ public final class ThockModule: NotchModule {
             appendLog("🚀 Thock CLI Engine launched [PID: \(proc.processIdentifier)]")
             
             // Sync current volume and asmr state to spawned engine
-            let kv = Int(keyVolume.rounded())
-            let av = Int(asmrVolume.rounded())
+            let kv = isKeyMuted ? 0 : Int(keyVolume.rounded())
+            let av = isAsmrMuted ? 0 : Int(asmrVolume.rounded())
             sendCommand("vol \(kv)", echo: false)
             sendCommand("asmr vol \(av)", echo: false)
             if !currentPack.isEmpty {
                 sendCommand("pack \(currentPack)", echo: false)
             }
+            
+            startLightweightMonitor()
         } catch {
             self.isRunning = false
             self.processPID = nil
@@ -364,7 +479,49 @@ public final class ThockModule: NotchModule {
         }
     }
     
-    // MARK: - High-Level Controls (Key Sound & ASMR)
+    // MARK: - Volume Controls & Mute Actions
+    public func toggleKeyMute() {
+        FeedbackManager.playClick()
+        if isKeyMuted {
+            isKeyMuted = false
+            updateKeyVolume(preMuteKeyVolume > 0 ? preMuteKeyVolume : 70.0)
+        } else {
+            preMuteKeyVolume = keyVolume > 0 ? keyVolume : 70.0
+            isKeyMuted = true
+            updateKeyVolume(0.0)
+        }
+    }
+    
+    public func toggleAsmrMute() {
+        FeedbackManager.playClick()
+        if isAsmrMuted {
+            isAsmrMuted = false
+            updateAsmrVolume(preMuteAsmrVolume > 0 ? preMuteAsmrVolume : 50.0)
+        } else {
+            preMuteAsmrVolume = asmrVolume > 0 ? asmrVolume : 50.0
+            isAsmrMuted = true
+            updateAsmrVolume(0.0)
+        }
+    }
+    
+    public func setKeyVolumeFromText(_ text: String) {
+        let digits = text.filter { $0.isNumber }
+        if let val = Double(digits) {
+            let clamped = max(0, min(100, val))
+            if isKeyMuted && clamped > 0 { isKeyMuted = false }
+            updateKeyVolume(clamped)
+        }
+    }
+    
+    public func setAsmrVolumeFromText(_ text: String) {
+        let digits = text.filter { $0.isNumber }
+        if let val = Double(digits) {
+            let clamped = max(0, min(100, val))
+            if isAsmrMuted && clamped > 0 { isAsmrMuted = false }
+            updateAsmrVolume(clamped)
+        }
+    }
+    
     public func selectPack(_ packName: String) {
         guard currentPack != packName else {
             // Already selected, audition it
@@ -375,7 +532,7 @@ public final class ThockModule: NotchModule {
         saveSettingsToDisk()
         FeedbackManager.playDrop()
         
-        // Immediate audible feedback
+        // Immediate audible preview
         playPackSample(packName)
         
         if isRunning {
@@ -387,6 +544,7 @@ public final class ThockModule: NotchModule {
     public func updateKeyVolume(_ newVol: Double) {
         self.keyVolume = newVol
         self.volume = newVol
+        if newVol > 0 && isKeyMuted { isKeyMuted = false }
         saveSettingsToDisk()
         
         if isRunning {
@@ -401,6 +559,7 @@ public final class ThockModule: NotchModule {
     
     public func updateAsmrVolume(_ newVol: Double) {
         self.asmrVolume = newVol
+        if newVol > 0 && isAsmrMuted { isAsmrMuted = false }
         saveSettingsToDisk()
         
         if isRunning {
@@ -484,49 +643,6 @@ public final class ThockModule: NotchModule {
         if text.contains("Thunder [OFF") { self.thunderActive = false }
     }
     
-    public func checkRunningProcessInBackground() {
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-            task.arguments = ["-x", "thock-cli"]
-            let out = Pipe()
-            task.standardOutput = out
-            
-            do {
-                try task.run()
-                task.waitUntilExit()
-                if task.terminationStatus == 0 {
-                    let data = out.fileHandleForReading.readDataToEndOfFile()
-                    if let str = String(data: data, encoding: .utf8),
-                       let firstPIDStr = str.components(separatedBy: .newlines).first,
-                       let pid = Int32(firstPIDStr.trimmingCharacters(in: .whitespaces)) {
-                        DispatchQueue.main.async {
-                            guard let self = self else { return }
-                            if !self.isRunning {
-                                self.isRunning = true
-                                self.processPID = pid
-                                self.statusSubtitle = "Active · PID \(pid)"
-                            }
-                        }
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        guard let self = self else { return }
-                        if self.process == nil || self.process?.isRunning == false {
-                            if self.isRunning {
-                                self.isRunning = false
-                                self.processPID = nil
-                                self.statusSubtitle = "Engine Offline"
-                            }
-                        }
-                    }
-                }
-            } catch {
-                // Ignore pgrep failure
-            }
-        }
-    }
-    
     private static func knownPackMetadata(for name: String) -> (switchType: String, profile: String) {
         switch name {
         case "bubble_heaven":
@@ -591,7 +707,7 @@ public final class ThockModule: NotchModule {
     }
 }
 
-// MARK: - Thock Expanded View (Hardware Control & Two Subsections)
+// MARK: - Thock Expanded View (Hardware Control, Volume Controls & Subsections)
 public struct ThockExpandedView: View {
     @ObservedObject var module: ThockModule
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -659,59 +775,119 @@ public struct ThockExpandedView: View {
             }
         }
         .padding(4)
+        .onAppear {
+            module.checkAllPermissions()
+            module.startLightweightMonitor()
+        }
     }
     
     // MARK: - Subsection 1: Key Sound View
     private var keySoundSectionView: some View {
         VStack(spacing: 8) {
-            // Permission Alert Banner if untrusted
-            if !module.isAccessibilityGranted {
-                HStack(spacing: 8) {
-                    Image(systemName: "hand.raised.fill")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Accessibility & Input Monitoring Required")
-                            .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+            // Comprehensive Dual Permission Banner (Accessibility & Input Monitoring)
+            if !module.allPermissionsGranted {
+                VStack(spacing: 5) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.shield.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
                         
-                        Text("macOS requires permission to detect typing across apps and play key sounds.")
-                            .font(.system(size: 8, weight: .regular))
-                            .foregroundColor(Color.white.opacity(0.75))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Permissions Required for Global Typing Sounds")
+                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                            
+                            Text("macOS requires both permissions to capture typing in background apps and play authentic switch audio.")
+                                .font(.system(size: 8, weight: .regular))
+                                .foregroundColor(Color.white.opacity(0.75))
+                        }
+                        
+                        Spacer()
+                        
+                        // Master Request Button
+                        Button(action: { module.requestAllPermissions() }) {
+                            Text("Grant Permissions")
+                                .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4.5)
+                                .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
+                        }
+                        .buttonStyle(.spring)
+                        .help("Trigger system authorization dialogs and open settings panes")
                     }
                     
-                    Spacer()
-                    
-                    Button(action: { module.requestAccessibilityPermission() }) {
-                        Text("Grant Access")
-                            .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
+                    // Detailed Permission Checklist Row
+                    HStack(spacing: 8) {
+                        // Accessibility Status Badge
+                        HStack(spacing: 4) {
+                            Image(systemName: module.hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(module.hasAccessibilityPermission ? Color.green : Color.red)
+                            Text("Accessibility")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.85))
+                            
+                            Button(action: { module.openAccessibilitySettings() }) {
+                                Image(systemName: "arrow.up.forward.square")
+                                    .font(.system(size: 7.5))
+                                    .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open Accessibility in System Settings")
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(Capsule().fill(Color.white.opacity(0.05)))
+                        
+                        // Input Monitoring Status Badge
+                        HStack(spacing: 4) {
+                            Image(systemName: module.hasInputMonitoringPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(module.hasInputMonitoringPermission ? Color.green : Color.red)
+                            Text("Input Monitoring")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.85))
+                            
+                            Button(action: { module.openInputMonitoringSettings() }) {
+                                Image(systemName: "arrow.up.forward.square")
+                                    .font(.system(size: 7.5))
+                                    .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open Input Monitoring in System Settings")
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(Capsule().fill(Color.white.opacity(0.05)))
+                        
+                        Spacer()
                     }
-                    .buttonStyle(.spring)
-                    
-                    Button(action: { module.openInputMonitoringSettings() }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(4)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }
-                    .buttonStyle(.spring)
-                    .help("Open Input Monitoring in System Settings")
                 }
-                .padding(6)
+                .padding(7)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(red: 0.9, green: 0.6, blue: 0.1).opacity(0.15))
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color(red: 0.9, green: 0.6, blue: 0.1).opacity(0.14))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.3), lineWidth: 0.8)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.35), lineWidth: 0.8)
                 )
+            } else {
+                // Sleek Authorized Pill
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.green)
+                    Text("Full Typing Interception Authorized (Accessibility & Input Monitoring)")
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundColor(Color.green.opacity(0.9))
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3.5)
+                .background(Capsule().fill(Color.green.opacity(0.1)))
+                .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.7))
             }
             
             // Top Controls Bar: Engine Power, Audition Sound & Key Sound Volume
@@ -759,13 +935,20 @@ public struct ThockExpandedView: View {
                 
                 Spacer()
                 
-                // Key Sound Volume Slider
+                // Key Sound Volume Controls (Mute + Slider + Direct Type Input)
                 HStack(spacing: 6) {
-                    Image(systemName: "keyboard.fill")
-                        .font(.system(size: 9))
-                        .foregroundColor(DesignSystem.accentColor)
+                    // Mute Button
+                    Button(action: { module.toggleKeyMute() }) {
+                        Image(systemName: module.isKeyMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(module.isKeyMuted ? Color.red : DesignSystem.accentColor)
+                            .padding(4)
+                            .background(Circle().fill(module.isKeyMuted ? Color.red.opacity(0.15) : Color.white.opacity(0.06)))
+                    }
+                    .buttonStyle(.plain)
+                    .help(module.isKeyMuted ? "Unmute Key Sound" : "Mute Key Sound")
                     
-                    Text("Key Vol")
+                    Text("Key")
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.85))
                     
@@ -776,16 +959,33 @@ public struct ThockExpandedView: View {
                             module.updateKeyVolume(module.keyVolume)
                         }
                     }
-                    .frame(width: 90)
+                    .frame(width: 75)
                     .accentColor(DesignSystem.accentColor)
                     
-                    Text("\(Int(module.keyVolume))%")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(DesignSystem.accentColor)
-                        .frame(width: 32, alignment: .trailing)
+                    // Direct Type Input Box with % Suffix
+                    HStack(spacing: 1) {
+                        TextField("70", text: $module.keyVolumeText)
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(DesignSystem.accentColor)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 22)
+                            .textFieldStyle(.plain)
+                            .onSubmit {
+                                module.setKeyVolumeFromText(module.keyVolumeText)
+                            }
+                        
+                        Text("%")
+                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .foregroundColor(DesignSystem.accentColor.opacity(0.8))
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.1), lineWidth: 0.6))
+                    .help("Type exact volume percentage and press Enter")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3.5)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8))
             }
@@ -876,15 +1076,21 @@ public struct ThockExpandedView: View {
     // MARK: - Subsection 2: Ambient ASMR View
     private var asmrSectionView: some View {
         VStack(spacing: 8) {
-            // ASMR Volume & Mute Controls
+            // ASMR Volume, Mute & Direct Percentage Input
             HStack(spacing: 10) {
-                // ASMR Ambient Volume Slider
                 HStack(spacing: 6) {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 9))
-                        .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0))
+                    // ASMR Mute Button
+                    Button(action: { module.toggleAsmrMute() }) {
+                        Image(systemName: module.isAsmrMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(module.isAsmrMuted ? Color.red : Color(red: 0.35, green: 0.8, blue: 1.0))
+                            .padding(4)
+                            .background(Circle().fill(module.isAsmrMuted ? Color.red.opacity(0.15) : Color.white.opacity(0.06)))
+                    }
+                    .buttonStyle(.plain)
+                    .help(module.isAsmrMuted ? "Unmute ASMR" : "Mute ASMR")
                     
-                    Text("ASMR Vol")
+                    Text("ASMR")
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.85))
                     
@@ -895,27 +1101,44 @@ public struct ThockExpandedView: View {
                             module.updateAsmrVolume(module.asmrVolume)
                         }
                     }
-                    .frame(width: 110)
+                    .frame(width: 85)
                     .accentColor(Color(red: 0.35, green: 0.8, blue: 1.0))
                     
-                    Text("\(Int(module.asmrVolume))%")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0))
-                        .frame(width: 32, alignment: .trailing)
+                    // Direct Type Input Box with % Suffix
+                    HStack(spacing: 1) {
+                        TextField("50", text: $module.asmrVolumeText)
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0))
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 22)
+                            .textFieldStyle(.plain)
+                            .onSubmit {
+                                module.setAsmrVolumeFromText(module.asmrVolumeText)
+                            }
+                        
+                        Text("%")
+                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0).opacity(0.8))
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06)))
+                    .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.white.opacity(0.1), lineWidth: 0.6))
+                    .help("Type exact ASMR volume percentage and press Enter")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3.5)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8))
                 
                 Spacer()
                 
-                // Mute All ASMR Button
+                // Mute All ASMR Soundscapes Button
                 Button(action: { module.muteAllAsmr() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "speaker.slash")
                             .font(.system(size: 8.5))
-                        Text("Mute All")
+                        Text("Silence All")
                             .font(.system(size: 9, weight: .semibold, design: .rounded))
                     }
                     .foregroundColor(Color.white.opacity(0.7))
@@ -925,7 +1148,7 @@ public struct ThockExpandedView: View {
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
                 }
                 .buttonStyle(.spring)
-                .help("Mute all active ASMR ambient soundscapes")
+                .help("Turn off all active ASMR ambient layers")
             }
             
             // Bento Cards for Rain, Wind, Thunder Soundscapes

@@ -16,7 +16,7 @@ echo "Executable ready at $APP_BIN"
 echo "Binary size: $(du -h "$APP_BIN" | cut -f1)"
 
 echo "Launching NotchApp in background..."
-"$APP_BIN" &
+nohup "$APP_BIN" >/dev/null 2>&1 &
 APP_PID=$!
 echo "NotchApp PID: $APP_PID"
 
