@@ -15,6 +15,7 @@ final class NotesUIState: ObservableObject {
 
 public struct NotesWidgetView: View {
     @ObservedObject private var store = SettingsStore.shared
+    @ObservedObject private var thock = ThockModule.shared
     @StateObject private var uiState = NotesUIState()
     public var span: Int // 1, 2, or 4 spaces
     
@@ -43,6 +44,12 @@ public struct NotesWidgetView: View {
         .onAppear {
             self.uiState.text = store.quickNotesText
         }
+        .onDisappear {
+            // Guarantee typing sounds stop immediately when Note is closed or collapsed
+            if ThockModule.shared.isRunning {
+                ThockModule.shared.stopEngine()
+            }
+        }
         .onChange(of: uiState.text) { _, newValue in
             store.quickNotesText = newValue
         }
@@ -70,6 +77,22 @@ public struct NotesWidgetView: View {
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.white.opacity(0.08)))
+                
+                // Key Sound button
+                Button {
+                    FeedbackManager.playClick()
+                    if thock.isRunning {
+                        thock.stopEngine()
+                    } else {
+                        thock.startEngine()
+                    }
+                } label: {
+                    Image(systemName: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .help(thock.isRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
                 
                 // Copy button
                 Button {
@@ -154,6 +177,24 @@ public struct NotesWidgetView: View {
                 }
                 
                 Spacer()
+                
+                // Key Sound button
+                Button {
+                    FeedbackManager.playClick()
+                    if thock.isRunning {
+                        thock.stopEngine()
+                    } else {
+                        thock.startEngine()
+                    }
+                } label: {
+                    Image(systemName: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(Color.white.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .help(thock.isRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
                 
                 // Bullet point button
                 Button {
@@ -262,6 +303,23 @@ public struct NotesWidgetView: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
+                    Button {
+                        FeedbackManager.playClick()
+                        if thock.isRunning {
+                            thock.stopEngine()
+                        } else {
+                            thock.startEngine()
+                        }
+                    } label: {
+                        Label(thock.isRunning ? "Sound ON" : "Sound OFF", systemImage: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : .white)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                    
                     Button {
                         insertBullet()
                     } label: {

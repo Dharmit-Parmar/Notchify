@@ -96,6 +96,28 @@ public enum ClockDialStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+public enum DashboardLayoutFlow: String, Codable, CaseIterable, Identifiable {
+    case adaptiveAuto = "adaptiveAuto"
+    case horizontalStrip = "horizontalStrip"
+    case bentoQuad = "bentoQuad"
+    
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .adaptiveAuto: return "Smart Adaptive"
+        case .horizontalStrip: return "4 Side-by-Side (Strip)"
+        case .bentoQuad: return "2×2 Bento Grid"
+        }
+    }
+    public var icon: String {
+        switch self {
+        case .adaptiveAuto: return "sparkles.square.filled.on.square"
+        case .horizontalStrip: return "rectangle.split.3x1"
+        case .bentoQuad: return "square.grid.2x2"
+        }
+    }
+}
+
 @MainActor
 public class SettingsStore: ObservableObject {
     public static let shared = SettingsStore()
@@ -106,6 +128,22 @@ public class SettingsStore: ObservableObject {
             let serialized = dashboardSlots.map { $0?.rawValue ?? "empty" }
             UserDefaults.standard.set(serialized, forKey: "NotchApp_DashboardSlots")
         }
+    }
+    
+    // Dashboard Layout Orientation Flow
+    @Published public var dashboardLayoutFlow: DashboardLayoutFlow = .adaptiveAuto {
+        didSet { UserDefaults.standard.set(dashboardLayoutFlow.rawValue, forKey: "NotchApp_DashboardLayoutFlow") }
+    }
+    
+    // Per-Widget Custom Spans (1 or 2 spaces)
+    @Published public var widgetSpans: [String: Int] = [
+        "nowPlaying": 2,
+        "calendar": 2,
+        "notes": 1,
+        "clock": 1,
+        "mirror": 1
+    ] {
+        didSet { UserDefaults.standard.set(widgetSpans, forKey: "NotchApp_WidgetSpans") }
     }
     
     // Clock Widget Options
@@ -313,6 +351,13 @@ public class SettingsStore: ObservableObject {
         if UserDefaults.standard.object(forKey: "NotchApp_ClockShowSeconds") != nil {
             self.clockShowSeconds = UserDefaults.standard.bool(forKey: "NotchApp_ClockShowSeconds")
         }
+        if let savedFlow = UserDefaults.standard.string(forKey: "NotchApp_DashboardLayoutFlow"),
+           let flow = DashboardLayoutFlow(rawValue: savedFlow) {
+            self.dashboardLayoutFlow = flow
+        }
+        if let savedSpans = UserDefaults.standard.dictionary(forKey: "NotchApp_WidgetSpans") as? [String: Int] {
+            self.widgetSpans.merge(savedSpans, uniquingKeysWith: { _, saved in saved })
+        }
         if let notes = UserDefaults.standard.string(forKey: "NotchApp_QuickNotesText") {
             self.quickNotesText = notes
         }
@@ -321,6 +366,14 @@ public class SettingsStore: ObservableObject {
     }
     
     // MARK: - Dashboard Slot Helpers
+    
+    public func span(for widget: DashboardWidgetType) -> Int {
+        return widgetSpans[widget.rawValue] ?? 1
+    }
+    
+    public func setSpan(_ span: Int, for widget: DashboardWidgetType) {
+        widgetSpans[widget.rawValue] = max(1, min(2, span))
+    }
     
     /// Returns the unique active widgets currently placed in any slot
     public var activeDashboardWidgets: [DashboardWidgetType] {

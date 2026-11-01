@@ -151,17 +151,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.minSize = NSSize(width: 720, height: 540)
+        window.minSize = NSSize(width: 780, height: 560)
         window.setFrameAutosaveName("NotchIslandSettingsWindow")
+        if window.frame.width < 780 || window.frame.height < 560 {
+            window.setContentSize(NSSize(width: 820, height: 620))
+        }
         if let screen = NSScreen.main ?? NSScreen.screens.first {
             let screenFrame = screen.visibleFrame
-            let winW: CGFloat = 760
-            let winH: CGFloat = min(screenFrame.height - 40, 600)
+            let winW: CGFloat = max(820, window.frame.width)
+            let winH: CGFloat = min(screenFrame.height - 40, max(620, window.frame.height))
             let originX = screenFrame.midX - (winW / 2)
             let originY = max(screenFrame.minY + 20, screenFrame.maxY - winH - 24)
             window.setFrame(NSRect(x: originX, y: originY, width: winW, height: winH), display: true)

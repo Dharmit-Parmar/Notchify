@@ -10,22 +10,23 @@ public struct ModularDashboardView: View {
         let activeWidgets = store.activeDashboardWidgets
         
         Group {
-            switch activeWidgets.count {
-            case 0:
+            if activeWidgets.isEmpty {
                 emptyDashboardView
-            case 1:
-                oneWidgetView(activeWidgets[0])
-            case 2:
-                twoWidgetsView(activeWidgets[0], activeWidgets[1])
-            case 3:
-                threeWidgetsView(activeWidgets[0], activeWidgets[1], activeWidgets[2])
-            default:
-                fourWidgetsView
+            } else {
+                switch store.dashboardLayoutFlow {
+                case .horizontalStrip:
+                    horizontalStripView(activeWidgets)
+                case .bentoQuad:
+                    bentoQuadView(activeWidgets)
+                case .adaptiveAuto:
+                    adaptiveAutoView(activeWidgets)
+                }
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .transition(.opacity.combined(with: .scale(scale: 0.99)))
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88), value: store.dashboardSlots)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88), value: store.dashboardLayoutFlow)
     }
     
     // MARK: - Render Widget by Type and Span
@@ -45,6 +46,61 @@ public struct ModularDashboardView: View {
         }
     }
     
+    // MARK: - Layout Flow 1: 4 Side-by-Side Horizontal Strip
+    private func horizontalStripView(_ widgets: [DashboardWidgetType]) -> some View {
+        GeometryReader { geo in
+            let count = widgets.count
+            let spacing: CGFloat = 8.0
+            let totalSpacing = CGFloat(max(0, count - 1)) * spacing
+            let availableWidth = max(0, geo.size.width - totalSpacing)
+            let totalSpan = widgets.reduce(0) { $0 + store.span(for: $1) }
+            let safeTotalSpan = max(1, totalSpan)
+            
+            HStack(spacing: spacing) {
+                ForEach(widgets) { widget in
+                    let widgetSpan = store.span(for: widget)
+                    let widgetWidth = (CGFloat(widgetSpan) / CGFloat(safeTotalSpan)) * availableWidth
+                    
+                    Self.renderWidget(type: widget, span: widgetSpan)
+                        .frame(width: max(60, widgetWidth), height: geo.size.height)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Layout Flow 2: 2×2 Bento Quad
+    private func bentoQuadView(_ widgets: [DashboardWidgetType]) -> some View {
+        Group {
+            switch widgets.count {
+            case 1:
+                oneWidgetView(widgets[0])
+            case 2:
+                twoWidgetsView(widgets[0], widgets[1])
+            case 3:
+                threeWidgetsBentoView(widgets)
+            default:
+                fourWidgetsBentoView(widgets)
+            }
+        }
+    }
+    
+    // MARK: - Layout Flow 3: Smart Adaptive
+    private func adaptiveAutoView(_ widgets: [DashboardWidgetType]) -> some View {
+        Group {
+            switch widgets.count {
+            case 1:
+                oneWidgetView(widgets[0])
+            case 2:
+                twoWidgetsView(widgets[0], widgets[1])
+            case 3:
+                threeWidgetsBentoView(widgets)
+            default:
+                fourWidgetsBentoView(widgets)
+            }
+        }
+    }
+    
     // MARK: - 1 Widget (Full Stage)
     private func oneWidgetView(_ widget: DashboardWidgetType) -> some View {
         Self.renderWidget(type: widget, span: 4)
@@ -53,44 +109,69 @@ public struct ModularDashboardView: View {
     
     // MARK: - 2 Widgets (Side-by-Side 50/50 Split)
     private func twoWidgetsView(_ w1: DashboardWidgetType, _ w2: DashboardWidgetType) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Self.renderWidget(type: w1, span: 2)
+        let span1 = store.span(for: w1)
+        let span2 = store.span(for: w2)
+        
+        return HStack(alignment: .top, spacing: 10) {
+            Self.renderWidget(type: w1, span: max(2, span1))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            Self.renderWidget(type: w2, span: 2)
+            Self.renderWidget(type: w2, span: max(2, span2))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
-    // MARK: - 3 Widgets (1 Major Column + 2 Stacked Tiles)
-    private func threeWidgetsView(_ w1: DashboardWidgetType, _ w2: DashboardWidgetType, _ w3: DashboardWidgetType) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Major left widget (tall)
-            Self.renderWidget(type: w1, span: 2)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            // Stacked right widgets (2 compact tiles)
-            VStack(spacing: 10) {
-                Self.renderWidget(type: w2, span: 1)
+    // MARK: - 3 Widgets (Primary Major Column + 2 Stacked Tiles)
+    private func threeWidgetsBentoView(_ widgets: [DashboardWidgetType]) -> some View {
+        // Find which widget requested span 2, default to the first
+        let primaryIndex = widgets.firstIndex(where: { store.span(for: $0) == 2 }) ?? 0
+        let primaryWidget = widgets[primaryIndex]
+        var secondaryWidgets = widgets
+        secondaryWidgets.remove(at: primaryIndex)
+        let sec1 = secondaryWidgets[0]
+        let sec2 = secondaryWidgets[1]
+        
+        return HStack(alignment: .top, spacing: 10) {
+            if primaryIndex == 0 {
+                // Major left widget (tall)
+                Self.renderWidget(type: primaryWidget, span: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Self.renderWidget(type: w3, span: 1)
+                
+                // Stacked right widgets (2 compact tiles)
+                VStack(spacing: 8) {
+                    Self.renderWidget(type: sec1, span: 1)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Self.renderWidget(type: sec2, span: 1)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Stacked left widgets (2 compact tiles)
+                VStack(spacing: 8) {
+                    Self.renderWidget(type: sec1, span: 1)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Self.renderWidget(type: sec2, span: 1)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                // Major right widget (tall)
+                Self.renderWidget(type: primaryWidget, span: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
-    // MARK: - 4 Widgets (2x2 Bento Grid)
-    private var fourWidgetsView: some View {
-        let slots = store.dashboardSlots
-        let w0 = slots[0] ?? .nowPlaying
-        let w1 = slots[1] ?? .calendar
-        let w2 = slots[2] ?? .notes
-        let w3 = slots[3] ?? .clock
+    // MARK: - 4 Widgets (2×2 Bento Grid)
+    private func fourWidgetsBentoView(_ widgets: [DashboardWidgetType]) -> some View {
+        let w0 = widgets[0]
+        let w1 = widgets[1]
+        let w2 = widgets.count > 2 ? widgets[2] : widgets[0]
+        let w3 = widgets.count > 3 ? widgets[3] : widgets[1]
         
-        return VStack(spacing: 10) {
+        return VStack(spacing: 8) {
             // Top Row
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Self.renderWidget(type: w0, span: 1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Self.renderWidget(type: w1, span: 1)
@@ -99,7 +180,7 @@ public struct ModularDashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
             // Bottom Row
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Self.renderWidget(type: w2, span: 1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Self.renderWidget(type: w3, span: 1)
@@ -125,7 +206,7 @@ public struct ModularDashboardView: View {
                 Text("Empty Dashboard")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Customize your 4-slot layout with Notes, Calendar, Media, Mirror, and Clock.")
+                Text("Customize your layout with Notes, Calendar, Media, Mirror, and Clock.")
                     .font(.system(size: 11))
                     .foregroundColor(DesignSystem.secondaryText)
                     .multilineTextAlignment(.center)

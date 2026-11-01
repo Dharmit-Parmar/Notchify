@@ -86,6 +86,35 @@ public final class NotchShellCoordinator: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.15, execute: item)
     }
     
+    /// Previews the current live notch dashboard on the screen for a set duration
+    public func previewDashboard(duration: TimeInterval = 3.5) {
+        guard !isFileDraggingActive else { return }
+        appearancePreviewWorkItem?.cancel()
+        isAppearancePreviewActive = true
+        
+        withAnimation(transitionAnimation) {
+            self.state = .expanded
+        }
+        self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+        FeedbackManager.playHover()
+        
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.isAppearancePreviewActive = false
+            guard !self.isHovered && !self.isLockedOpen && !self.isFileDraggingActive else { return }
+            self.stopExpandedWatchdog()
+            withAnimation(self.transitionAnimation) {
+                self.state = .collapsed
+            }
+            self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
+            if ThockModule.shared.isRunning {
+                ThockModule.shared.stopEngine()
+            }
+        }
+        appearancePreviewWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: item)
+    }
+    
     private func startExpandedWatchdog() {
         stopExpandedWatchdog()
         guard state == .expanded, !isLockedOpen else { return }
@@ -200,17 +229,11 @@ public final class NotchShellCoordinator: ObservableObject {
         collapseWorkItem = nil
         isHovered = true
         
-        // While settings is active, stay gracefully in compact notch state to avoid obscuring the settings panel,
-        // unless the user specifically opted into keepOpenWhileSettingsActive
-        if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive {
-            return
-        }
         guard state != .expanded, hoverWorkItem == nil else { return }
         
         let delay = SettingsStore.shared.hoverDelay
         let item = DispatchWorkItem { [weak self] in
             guard let self = self, self.isHovered else { return }
-            if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive { return }
             withAnimation(self.transitionAnimation) {
                 self.state = .expanded
             }
@@ -270,9 +293,13 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.stopAll()
+            if ThockModule.shared.isRunning {
+                ThockModule.shared.stopEngine()
+            }
         }
         collapseWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + SettingsStore.shared.autoCollapseDelay, execute: item)
+        let collapseDelay = AppDelegate.isSettingsOpen ? 0.08 : SettingsStore.shared.autoCollapseDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + collapseDelay, execute: item)
     }
     
     public func collapseImmediately(force: Bool = false) {
@@ -296,6 +323,9 @@ public final class NotchShellCoordinator: ObservableObject {
         }
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
         ModuleRegistry.shared.stopAll()
+        if ThockModule.shared.isRunning {
+            ThockModule.shared.stopEngine()
+        }
     }
     
     public func toggleLock() {

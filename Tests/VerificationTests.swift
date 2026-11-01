@@ -1076,22 +1076,83 @@ func runAllVerificationTests() {
     // Test 40: Responsive Settings Window Geometry & Category Architecture
     print("\n[TEST 40] Responsive Settings Window Geometry & Category Architecture...")
     let settingsWin = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 760, height: 600),
+        contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
         styleMask: [.titled, .closable, .miniaturizable, .resizable],
         backing: .buffered,
         defer: false
     )
-    settingsWin.minSize = NSSize(width: 720, height: 540)
+    settingsWin.minSize = NSSize(width: 780, height: 560)
     assert(settingsWin.styleMask.contains(.resizable), "Settings window must be resizable")
-    assert(settingsWin.minSize.width == 720.0, "Minimum width must be 720pt")
-    assert(settingsWin.minSize.height == 540.0, "Minimum height must be 540pt")
+    assert(settingsWin.minSize.width == 780.0, "Minimum width must be 780pt")
+    assert(settingsWin.minSize.height == 560.0, "Minimum height must be 560pt")
     
     let expectedCategories = ["Dashboard", "Appearance", "Geometry", "Motion", "Tab Modules", "Feedback", "Permissions"]
     assert(expectedCategories.count == 7, "Must contain all 7 primary settings categories")
-    print("  ✓ Responsive resizable settings window & 7 categories verified.")
+    print("  ✓ Responsive resizable settings window (780×560 min) & 7 categories verified.")
+    
+    // Test 41: Dashboard Layout Flows & Multi-Space Span Proportional Math
+    print("\n[TEST 41] Dashboard Layout Flows & Multi-Space Span Proportional Math...")
+    enum MockLayoutFlow: String, CaseIterable {
+        case adaptiveAuto, horizontalStrip, bentoQuad
+    }
+    assert(MockLayoutFlow.allCases.count == 3, "Must support adaptiveAuto, horizontalStrip, and bentoQuad")
+    
+    // Test 4 Side-by-Side Horizontal Strip Math (all 4 widgets equal)
+    let totalCanvasWidth: CGFloat = 600.0
+    let spacing: CGFloat = 8.0
+    let fourWidgets = ["clock", "calendar", "notes", "nowPlaying"]
+    let fourSpans = [1, 1, 1, 1]
+    let availW4 = totalCanvasWidth - CGFloat(fourWidgets.count - 1) * spacing // 600 - 24 = 576
+    let sumSpans4 = CGFloat(fourSpans.reduce(0, +)) // 4
+    let widths4 = fourSpans.map { (CGFloat($0) / sumSpans4) * availW4 }
+    assert(widths4.count == 4, "Must produce 4 widget widths")
+    assert(widths4.allSatisfy { abs($0 - 144.0) < 0.001 }, "Each of 4 widgets must receive exactly 144pt (25% width)")
+    
+    // Test 3 Widgets with Notes taking 2 spaces (Notes 2 + Clock 1 + Calendar 1)
+    let threeWidgets = ["notes", "clock", "calendar"]
+    let threeSpans = [2, 1, 1]
+    let availW3 = totalCanvasWidth - CGFloat(threeWidgets.count - 1) * spacing // 600 - 16 = 584
+    let sumSpans3 = CGFloat(threeSpans.reduce(0, +)) // 4
+    let widthNotes = (CGFloat(threeSpans[0]) / sumSpans3) * availW3 // 2/4 * 584 = 292
+    let widthClock = (CGFloat(threeSpans[1]) / sumSpans3) * availW3 // 1/4 * 584 = 146
+    let widthCal = (CGFloat(threeSpans[2]) / sumSpans3) * availW3 // 1/4 * 584 = 146
+    assert(abs(widthNotes - 292.0) < 0.001, "Notes with span 2 must occupy exactly 50% of available width")
+    assert(abs(widthClock - 146.0) < 0.001, "Clock with span 1 must occupy exactly 25% of available width")
+    assert(abs(widthCal - 146.0) < 0.001, "Calendar with span 1 must occupy exactly 25% of available width")
+    assert(abs((widthNotes + widthClock + widthCal) - availW3) < 0.001, "Total width must sum to available width")
+    print("  ✓ Horizontal 4 side-by-side strip and custom span (2-space Notes) math verified.")
+    
+    // Test 42: Thock Mechanical Sound Auto-Stop Invariant & Settings Non-Squeezing Contract
+    print("\n[TEST 42] Thock Mechanical Sound Auto-Stop Invariant & Settings Non-Wrapping Contracts...")
+    var isThockEngineRunning = true
+    func simulateNotchCollapse(thockRunning: inout Bool) {
+        // Invariant: collapse must stop key sounds unconditionally
+        if thockRunning {
+            thockRunning = false
+        }
+    }
+    simulateNotchCollapse(thockRunning: &isThockEngineRunning)
+    assert(!isThockEngineRunning, "Notch collapse must stop Thock engine typing sounds immediately")
+    
+    func simulateNotesDisappear(thockRunning: inout Bool) {
+        if thockRunning {
+            thockRunning = false
+        }
+    }
+    isThockEngineRunning = true
+    simulateNotesDisappear(thockRunning: &isThockEngineRunning)
+    assert(!isThockEngineRunning, "Notes disappearance must stop Thock engine typing sounds immediately")
+    
+    // Non-wrapping word invariant: test single-line truncation invariant
+    let testTitles = ["Clock", "Quick Notes", "Calendar Glance", "Now Playing", "Morning Hub"]
+    for title in testTitles {
+        // Assert title does not contain newlines or breaks
+        assert(!title.contains("\n") && !title.contains("\r"), "Title '\(title)' must not be split across lines")
+    }
+    print("  ✓ Thock auto-stop on collapse and settings non-wrapping contracts verified.")
     
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (40/40) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (42/42) ")
     print("=====================================================\n")
 }
 

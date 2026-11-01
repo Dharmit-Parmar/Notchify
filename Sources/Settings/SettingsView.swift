@@ -103,7 +103,7 @@ public struct SettingsView: View {
         .background(DesignSystem.canvasColor)
         .tint(DesignSystem.accentColor)
         .animation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.22), value: themeEngine.canvasColor)
-        .frame(minWidth: 720, minHeight: 560)
+        .frame(minWidth: 780, minHeight: 560)
         .onAppear {
             store.refreshAccessibility()
         }
