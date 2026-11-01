@@ -100,6 +100,7 @@ public enum CompanionBehaviorState: Equatable {
     case peekingLeft                // Peeking from left curve of notch
     case peekingRight               // Peeking from right curve of notch
     case walking                    // Walking along notch ledge
+    case crawling                   // Quadruped low-profile crawl along notch
     case typingMimic                // Furiously typing on miniature laptop
     case musicGroove                // Head bobbing with miniature headphones
     case slipping                   // Foot slips off ledge
@@ -107,5 +108,6 @@ public enum CompanionBehaviorState: Equatable {
     case pullingUp                  // Hauling itself back up
     case sleeping                   // Dozing under camera with floating Zzz
     case curious                    // Tilting head curiously
+    case thinking                   // One hand on chin, watching cursor smoothly
     case celebrating                // Backflip / happy bounce on tap
 }

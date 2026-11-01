@@ -1044,25 +1044,33 @@ public struct SettingsView: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(DesignSystem.secondaryText)
                         
-                        HStack(spacing: 8) {
-                            Button("Peek Left") { CompanionCoordinator.shared.triggerPeek(side: .left) }
-                                .buttonStyle(.spring)
-                                .controlSize(.small)
-                            Button("Peek Right") { CompanionCoordinator.shared.triggerPeek(side: .right) }
-                                .buttonStyle(.spring)
-                                .controlSize(.small)
-                            Button("Tightrope Walk") { CompanionCoordinator.shared.triggerWalking() }
-                                .buttonStyle(.spring)
-                                .controlSize(.small)
-                            Button("Slip & Dangle") { CompanionCoordinator.shared.executeSlipSequence() }
-                                .buttonStyle(.spring)
-                                .controlSize(.small)
-                            Button("Type Mimic") { CompanionCoordinator.shared.triggerTypingMimic() }
-                                .buttonStyle(.spring)
-                                .controlSize(.small)
-                            Button("Backflip") { CompanionCoordinator.shared.onCreatureClicked() }
-                                .buttonStyle(.spring)
-                                .controlSize(.small)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                Button("Peek Left") { CompanionCoordinator.shared.triggerPeek(side: .left) }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Peek Right") { CompanionCoordinator.shared.triggerPeek(side: .right) }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Walk (Gait)") { CompanionCoordinator.shared.triggerWalking() }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Crawl (Limb)") { CompanionCoordinator.shared.triggerCrawling() }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Hang & Pull-Up") { CompanionCoordinator.shared.executeSlipSequence() }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Think & Track") { CompanionCoordinator.shared.triggerThinking() }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Type Mimic") { CompanionCoordinator.shared.triggerTypingMimic() }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Backflip") { CompanionCoordinator.shared.onCreatureClicked() }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                            }
                         }
                     }
                     .padding(.top, 4)

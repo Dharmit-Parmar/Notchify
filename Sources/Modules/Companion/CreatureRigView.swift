@@ -1,10 +1,11 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Procedural Vector Creature Sprite & Rig
+// MARK: - Procedural Vector Kinematic Skeleton Renderer
 public struct CreatureRigView: View {
     @ObservedObject var coordinator = CompanionCoordinator.shared
     @ObservedObject var store = SettingsStore.shared
+    @ObservedObject var engine = KinematicEngine.shared
     
     public init() {}
     
@@ -13,404 +14,406 @@ public struct CreatureRigView: View {
     }
     
     public var body: some View {
-        ZStack {
-            // Background Aura / Soft Ambient Shadow
-            Ellipse()
-                .fill(Color.black.opacity(coordinator.shadowOpacity))
-                .frame(width: 38, height: 8)
-                .offset(y: coordinator.shadowOffsetY)
-                .blur(radius: 2)
-            
-            // Main Body Rig
-            VStack(spacing: 0) {
-                ZStack {
-                    // Skin-Specific Head Accessories (Ears / Antennas / Spines)
-                    accessoryLayer
-                    
-                    // Main Squishy Body
-                    bodyShape
-                    
-                    // Face: Eyes, Blush & Visor
-                    faceLayer
-                    
-                    // Hands / Paws
-                    pawsLayer
-                    
-                    // Prop Layer (Headphones, Laptop, Coffee)
-                    propsLayer
-                }
-                .frame(width: 44, height: 42)
+        TimelineView(.animation(paused: coordinator.state == .inDen)) { timelineContext in
+            Canvas { context, size in
+                // Zero CPU / early exit if in den
+                guard coordinator.state != .inDen else { return }
                 
-                // Feet / Little Legs
-                feetLayer
+                let originX = size.width / 2.0
+                let originY = NotchGeometry.current().physicalNotchHeight
+                
+                renderSkeleton(
+                    context: &context,
+                    pose: engine.currentPose,
+                    origin: CGPoint(x: originX, y: originY),
+                    skin: skin
+                )
             }
-            .scaleEffect(x: coordinator.bodySquashX, y: coordinator.bodyStretchY, anchor: .bottom)
-            .rotationEffect(.degrees(coordinator.bodyTiltAngle + coordinator.backflipAngle))
-            .offset(x: coordinator.creaturePosition.x, y: coordinator.creaturePosition.y)
-            .contentShape(Rectangle())
-            .onHover { hovering in
-                coordinator.onCursorHover(hovering)
+            .onChange(of: timelineContext.date) { _, newDate in
+                guard coordinator.state != .inDen else { return }
+                
+                let mouseScreen = NSEvent.mouseLocation
+                let screen = NSScreen.main ?? NSScreen.screens[0]
+                let geom = NotchGeometry.current(for: screen)
+                let cursorNotchX = mouseScreen.x - geom.notchCenterX
+                let cursorNotchY = (screen.frame.maxY - geom.physicalNotchHeight) - mouseScreen.y
+                let cursorNotchPos = CGPoint(x: cursorNotchX, y: cursorNotchY)
+                
+                engine.update(
+                    deltaTime: 1.0 / 60.0,
+                    cursorNotchPos: cursorNotchPos,
+                    notchWidth: geom.physicalNotchWidth
+                )
             }
-            .onTapGesture {
-                coordinator.performTapCelebration()
+        }
+        .frame(width: 325, height: 94)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            coordinator.onCursorHover(hovering)
+        }
+        .onTapGesture {
+            coordinator.onCreatureClicked()
+        }
+    }
+    
+    // MARK: - Core Vector Canvas Drawing Engine
+    private func renderSkeleton(
+        context: inout GraphicsContext,
+        pose: SkeletonPose,
+        origin: CGPoint,
+        skin: CompanionSkin
+    ) {
+        // Coordinate converter from notch-relative to Canvas view space
+        func toView(_ pt: CGPoint) -> CGPoint {
+            CGPoint(x: origin.x + pt.x, y: origin.y + pt.y)
+        }
+        
+        let rootPt = toView(pose.root)
+        let chestPt = toView(pose.chest)
+        let headPt = toView(pose.head)
+        
+        let lShoulderPt = toView(pose.leftShoulder)
+        let lElbowPt = toView(pose.leftElbow)
+        let lHandPt = toView(pose.leftHand)
+        
+        let rShoulderPt = toView(pose.rightShoulder)
+        let rElbowPt = toView(pose.rightElbow)
+        let rHandPt = toView(pose.rightHand)
+        
+        let lHipPt = toView(pose.leftHip)
+        let lKneePt = toView(pose.leftKnee)
+        let lFootPt = toView(pose.leftFoot)
+        
+        let rHipPt = toView(pose.rightHip)
+        let rKneePt = toView(pose.rightKnee)
+        let rFootPt = toView(pose.rightFoot)
+        
+        // 1. Soft Contact Shadow (fades when jumping or hanging)
+        if pose.root.y < 4.0 {
+            let shadowDist = max(0, -pose.root.y)
+            let shadowOpacity = max(0.0, min(0.35, 0.35 - Double(shadowDist) * 0.015))
+            let shadowRect = CGRect(
+                x: rootPt.x - 14,
+                y: origin.y - 3,
+                width: 28,
+                height: 6
+            )
+            context.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(shadowOpacity)))
+        }
+        
+        // 2. Tail (Physics Curvature)
+        drawTail(context: &context, root: rootPt, facingRight: pose.facingRight, skin: skin)
+        
+        // 3. Back Limbs (Right limbs if facing right, drawn in slightly shaded tone)
+        let backTone = skin.primaryColor.opacity(0.85)
+        drawLimb(context: &context, p1: rHipPt, p2: rKneePt, p3: rFootPt, thickness: 4.5, color: backTone)
+        drawPaw(context: &context, center: rFootPt, size: 5.5, color: backTone)
+        
+        drawLimb(context: &context, p1: rShoulderPt, p2: rElbowPt, p3: rHandPt, thickness: 4.0, color: backTone)
+        drawHand(context: &context, center: rHandPt, size: 5.0, color: backTone, isClinging: pose.rightHandPlanted)
+        
+        // 4. Torso / Squishy Body Capsule (Bends along spine from hips to chest)
+        drawTorso(context: &context, root: rootPt, chest: chestPt, facingRight: pose.facingRight, skin: skin)
+        
+        // 5. Head Rig with Skin Accessories & Facial Features
+        drawHead(context: &context, head: headPt, angle: pose.headAngle, pose: pose, skin: skin)
+        
+        // 6. Front Limbs (Foreground Left limbs, vibrant skin tone)
+        let frontTone = skin.primaryColor
+        drawLimb(context: &context, p1: lHipPt, p2: lKneePt, p3: lFootPt, thickness: 5.0, color: frontTone)
+        drawPaw(context: &context, center: lFootPt, size: 6.0, color: frontTone)
+        
+        drawLimb(context: &context, p1: lShoulderPt, p2: lElbowPt, p3: lHandPt, thickness: 4.5, color: frontTone)
+        drawHand(context: &context, center: lHandPt, size: 5.5, color: frontTone, isClinging: pose.leftHandPlanted)
+        
+        // 7. Props (Mini Laptop or Headphones if active)
+        if coordinator.state == .typingMimic {
+            drawMiniLaptop(context: &context, position: CGPoint(x: rootPt.x, y: origin.y - 6))
+        } else if coordinator.state == .musicGroove {
+            drawMiniHeadphones(context: &context, head: headPt, skin: skin)
+        }
+    }
+    
+    // MARK: - Vector Drawing Components
+    private func drawLimb(
+        context: inout GraphicsContext,
+        p1: CGPoint,
+        p2: CGPoint,
+        p3: CGPoint,
+        thickness: CGFloat,
+        color: Color
+    ) {
+        var path = Path()
+        path.move(to: p1)
+        path.addLine(to: p2)
+        path.addLine(to: p3)
+        context.stroke(
+            path,
+            with: .color(color),
+            style: StrokeStyle(lineWidth: thickness, lineCap: .round, lineJoin: .round)
+        )
+    }
+    
+    private func drawPaw(context: inout GraphicsContext, center: CGPoint, size: CGFloat, color: Color) {
+        let rect = CGRect(x: center.x - size / 2.0, y: center.y - size / 2.5, width: size, height: size * 0.75)
+        context.fill(Path(ellipseIn: rect), with: .color(color))
+    }
+    
+    private func drawHand(
+        context: inout GraphicsContext,
+        center: CGPoint,
+        size: CGFloat,
+        color: Color,
+        isClinging: Bool
+    ) {
+        if isClinging {
+            // Curled gripping fingers over notch lip
+            let rect = CGRect(x: center.x - size / 2.0, y: center.y - 1.5, width: size, height: size * 0.8)
+            context.fill(Path(roundedRect: rect, cornerRadius: 2.0), with: .color(color))
+        } else {
+            let rect = CGRect(x: center.x - size / 2.0, y: center.y - size / 2.0, width: size, height: size)
+            context.fill(Path(ellipseIn: rect), with: .color(color))
+        }
+    }
+    
+    private func drawTorso(
+        context: inout GraphicsContext,
+        root: CGPoint,
+        chest: CGPoint,
+        facingRight: Bool,
+        skin: CompanionSkin
+    ) {
+        let dx = chest.x - root.x
+        let dy = chest.y - root.y
+        let spineLength = sqrt(dx * dx + dy * dy)
+        let spineAngle = atan2(dy, dx)
+        
+        var transform = CGAffineTransform.identity
+        transform = transform.translatedBy(x: root.x, y: root.y)
+        transform = transform.rotated(by: spineAngle + .pi / 2.0)
+        
+        let torsoWidth: CGFloat = skin == .pixel ? 18.0 : 20.0
+        let torsoHeight: CGFloat = max(16.0, spineLength + 8.0)
+        let cornerRadius: CGFloat = skin == .pixel ? 4.0 : 9.0
+        
+        let localRect = CGRect(x: -torsoWidth / 2.0, y: -torsoHeight, width: torsoWidth, height: torsoHeight)
+        let path = Path(roundedRect: localRect, cornerRadius: cornerRadius)
+        let transformedPath = path.applying(transform)
+        
+        context.fill(
+            transformedPath,
+            with: .linearGradient(
+                Gradient(colors: [skin.primaryColor, skin.primaryColor.opacity(0.92)]),
+                startPoint: CGPoint(x: chest.x, y: chest.y - 10),
+                endPoint: CGPoint(x: root.x, y: root.y + 10)
+            )
+        )
+        context.stroke(
+            transformedPath,
+            with: .color(Color.white.opacity(0.18)),
+            lineWidth: 0.8
+        )
+    }
+    
+    private func drawHead(
+        context: inout GraphicsContext,
+        head: CGPoint,
+        angle: Double,
+        pose: SkeletonPose,
+        skin: CompanionSkin
+    ) {
+        let rad = angle * .pi / 180.0
+        var t = CGAffineTransform.identity
+        t = t.translatedBy(x: head.x, y: head.y)
+        t = t.rotated(by: rad)
+        
+        // 1. Head Accessories (Ears, Spines, Antenna)
+        drawAccessories(context: &context, transform: t, skin: skin)
+        
+        // 2. Head Squircle Shape
+        let headSize: CGFloat = skin == .pixel ? 20.0 : 22.0
+        let headRect = CGRect(x: -headSize / 2.0, y: -headSize / 2.0, width: headSize, height: headSize * 0.95)
+        let headPath = Path(roundedRect: headRect, cornerRadius: skin == .pixel ? 5.0 : 8.5).applying(t)
+        
+        context.fill(headPath, with: .color(skin.primaryColor))
+        context.stroke(headPath, with: .color(Color.white.opacity(0.2)), lineWidth: 0.8)
+        
+        // 3. Face Layer (Eyes, Blush, Visor, Mouth)
+        if skin == .cyber {
+            // LED Visor
+            let visorRect = CGRect(x: -8.0, y: -3.5, width: 16.0, height: 7.0)
+            let visorPath = Path(roundedRect: visorRect, cornerRadius: 3.5).applying(t)
+            context.fill(visorPath, with: .color(Color(red: 0.05, green: 0.08, blue: 0.12)))
+            context.stroke(visorPath, with: .color(skin.accentColor.opacity(0.85)), lineWidth: 1.0)
+            
+            // LED Cyan Eyes
+            if pose.leftEyeOpen > 0.2 {
+                let eyeL = CGPoint(x: -4.0 + pose.pupilOffset.x * 2.0, y: 0.0 + pose.pupilOffset.y * 1.5)
+                context.fill(Path(ellipseIn: CGRect(x: eyeL.x - 1.5, y: eyeL.y - 1.5, width: 3, height: 3)).applying(t), with: .color(skin.accentColor))
+            }
+            if pose.rightEyeOpen > 0.2 {
+                let eyeR = CGPoint(x: 4.0 + pose.pupilOffset.x * 2.0, y: 0.0 + pose.pupilOffset.y * 1.5)
+                context.fill(Path(ellipseIn: CGRect(x: eyeR.x - 1.5, y: eyeR.y - 1.5, width: 3, height: 3)).applying(t), with: .color(skin.accentColor))
+            }
+        } else {
+            // Organic Eyes & Blush
+            // Soft Pink Blush
+            let blushL = CGRect(x: -8.5, y: 2.0, width: 3.5, height: 2.5)
+            let blushR = CGRect(x: 5.0, y: 2.0, width: 3.5, height: 2.5)
+            context.fill(Path(ellipseIn: blushL).applying(t), with: .color(skin.accentColor.opacity(0.45)))
+            context.fill(Path(ellipseIn: blushR).applying(t), with: .color(skin.accentColor.opacity(0.45)))
+            
+            let eyeColor = skin == .kuro ? skin.accentColor : Color(red: 0.12, green: 0.12, blue: 0.15)
+            
+            // Left Eye
+            if pose.leftEyeOpen <= 0.2 {
+                // Blink line
+                var p = Path()
+                p.move(to: CGPoint(x: -7, y: 0))
+                p.addLine(to: CGPoint(x: -3, y: 0))
+                context.stroke(p.applying(t), with: .color(eyeColor), lineWidth: 1.2)
+            } else {
+                let h = 4.5 * pose.leftEyeOpen
+                let eyeRect = CGRect(x: -7.0, y: -h / 2.0, width: 4.0, height: h)
+                context.fill(Path(ellipseIn: eyeRect).applying(t), with: .color(eyeColor))
+                // White specular pupil shine
+                let pupil = CGPoint(x: -5.0 + pose.pupilOffset.x * 1.2, y: pose.pupilOffset.y * 1.2)
+                context.fill(Path(ellipseIn: CGRect(x: pupil.x - 0.8, y: pupil.y - 0.8, width: 1.6, height: 1.6)).applying(t), with: .color(.white))
             }
             
-            // Floating Particle Overlays
-            particleOverlay
+            // Right Eye
+            if pose.rightEyeOpen <= 0.2 {
+                // Blink line
+                var p = Path()
+                p.move(to: CGPoint(x: 3, y: 0))
+                p.addLine(to: CGPoint(x: 7, y: 0))
+                context.stroke(p.applying(t), with: .color(eyeColor), lineWidth: 1.2)
+            } else {
+                let h = 4.5 * pose.rightEyeOpen
+                let eyeRect = CGRect(x: 3.0, y: -h / 2.0, width: 4.0, height: h)
+                context.fill(Path(ellipseIn: eyeRect).applying(t), with: .color(eyeColor))
+                let pupil = CGPoint(x: 5.0 + pose.pupilOffset.x * 1.2, y: pose.pupilOffset.y * 1.2)
+                context.fill(Path(ellipseIn: CGRect(x: pupil.x - 0.8, y: pupil.y - 0.8, width: 1.6, height: 1.6)).applying(t), with: .color(.white))
+            }
+            
+            // Mouth
+            drawMouth(context: &context, transform: t, shape: pose.mouthShape, color: eyeColor)
         }
-        .frame(width: 140, height: 90)
     }
     
-    // MARK: - Body Shape
-    private var bodyShape: some View {
-        RoundedRectangle(cornerRadius: skin == .pixel ? 6 : 14, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        skin.primaryColor,
-                        skin.primaryColor.opacity(0.92)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: skin == .pixel ? 6 : 14, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
-            )
-            .shadow(color: skin.accentColor.opacity(skin == .cyber ? 0.35 : 0.12), radius: skin == .cyber ? 6 : 2)
+    private func drawMouth(
+        context: inout GraphicsContext,
+        transform: CGAffineTransform,
+        shape: MouthShape,
+        color: Color
+    ) {
+        switch shape {
+        case .smile:
+            var p = Path()
+            p.move(to: CGPoint(x: -2.5, y: 4.0))
+            p.addQuadCurve(to: CGPoint(x: 2.5, y: 4.0), control: CGPoint(x: 0, y: 6.5))
+            context.stroke(p.applying(transform), with: .color(color), lineWidth: 1.2)
+            
+        case .gasp:
+            let r = CGRect(x: -2.0, y: 3.5, width: 4.0, height: 4.5)
+            context.stroke(Path(ellipseIn: r).applying(transform), with: .color(color), lineWidth: 1.2)
+            
+        case .sigh:
+            var p = Path()
+            p.move(to: CGPoint(x: -2.5, y: 5.5))
+            p.addLine(to: CGPoint(x: 2.5, y: 5.5))
+            context.stroke(p.applying(transform), with: .color(color), lineWidth: 1.0)
+            
+        case .openW, .neutral:
+            var p = Path()
+            p.move(to: CGPoint(x: -2.0, y: 4.5))
+            p.addLine(to: CGPoint(x: 0.0, y: 5.2))
+            p.addLine(to: CGPoint(x: 2.0, y: 4.5))
+            context.stroke(p.applying(transform), with: .color(color), lineWidth: 1.0)
+        }
     }
     
-    // MARK: - Accessories (Cat Ears, Dino Spines, Antenna, Visor)
-    @ViewBuilder
-    private var accessoryLayer: some View {
+    private func drawAccessories(context: inout GraphicsContext, transform: CGAffineTransform, skin: CompanionSkin) {
         switch skin {
         case .kuro:
             // Pointed Cat Ears
-            HStack(spacing: 18) {
-                CatEarShape()
-                    .fill(skin.primaryColor)
-                    .frame(width: 11, height: 12)
-                    .overlay(
-                        CatEarShape()
-                            .fill(skin.accentColor.opacity(0.4))
-                            .frame(width: 6, height: 7)
-                            .offset(y: 2)
-                    )
-                CatEarShape()
-                    .fill(skin.primaryColor)
-                    .frame(width: 11, height: 12)
-                    .overlay(
-                        CatEarShape()
-                            .fill(skin.accentColor.opacity(0.4))
-                            .frame(width: 6, height: 7)
-                            .offset(y: 2)
-                    )
-            }
-            .offset(y: -23)
+            var earL = Path()
+            earL.move(to: CGPoint(x: -9, y: -8))
+            earL.addLine(to: CGPoint(x: -5, y: -16))
+            earL.addLine(to: CGPoint(x: -2, y: -9))
+            earL.closeSubpath()
+            context.fill(earL.applying(transform), with: .color(skin.primaryColor))
+            
+            var earR = Path()
+            earR.move(to: CGPoint(x: 2, y: -9))
+            earR.addLine(to: CGPoint(x: 5, y: -16))
+            earR.addLine(to: CGPoint(x: 9, y: -8))
+            earR.closeSubpath()
+            context.fill(earR.applying(transform), with: .color(skin.primaryColor))
             
         case .boba:
             // Dino Back Spines
-            HStack(spacing: 7) {
-                TriangleShape().fill(Color.orange).frame(width: 8, height: 7)
-                TriangleShape().fill(Color.orange).frame(width: 9, height: 8)
-                TriangleShape().fill(Color.orange).frame(width: 8, height: 7)
+            for xOffset in [-6.0, 0.0, 6.0] {
+                var spine = Path()
+                spine.move(to: CGPoint(x: xOffset - 2.5, y: -10))
+                spine.addLine(to: CGPoint(x: xOffset, y: -15))
+                spine.addLine(to: CGPoint(x: xOffset + 2.5, y: -10))
+                spine.closeSubpath()
+                context.fill(spine.applying(transform), with: .color(.orange))
             }
-            .offset(y: -22)
             
-        case .pixel:
-            // Retro 8-Bit Antenna
-            VStack(spacing: 0) {
-                Rectangle().fill(skin.accentColor).frame(width: 4, height: 4)
-                Rectangle().fill(Color.gray).frame(width: 2, height: 6)
-            }
-            .offset(y: -24)
-            
-        case .cyber:
-            // Robot Antenna with Pulsing Beacon
-            ZStack {
-                Capsule().fill(Color(white: 0.3)).frame(width: 3, height: 9)
-                Circle().fill(skin.accentColor).frame(width: 5, height: 5).offset(y: -6)
-            }
-            .offset(y: -24)
+        case .pixel, .cyber:
+            // Robot Antenna Beacon
+            var ant = Path()
+            ant.move(to: CGPoint(x: 0, y: -9))
+            ant.addLine(to: CGPoint(x: 0, y: -16))
+            context.stroke(ant.applying(transform), with: .color(Color(white: 0.4)), lineWidth: 2.0)
+            context.fill(Path(ellipseIn: CGRect(x: -2.5, y: -19, width: 5, height: 5)).applying(transform), with: .color(skin.accentColor))
             
         case .mochi:
-            // Soft Fluffy Cheeks
-            EmptyView()
+            break
         }
     }
     
-    // MARK: - Face Layer
-    @ViewBuilder
-    private var faceLayer: some View {
-        if skin == .cyber {
-            // LED Visor Display
-            ZStack {
-                Capsule()
-                    .fill(Color(red: 0.05, green: 0.08, blue: 0.12))
-                    .frame(width: 32, height: 13)
-                    .overlay(Capsule().strokeBorder(skin.accentColor.opacity(0.8), lineWidth: 1))
-                
-                if coordinator.state == .sleeping {
-                    Text("- -")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(skin.accentColor)
-                } else {
-                    HStack(spacing: 8) {
-                        Circle().fill(skin.accentColor).frame(width: 4, height: 4)
-                        Circle().fill(skin.accentColor).frame(width: 4, height: 4)
-                    }
-                }
-            }
-            .offset(y: -2)
-        } else {
-            // Organic Cartoon Face
-            VStack(spacing: 3) {
-                // Eyes & Blush Row
-                ZStack {
-                    // Soft Pink Blush
-                    HStack(spacing: 22) {
-                        Circle().fill(skin.accentColor.opacity(0.45)).frame(width: 6, height: 4)
-                        Circle().fill(skin.accentColor.opacity(0.45)).frame(width: 6, height: 4)
-                    }
-                    .offset(y: 2)
-                    
-                    // Eyes
-                    if coordinator.state == .sleeping {
-                        // Sleeping Curved Eyelids (^_^)
-                        HStack(spacing: 12) {
-                            Text("~").font(.system(size: 11, weight: .bold)).foregroundColor(eyeColor)
-                            Text("~").font(.system(size: 11, weight: .bold)).foregroundColor(eyeColor)
-                        }
-                    } else if coordinator.blinkPhase {
-                        // Blinking Horizontal Slits
-                        HStack(spacing: 14) {
-                            Capsule().fill(eyeColor).frame(width: 6, height: 1.5)
-                            Capsule().fill(eyeColor).frame(width: 6, height: 1.5)
-                        }
-                    } else if coordinator.state == .dangling || coordinator.state == .slipping {
-                        // Wide Panicked / Surprised Eyes (O_O)
-                        HStack(spacing: 12) {
-                            Circle().fill(eyeColor).frame(width: 7, height: 7)
-                                .overlay(Circle().fill(Color.white).frame(width: 2.5, height: 2.5).offset(x: 1, y: -1))
-                            Circle().fill(eyeColor).frame(width: 7, height: 7)
-                                .overlay(Circle().fill(Color.white).frame(width: 2.5, height: 2.5).offset(x: 1, y: -1))
-                        }
-                    } else {
-                        // Default Curious Expressive Eyes
-                        HStack(spacing: 13) {
-                            Circle().fill(eyeColor).frame(width: 5, height: 5.5)
-                                .overlay(Circle().fill(Color.white).frame(width: 1.8, height: 1.8).offset(x: 1, y: -1))
-                            Circle().fill(eyeColor).frame(width: 5, height: 5.5)
-                                .overlay(Circle().fill(Color.white).frame(width: 1.8, height: 1.8).offset(x: 1, y: -1))
-                        }
-                    }
-                }
-                
-                // Cute Tiny Mouth
-                if coordinator.state == .celebrating {
-                    Circle().strokeBorder(eyeColor, lineWidth: 1.2).frame(width: 4, height: 4)
-                } else if coordinator.state == .slipping || coordinator.state == .dangling {
-                    Capsule().fill(eyeColor).frame(width: 5, height: 4)
-                } else {
-                    Text("w")
-                        .font(.system(size: 7, weight: .bold, design: .rounded))
-                        .foregroundColor(eyeColor.opacity(0.8))
-                        .offset(y: -1)
-                }
-            }
-            .offset(y: -1)
-        }
-    }
-    
-    private var eyeColor: Color {
-        skin == .kuro ? skin.accentColor : Color(red: 0.12, green: 0.12, blue: 0.15)
-    }
-    
-    // MARK: - Paws Layer
-    @ViewBuilder
-    private var pawsLayer: some View {
-        if coordinator.state == .dangling {
-            // Paws gripping tight to notch top edge
-            HStack(spacing: 24) {
-                Capsule().fill(skin.primaryColor).frame(width: 8, height: 12).offset(y: -18)
-                Capsule().fill(skin.primaryColor).frame(width: 8, height: 12).offset(y: -18)
-            }
-        } else if coordinator.state == .typingMimic {
-            // Typing paws alternating frantically
-            HStack(spacing: 10) {
-                Capsule()
-                    .fill(skin.primaryColor)
-                    .frame(width: 7, height: 8)
-                    .offset(y: coordinator.typingPawAlternate ? 10 : 7)
-                Capsule()
-                    .fill(skin.primaryColor)
-                    .frame(width: 7, height: 8)
-                    .offset(y: coordinator.typingPawAlternate ? 7 : 10)
-            }
-        } else if coordinator.state == .peekingLeft || coordinator.state == .peekingRight {
-            // Peek paws resting over notch curve
-            HStack(spacing: 18) {
-                Circle().fill(skin.primaryColor).frame(width: 7, height: 7).offset(y: 8)
-                Circle().fill(skin.primaryColor).frame(width: 7, height: 7).offset(y: 8)
-            }
-        } else {
-            // Natural resting side paws
-            HStack(spacing: 34) {
-                Circle().fill(skin.primaryColor).frame(width: 6, height: 6).offset(y: 6)
-                Circle().fill(skin.primaryColor).frame(width: 6, height: 6).offset(y: 6)
-            }
-        }
-    }
-    
-    // MARK: - Feet Layer
-    @ViewBuilder
-    private var feetLayer: some View {
-        if coordinator.state == .dangling {
-            // Flailing little kicking legs while dangling
-            HStack(spacing: 14) {
-                Capsule()
-                    .fill(skin.primaryColor.opacity(0.95))
-                    .frame(width: 6, height: 10)
-                    .rotationEffect(.degrees(sin(coordinator.flailPhase) * 25))
-                Capsule()
-                    .fill(skin.primaryColor.opacity(0.95))
-                    .frame(width: 6, height: 10)
-                    .rotationEffect(.degrees(-sin(coordinator.flailPhase) * 25))
-            }
-            .offset(y: -2)
-        } else if coordinator.state == .walking {
-            // Stepping feet while walking
-            HStack(spacing: 16) {
-                Capsule()
-                    .fill(skin.primaryColor.opacity(0.95))
-                    .frame(width: 7, height: 6)
-                    .offset(y: sin(coordinator.walkPhase) > 0 ? -2 : 0)
-                Capsule()
-                    .fill(skin.primaryColor.opacity(0.95))
-                    .frame(width: 7, height: 6)
-                    .offset(y: sin(coordinator.walkPhase) <= 0 ? -2 : 0)
-            }
-            .offset(y: -2)
-        } else if coordinator.state != .peekingLeft && coordinator.state != .peekingRight && coordinator.state != .inDen {
-            // Small standing paws
-            HStack(spacing: 16) {
-                Capsule().fill(skin.primaryColor.opacity(0.95)).frame(width: 7, height: 5)
-                Capsule().fill(skin.primaryColor.opacity(0.95)).frame(width: 7, height: 5)
-            }
-            .offset(y: -2)
-        }
-    }
-    
-    // MARK: - Props Layer
-    @ViewBuilder
-    private var propsLayer: some View {
-        if coordinator.state == .typingMimic {
-            // Miniature glowing typewriter / laptop
-            MiniLaptopProp()
-                .offset(y: 12)
-        } else if coordinator.state == .musicGroove {
-            // Miniature DJ Headphones
-            MiniHeadphonesProp(color: skin.accentColor)
-                .offset(y: -2)
-        }
-    }
-    
-    // MARK: - Floating Particles Overlay
-    private var particleOverlay: some View {
-        ZStack {
-            // Music Notes
-            ForEach(coordinator.musicalNotes) { note in
-                Text(note.symbol)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(skin.accentColor)
-                    .offset(x: note.x, y: note.y)
-                    .opacity(note.opacity)
-            }
-            
-            // Sleep Zzz
-            ForEach(coordinator.sleepZzzs) { z in
-                Text("Z")
-                    .font(.system(size: z.size, weight: .bold, design: .rounded))
-                    .foregroundColor(Color.white.opacity(z.opacity))
-                    .offset(x: z.x, y: z.y)
-            }
-            
-            // Celebration Stars
-            ForEach(coordinator.celebrationStars) { star in
-                Image(systemName: "sparkle")
-                    .font(.system(size: star.size))
-                    .foregroundColor(Color.yellow)
-                    .offset(x: star.x, y: star.y)
-                    .opacity(star.opacity)
-            }
-        }
-    }
-}
-
-// MARK: - Cat Ear Shape
-struct CatEarShape: Shape {
-    func path(in rect: CGRect) -> Path {
+    private func drawTail(
+        context: inout GraphicsContext,
+        root: CGPoint,
+        facingRight: Bool,
+        skin: CompanionSkin
+    ) {
+        guard skin == .kuro || skin == .boba else { return }
+        let dir: CGFloat = facingRight ? -1.0 : 1.0
+        
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.closeSubpath()
-        return path
+        path.move(to: CGPoint(x: root.x + dir * 4.0, y: root.y + 2.0))
+        path.addCurve(
+            to: CGPoint(x: root.x + dir * 16.0, y: root.y - 8.0),
+            control1: CGPoint(x: root.x + dir * 8.0, y: root.y + 6.0),
+            control2: CGPoint(x: root.x + dir * 14.0, y: root.y)
+        )
+        context.stroke(
+            path,
+            with: .color(skin == .boba ? Color.green.opacity(0.8) : skin.primaryColor),
+            style: StrokeStyle(lineWidth: skin == .boba ? 4.5 : 2.8, lineCap: .round)
+        )
     }
-}
-
-// MARK: - Triangle Shape
-struct TriangleShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.closeSubpath()
-        return path
-    }
-}
-
-// MARK: - Mini Laptop Prop
-struct MiniLaptopProp: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(Color(white: 0.25))
-                .frame(width: 18, height: 2)
-            
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.cyan.opacity(0.8), Color.blue.opacity(0.6)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 15, height: 10)
-                .offset(y: -6)
-                .rotation3DEffect(.degrees(15), axis: (x: 1, y: 0, z: 0))
-        }
-    }
-}
-
-// MARK: - Mini Headphones Prop
-struct MiniHeadphonesProp: View {
-    let color: Color
     
-    var body: some View {
-        ZStack {
-            Circle()
-                .strokeBorder(Color(white: 0.3), lineWidth: 2)
-                .frame(width: 38, height: 38)
-                .clipShape(Rectangle().offset(y: -10))
-            
-            HStack(spacing: 34) {
-                Capsule().fill(color).frame(width: 5, height: 11)
-                Capsule().fill(color).frame(width: 5, height: 11)
-            }
-            .offset(y: 4)
-        }
+    private func drawMiniLaptop(context: inout GraphicsContext, position: CGPoint) {
+        let base = CGRect(x: position.x - 8, y: position.y - 1.5, width: 16, height: 3)
+        context.fill(Path(roundedRect: base, cornerRadius: 1), with: .color(Color(white: 0.3)))
+        
+        let screen = CGRect(x: position.x - 7, y: position.y - 10, width: 14, height: 9)
+        context.fill(Path(roundedRect: screen, cornerRadius: 1.5), with: .color(Color.cyan.opacity(0.85)))
+    }
+    
+    private func drawMiniHeadphones(context: inout GraphicsContext, head: CGPoint, skin: CompanionSkin) {
+        var arc = Path()
+        arc.addArc(center: head, radius: 12.0, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        context.stroke(arc, with: .color(Color(white: 0.35)), lineWidth: 2.0)
+        
+        let padL = CGRect(x: head.x - 13.5, y: head.y - 4, width: 3.5, height: 8)
+        let padR = CGRect(x: head.x + 10.0, y: head.y - 4, width: 3.5, height: 8)
+        context.fill(Path(roundedRect: padL, cornerRadius: 1.5), with: .color(skin.accentColor))
+        context.fill(Path(roundedRect: padR, cornerRadius: 1.5), with: .color(skin.accentColor))
     }
 }
