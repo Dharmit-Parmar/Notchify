@@ -93,7 +93,13 @@ public struct DirectMessenger {
             }
         } else {
             // Telegram (Supports both Phone Numbers and @Usernames)
-            let rawHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+            var rawHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+            if rawHandle.hasPrefix("https://t.me/") {
+                rawHandle = String(rawHandle.dropFirst(13))
+            } else if rawHandle.hasPrefix("t.me/") {
+                rawHandle = String(rawHandle.dropFirst(5))
+            }
+            
             let digits = rawHandle.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
             let cleanUser = rawHandle.trimmingCharacters(in: CharacterSet(charactersIn: "@ "))
             let encoded = cleanText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
@@ -434,10 +440,10 @@ public struct TelegramModuleExpandedView: View {
                     }
                     
                     HStack(spacing: 6) {
-                        TextField("Name", text: $module.newPersonName)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 11))
-                            .padding(5)
+                        PasteableTextField(text: $module.newPersonName, placeholder: "Name")
+                            .frame(height: 20)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
                             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DesignSystem.structureColor))
                         
                         Picker("", selection: $module.newPersonPlatform) {
@@ -457,11 +463,31 @@ public struct TelegramModuleExpandedView: View {
                             }
                         }()
                         
-                        TextField(placeholderText, text: $module.newPersonHandle)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 11))
-                            .padding(5)
-                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DesignSystem.structureColor))
+                        HStack(spacing: 4) {
+                            PasteableTextField(text: $module.newPersonHandle, placeholder: placeholderText)
+                                .frame(height: 20)
+                            
+                            // 1-Click Clipboard Paste Shortcut
+                            Button(action: {
+                                if let clipboard = NSPasteboard.general.string(forType: .string) {
+                                    let cleaned = clipboard.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !cleaned.isEmpty {
+                                        module.newPersonHandle = cleaned
+                                        FeedbackManager.playClick()
+                                    }
+                                }
+                            }) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(DesignSystem.accentColor)
+                                    .padding(3)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Paste phone number or username from clipboard")
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DesignSystem.structureColor))
                         
                         Button("Pin") {
                             module.addContact(
@@ -572,6 +598,115 @@ public struct TelegramModuleExpandedView: View {
     }
 }
 
+// Robust AppKit TextField with native Cmd+V (Paste), Cmd+C (Copy), Cmd+A (Select All), Cmd+X (Cut) and Right-Click Context Menu
+public final class CustomPasteableNSTextField: NSTextField {
+    public var onCommit: (() -> Void)?
+    
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command) {
+            let key = event.charactersIgnoringModifiers?.lowercased()
+            if key == "v" {
+                if let string = NSPasteboard.general.string(forType: .string) {
+                    if let editor = currentEditor() as? NSTextView {
+                        editor.insertText(string, replacementRange: editor.selectedRange())
+                    } else {
+                        self.stringValue = string
+                        NotificationCenter.default.post(name: NSControl.textDidChangeNotification, object: self)
+                    }
+                    return true
+                }
+            } else if key == "c" {
+                if let editor = currentEditor() as? NSTextView, editor.selectedRange().length > 0 {
+                    editor.copy(nil)
+                    return true
+                }
+            } else if key == "x" {
+                if let editor = currentEditor() as? NSTextView, editor.selectedRange().length > 0 {
+                    editor.cut(nil)
+                    return true
+                }
+            } else if key == "a" {
+                self.selectText(nil)
+                return true
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+    
+    public override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        menu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        let pasteItem = menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        pasteItem.isEnabled = NSPasteboard.general.string(forType: .string) != nil
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        return menu
+    }
+}
+
+public struct PasteableTextField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var onCommit: (() -> Void)?
+    
+    public init(text: Binding<String>, placeholder: String, onCommit: (() -> Void)? = nil) {
+        self._text = text
+        self.placeholder = placeholder
+        self.onCommit = onCommit
+    }
+    
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    public func makeNSView(context: Context) -> CustomPasteableNSTextField {
+        let field = CustomPasteableNSTextField()
+        field.placeholderString = placeholder
+        field.stringValue = text
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.textColor = .white
+        field.font = .systemFont(ofSize: 11, weight: .regular)
+        field.delegate = context.coordinator
+        field.onCommit = onCommit
+        return field
+    }
+    
+    public func updateNSView(_ nsView: CustomPasteableNSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        if nsView.placeholderString != placeholder {
+            nsView.placeholderString = placeholder
+        }
+        nsView.onCommit = onCommit
+    }
+    
+    public class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: PasteableTextField
+        
+        init(_ parent: PasteableTextField) {
+            self.parent = parent
+        }
+        
+        public func controlTextDidChange(_ obj: Notification) {
+            if let textField = obj.object as? NSTextField {
+                parent.text = textField.stringValue
+            }
+        }
+        
+        public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onCommit?()
+                return true
+            }
+            return false
+        }
+    }
+}
+
 // Custom AppKit TextField ensuring Enter/Return key always commits
 public struct DirectTextField: NSViewRepresentable {
     @Binding var text: String
@@ -588,8 +723,8 @@ public struct DirectTextField: NSViewRepresentable {
         Coordinator(self)
     }
     
-    public func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField()
+    public func makeNSView(context: Context) -> CustomPasteableNSTextField {
+        let field = CustomPasteableNSTextField()
         field.placeholderString = placeholder
         field.stringValue = text
         field.isBordered = false
@@ -598,16 +733,18 @@ public struct DirectTextField: NSViewRepresentable {
         field.textColor = .white
         field.font = .systemFont(ofSize: 11, weight: .regular)
         field.delegate = context.coordinator
+        field.onCommit = onCommit
         return field
     }
     
-    public func updateNSView(_ nsView: NSTextField, context: Context) {
+    public func updateNSView(_ nsView: CustomPasteableNSTextField, context: Context) {
         if nsView.stringValue != text {
             nsView.stringValue = text
         }
         if nsView.placeholderString != placeholder {
             nsView.placeholderString = placeholder
         }
+        nsView.onCommit = onCommit
     }
     
     public class Coordinator: NSObject, NSTextFieldDelegate {
