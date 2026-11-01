@@ -1,88 +1,89 @@
 # Graph Report - Notch  (2026-11-01)
 
 ## Corpus Check
-- 32 files · ~52,793 words
+- 105 files · ~62,000 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 961 nodes · 2231 edges · 49 communities (43 shown, 6 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 141 edges (avg confidence: 0.82)
+- 1276 nodes · 2967 edges · 50 communities (44 shown, 6 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 200 edges (avg confidence: 0.82)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- File Studio & PDF Engine
-- Telegram Direct Bot & Messaging
-- Modular Bento Dashboard & Settings
-- Mirror Camera Live Preview
-- Mirror Camera Live Preview
-- Notes Scratchpad & Debounce Storage
-- System Permissions & Finder Drag
-- System Permissions & Finder Drag
-- Interactive Calendar & Agenda
-- Liquid Retina Glass & Dynamic Theme
-- Notes Scratchpad & Debounce Storage
-- Notes Scratchpad & Debounce Storage
-- Clock Chronometer & Zero-Allocation Cache
-- File Studio & PDF Engine
-- MediaRemote Audio & Video Bridge
-- Modular Bento Dashboard & Settings
-- Clock Chronometer & Zero-Allocation Cache
-- Sources Modules
-- Modular Bento Dashboard & Settings
-- Notes Scratchpad & Debounce Storage
-- Thock Mechanical Audio Engine
-- Thock Mechanical Audio Engine
-- Liquid Retina Glass & Dynamic Theme
-- Modular Bento Dashboard & Settings
-- Battery & Power RunLoop Source
-- Notch Geometry & Window Coordinator
-- Modular Bento Dashboard & Settings
-- Notch Geometry & Window Coordinator
-- Notch Geometry & Window Coordinator
-- Liquid Retina Glass & Dynamic Theme
-- Liquid Retina Glass & Dynamic Theme
-- Battery & Power RunLoop Source
-- Modular Bento Dashboard & Settings
-- Thock Mechanical Audio Engine
-- Modular Bento Dashboard & Settings
-- Modular Bento Dashboard & Settings
-- System Permissions & Finder Drag
-- Sources Notch
-- Liquid Retina Glass & Dynamic Theme
-- Liquid Retina Glass & Dynamic Theme
-- Telegram Direct Bot & Messaging
-- Clock Chronometer & Zero-Allocation Cache
-- Modular Bento Dashboard & Settings
-- AirDrop Direct Sharing Service
-- Thock Mechanical Audio Engine
-- Interactive Calendar & Agenda
-- Package
-- Notch
-- Stop Notch
+- Community 0
+- Community 1
+- Community 2
+- Community 3
+- Community 4
+- Community 5
+- Community 6
+- Community 7
+- Community 8
+- Community 9
+- Community 10
+- Community 11
+- Community 12
+- Community 13
+- Community 14
+- Community 15
+- Community 16
+- Community 17
+- Community 18
+- Community 19
+- Community 20
+- Community 21
+- Community 22
+- Community 23
+- Community 24
+- Community 25
+- Community 26
+- Community 27
+- Community 28
+- Community 29
+- Community 30
+- Community 31
+- Community 32
+- Community 33
+- Community 34
+- Community 35
+- Community 36
+- Community 37
+- Community 38
+- Community 39
+- Community 40
+- Community 41
+- Community 42
+- Community 43
+- Community 44
+- Community 45
+- Community 46
+- Community 47
+- Community 48
+- Community 49
 
 ## God Nodes (most connected - your core abstractions)
 1. `ThockModule` - 72 edges
-2. `SettingsStore` - 57 edges
+2. `SettingsStore` - 67 edges
 3. `ShelfModule` - 51 edges
-4. `AppTheme` - 43 edges
-5. `DesignSystem` - 43 edges
-6. `DashboardWidgetType` - 36 edges
-7. `ModuleRegistry` - 31 edges
-8. `NotchModule` - 29 edges
-9. `MediaRemoteBridge` - 27 edges
-10. `TelegramModule` - 26 edges
+4. `DesignSystem` - 44 edges
+5. `AppTheme` - 43 edges
+6. `KinematicEngine` - 37 edges
+7. `DashboardWidgetType` - 36 edges
+8. `SkeletonPose` - 32 edges
+9. `ModuleRegistry` - 31 edges
+10. `CompanionCoordinator` - 31 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `.body` --calls--> `CreatureRigView`  [INFERRED]
+  Sources/Modules/Companion/CompanionWindow.swift → Sources/Modules/Companion/CreatureRigView.swift
 - `Notch Animated Desktop Companion` --conceptually_related_to--> `Notchify macOS System Hub`  [INFERRED]
   NOTCH_CREATURE_MVP.md → README.md
-- `.activeModule` --references--> `NotchModule`  [INFERRED]
-  Sources/Core/ModuleRegistry.swift → Sources/Core/NotchModule.swift
-- `.body` --references--> `DashboardWidgetType`  [INFERRED]
-  Sources/Settings/DashboardSettingsView.swift → Sources/Core/NotchModule.swift
+- `ResultantPDFPreviewCard` --calls--> `LocalUIState`  [INFERRED]
+  Sources/Modules/Shelf/ShelfModule.swift → Sources/UI/DesignSystem.swift
+- `StagedFileChip` --calls--> `LocalUIState`  [INFERRED]
+  Sources/Modules/Shelf/ShelfModule.swift → Sources/UI/DesignSystem.swift
 - `.body` --references--> `SettingsStore`  [INFERRED]
   Sources/Settings/DashboardSettingsView.swift → Sources/Core/NotchModule.swift
-- `.wordCount` --references--> `NoteStorageManager`  [INFERRED]
-  Sources/Modules/Notes/NotesWidgetView.swift → Sources/Modules/Notes/NoteStorageManager.swift
 
 ## Import Cycles
 - None detected.
@@ -90,199 +91,203 @@
 ## Hyperedges (group relationships)
 - **Notch Ambient Companion Architecture** — notch_creature_mvp_companion, notch_creature_mvp_state_machine, notch_creature_mvp_vector_engine, notch_creature_mvp_privacy_invariants [EXTRACTED 1.00]
 
-## Communities (49 total, 6 thin omitted)
+## Communities (50 total, 6 thin omitted)
 
-### Community 0 - "File Studio & PDF Engine"
+### Community 0 - "Community 0"
 Cohesion: 0.06
-Nodes (51): ByteCountFormatter, CIContext, Int64, PDFDocument, PDFPage, AirDropDropTargetCapsule, .body, FileStudioTool (+43 more)
+Nodes (50): ByteCountFormatter, CIContext, Int64, PDFDocument, PDFPage, AirDropDropTargetCapsule, .body, FileStudioTool (+42 more)
 
-### Community 1 - "Telegram Direct Bot & Messaging"
+### Community 1 - "Community 1"
+Cohesion: 0.06
+Nodes (56): DashboardWidgetType, calendar, clock, .icon, .id, mirror, notes, nowPlaying (+48 more)
+
+### Community 2 - "Community 2"
+Cohesion: 0.05
+Nodes (43): Animation, Content, NSApplicationDelegate, NSMenu, NSStatusItem, NSTrackingArea, NSWindowDelegate, Selector (+35 more)
+
+### Community 3 - "Community 3"
+Cohesion: 0.05
+Nodes (40): AVCaptureSession, AVCaptureVideoPreviewLayer, ImageIO, MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction, MRMediaRemoteGetNowPlayingApplicationPIDFunction, MRMediaRemoteGetNowPlayingArtworkFunction, MRMediaRemoteGetNowPlayingClientFunction, MRMediaRemoteGetNowPlayingInfoFunction (+32 more)
+
+### Community 4 - "Community 4"
 Cohesion: 0.07
-Nodes (34): Codable, Hashable, NSControl, NSTextField, NSTextFieldDelegate, NSTextView, ChatContact, ChatMessage (+26 more)
+Nodes (52): CGContext, CGPoint, LimbBones, MouthShape, gasp, neutral, openW, sigh (+44 more)
 
-### Community 2 - "Modular Bento Dashboard & Settings"
+### Community 5 - "Community 5"
+Cohesion: 0.07
+Nodes (33): Hashable, NSControl, NSTextField, NSTextFieldDelegate, NSTextView, ChatContact, ChatMessage, ContactSafetyValidator (+25 more)
+
+### Community 6 - "Community 6"
+Cohesion: 0.05
+Nodes (51): Equatable, ScreenRouteStage, approachNotch, climbOntoRightLedge, farCornerPeek, leftWalk, lowerToHang, monkeyBarTraversal (+43 more)
+
+### Community 7 - "Community 7"
 Cohesion: 0.09
-Nodes (25): AnyObject, DropDelegate, NSDragOperation, ScrollViewProxy, ModuleRegistry, .activeModule, .activeModuleId, .orderedModules (+17 more)
+Nodes (26): AnyObject, DropDelegate, NSDragOperation, ObservableObject, ScrollViewProxy, ModuleRegistry, .activeModule, .activeModuleId (+18 more)
 
-### Community 3 - "Mirror Camera Live Preview"
-Cohesion: 0.08
-Nodes (23): AVCaptureVideoPreviewLayer, NSCoder, NSView, NSViewRepresentable, NSVisualEffectView, CameraHostingNSView, CameraLivePreview, MirrorAdaptiveWidgetView (+15 more)
+### Community 8 - "Community 8"
+Cohesion: 0.11
+Nodes (23): NSHostingView, NSPanel, CompanionCoordinator, .creatureInteractiveRectInWindow, PeekSide, left, right, Any (+15 more)
 
-### Community 4 - "Mirror Camera Live Preview"
-Cohesion: 0.09
-Nodes (22): AVCaptureSession, Equatable, MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction, MRMediaRemoteGetNowPlayingApplicationPIDFunction, MRMediaRemoteGetNowPlayingArtworkFunction, MRMediaRemoteGetNowPlayingClientFunction, MRMediaRemoteGetNowPlayingInfoFunction, MRMediaRemoteRegisterFunction (+14 more)
+### Community 9 - "Community 9"
+Cohesion: 0.11
+Nodes (23): CompanionBehaviorState, celebrating, crawling, curious, dangling, inDen, musicGroove, peekingLeft (+15 more)
 
-### Community 5 - "Notes Scratchpad & Debounce Storage"
-Cohesion: 0.07
-Nodes (24): Error, NSObject, NSScrollView, NSSharingService, NSSharingServiceDelegate, NSTextViewDelegate, AirDropExpandedView, .body (+16 more)
+### Community 10 - "Community 10"
+Cohesion: 0.13
+Nodes (28): CGAffineTransform, GraphicsContext, MouthShape, Path, CompanionSkin, .accentColor, boba, .bodyColor (+20 more)
 
-### Community 6 - "System Permissions & Finder Drag"
-Cohesion: 0.07
-Nodes (29): PermissionsHelper, .appBundleURL, .dynamicProjectDirectory, .executableURL, .standardAppPath, String, URL, SettingsCategory (+21 more)
+### Community 11 - "Community 11"
+Cohesion: 0.06
+Nodes (38): SettingsStore, .activeDashboardWidgets, .autoCollapseDelay, .clockDialStyle, .clockIs24Hour, .clockShowSeconds, .closeOnEsc, .closeOnOutsideClick (+30 more)
 
-### Community 7 - "System Permissions & Finder Drag"
+### Community 12 - "Community 12"
 Cohesion: 0.09
 Nodes (21): AnyCancellable, convention, NSRegularExpression, AnyView, Int32, Set, URL, ThockExpandedView (+13 more)
 
-### Community 8 - "Interactive Calendar & Agenda"
+### Community 13 - "Community 13"
 Cohesion: 0.12
 Nodes (22): EventKit, CalendarAdaptiveWidgetView, .body, CalendarCellData, CalendarEventItem, .color, CalendarHomeCardView, .body (+14 more)
 
-### Community 9 - "Liquid Retina Glass & Dynamic Theme"
+### Community 14 - "Community 14"
 Cohesion: 0.06
 Nodes (33): AppTheme, .accentColor, activeApp, adaptive, amethyst, aurora, .baseAccentRGB, .baseCanvasRGB (+25 more)
 
-### Community 10 - "Notes Scratchpad & Debounce Storage"
-Cohesion: 0.12
+### Community 15 - "Community 15"
+Cohesion: 0.13
 Nodes (18): Never, NoteStorageManager, .text, Bool, String, Void, NotesUIState, NotesWidgetView (+10 more)
 
-### Community 11 - "Notes Scratchpad & Debounce Storage"
-Cohesion: 0.07
-Nodes (30): SettingsStore, .activeDashboardWidgets, .autoCollapseDelay, .clockDialStyle, .clockIs24Hour, .clockShowSeconds, .closeOnEsc, .closeOnOutsideClick (+22 more)
-
-### Community 12 - "Clock Chronometer & Zero-Allocation Cache"
-Cohesion: 0.18
-Nodes (18): AnalogClockFace, .body, ClockFormatters, ClockWidgetView, .body, .isSweepingAnalog, .minimumInterval, .timeZoneAbbreviation (+10 more)
-
-### Community 13 - "File Studio & PDF Engine"
-Cohesion: 0.10
-Nodes (18): AppKit, ApplicationServices, AVFoundation, Combine, CoreImage, Foundation, IOKit.ps, PDFKit (+10 more)
-
-### Community 14 - "MediaRemote Audio & Video Bridge"
-Cohesion: 0.17
+### Community 16 - "Community 16"
+Cohesion: 0.15
 Nodes (15): NowPlayingAdaptiveWidgetView, .body, NowPlayingCompactTileView, .body, NowPlayingHomeCardView, .body, NowPlayingModule, .progress (+7 more)
 
-### Community 15 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.12
-Nodes (13): NSApplicationDelegate, NSHostingView, NSMenu, NSStatusItem, NSWindowDelegate, Selector, AppDelegate, .sharedDelegate (+5 more)
+### Community 17 - "Community 17"
+Cohesion: 0.14
+Nodes (12): NSScrollView, NSTextViewDelegate, NSViewRepresentable, NSVisualEffectView, Coordinator, CustomTextEditor, Context, Coordinator (+4 more)
 
-### Community 16 - "Clock Chronometer & Zero-Allocation Cache"
-Cohesion: 0.15
-Nodes (17): ObservableObject, DashboardSettingsUIState, DashboardSettingsView, .clockCustomizationSection, .layoutMiniPreviewSection, .layoutModeSelectionSection, DraggableWidgetPaletteCard, DropTargetState (+9 more)
-
-### Community 17 - "Sources Modules"
+### Community 18 - "Community 18"
 Cohesion: 0.18
 Nodes (9): NotificationItem, NotificationModule, NotificationModuleExpandedView, .body, AnyView, Bool, Date, String (+1 more)
 
-### Community 18 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.18
-Nodes (10): Animation, .body, NotchShellCoordinator, .state, .transitionAnimation, Bool, DispatchWorkItem, NSRect (+2 more)
+### Community 19 - "Community 19"
+Cohesion: 0.12
+Nodes (19): CaseIterable, Identifiable, CalendarSubsection, calendar, .id, schedule, ThockSubSection, asmr (+11 more)
 
-### Community 19 - "Notes Scratchpad & Debounce Storage"
-Cohesion: 0.15
-Nodes (14): DashboardWidgetType, calendar, clock, .icon, .id, mirror, notes, nowPlaying (+6 more)
+### Community 20 - "Community 20"
+Cohesion: 0.11
+Nodes (18): 1. What We Are Trying to Achieve (Vision & Purpose), 2.1 Passive Contextual Observation, 2.2 User Direct Interactions, 2. Usage & Behavior Models (How & When it Operates), 3. Engineering Goals & Performance Budgets, 4.1 Two-Bone Analytical Inverse Kinematics (IK), 4.2 Inverted Pendulum Bipedal Walk, 4.3 Hand-Over-Hand Monkey-Bar Traversal (+10 more)
 
-### Community 20 - "Thock Mechanical Audio Engine"
-Cohesion: 0.17
-Nodes (9): AsmrLayerCard, .body, Bool, Color, Void, ThockPackMeta, .id, LocalUIState (+1 more)
+### Community 21 - "Community 21"
+Cohesion: 0.23
+Nodes (5): AppKit, ApplicationServices, Combine, IOKit.ps, SwiftUI
 
-### Community 22 - "Liquid Retina Glass & Dynamic Theme"
+### Community 22 - "Community 22"
 Cohesion: 0.14
-Nodes (15): LinearGradient, DesignSystem, .accentColor, .canvasColor, .cardFill, .cardGradient, .currentTheme, .defaultHoverCollapseDelay (+7 more)
+Nodes (16): LinearGradient, .body, DesignSystem, .accentColor, .canvasColor, .cardFill, .cardGradient, .currentTheme (+8 more)
 
-### Community 23 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.46
-Nodes (4): ModularDashboardView, .body, Int, View
+### Community 24 - "Community 24"
+Cohesion: 0.13
+Nodes (15): SettingsCategory, appearance, companion, dashboard, feedback, geometry, .icon, .id (+7 more)
 
-### Community 24 - "Battery & Power RunLoop Source"
+### Community 25 - "Community 25"
+Cohesion: 0.14
+Nodes (14): Codable, ClockDialStyle, analog, digital, .id, .title, DashboardLayoutFlow, adaptiveAuto (+6 more)
+
+### Community 26 - "Community 26"
+Cohesion: 0.20
+Nodes (7): NSSharingService, AirDropExpandedView, .body, AirDropModule, AnyView, String, URL
+
+### Community 27 - "Community 27"
+Cohesion: 0.20
+Nodes (8): PermissionsHelper, .appBundleURL, .dynamicProjectDirectory, .executableURL, .standardAppPath, String, URL, .permissionsSection
+
+### Community 28 - "Community 28"
+Cohesion: 0.29
+Nodes (8): Shape, CustomNotchShape, LiveEqualizerIndicator, .body, NotchGlassBackground, Bool, CGFloat, Color
+
+### Community 29 - "Community 29"
+Cohesion: 0.17
+Nodes (12): Collectible Character Skins, Companion Auxiliary Click Panel, Curious Hover Behavior, Den Rest Behavior (0% CPU), Full-Screen Transparent Overlay Window, Inverted Pendulum Walk Gait, Monkey-Bar Traversal Motion, Music Groove Behavior (+4 more)
+
+### Community 30 - "Community 30"
 Cohesion: 0.24
 Nodes (6): CFRunLoopSource, BatteryModule, AnyView, Bool, Int, String
 
-### Community 25 - "Notch Geometry & Window Coordinator"
-Cohesion: 0.26
-Nodes (8): NSPanel, NotchPanel, .canBecomeKey, .canBecomeMain, .isolated, Any, NSRect, NSScreen
-
-### Community 26 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.27
+### Community 31 - "Community 31"
+Cohesion: 0.24
 Nodes (7): NSObjectProtocol, .dynamicVibrancy, DynamicThemeEngine, CGRect, NSImage, Set, URL
 
-### Community 27 - "Notch Geometry & Window Coordinator"
+### Community 32 - "Community 32"
+Cohesion: 0.18
+Nodes (8): AsmrLayerCard, .body, Bool, Color, Void, ThockPackMeta, .id, .body
+
+### Community 33 - "Community 33"
+Cohesion: 0.18
+Nodes (10): ClosedRange, CompanionActivityLevel, balanced, calm, .description, .displayName, .id, .intervalRange (+2 more)
+
+### Community 34 - "Community 34"
 Cohesion: 0.24
-Nodes (6): NotchState, collapsed, expanded, Bool, .footerBar, Task
+Nodes (6): SettingsView, .appearanceSection, .detailHeaderBar, .footerBar, .motionSection, .sidebarNavigation
 
-### Community 28 - "Notch Geometry & Window Coordinator"
-Cohesion: 0.29
-Nodes (4): Content, NSTrackingArea, NotchHostingView, NSEvent
+### Community 35 - "Community 35"
+Cohesion: 0.20
+Nodes (9): CompactNotchIndicator, .batteryIndicator, .body, .circadianIndicator, .dateTimeIndicator, .mediaIndicator, .minimalIndicator, CGFloat (+1 more)
 
-### Community 29 - "Liquid Retina Glass & Dynamic Theme"
-Cohesion: 0.42
-Nodes (6): LiveEqualizerIndicator, .body, NotchGlassBackground, Bool, CGFloat, Color
+### Community 36 - "Community 36"
+Cohesion: 0.24
+Nodes (8): DynamicVibrancy, balanced, .factor, .id, punchy, subtle, LocalUIState, String
 
-### Community 30 - "Liquid Retina Glass & Dynamic Theme"
-Cohesion: 0.31
-Nodes (6): Configuration, ImageIO, ButtonStyle, .spring, SpringButtonStyle, Double
+### Community 37 - "Community 37"
+Cohesion: 0.22
+Nodes (5): AVFoundation, CoreGraphics, CoreImage, Foundation, PDFKit
 
-### Community 31 - "Battery & Power RunLoop Source"
+### Community 38 - "Community 38"
 Cohesion: 0.22
 Nodes (9): CompactIndicatorStyle, battery, circadian, dateTime, .icon, .id, media, minimal (+1 more)
 
-### Community 32 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.25
-Nodes (7): CGFloat, DynamicVibrancy, balanced, .factor, .id, punchy, subtle
-
-### Community 34 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.29
-Nodes (7): DashboardLayoutFlow, adaptiveAuto, bentoQuad, horizontalStrip, .icon, .id, .title
-
-### Community 35 - "Modular Bento Dashboard & Settings"
-Cohesion: 0.48
-Nodes (4): .widgetSpans, Int, .body, .body
-
-### Community 37 - "Sources Notch"
+### Community 39 - "Community 39"
 Cohesion: 0.38
-Nodes (5): NotchGeometry, Bool, CGFloat, CGRect, NSScreen
+Nodes (5): Configuration, ButtonStyle, .spring, SpringButtonStyle, Double
 
-### Community 38 - "Liquid Retina Glass & Dynamic Theme"
+### Community 40 - "Community 40"
+Cohesion: 0.29
+Nodes (6): NSObject, NSSharingServiceDelegate, AirDropRadarAnimation, .body, AirDropSharingDelegate, Bool
+
+### Community 43 - "Community 43"
 Cohesion: 0.29
 Nodes (7): GlassMaterialStyle, crystal, deepOLED, frosted, .id, luminous, .subtitle
 
-### Community 39 - "Liquid Retina Glass & Dynamic Theme"
-Cohesion: 0.29
-Nodes (7): MotionPhysicsStyle, appleFluid, .damping, gentle, .id, .response, snappy
-
-### Community 40 - "Telegram Direct Bot & Messaging"
+### Community 44 - "Community 44"
 Cohesion: 0.29
 Nodes (7): NotchCornerStyle, .bottomRadius, compact, continuous, deep, .id, .topRadius
 
-### Community 41 - "Clock Chronometer & Zero-Allocation Cache"
+### Community 45 - "Community 45"
 Cohesion: 0.33
-Nodes (6): Identifiable, ClockDialStyle, analog, digital, .id, .title
+Nodes (5): Error, Any, NSRect, NSWindow, UnsafeMutablePointer
 
-### Community 42 - "Modular Bento Dashboard & Settings"
+### Community 46 - "Community 46"
 Cohesion: 0.33
 Nodes (6): Notch Animated Desktop Companion, Zero-Overhead & 100% Privacy Invariants, Companion Behavior State Machine, Procedural SwiftUI Vector Animation Engine, Modular 4-Slot Bento Dashboard, Notchify macOS System Hub
 
-### Community 43 - "AirDrop Direct Sharing Service"
-Cohesion: 0.33
-Nodes (4): Path, Shape, .body, CustomNotchShape
-
-### Community 44 - "Thock Mechanical Audio Engine"
-Cohesion: 0.33
-Nodes (6): ThockSubSection, asmr, .icon, .id, keySound, terminal
-
-### Community 45 - "Interactive Calendar & Agenda"
-Cohesion: 0.40
-Nodes (5): CaseIterable, CalendarSubsection, calendar, .id, schedule
-
 ## Knowledge Gaps
-- **206 isolated node(s):** `PackageDescription`, `.sharedDelegate`, `.themeColor`, `nowPlaying`, `calendar` (+201 more)
+- **335 isolated node(s):** `.actionTitle`, `airdrop`, `compress`, `convert`, `enhance` (+330 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `View` connect `Modular Bento Dashboard & Settings` to `File Studio & PDF Engine`, `Telegram Direct Bot & Messaging`, `Modular Bento Dashboard & Settings`, `Mirror Camera Live Preview`, `Notes Scratchpad & Debounce Storage`, `System Permissions & Finder Drag`, `System Permissions & Finder Drag`, `Interactive Calendar & Agenda`, `Notes Scratchpad & Debounce Storage`, `Clock Chronometer & Zero-Allocation Cache`, `File Studio & PDF Engine`, `MediaRemote Audio & Video Bridge`, `Clock Chronometer & Zero-Allocation Cache`, `Sources Modules`, `Thock Mechanical Audio Engine`, `Liquid Retina Glass & Dynamic Theme`, `Liquid Retina Glass & Dynamic Theme`?**
-  _High betweenness centrality (0.144) - this node is a cross-community bridge._
-- **Why does `NotchModule` connect `Modular Bento Dashboard & Settings` to `File Studio & PDF Engine`, `Telegram Direct Bot & Messaging`, `Mirror Camera Live Preview`, `Notes Scratchpad & Debounce Storage`, `System Permissions & Finder Drag`, `File Studio & PDF Engine`, `Clock Chronometer & Zero-Allocation Cache`, `Sources Modules`, `Notes Scratchpad & Debounce Storage`, `Battery & Power RunLoop Source`?**
-  _High betweenness centrality (0.110) - this node is a cross-community bridge._
-- **Why does `SettingsStore` connect `Notes Scratchpad & Debounce Storage` to `Modular Bento Dashboard & Settings`, `Modular Bento Dashboard & Settings`, `Modular Bento Dashboard & Settings`, `Liquid Retina Glass & Dynamic Theme`, `Liquid Retina Glass & Dynamic Theme`, `Telegram Direct Bot & Messaging`, `Clock Chronometer & Zero-Allocation Cache`, `Liquid Retina Glass & Dynamic Theme`, `File Studio & PDF Engine`, `Clock Chronometer & Zero-Allocation Cache`, `Notes Scratchpad & Debounce Storage`, `Thock Mechanical Audio Engine`, `Notch Geometry & Window Coordinator`, `Modular Bento Dashboard & Settings`, `Battery & Power RunLoop Source`?**
-  _High betweenness centrality (0.105) - this node is a cross-community bridge._
+- **Why does `View` connect `Community 1` to `Community 0`, `Community 3`, `Community 5`, `Community 7`, `Community 8`, `Community 10`, `Community 12`, `Community 13`, `Community 15`, `Community 16`, `Community 18`, `Community 24`, `Community 26`, `Community 28`, `Community 32`, `Community 34`, `Community 35`, `Community 39`, `Community 40`?**
+  _High betweenness centrality (0.112) - this node is a cross-community bridge._
+- **Why does `SwiftUI` connect `Community 21` to `Community 0`, `Community 1`, `Community 33`, `Community 3`, `Community 35`, `Community 37`, `Community 6`, `Community 5`, `Community 40`, `Community 36`, `Community 13`, `Community 16`, `Community 18`, `Community 24`?**
+  _High betweenness centrality (0.094) - this node is a cross-community bridge._
+- **Why does `AppTheme` connect `Community 14` to `Community 36`, `Community 11`, `Community 19`, `Community 22`, `Community 25`, `Community 28`?**
+  _High betweenness centrality (0.088) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `ThockModule` (e.g. with `.keySoundSectionView` and `.terminalSectionView`) actually correct?**
   _`ThockModule` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 3 inferred relationships involving `ShelfModule` (e.g. with `.body` and `.canRunActiveTool`) actually correct?**
   _`ShelfModule` has 3 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `PackageDescription`, `.sharedDelegate`, `.themeColor` to the rest of the system?**
-  _206 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `File Studio & PDF Engine` be split into smaller, more focused modules?**
-  _Cohesion score 0.0568986568986569 - nodes in this community are weakly interconnected._
+- **What connects `.actionTitle`, `airdrop`, `compress` to the rest of the system?**
+  _335 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 0` be split into smaller, more focused modules?**
+  _Cohesion score 0.057967313585291114 - nodes in this community are weakly interconnected._

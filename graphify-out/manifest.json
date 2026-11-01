@@ -6,10 +6,10 @@
     "semantic_hash": "7c62cb20d26d0676dcc5b546d498cd42"
   },
   "Sources/App/AppDelegate.swift": {
-    "mtime": 1793535782.7483091,
-    "seen": 1793540059.448284,
-    "ast_hash": "f7667fdbaf6425b4d9a5daeafaa2eb4b",
-    "semantic_hash": "f7667fdbaf6425b4d9a5daeafaa2eb4b"
+    "mtime": 1793540739.7251189,
+    "seen": 1793552311.284112,
+    "ast_hash": "251de1fbfd5b9a273bafe53566e19c2b",
+    "semantic_hash": ""
   },
   "Sources/App/Main.swift": {
     "mtime": 1793454897.4628623,
@@ -24,10 +24,10 @@
     "semantic_hash": "afc44bd0d68924a1fa3d91d4c8ece108"
   },
   "Sources/Core/NotchModule.swift": {
-    "mtime": 1793535394.4699922,
-    "seen": 1793540059.448287,
-    "ast_hash": "2e9dee868d1d5c503b93cf4102a72274",
-    "semantic_hash": "2e9dee868d1d5c503b93cf4102a72274"
+    "mtime": 1793542834.926723,
+    "seen": 1793552311.2841148,
+    "ast_hash": "d30dc2af89972221fe805e09a1c80ebb",
+    "semantic_hash": ""
   },
   "Sources/Modules/Battery/BatteryModule.swift": {
     "mtime": 1793535794.5019562,
@@ -102,10 +102,10 @@
     "semantic_hash": "6d5261e36c294f57d796125ee1120da8"
   },
   "Sources/Settings/SettingsView.swift": {
-    "mtime": 1793539048.1754403,
-    "seen": 1793540059.4482958,
-    "ast_hash": "50c11fec8e0249b253db4969acc89b40",
-    "semantic_hash": "50c11fec8e0249b253db4969acc89b40"
+    "mtime": 1793542850.0979114,
+    "seen": 1793552311.28413,
+    "ast_hash": "22b1a9e5430f51b1aef72f04166d676d",
+    "semantic_hash": ""
   },
   "Sources/UI/DesignSystem.swift": {
     "mtime": 1793522932.376019,
@@ -114,10 +114,10 @@
     "semantic_hash": "f58f1a6c816d6253f566a2ff83ad9f9c"
   },
   "Tests/VerificationTests.swift": {
-    "mtime": 1793536044.6476245,
-    "seen": 1793540059.448297,
-    "ast_hash": "3cc19a3d24054ae9fee6bdf79128e20d",
-    "semantic_hash": "3cc19a3d24054ae9fee6bdf79128e20d"
+    "mtime": 1793542191.7982807,
+    "seen": 1793552311.284131,
+    "ast_hash": "b9922f6196391b44cff4fb7ec806fc8c",
+    "semantic_hash": ""
   },
   "run_notch.sh": {
     "mtime": 1793478803.830388,
@@ -190,5 +190,53 @@
     "seen": 1793540059.448299,
     "ast_hash": "b82cdd2f886439d08aec57e817127f26",
     "semantic_hash": "b82cdd2f886439d08aec57e817127f26"
+  },
+  "Sources/Modules/Companion/CompanionCoordinator.swift": {
+    "mtime": 1793543114.9172885,
+    "seen": 1793552311.284118,
+    "ast_hash": "24306148f7f85f24333e525881fd9f25",
+    "semantic_hash": ""
+  },
+  "Sources/Modules/Companion/CompanionTypes.swift": {
+    "mtime": 1793541963.0053945,
+    "seen": 1793552311.2841191,
+    "ast_hash": "b1adab3564bcdf8f0cbd23364f4b5a87",
+    "semantic_hash": ""
+  },
+  "Sources/Modules/Companion/CompanionWindow.swift": {
+    "mtime": 1793543047.282728,
+    "seen": 1793552311.2841191,
+    "ast_hash": "1e9d500c45d72bf6f85a4be1e80f062b",
+    "semantic_hash": ""
+  },
+  "Sources/Modules/Companion/CreatureRigView.swift": {
+    "mtime": 1793543169.158253,
+    "seen": 1793552311.28412,
+    "ast_hash": "a1ae20d43b1760f42fb91b4127109fff",
+    "semantic_hash": ""
+  },
+  "Sources/Modules/Companion/KinematicEngine.swift": {
+    "mtime": 1793542744.4965987,
+    "seen": 1793552311.28412,
+    "ast_hash": "60b198868de3753df74bcf07cf8adc21",
+    "semantic_hash": ""
+  },
+  "Sources/Modules/Companion/KinematicSkeleton.swift": {
+    "mtime": 1793542668.4441772,
+    "seen": 1793552311.284121,
+    "ast_hash": "5a1aa23568db752cbaf634a355c3f5ee",
+    "semantic_hash": ""
+  },
+  "Tests/KinematicAcceptanceTests.swift": {
+    "mtime": 1793543270.1386805,
+    "seen": 1793552311.284131,
+    "ast_hash": "e1d181d6f36d5af86969e3897dd35e82",
+    "semantic_hash": ""
+  },
+  "NOTCH_CARTOON_FEATURE.md": {
+    "mtime": 1793552239.8336701,
+    "seen": 1793552311.2841332,
+    "ast_hash": "3315a148ef18a53b482011a786ad2308",
+    "semantic_hash": ""
   }
 }
