@@ -824,6 +824,8 @@ public struct ShelfModuleExpandedView: View {
                     Text("File Studio")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
@@ -832,10 +834,14 @@ public struct ShelfModuleExpandedView: View {
                     Text(module.selectedTool.title)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundColor(DesignSystem.accentColor)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     
                     Text("(\(module.items.count) in tray)")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(DesignSystem.secondaryText)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 
                 Spacer()

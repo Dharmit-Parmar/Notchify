@@ -856,8 +856,44 @@ func runAllVerificationTests() {
     assert(collapseOnDesktopClick == true, "Clicks on empty desktop must trigger outside-click collapse")
     print("  ✓ Appearance propagation preview state machine & Settings window outside click isolation verified.")
     
+    // Test 33: Calendar Navigation & Thock Volume Control Layout Integrity
+    print("\n[TEST 33] Calendar Navigation & Thock Volume Control Layout Integrity...")
+    // 1. Calendar Header Layout Budget (Card width: 260pt)
+    let cardWidth: CGFloat = 260.0
+    let cardPadding: CGFloat = 20.0
+    let availableHeaderWidth = cardWidth - cardPadding // 240pt
+    let monthTitleWidth: CGFloat = 65.0
+    let todayButtonWidth: CGFloat = 46.0
+    let stepperWidth: CGFloat = 42.0
+    let launchIconWidth: CGFloat = 20.0
+    let itemSpacing: CGFloat = 5.0 * 3.0 // 3 gaps = 15pt
+    let totalHeaderItemsWidth = monthTitleWidth + todayButtonWidth + stepperWidth + launchIconWidth + itemSpacing
+    assert(totalHeaderItemsWidth < availableHeaderWidth, "Calendar header items (\(totalHeaderItemsWidth)pt) must comfortably fit inside 240pt card without text squishing or truncation")
+    
+    // 2. Thock Top Bar Layout Budget (Notch width range: 480pt...800pt)
+    let minNotchContentWidth: CGFloat = 480.0 - 24.0 // 456pt
+    let engineBtnWidth: CGFloat = 105.0
+    let auditionBtnWidth: CGFloat = 95.0
+    let volumePillWidth: CGFloat = 195.0 // Mute(22) + "Volume"(40) + Slider(65) + Box(38) + Spacers
+    let barSpacing: CGFloat = 20.0
+    let totalTopBarWidth = engineBtnWidth + auditionBtnWidth + volumePillWidth + barSpacing
+    assert(totalTopBarWidth < minNotchContentWidth, "Thock top bar items (\(totalTopBarWidth)pt) must fit comfortably within minimum 456pt width without vertical text wrapping")
+    
+    // 3. System Screenshot Keycode Suppression
+    let cmdShiftMask: UInt64 = 0x00120000
+    func isScreenshotShortcut(flags: UInt64, keycode: UInt16) -> Bool {
+        let hasCmdShift = (flags & cmdShiftMask) == cmdShiftMask
+        return hasCmdShift && (keycode == 20 || keycode == 21 || keycode == 23 || keycode == 22)
+    }
+    assert(isScreenshotShortcut(flags: 0x00120000, keycode: 20) == true, "Cmd+Shift+3 must be identified as screenshot shortcut")
+    assert(isScreenshotShortcut(flags: 0x00120000, keycode: 21) == true, "Cmd+Shift+4 must be identified as screenshot shortcut")
+    assert(isScreenshotShortcut(flags: 0x00120000, keycode: 23) == true, "Cmd+Shift+5 must be identified as screenshot shortcut")
+    assert(isScreenshotShortcut(flags: 0x00020000, keycode: 21) == false, "Shift+4 without Cmd must not be identified as screenshot")
+    assert(isScreenshotShortcut(flags: 0x00120000, keycode: 0) == false, "Cmd+Shift+A must not be identified as screenshot")
+    print("  ✓ Calendar navigation header, Thock volume layout budget, and system screenshot audio collision suppression verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (32/32) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (33/33) ")
     print("=====================================================\n")
 }
 

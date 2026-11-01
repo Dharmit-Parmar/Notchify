@@ -1035,21 +1035,23 @@ public struct ThockExpandedView: View {
                     .buttonStyle(.plain)
                     .help(module.isKeyMuted ? "Unmute Key Sound" : "Mute Key Sound")
                     
-                    Text("Key Volume")
+                    Text("Volume")
                         .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.85))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                     
-                    Slider(value: $module.keyVolume, in: 0...100, step: 1) {
-                        Text("Key Volume")
-                    } onEditingChanged: { editing in
-                        if !editing {
-                            module.updateKeyVolume(module.keyVolume)
+                    Slider(
+                        value: $module.keyVolume,
+                        in: 0...100,
+                        step: 1,
+                        onEditingChanged: { editing in
+                            if !editing {
+                                module.updateKeyVolume(module.keyVolume)
+                            }
                         }
-                    }
-                    .labelsHidden()
-                    .frame(width: 70)
+                    )
+                    .frame(width: 65)
                     .accentColor(DesignSystem.accentColor)
                     
                     // Direct Type Input Box with % Suffix
@@ -1070,6 +1072,8 @@ public struct ThockExpandedView: View {
                         Text("%")
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(DesignSystem.accentColor.opacity(0.8))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
@@ -1183,21 +1187,23 @@ public struct ThockExpandedView: View {
                     .buttonStyle(.plain)
                     .help(module.isAsmrMuted ? "Unmute ASMR" : "Mute ASMR")
                     
-                    Text("ASMR Volume")
+                    Text("Volume")
                         .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.85))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                     
-                    Slider(value: $module.asmrVolume, in: 0...100, step: 1) {
-                        Text("ASMR Volume")
-                    } onEditingChanged: { editing in
-                        if !editing {
-                            module.updateAsmrVolume(module.asmrVolume)
+                    Slider(
+                        value: $module.asmrVolume,
+                        in: 0...100,
+                        step: 1,
+                        onEditingChanged: { editing in
+                            if !editing {
+                                module.updateAsmrVolume(module.asmrVolume)
+                            }
                         }
-                    }
-                    .labelsHidden()
-                    .frame(width: 80)
+                    )
+                    .frame(width: 65)
                     .accentColor(Color(red: 0.35, green: 0.8, blue: 1.0))
                     
                     // Direct Type Input Box with % Suffix
@@ -1218,6 +1224,8 @@ public struct ThockExpandedView: View {
                         Text("%")
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0).opacity(0.8))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)

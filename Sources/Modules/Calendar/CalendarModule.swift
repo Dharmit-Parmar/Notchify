@@ -192,52 +192,74 @@ public struct CalendarHomeCardView: View {
             // Month Navigation Header
             HStack {
                 Text(monthYearTitle)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                     .contentTransition(.opacity)
                 
                 Spacer()
                 
-                HStack(spacing: 2) {
-                    Button(action: { module.changeMonth(by: -1) }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 9, weight: .bold))
-                            .frame(width: 18, height: 22)
-                    }
-                    .buttonStyle(.spring)
-                    
+                HStack(spacing: 5) {
+                    // Today Pill Action
                     Button(action: { module.snapToToday() }) {
                         HStack(spacing: 3) {
                             Circle()
                                 .fill(DesignSystem.accentColor)
                                 .frame(width: 4, height: 4)
                             Text("Today")
-                                .font(.system(size: 9.5, weight: .bold))
+                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
                                 .lineLimit(1)
                                 .fixedSize(horizontal: true, vertical: false)
                         }
-                        .padding(.horizontal, 6)
-                        .frame(height: 22)
+                        .padding(.horizontal, 7)
+                        .frame(height: 20)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
                     }
                     .buttonStyle(.spring)
+                    .help("Jump to Today")
                     
-                    Button(action: { module.changeMonth(by: 1) }) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .bold))
-                            .frame(width: 18, height: 22)
+                    // Previous / Next Month Stepper
+                    HStack(spacing: 0) {
+                        Button(action: { module.changeMonth(by: -1) }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(.white.opacity(0.85))
+                                .frame(width: 19, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Previous Month")
+                        
+                        Rectangle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 1, height: 10)
+                        
+                        Button(action: { module.changeMonth(by: 1) }) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(.white.opacity(0.85))
+                                .frame(width: 19, height: 20)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Next Month")
                     }
-                    .buttonStyle(.spring)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
                     
+                    // Open macOS Calendar Button
                     Button(action: { module.openCalendarApp(for: module.selectedDate) }) {
                         Image(systemName: "arrow.up.right.square")
-                            .font(.system(size: 9))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(DesignSystem.secondaryText)
-                            .frame(width: 20, height: 22)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(Color.white.opacity(0.08)))
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
                     }
                     .buttonStyle(.spring)
+                    .help("Open Apple Calendar")
                 }
-                .padding(2)
-                .background(Capsule().fill(Color.white.opacity(0.07)))
             }
             
             // Weekday Headers
