@@ -70,6 +70,10 @@ public final class ModuleRegistry: ObservableObject {
         return modules.first(where: { $0.id == currentId && $0.isEnabled })
     }
     
+    public func module(for id: String) -> (any NotchModule)? {
+        return modules.first(where: { $0.id == id })
+    }
+    
     private func isModuleValidAndEnabled(_ id: String) -> Bool {
         guard let mod = modules.first(where: { $0.id == id }) else { return false }
         return mod.isEnabled

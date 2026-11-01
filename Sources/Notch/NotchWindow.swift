@@ -56,6 +56,11 @@ public final class NotchPanel: NSPanel {
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
                     guard SettingsStore.shared.closeOnOutsideClick else { return }
+                    if AppDelegate.isSettingsOpen {
+                        if let settingsWin = AppDelegate.settingsWindow, settingsWin.frame.contains(NSEvent.mouseLocation) {
+                            return
+                        }
+                    }
                     if !self.frame.contains(NSEvent.mouseLocation),
                        NotchShellCoordinator.shared.state == .expanded,
                        !NotchShellCoordinator.shared.isLockedOpen {

@@ -49,16 +49,27 @@ public struct DirectMessenger {
     }
     
     @MainActor
-    public static func dispatch(platform: String, handle: String, text: String, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
+    public static func dispatch(
+        platform: String,
+        handle: String,
+        text: String,
+        botToken: String? = nil,
+        completion: @escaping @MainActor @Sendable (Bool, String?) -> Void = { _, _ in }
+    ) {
         let cleanText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanText.isEmpty else { completion(false); return }
+        guard !cleanText.isEmpty else { completion(false, "Empty message"); return }
+        
+        // 1. Direct Telegram Bot API Dispatch (100% Background, Silent, Zero Windows)
+        if platform == "Telegram", let token = botToken?.trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty {
+            dispatchViaTelegramBot(token: token, handle: handle, text: cleanText, completion: completion)
+            return
+        }
         
         FeedbackManager.playSend()
         
         // Open without activating or bringing window forward
         let config = NSWorkspace.OpenConfiguration()
         config.activates = false
-        config.hides = true
         
         if platform == "WhatsApp" {
             let digits = handle.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
@@ -66,33 +77,39 @@ public struct DirectMessenger {
             let urlString = digits.isEmpty ? "whatsapp://send?text=\(encoded)" : "whatsapp://send?phone=\(digits)&text=\(encoded)"
             
             if let url = URL(string: urlString) {
-                NSWorkspace.shared.open(url, configuration: config) { _, _ in
-                    // Silent background dispatch: send Return key and keep WhatsApp hidden
-                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.4) {
-                        let script = """
-                        tell application "System Events"
-                            if exists (process "WhatsApp") then
-                                tell process "WhatsApp"
-                                    key code 36
-                                end tell
-                                set visible of process "WhatsApp" to false
-                            end if
-                        end tell
-                        """
-                        var error: NSDictionary?
-                        if let appleScript = NSAppleScript(source: script) {
-                            appleScript.executeAndReturnError(&error)
+                NSWorkspace.shared.open(url, configuration: config) { _, error in
+                    if let error = error {
+                        DispatchQueue.main.async { completion(false, error.localizedDescription) }
+                        return
+                    }
+                    if AXIsProcessTrusted() {
+                        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.45) {
+                            let script = """
+                            tell application "System Events"
+                                if exists (process "WhatsApp") then
+                                    tell process "WhatsApp"
+                                        key code 36
+                                    end tell
+                                end if
+                            end tell
+                            """
+                            var scError: NSDictionary?
+                            if let appleScript = NSAppleScript(source: script) {
+                                appleScript.executeAndReturnError(&scError)
+                            }
+                            DispatchQueue.main.async {
+                                completion(true, "Sent via WhatsApp")
+                            }
                         }
-                        DispatchQueue.main.async {
-                            completion(true)
-                        }
+                    } else {
+                        DispatchQueue.main.async { completion(true, "Opened in WhatsApp") }
                     }
                 }
             } else {
-                completion(false)
+                completion(false, "Invalid WhatsApp URL")
             }
         } else {
-            // Telegram (Supports both Phone Numbers and @Usernames)
+            // Telegram URL Dispatch (When Bot API token is not yet configured)
             var rawHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
             if rawHandle.hasPrefix("https://t.me/") {
                 rawHandle = String(rawHandle.dropFirst(13))
@@ -116,31 +133,109 @@ public struct DirectMessenger {
             }
             
             if let url = URL(string: urlString) {
-                NSWorkspace.shared.open(url, configuration: config) { _, _ in
-                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.4) {
-                        let script = """
-                        tell application "System Events"
-                            if exists (process "Telegram") then
-                                tell process "Telegram"
-                                    key code 36
-                                end tell
-                                set visible of process "Telegram" to false
-                            end if
-                        end tell
-                        """
-                        var error: NSDictionary?
-                        if let appleScript = NSAppleScript(source: script) {
-                            appleScript.executeAndReturnError(&error)
+                NSWorkspace.shared.open(url, configuration: config) { _, error in
+                    if let error = error {
+                        DispatchQueue.main.async { completion(false, error.localizedDescription) }
+                        return
+                    }
+                    // Do NOT forcibly close/hide Telegram with "set visible of process to false"
+                    if AXIsProcessTrusted() {
+                        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.45) {
+                            let script = """
+                            tell application "System Events"
+                                if exists (process "Telegram") then
+                                    tell process "Telegram"
+                                        key code 36
+                                    end tell
+                                end if
+                            end tell
+                            """
+                            var scError: NSDictionary?
+                            if let appleScript = NSAppleScript(source: script) {
+                                appleScript.executeAndReturnError(&scError)
+                            }
+                            DispatchQueue.main.async {
+                                completion(true, "Sent to Telegram")
+                            }
                         }
-                        DispatchQueue.main.async {
-                            completion(true)
-                        }
+                    } else {
+                        DispatchQueue.main.async { completion(true, "Opened in Telegram") }
                     }
                 }
             } else {
-                completion(false)
+                completion(false, "Invalid Telegram URL")
             }
         }
+    }
+    
+    // Asynchronous Telegram Bot API HTTP POST Dispatch (100% Background, Silent, Zero Windows)
+    @MainActor
+    private static func dispatchViaTelegramBot(
+        token: String,
+        handle: String,
+        text: String,
+        completion: @escaping @MainActor @Sendable (Bool, String?) -> Void
+    ) {
+        guard let url = URL(string: "https://api.telegram.org/bot\(token)/sendMessage") else {
+            completion(false, "Invalid Telegram Bot API endpoint URL")
+            return
+        }
+        
+        var targetChatId = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if targetChatId.hasPrefix("https://t.me/") {
+            targetChatId = String(targetChatId.dropFirst(13))
+        } else if targetChatId.hasPrefix("t.me/") {
+            targetChatId = String(targetChatId.dropFirst(5))
+        }
+        if !targetChatId.hasPrefix("@") && !targetChatId.allSatisfy({ $0.isNumber || $0 == "-" }) {
+            targetChatId = "@" + targetChatId
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 8.0
+        
+        let payload: [String: Any] = [
+            "chat_id": targetChatId,
+            "text": text
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        } catch {
+            completion(false, "Failed to serialize message payload")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, err in
+            if let err = err {
+                Task { @MainActor in
+                    completion(false, err.localizedDescription)
+                }
+                return
+            }
+            
+            guard let data = data else {
+                Task { @MainActor in
+                    completion(false, "Empty response from Telegram server")
+                }
+                return
+            }
+            
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let ok = json["ok"] as? Bool, ok {
+                Task { @MainActor in
+                    FeedbackManager.playSend()
+                    completion(true, "Delivered via Telegram Bot ✓✓")
+                }
+            } else {
+                let desc = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["description"] as? String ?? "Telegram API Error"
+                Task { @MainActor in
+                    completion(false, desc)
+                }
+            }
+        }.resume()
     }
 }
 
@@ -163,6 +258,16 @@ public final class TelegramModule: NotchModule {
     
     @Published public var isDispatching: Bool = false
     @Published public var isAccessibilityGranted: Bool = DirectMessenger.isAccessibilityGranted
+    @Published public var lastDispatchStatus: String? = nil
+    @Published public var isConfiguringBot: Bool = false
+    @Published public var testBotStatus: String? = nil
+    @Published public var isTestingBot: Bool = false
+    
+    @Published public var botToken: String = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken") ?? "" {
+        didSet {
+            UserDefaults.standard.set(botToken.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "NotchApp_TelegramBotToken")
+        }
+    }
     
     private let contactsStorageKey = "NotchApp_SavedContacts"
     
@@ -178,6 +283,41 @@ public final class TelegramModule: NotchModule {
     
     public func refreshAccessibility() {
         self.isAccessibilityGranted = DirectMessenger.isAccessibilityGranted
+    }
+    
+    public func testBotConnection() {
+        let token = botToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            testBotStatus = "Enter token first"
+            return
+        }
+        isTestingBot = true
+        testBotStatus = "Verifying..."
+        guard let url = URL(string: "https://api.telegram.org/bot\(token)/getMe") else {
+            isTestingBot = false
+            testBotStatus = "Invalid URL"
+            return
+        }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, err in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.isTestingBot = false
+                if let err = err {
+                    self.testBotStatus = "Error: \(err.localizedDescription)"
+                    return
+                }
+                if let data = data,
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let ok = json["ok"] as? Bool, ok,
+                   let result = json["result"] as? [String: Any],
+                   let username = result["username"] as? String {
+                    self.testBotStatus = "Connected to @\(username) ✓"
+                    FeedbackManager.playSuccess()
+                } else {
+                    self.testBotStatus = "Invalid Token"
+                }
+            }
+        }.resume()
     }
     
     private func loadSavedContacts() {
@@ -221,6 +361,7 @@ public final class TelegramModule: NotchModule {
     public func selectContact(_ contact: ChatContact) {
         selectedContactId = contact.id
         isAddingContact = false
+        isConfiguringBot = false
         FeedbackManager.playClick()
     }
     
@@ -269,8 +410,9 @@ public final class TelegramModule: NotchModule {
         return formatter
     }()
     
-    public func sendMessage() {
-        let textToSend = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+    public func sendMessage(overrideText: String? = nil) {
+        let raw = overrideText ?? draftText
+        let textToSend = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !textToSend.isEmpty,
               let contact = selectedContact,
               let idx = contacts.firstIndex(where: { $0.id == contact.id }) else { return }
@@ -291,9 +433,20 @@ public final class TelegramModule: NotchModule {
         draftText = ""
         persistContacts()
         isDispatching = true
+        lastDispatchStatus = nil
         
-        DirectMessenger.dispatch(platform: contact.platform, handle: contact.handle, text: textToSend) { [weak self] _ in
-            self?.isDispatching = false
+        DirectMessenger.dispatch(
+            platform: contact.platform,
+            handle: contact.handle,
+            text: textToSend,
+            botToken: botToken.isEmpty ? nil : botToken
+        ) { [weak self] success, statusDesc in
+            guard let self = self else { return }
+            self.isDispatching = false
+            self.lastDispatchStatus = statusDesc
+            if success {
+                FeedbackManager.playSend()
+            }
         }
     }
     
@@ -382,6 +535,28 @@ public struct TelegramModuleExpandedView: View {
                 
                 Button(action: {
                     FeedbackManager.playClick()
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                        module.isConfiguringBot.toggle()
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(module.botToken.isEmpty ? Color.white.opacity(0.4) : Color.cyan)
+                        Text(module.botToken.isEmpty ? "Direct Bot" : "Bot Active")
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .foregroundColor(module.botToken.isEmpty ? DesignSystem.secondaryText : Color.cyan)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(module.botToken.isEmpty ? Color.white.opacity(0.06) : Color.cyan.opacity(0.16)))
+                    .overlay(Capsule().strokeBorder(module.botToken.isEmpty ? Color.white.opacity(0.1) : Color.cyan.opacity(0.4), lineWidth: 0.8))
+                }
+                .buttonStyle(.spring)
+                .help("Configure Telegram Bot for 100% silent background sending (zero windows)")
+                
+                Button(action: {
+                    FeedbackManager.playClick()
                     module.isAddingContact.toggle()
                 }) {
                     ZStack {
@@ -397,13 +572,72 @@ public struct TelegramModuleExpandedView: View {
                 .help("Add Contact")
             }
             
-            // Accessibility Guidance Banner (if not yet granted)
-            if !module.isAccessibilityGranted {
+            // Bot Configuration Card (Zero-Window Direct Mode)
+            if module.isConfiguringBot {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "bolt.shield.fill")
+                            .foregroundColor(.cyan)
+                            .font(.system(size: 11))
+                        Text("Telegram Direct Bot Setup (Zero-Window Silent Send)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        Button("Close") {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                module.isConfiguringBot = false
+                            }
+                        }
+                        .buttonStyle(.spring)
+                        .controlSize(.mini)
+                    }
+                    
+                    Text("Enter your Telegram Bot Token from @BotFather. Messages beam silently in the background with zero app popups.")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.secondaryText)
+                    
+                    HStack(spacing: 6) {
+                        PasteableTextField(text: $module.botToken, placeholder: "Bot Token (e.g. 123456789:AAFx...)")
+                            .frame(height: 20)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.structureColor))
+                        
+                        Button(action: {
+                            module.testBotConnection()
+                        }) {
+                            HStack(spacing: 3) {
+                                if module.isTestingBot {
+                                    ProgressView().controlSize(.mini)
+                                } else {
+                                    Image(systemName: "checkmark.circle")
+                                }
+                                Text("Test")
+                            }
+                            .font(.system(size: 9.5, weight: .bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                    
+                    if let status = module.testBotStatus {
+                        Text(status)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(status.contains("✓") ? .green : .orange)
+                    }
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 12).fill(DesignSystem.structureColor.opacity(0.75)))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.cyan.opacity(0.3), lineWidth: 0.8))
+            }
+            
+            // Accessibility Guidance Banner (if not yet granted and not using bot)
+            if !module.isAccessibilityGranted && module.botToken.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "hand.raised.fill")
                         .font(.system(size: 9))
                         .foregroundColor(.yellow)
-                    Text("1-Click Send needs Accessibility permission")
+                    Text("App auto-send requires Accessibility, or use Direct Bot mode above")
                         .font(.system(size: 10))
                         .foregroundColor(.white)
                     Spacer()
@@ -521,14 +755,14 @@ public struct TelegramModuleExpandedView: View {
                                                 .font(.system(size: 11))
                                                 .foregroundColor(.white)
                                             
-                                            HStack(spacing: 4) {
+                                             HStack(spacing: 4) {
                                                 Text(msg.time)
                                                     .font(.system(size: 8))
                                                     .foregroundColor(Color.white.opacity(0.45))
                                                 if msg.isMe {
-                                                    Text("✓")
+                                                    Text(module.botToken.isEmpty ? "✓" : "✓✓")
                                                         .font(.system(size: 8, weight: .bold))
-                                                        .foregroundColor(DesignSystem.accentColor)
+                                                        .foregroundColor(Color.cyan)
                                                 }
                                             }
                                         }
@@ -546,12 +780,26 @@ public struct TelegramModuleExpandedView: View {
                                 }
                             }
                         }
-                        .frame(height: 80)
+                        .frame(height: 72)
                         .onChange(of: contact.messages.count) { _, _ in
                             if let lastId = contact.messages.last?.id {
                                 proxy.scrollTo(lastId, anchor: .bottom)
                             }
                         }
+                    }
+                    
+                    // Dispatch Status / Feedback Pill
+                    if let status = module.lastDispatchStatus {
+                        HStack(spacing: 4) {
+                            Image(systemName: status.contains("✓") ? "checkmark.circle.fill" : "info.circle.fill")
+                                .font(.system(size: 8))
+                            Text(status)
+                                .font(.system(size: 9, weight: .medium))
+                            Spacer()
+                        }
+                        .foregroundColor(status.contains("✓") ? Color.cyan : (status.contains("Failed") || status.contains("Error") ? Color.orange : Color.white.opacity(0.7)))
+                        .padding(.horizontal, 4)
+                        .transition(.opacity)
                     }
                     
                     // Input Bar with DirectTextField (guarantees Enter key always sends)
@@ -581,12 +829,18 @@ public struct TelegramModuleExpandedView: View {
                                 Circle()
                                     .fill(DesignSystem.accentColor)
                                     .frame(width: 26, height: 26)
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.black)
+                                if module.isDispatching {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                } else {
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.black)
+                                }
                             }
                         }
                         .buttonStyle(.spring)
+                        .disabled(module.isDispatching)
                         .help("Send Message (Enter)")
                     }
                 }
@@ -598,11 +852,21 @@ public struct TelegramModuleExpandedView: View {
     }
 }
 
-// Robust AppKit TextField with native Cmd+V (Paste), Cmd+C (Copy), Cmd+A (Select All), Cmd+X (Cut) and Right-Click Context Menu
+// Robust AppKit TextField with native Cmd+V (Paste), Cmd+C (Copy), Cmd+A (Select All), Cmd+X (Cut) and immediate Return/Enter handling
 public final class CustomPasteableNSTextField: NSTextField {
     public var onCommit: (() -> Void)?
     
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Handle Return (36) and Keypad Enter (76) without modifiers
+        if (event.keyCode == 36 || event.keyCode == 76) && event.modifierFlags.intersection([.command, .option, .control]).isEmpty {
+            if let editor = currentEditor() as? NSTextView {
+                self.stringValue = editor.string
+            }
+            NotificationCenter.default.post(name: NSControl.textDidChangeNotification, object: self)
+            self.onCommit?()
+            return true
+        }
+        
         if event.modifierFlags.contains(.command) {
             let key = event.charactersIgnoringModifiers?.lowercased()
             if key == "v" {
@@ -699,6 +963,7 @@ public struct PasteableTextField: NSViewRepresentable {
         
         public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.text = textView.string
                 parent.onCommit?()
                 return true
             }
@@ -733,7 +998,14 @@ public struct DirectTextField: NSViewRepresentable {
         field.textColor = .white
         field.font = .systemFont(ofSize: 11, weight: .regular)
         field.delegate = context.coordinator
-        field.onCommit = onCommit
+        field.onCommit = {
+            if let editor = field.currentEditor() as? NSTextView {
+                context.coordinator.parent.text = editor.string
+            } else {
+                context.coordinator.parent.text = field.stringValue
+            }
+            onCommit()
+        }
         return field
     }
     
@@ -744,7 +1016,14 @@ public struct DirectTextField: NSViewRepresentable {
         if nsView.placeholderString != placeholder {
             nsView.placeholderString = placeholder
         }
-        nsView.onCommit = onCommit
+        nsView.onCommit = {
+            if let editor = nsView.currentEditor() as? NSTextView {
+                context.coordinator.parent.text = editor.string
+            } else {
+                context.coordinator.parent.text = nsView.stringValue
+            }
+            onCommit()
+        }
     }
     
     public class Coordinator: NSObject, NSTextFieldDelegate {
@@ -762,6 +1041,7 @@ public struct DirectTextField: NSViewRepresentable {
         
         public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.text = textView.string
                 parent.onCommit()
                 return true
             }

@@ -132,8 +132,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     
     public static func openSettingsWindow() {
-        NotchShellCoordinator.shared.collapseImmediately(force: true)
-        NotchShellCoordinator.shared.isLockedOpen = false
+        if !SettingsStore.shared.keepOpenWhileSettingsActive {
+            NotchShellCoordinator.shared.collapseImmediately()
+        }
         
         if let window = settingsWindow {
             isSettingsOpen = true

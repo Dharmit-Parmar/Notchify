@@ -53,17 +53,43 @@ public final class NotchShellCoordinator: ObservableObject {
         return .easeOut(duration: duration)
     }
     
+    private var appearancePreviewWorkItem: DispatchWorkItem?
+    
+    /// Provides visual feedback when appearance settings change by smoothly opening and closing the notch
+    public func triggerAppearancePropagationPreview() {
+        guard !isFileDraggingActive else { return }
+        appearancePreviewWorkItem?.cancel()
+        
+        if state != .expanded {
+            withAnimation(transitionAnimation) {
+                self.state = .expanded
+            }
+            self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+        }
+        
+        FeedbackManager.playHover()
+        
+        let item = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if !self.isLockedOpen && !self.isHovered && !self.isFileDraggingActive {
+                withAnimation(self.transitionAnimation) {
+                    self.state = .collapsed
+                }
+                self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
+            }
+        }
+        appearancePreviewWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25, execute: item)
+    }
+    
     private func startExpandedWatchdog() {
         stopExpandedWatchdog()
         guard state == .expanded, !isLockedOpen else { return }
         
-        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+        // 0.15s interval: highly responsive to cursor without thrashing CPU
+        let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self = self else { return }
-                if AppDelegate.isSettingsOpen {
-                    self.collapseImmediately(force: true)
-                    return
-                }
                 guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive else {
                     self.stopExpandedWatchdog()
                     return
@@ -165,12 +191,17 @@ public final class NotchShellCoordinator: ObservableObject {
         collapseWorkItem = nil
         isHovered = true
         
-        guard !AppDelegate.isSettingsOpen else { return }
+        // While settings is active, stay gracefully in compact notch state to avoid obscuring the settings panel,
+        // unless the user specifically opted into keepOpenWhileSettingsActive
+        if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive {
+            return
+        }
         guard state != .expanded, hoverWorkItem == nil else { return }
         
         let delay = SettingsStore.shared.hoverDelay
         let item = DispatchWorkItem { [weak self] in
-            guard let self = self, self.isHovered, !AppDelegate.isSettingsOpen else { return }
+            guard let self = self, self.isHovered else { return }
+            if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive { return }
             withAnimation(self.transitionAnimation) {
                 self.state = .expanded
             }

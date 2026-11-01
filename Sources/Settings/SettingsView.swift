@@ -20,6 +20,17 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
         case .permissions: return "hand.raised.fill"
         }
     }
+    
+    public var tintColor: Color {
+        switch self {
+        case .appearance: return Color(red: 0.76, green: 0.44, blue: 0.98) // Royal Purple
+        case .geometry: return Color(red: 0.22, green: 0.74, blue: 0.98) // Electric Cyan
+        case .motion: return Color(red: 0.98, green: 0.62, blue: 0.22) // Solar Amber
+        case .modules: return Color(red: 0.48, green: 0.52, blue: 0.98) // Indigo
+        case .feedback: return Color(red: 0.22, green: 0.84, blue: 0.65) // Emerald Teal
+        case .permissions: return Color(red: 0.98, green: 0.42, blue: 0.42) // Sunset Coral
+        }
+    }
 }
 
 @MainActor
@@ -90,11 +101,11 @@ public struct SettingsView: View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(DesignSystem.accentColor.opacity(0.18))
+                    .fill(nav.selectedCategory.tintColor.opacity(0.18))
                     .frame(width: 36, height: 36)
                 Image(systemName: "sparkles")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(DesignSystem.accentColor)
+                    .foregroundColor(nav.selectedCategory.tintColor)
             }
             
             VStack(alignment: .leading, spacing: 2) {
@@ -140,6 +151,7 @@ public struct SettingsView: View {
                     HStack(spacing: 5) {
                         Image(systemName: category.icon)
                             .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(isSelected ? .white : category.tintColor)
                         Text(category.rawValue)
                             .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
                     }
@@ -147,11 +159,11 @@ public struct SettingsView: View {
                     .padding(.vertical, 6)
                     .background(
                         Capsule()
-                            .fill(isSelected ? DesignSystem.structureColor : Color.clear)
+                            .fill(isSelected ? category.tintColor.opacity(0.22) : Color.clear)
                     )
                     .overlay(
                         Capsule()
-                            .strokeBorder(isSelected ? DesignSystem.accentColor.opacity(0.8) : Color.white.opacity(0.06), lineWidth: isSelected ? 1.2 : 0.6)
+                            .strokeBorder(isSelected ? category.tintColor.opacity(0.85) : Color.white.opacity(0.06), lineWidth: isSelected ? 1.2 : 0.6)
                     )
                     .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
                 }
@@ -210,6 +222,7 @@ public struct SettingsView: View {
                                 store.currentTheme = theme
                                 DynamicThemeEngine.shared.refreshColors()
                             }
+                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
                         }) {
                             HStack(spacing: 8) {
                                 ZStack {
@@ -273,7 +286,13 @@ public struct SettingsView: View {
                         .foregroundColor(DesignSystem.secondaryText)
                 }
                 
-                Picker("", selection: $store.dynamicVibrancy) {
+                Picker("", selection: Binding(
+                    get: { store.dynamicVibrancy },
+                    set: { newVib in
+                        store.dynamicVibrancy = newVib
+                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                    }
+                )) {
                     ForEach(DynamicVibrancy.allCases) { vib in
                         Text(vib.rawValue).tag(vib)
                     }
@@ -307,6 +326,7 @@ public struct SettingsView: View {
                                 store.currentTheme = theme
                                 DynamicThemeEngine.shared.refreshColors()
                             }
+                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
                         }) {
                             HStack(spacing: 8) {
                                 // 60-30-10 Swatch
@@ -378,6 +398,7 @@ public struct SettingsView: View {
                             withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
                                 store.glassMaterialStyle = style
                             }
+                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
                         } label: {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(style.rawValue)
@@ -414,7 +435,13 @@ public struct SettingsView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
                     
-                    Picker("", selection: $store.cornerStyle) {
+                    Picker("", selection: Binding(
+                        get: { store.cornerStyle },
+                        set: { newCorner in
+                            store.cornerStyle = newCorner
+                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                        }
+                    )) {
                         ForEach(NotchCornerStyle.allCases) { corner in
                             Text(corner.rawValue).tag(corner)
                         }
@@ -422,7 +449,13 @@ public struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
                 
-                Toggle(isOn: $store.specularGlowEnabled) {
+                Toggle(isOn: Binding(
+                    get: { store.specularGlowEnabled },
+                    set: { newGlow in
+                        store.specularGlowEnabled = newGlow
+                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                    }
+                )) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Specular Bevel Glow")
                             .font(.system(size: 12, weight: .bold))
@@ -623,6 +656,7 @@ public struct SettingsView: View {
                             withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
                                 store.compactIndicatorStyle = style
                             }
+                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: style.icon)
@@ -665,7 +699,7 @@ public struct SettingsView: View {
             Divider()
                 .padding(.vertical, 4)
             
-            // Enabled Modules List
+            // Enabled Modules List with Distinct Theme Palette Icons
             VStack(alignment: .leading, spacing: 8) {
                 Text("Enabled Header Modules & Tab Order")
                     .font(.system(size: 13, weight: .bold))
@@ -686,7 +720,7 @@ public struct SettingsView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: module.iconName)
                                     .font(.system(size: 12))
-                                    .foregroundColor(DesignSystem.accentColor)
+                                    .foregroundColor(module.themeColor)
                                 Text(module.title)
                                     .font(.system(size: 12))
                             }
@@ -725,6 +759,38 @@ public struct SettingsView: View {
                         .background(Capsule().fill(DesignSystem.surfaceFill))
                         .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.7))
                     }
+                }
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Telegram Bot Direct Dispatch Configuration
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.cyan)
+                    Text("Telegram Direct Bot API (Zero Windows)")
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundColor(.white)
+                    Spacer()
+                    if let token = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken"), !token.isEmpty {
+                        Text("Active ✓")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.green.opacity(0.15)))
+                    }
+                }
+                
+                Text("Enable 100% silent background message sending without opening or closing the Telegram app window.")
+                    .font(.system(size: 10))
+                    .foregroundColor(DesignSystem.secondaryText)
+                
+                if let tg = registry.module(for: "telegram") as? TelegramModule {
+                    TelegramSettingsBotRow(module: tg)
                 }
             }
         }
@@ -1051,5 +1117,41 @@ private extension View {
                 RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
                     .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
             )
+    }
+}
+
+private struct TelegramSettingsBotRow: View {
+    @ObservedObject var module: TelegramModule
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                TextField("Bot Token from @BotFather", text: $module.botToken)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
+                
+                Button(action: {
+                    module.testBotConnection()
+                }) {
+                    HStack(spacing: 3) {
+                        if module.isTestingBot {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "checkmark.circle")
+                        }
+                        Text("Test Token")
+                    }
+                    .font(.system(size: 10, weight: .bold))
+                }
+                .buttonStyle(.spring)
+                .controlSize(.small)
+            }
+            
+            if let status = module.testBotStatus {
+                Text(status)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(status.contains("✓") ? .green : .orange)
+            }
+        }
     }
 }

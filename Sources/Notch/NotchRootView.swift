@@ -311,7 +311,7 @@ public struct NotchRootView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: active.iconName)
                                     .font(.system(size: 9))
-                                    .foregroundColor(DesignSystem.accentColor)
+                                    .foregroundColor(active.themeColor)
                                 Text(active.title)
                                     .font(.system(size: 9.5, weight: .bold, design: .rounded))
                                     .foregroundColor(.white)
@@ -405,7 +405,7 @@ public struct DraggableTabChip: View {
         HStack(spacing: 5) {
             Image(systemName: module.iconName)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(isSelected || uiState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.8))
+                .foregroundColor(isSelected || uiState.isTargeted ? module.themeColor : module.themeColor.opacity(0.85))
             
             Text(module.title)
                 .font(.system(size: 11, weight: isSelected || uiState.isTargeted ? .bold : .medium, design: .rounded))
@@ -416,19 +416,19 @@ public struct DraggableTabChip: View {
             if isPinned {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 7))
-                    .foregroundColor(DesignSystem.accentColor)
+                    .foregroundColor(module.themeColor)
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(
             Capsule()
-                .fill(uiState.isTargeted ? DesignSystem.accentColor.opacity(0.25) : (isSelected ? DesignSystem.structureColor : Color.white.opacity(0.05)))
+                .fill(uiState.isTargeted ? module.themeColor.opacity(0.25) : (isSelected ? DesignSystem.structureColor : Color.white.opacity(0.05)))
         )
         .overlay(
             Capsule()
                 .strokeBorder(
-                    uiState.isTargeted ? DesignSystem.accentColor : (isSelected ? DesignSystem.accentColor.opacity(0.8) : Color.white.opacity(0.08)),
+                    uiState.isTargeted ? module.themeColor : (isSelected ? module.themeColor.opacity(0.8) : Color.white.opacity(0.08)),
                     lineWidth: uiState.isTargeted ? 1.8 : (isPinned ? 1.4 : 0.8)
                 )
         )
