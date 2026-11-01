@@ -360,7 +360,7 @@ public struct NotchRootView: View {
                     
                     // Right Side: Interactive Calendar Card
                     CalendarHomeCardView()
-                        .frame(width: 250)
+                        .frame(width: 260)
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
                 .transition(.opacity.combined(with: .scale(scale: 0.99)))

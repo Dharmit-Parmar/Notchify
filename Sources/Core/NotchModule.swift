@@ -63,7 +63,7 @@ public class SettingsStore: ObservableObject {
     @Published public var specularGlowEnabled: Bool = true {
         didSet { UserDefaults.standard.set(specularGlowEnabled, forKey: "NotchApp_SpecularGlowEnabled") }
     }
-    @Published public var keepOpenWhileSettingsActive: Bool = true {
+    @Published public var keepOpenWhileSettingsActive: Bool = false {
         didSet { UserDefaults.standard.set(keepOpenWhileSettingsActive, forKey: "NotchApp_KeepOpenWhileSettings") }
     }
     @Published public var closeOnOutsideClick: Bool = true {

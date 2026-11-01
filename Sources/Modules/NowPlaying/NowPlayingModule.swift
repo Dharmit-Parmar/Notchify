@@ -27,9 +27,29 @@ public final class NowPlayingModule: ObservableObject {
     
     public init() {
         refreshMediaState()
-        // MediaRemote events update track state; progress is extrapolated locally, so polling is unnecessary.
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("kMRMediaRemoteNowPlayingInfoDidChangeNotification"),
+        // Register for all macOS MediaRemote system notifications for instant updates
+        let notifNames = [
+            "kMRMediaRemoteNowPlayingInfoDidChangeNotification",
+            "MRMediaRemoteNowPlayingInfoDidChangeNotification",
+            "kMRMediaRemoteNowPlayingApplicationDidChangeNotification",
+            "MRMediaRemoteNowPlayingApplicationDidChangeNotification",
+            "kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification",
+            "MRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification"
+        ]
+        for name in notifNames {
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name(name),
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.refreshMediaState()
+                }
+            }
+        }
+        
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in

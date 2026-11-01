@@ -1035,9 +1035,11 @@ public struct ThockExpandedView: View {
                     .buttonStyle(.plain)
                     .help(module.isKeyMuted ? "Unmute Key Sound" : "Mute Key Sound")
                     
-                    Text("Key")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    Text("Key Volume")
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.85))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     
                     Slider(value: $module.keyVolume, in: 0...100, step: 1) {
                         Text("Key Volume")
@@ -1046,6 +1048,7 @@ public struct ThockExpandedView: View {
                             module.updateKeyVolume(module.keyVolume)
                         }
                     }
+                    .labelsHidden()
                     .frame(width: 70)
                     .accentColor(DesignSystem.accentColor)
                     
@@ -1180,9 +1183,11 @@ public struct ThockExpandedView: View {
                     .buttonStyle(.plain)
                     .help(module.isAsmrMuted ? "Unmute ASMR" : "Mute ASMR")
                     
-                    Text("ASMR")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    Text("ASMR Volume")
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.85))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     
                     Slider(value: $module.asmrVolume, in: 0...100, step: 1) {
                         Text("ASMR Volume")
@@ -1191,6 +1196,7 @@ public struct ThockExpandedView: View {
                             module.updateAsmrVolume(module.asmrVolume)
                         }
                     }
+                    .labelsHidden()
                     .frame(width: 80)
                     .accentColor(Color(red: 0.35, green: 0.8, blue: 1.0))
                     

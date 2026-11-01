@@ -202,7 +202,7 @@ public struct CalendarHomeCardView: View {
                     Button(action: { module.changeMonth(by: -1) }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 9, weight: .bold))
-                            .frame(width: 24, height: 24)
+                            .frame(width: 18, height: 22)
                     }
                     .buttonStyle(.spring)
                     
@@ -212,17 +212,19 @@ public struct CalendarHomeCardView: View {
                                 .fill(DesignSystem.accentColor)
                                 .frame(width: 4, height: 4)
                             Text("Today")
-                                .font(.system(size: 9, weight: .bold))
+                                .font(.system(size: 9.5, weight: .bold))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
                         .padding(.horizontal, 6)
-                        .frame(height: 24)
+                        .frame(height: 22)
                     }
                     .buttonStyle(.spring)
                     
                     Button(action: { module.changeMonth(by: 1) }) {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
-                            .frame(width: 24, height: 24)
+                            .frame(width: 18, height: 22)
                     }
                     .buttonStyle(.spring)
                     
@@ -230,7 +232,7 @@ public struct CalendarHomeCardView: View {
                         Image(systemName: "arrow.up.right.square")
                             .font(.system(size: 9))
                             .foregroundColor(DesignSystem.secondaryText)
-                            .frame(width: 24, height: 24)
+                            .frame(width: 20, height: 22)
                     }
                     .buttonStyle(.spring)
                 }

@@ -101,6 +101,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     
     public static func openSettingsWindow() {
+        NotchShellCoordinator.shared.collapseImmediately(force: true)
+        NotchShellCoordinator.shared.isLockedOpen = false
+        
         if let window = settingsWindow {
             isSettingsOpen = true
             if window.isMiniaturized {
@@ -112,16 +115,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 640),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        window.center()
+        if let screen = NSScreen.main ?? NSScreen.screens.first {
+            let screenFrame = screen.visibleFrame
+            let winW: CGFloat = 560
+            let winH: CGFloat = min(screenFrame.height - 40, 640)
+            let originX = screenFrame.midX - (winW / 2)
+            let originY = max(screenFrame.minY + 20, screenFrame.maxY - winH - 24)
+            window.setFrame(NSRect(x: originX, y: originY, width: winW, height: winH), display: true)
+        } else {
+            window.center()
+        }
         window.title = "Notch Island Preferences"
         window.contentView = NSHostingView(rootView: SettingsView())
         window.isReleasedWhenClosed = false
-        window.level = .floating
+        window.level = .statusBar + 1
         window.delegate = AppDelegate.sharedDelegate
         
         NotificationCenter.default.addObserver(

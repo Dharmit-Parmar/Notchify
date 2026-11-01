@@ -82,7 +82,15 @@ func runAllVerificationTests() {
     let tgUser = testTgHandle.trimmingCharacters(in: CharacterSet(charactersIn: "@ "))
     let tgUrlString = "tg://resolve?domain=\(tgUser)&text=\(encodedMsg)"
     assert(URL(string: tgUrlString) != nil, "Telegram URL must be valid")
-    print("  Telegram dispatch URL: \(tgUrlString)")
+    print("  Telegram username dispatch URL: \(tgUrlString)")
+    
+    // Telegram phone number support
+    let testTgPhone = "+15559876543"
+    let tgDigits = testTgPhone.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+    let tgPhoneUrlString = "tg://resolve?phone=\(tgDigits)&text=\(encodedMsg)"
+    assert(URL(string: tgPhoneUrlString) != nil, "Telegram phone URL must be valid")
+    assert(tgDigits == "15559876543", "Phone number cleaning must preserve all digits")
+    print("  Telegram phone dispatch URL: \(tgPhoneUrlString)")
     
     let waDigits = testWaPhone.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
     let waUrlString = "whatsapp://send?phone=\(waDigits)&text=\(encodedMsg)"
@@ -116,17 +124,20 @@ func runAllVerificationTests() {
     let getClientSym = dlsym(handle, "MRMediaRemoteGetNowPlayingClient")
     let getPIDSym = dlsym(handle, "MRMediaRemoteGetNowPlayingApplicationPID")
     let getPlayingSym = dlsym(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying")
+    let getArtworkSym = dlsym(handle, "MRMediaRemoteGetNowPlayingArtwork")
     let sendCmdSym = dlsym(handle, "MRMediaRemoteSendCommand")
     
     assert(getInfoSym != nil, "MRMediaRemoteGetNowPlayingInfo must be exported")
     assert(getClientSym != nil, "MRMediaRemoteGetNowPlayingClient must be exported")
     assert(getPIDSym != nil, "MRMediaRemoteGetNowPlayingApplicationPID must be exported")
     assert(getPlayingSym != nil, "MRMediaRemoteGetNowPlayingApplicationIsPlaying must be exported")
+    assert(getArtworkSym != nil, "MRMediaRemoteGetNowPlayingArtwork must be exported for live video thumbnails")
     assert(sendCmdSym != nil, "MRMediaRemoteSendCommand must be exported")
     print("  MRMediaRemoteGetNowPlayingInfo: Present")
     print("  MRMediaRemoteGetNowPlayingClient: Present")
     print("  MRMediaRemoteGetNowPlayingApplicationPID: Present")
     print("  MRMediaRemoteGetNowPlayingApplicationIsPlaying: Present")
+    print("  MRMediaRemoteGetNowPlayingArtwork: Present")
     print("  MRMediaRemoteSendCommand: Present")
     print("  ✓ MediaRemote bridge verified.")
     

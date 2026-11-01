@@ -60,14 +60,12 @@ public final class NotchShellCoordinator: ObservableObject {
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self = self else { return }
+                if AppDelegate.isSettingsOpen {
+                    self.collapseImmediately(force: true)
+                    return
+                }
                 guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive else {
                     self.stopExpandedWatchdog()
-                    return
-                }
-                if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
-                    return
-                }
-                if let settingsWin = AppDelegate.settingsWindow, settingsWin.frame.contains(NSEvent.mouseLocation) {
                     return
                 }
                 guard let panel = self.panel else { return }
@@ -167,15 +165,17 @@ public final class NotchShellCoordinator: ObservableObject {
         collapseWorkItem = nil
         isHovered = true
         
+        guard !AppDelegate.isSettingsOpen else { return }
         guard state != .expanded, hoverWorkItem == nil else { return }
         
         let delay = SettingsStore.shared.hoverDelay
         let item = DispatchWorkItem { [weak self] in
-            guard let self = self, self.isHovered else { return }
+            guard let self = self, self.isHovered, !AppDelegate.isSettingsOpen else { return }
             withAnimation(self.transitionAnimation) {
                 self.state = .expanded
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+            NowPlayingModule.shared.refreshMediaState()
             ModuleRegistry.shared.activeModule?.start()
         }
         hoverWorkItem = item
@@ -203,18 +203,12 @@ public final class NotchShellCoordinator: ObservableObject {
         isHovered = false
         
         guard !isLockedOpen, !isFileDraggingActive, state != .collapsed else { return }
-        if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
-            return
-        }
         
         if collapseWorkItem != nil { return }
         
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             self.collapseWorkItem = nil
-            if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
-                return
-            }
             if let panel = self.panel {
                 let mouseLoc = NSEvent.mouseLocation
                 let expandedRect = NotchPanel.calculateFrame(

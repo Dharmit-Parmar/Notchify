@@ -3,7 +3,7 @@ import AVFoundation
 import AppKit
 
 public final class CameraSessionManager: @unchecked Sendable {
-    public let captureSession = AVCaptureSession()
+    public private(set) var captureSession: AVCaptureSession?
     private var isConfigured = false
     private let queue = DispatchQueue(label: "com.notch.camera.queue")
     
@@ -13,9 +13,12 @@ public final class CameraSessionManager: @unchecked Sendable {
         queue.async { [weak self] in
             guard let self = self else { return }
             
+            let session = self.captureSession ?? AVCaptureSession()
+            self.captureSession = session
+            
             if !self.isConfigured {
-                self.captureSession.beginConfiguration()
-                self.captureSession.sessionPreset = .vga640x480
+                session.beginConfiguration()
+                session.sessionPreset = .vga640x480
                 
                 // Prioritize default system video device (e.g. MacBook Air Camera)
                 let device = AVCaptureDevice.default(for: .video) ?? {
@@ -29,12 +32,12 @@ public final class CameraSessionManager: @unchecked Sendable {
                 
                 if let dev = device,
                    let input = try? AVCaptureDeviceInput(device: dev),
-                   self.captureSession.canAddInput(input) {
-                    self.captureSession.addInput(input)
-                    self.captureSession.commitConfiguration()
+                   session.canAddInput(input) {
+                    session.addInput(input)
+                    session.commitConfiguration()
                     self.isConfigured = true
                 } else {
-                    self.captureSession.commitConfiguration()
+                    session.commitConfiguration()
                     DispatchQueue.main.async {
                         completion(false, "No camera found or camera in use by another application.")
                     }
@@ -42,11 +45,11 @@ public final class CameraSessionManager: @unchecked Sendable {
                 }
             }
             
-            if !self.captureSession.isRunning {
-                self.captureSession.startRunning()
+            if !session.isRunning {
+                session.startRunning()
             }
             
-            let running = self.captureSession.isRunning
+            let running = session.isRunning
             DispatchQueue.main.async {
                 completion(running, running ? nil : "Could not start camera.")
             }
@@ -56,14 +59,17 @@ public final class CameraSessionManager: @unchecked Sendable {
     public func stop(completion: @escaping @MainActor @Sendable () -> Void) {
         queue.async { [weak self] in
             guard let self = self else { return }
-            if self.captureSession.isRunning {
-                self.captureSession.stopRunning()
+            if let session = self.captureSession {
+                if session.isRunning {
+                    session.stopRunning()
+                }
+                session.beginConfiguration()
+                for input in session.inputs {
+                    session.removeInput(input)
+                }
+                session.commitConfiguration()
             }
-            self.captureSession.beginConfiguration()
-            for input in self.captureSession.inputs {
-                self.captureSession.removeInput(input)
-            }
-            self.captureSession.commitConfiguration()
+            self.captureSession = nil
             self.isConfigured = false
             DispatchQueue.main.async {
                 completion()
@@ -228,16 +234,20 @@ public struct MirrorContainerView: View {
 }
 
 public struct CameraLivePreview: NSViewRepresentable {
-    public let session: AVCaptureSession
+    public let session: AVCaptureSession?
     
     public func makeNSView(context: Context) -> CameraHostingNSView {
         let view = CameraHostingNSView()
-        view.setSession(session)
+        if let s = session {
+            view.setSession(s)
+        }
         return view
     }
     
     public func updateNSView(_ nsView: CameraHostingNSView, context: Context) {
-        nsView.setSession(session)
+        if let s = session {
+            nsView.setSession(s)
+        }
     }
 }
 

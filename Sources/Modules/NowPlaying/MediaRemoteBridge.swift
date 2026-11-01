@@ -21,6 +21,7 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     private typealias MRMediaRemoteGetNowPlayingClientFunction = @convention(c) (DispatchQueue, @escaping (AnyObject?) -> Void) -> Void
     private typealias MRMediaRemoteGetNowPlayingApplicationPIDFunction = @convention(c) (DispatchQueue, @escaping (Int32) -> Void) -> Void
     private typealias MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction = @convention(c) (DispatchQueue, @escaping (Bool) -> Void) -> Void
+    private typealias MRMediaRemoteGetNowPlayingArtworkFunction = @convention(c) (AnyObject?, DispatchQueue, @escaping (AnyObject?) -> Void) -> Void
     private typealias MRMediaRemoteRegisterFunction = @convention(c) (DispatchQueue) -> Void
     private typealias MRMediaRemoteSendCommandFunction = @convention(c) (UInt32, CFDictionary?) -> Bool
     
@@ -28,6 +29,7 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     private var getNowPlayingClient: MRMediaRemoteGetNowPlayingClientFunction?
     private var getNowPlayingApplicationPID: MRMediaRemoteGetNowPlayingApplicationPIDFunction?
     private var getNowPlayingApplicationIsPlaying: MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction?
+    private var getNowPlayingArtwork: MRMediaRemoteGetNowPlayingArtworkFunction?
     private var registerForNotifications: MRMediaRemoteRegisterFunction?
     private var sendCommand: MRMediaRemoteSendCommandFunction?
     
@@ -60,6 +62,9 @@ public final class MediaRemoteBridge: @unchecked Sendable {
             }
             if let isPlayingSym = dlsym(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying") {
                 getNowPlayingApplicationIsPlaying = unsafeBitCast(isPlayingSym, to: MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction.self)
+            }
+            if let artSym = dlsym(handle, "MRMediaRemoteGetNowPlayingArtwork") {
+                getNowPlayingArtwork = unsafeBitCast(artSym, to: MRMediaRemoteGetNowPlayingArtworkFunction.self)
             }
             if let regSym = dlsym(handle, "MRMediaRemoteRegisterForNowPlayingNotifications") {
                 registerForNotifications = unsafeBitCast(regSym, to: MRMediaRemoteRegisterFunction.self)
@@ -120,65 +125,88 @@ public final class MediaRemoteBridge: @unchecked Sendable {
         getInfo(DispatchQueue.main) { [weak self] info in
             guard let self = self else { completion(nil); return }
             
-            let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String ?? ""
-            let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
+            let rawTitle = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String ?? ""
+            let rawArtist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
             let album = info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String ?? ""
             let duration = info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double ?? 0.0
             let elapsed = info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? Double ?? 0.0
             let rate = info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double ?? 0.0
             let isPlaying = (rate > 0.0) || self.cachedIsPlaying
             
-            var artworkImage: NSImage? = nil
-            if let artData = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data {
+            // Clean video titles (e.g. YouTube web titles ending with " - YouTube")
+            let title = rawTitle.replacingOccurrences(of: " - YouTube", with: "").trimmingCharacters(in: .whitespaces)
+            let artist = rawArtist.trimmingCharacters(in: .whitespaces)
+            
+            var directArt: NSImage? = nil
+            if let artData = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data, !artData.isEmpty {
                 if self.cachedArtworkData?.count != artData.count || self.cachedArtworkData != artData {
                     self.cachedArtworkData = artData
                     self.cachedArtworkImage = Self.makeArtworkImage(from: artData)
                 }
-                artworkImage = self.cachedArtworkImage
-            } else {
-                self.cachedArtworkData = nil
-                self.cachedArtworkImage = nil
+                directArt = self.cachedArtworkImage
             }
             
             let bundleId = self.cachedBundleId ?? self.findActiveMediaAppBundleId()
-            
-            // High-resolution app icon fallback when artwork is absent
-            if artworkImage == nil {
-                artworkImage = self.cachedAppIcon ?? (bundleId != nil ? self.iconForBundle(bundleId!) : nil)
-            }
-            
             let appDisplayName = self.displayNameForBundle(bundleId) ?? "Media Player"
             
-            if title.isEmpty && artist.isEmpty {
-                if let bid = bundleId {
-                    let fallbackTrack = SystemMediaTrack(
-                        title: "Audio Active",
-                        artist: appDisplayName,
-                        album: "",
-                        duration: 0.0,
-                        elapsedTime: 0.0,
+            let assembleTrack: @Sendable (NSImage?) -> Void = { [weak self] art in
+                guard let self = self else { completion(nil); return }
+                let finalArt = art ?? self.cachedAppIcon ?? (bundleId != nil ? self.iconForBundle(bundleId!) : nil)
+                
+                if title.isEmpty && artist.isEmpty {
+                    if let bid = bundleId {
+                        let fallbackTrack = SystemMediaTrack(
+                            title: "Video / Audio Playing",
+                            artist: appDisplayName,
+                            album: "",
+                            duration: 0.0,
+                            elapsedTime: 0.0,
+                            isPlaying: isPlaying,
+                            artwork: finalArt,
+                            bundleIdentifier: bid,
+                            sourceApp: appDisplayName
+                        )
+                        completion(fallbackTrack)
+                    } else {
+                        completion(nil)
+                    }
+                } else {
+                    let track = SystemMediaTrack(
+                        title: title.isEmpty ? "Media Playing" : title,
+                        artist: artist.isEmpty ? appDisplayName : artist,
+                        album: album,
+                        duration: duration,
+                        elapsedTime: elapsed,
                         isPlaying: isPlaying,
-                        artwork: artworkImage,
-                        bundleIdentifier: bid,
+                        artwork: finalArt,
+                        bundleIdentifier: bundleId,
                         sourceApp: appDisplayName
                     )
-                    completion(fallbackTrack)
-                } else {
-                    completion(nil)
+                    completion(track)
+                }
+            }
+            
+            if let img = directArt {
+                assembleTrack(img)
+            } else if let getArtwork = self.getNowPlayingArtwork {
+                getArtwork(nil, DispatchQueue.global(qos: .userInteractive)) { [weak self] artworkObj in
+                    guard let self = self else { completion(nil); return }
+                    var retrievedImage: NSImage? = nil
+                    if let obj = artworkObj as? NSObject,
+                       let data = obj.value(forKey: "imageData") as? Data,
+                       !data.isEmpty {
+                        if self.cachedArtworkData?.count != data.count || self.cachedArtworkData != data {
+                            self.cachedArtworkData = data
+                            self.cachedArtworkImage = Self.makeArtworkImage(from: data)
+                        }
+                        retrievedImage = self.cachedArtworkImage
+                    }
+                    DispatchQueue.main.async {
+                        assembleTrack(retrievedImage)
+                    }
                 }
             } else {
-                let track = SystemMediaTrack(
-                    title: title.isEmpty ? "Media Playing" : title,
-                    artist: artist.isEmpty ? appDisplayName : artist,
-                    album: album,
-                    duration: duration,
-                    elapsedTime: elapsed,
-                    isPlaying: isPlaying,
-                    artwork: artworkImage,
-                    bundleIdentifier: bundleId,
-                    sourceApp: appDisplayName
-                )
-                completion(track)
+                assembleTrack(nil)
             }
         }
     }
@@ -195,7 +223,7 @@ public final class MediaRemoteBridge: @unchecked Sendable {
             let options: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 128,
+                kCGImageSourceThumbnailMaxPixelSize: 256,
                 kCGImageSourceShouldCache: false
             ]
             guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {

@@ -55,12 +55,6 @@ public final class NotchPanel: NSPanel {
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    if AppDelegate.isSettingsOpen && SettingsStore.shared.keepOpenWhileSettingsActive {
-                        return
-                    }
-                    if let settingsWin = AppDelegate.settingsWindow, settingsWin.frame.contains(NSEvent.mouseLocation) {
-                        return
-                    }
                     guard SettingsStore.shared.closeOnOutsideClick else { return }
                     if !self.frame.contains(NSEvent.mouseLocation),
                        NotchShellCoordinator.shared.state == .expanded,

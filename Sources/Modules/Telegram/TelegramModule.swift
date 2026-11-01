@@ -92,10 +92,22 @@ public struct DirectMessenger {
                 completion(false)
             }
         } else {
-            // Telegram
-            let cleanUser = handle.trimmingCharacters(in: CharacterSet(charactersIn: "@ "))
+            // Telegram (Supports both Phone Numbers and @Usernames)
+            let rawHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+            let digits = rawHandle.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+            let cleanUser = rawHandle.trimmingCharacters(in: CharacterSet(charactersIn: "@ "))
             let encoded = cleanText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-            let urlString = cleanUser.isEmpty ? "tg://msg?text=\(encoded)" : "tg://resolve?domain=\(cleanUser)&text=\(encoded)"
+            
+            let isPhone = rawHandle.hasPrefix("+") || (digits.count >= 7 && !rawHandle.contains("@") && cleanUser.allSatisfy { $0.isNumber || $0 == "+" || $0 == " " || $0 == "-" || $0 == "(" || $0 == ")" })
+            
+            let urlString: String
+            if cleanUser.isEmpty && digits.isEmpty {
+                urlString = "tg://msg?text=\(encoded)"
+            } else if isPhone && !digits.isEmpty {
+                urlString = "tg://resolve?phone=\(digits)&text=\(encoded)"
+            } else {
+                urlString = "tg://resolve?domain=\(cleanUser)&text=\(encoded)"
+            }
             
             if let url = URL(string: urlString) {
                 NSWorkspace.shared.open(url, configuration: config) { _, _ in
@@ -141,6 +153,7 @@ public final class TelegramModule: NotchModule {
     @Published public var newPersonName: String = ""
     @Published public var newPersonPlatform: String = "Telegram"
     @Published public var newPersonHandle: String = ""
+    @Published public var newPersonHandleType: String = "Number"
     
     @Published public var isDispatching: Bool = false
     @Published public var isAccessibilityGranted: Bool = DirectMessenger.isAccessibilityGranted
@@ -405,9 +418,20 @@ public struct TelegramModuleExpandedView: View {
             if module.isAddingContact {
                 // Add Contact Form Card
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Pin Person to Notch")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(DesignSystem.accentColor)
+                    HStack {
+                        Text("Pin Person to Notch")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(DesignSystem.accentColor)
+                        Spacer()
+                        if module.newPersonPlatform == "Telegram" {
+                            Picker("", selection: $module.newPersonHandleType) {
+                                Text("Phone #").tag("Number")
+                                Text("@Username").tag("Username")
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 150)
+                        }
+                    }
                     
                     HStack(spacing: 6) {
                         TextField("Name", text: $module.newPersonName)
@@ -423,7 +447,17 @@ public struct TelegramModuleExpandedView: View {
                         .labelsHidden()
                         .frame(width: 90)
                         
-                        TextField(module.newPersonPlatform == "WhatsApp" ? "Phone (+1...)" : "@username", text: $module.newPersonHandle)
+                        let placeholderText: String = {
+                            if module.newPersonPlatform == "WhatsApp" {
+                                return "Phone (+1...)"
+                            } else if module.newPersonHandleType == "Number" {
+                                return "Phone (+1... or digits)"
+                            } else {
+                                return "@username"
+                            }
+                        }()
+                        
+                        TextField(placeholderText, text: $module.newPersonHandle)
                             .textFieldStyle(.plain)
                             .font(.system(size: 11))
                             .padding(5)

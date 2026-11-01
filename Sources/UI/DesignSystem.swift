@@ -80,167 +80,119 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         }
     }
     
+    public var baseCanvasRGB: (CGFloat, CGFloat, CGFloat) {
+        switch self {
+        case .adaptive, .activeApp, .circadian, .musicReactive: return (0.05, 0.06, 0.08)
+        case .midnight: return (0.04, 0.06, 0.10)
+        case .cyberpunk: return (0.03, 0.07, 0.05)
+        case .sunset: return (0.08, 0.04, 0.06)
+        case .solar: return (0.07, 0.05, 0.03)
+        case .amethyst: return (0.06, 0.03, 0.09)
+        case .titanium: return (0.03, 0.03, 0.03)
+        case .aurora: return (0.04, 0.07, 0.09)
+        case .cupertino: return (0.05, 0.06, 0.08)
+        case .dune: return (0.07, 0.05, 0.03)
+        case .neonTokyo: return (0.06, 0.03, 0.08)
+        case .crimson: return (0.08, 0.02, 0.04)
+        case .slate: return (0.05, 0.05, 0.06)
+        case .nordic: return (0.04, 0.06, 0.08)
+        case .starlight: return (0.06, 0.05, 0.04)
+        case .noir: return (0.02, 0.02, 0.02)
+        case .emerald: return (0.03, 0.06, 0.04)
+        }
+    }
+
     // 60% Dominant Canvas / Glass Tint
     @MainActor
     public var canvasColor: Color {
-        switch self {
-        case .adaptive, .activeApp, .circadian, .musicReactive:
-            return DynamicThemeEngine.shared.canvasColor
-        case .midnight:
-            return Color(red: 0.04, green: 0.06, blue: 0.10)
-        case .cyberpunk:
-            return Color(red: 0.03, green: 0.07, blue: 0.05)
-        case .sunset:
-            return Color(red: 0.08, green: 0.04, blue: 0.06)
-        case .solar:
-            return Color(red: 0.07, green: 0.05, blue: 0.03)
-        case .amethyst:
-            return Color(red: 0.06, green: 0.03, blue: 0.09)
-        case .titanium:
-            return Color(red: 0.03, green: 0.03, blue: 0.03)
-        case .aurora:
-            return Color(red: 0.04, green: 0.07, blue: 0.09)
-        case .cupertino:
-            return Color(red: 0.05, green: 0.06, blue: 0.08)
-        case .dune:
-            return Color(red: 0.07, green: 0.05, blue: 0.03)
-        case .neonTokyo:
-            return Color(red: 0.06, green: 0.03, blue: 0.08)
-        case .crimson:
-            return Color(red: 0.08, green: 0.02, blue: 0.04)
-        case .slate:
-            return Color(red: 0.05, green: 0.05, blue: 0.06)
-        case .nordic:
-            return Color(red: 0.04, green: 0.06, blue: 0.08)
-        case .starlight:
-            return Color(red: 0.06, green: 0.05, blue: 0.04)
-        case .noir:
-            return Color(red: 0.02, green: 0.02, blue: 0.02)
-        case .emerald:
-            return Color(red: 0.03, green: 0.06, blue: 0.04)
-        }
+        let rgb = baseCanvasRGB
+        return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
     
+    public var baseStructureRGB: (CGFloat, CGFloat, CGFloat) {
+        switch self {
+        case .adaptive, .activeApp, .circadian, .musicReactive: return (0.13, 0.15, 0.20)
+        case .midnight: return (0.11, 0.16, 0.25)
+        case .cyberpunk: return (0.07, 0.13, 0.11)
+        case .sunset: return (0.15, 0.08, 0.11)
+        case .solar: return (0.14, 0.11, 0.07)
+        case .amethyst: return (0.12, 0.08, 0.17)
+        case .titanium: return (0.14, 0.14, 0.16)
+        case .aurora: return (0.09, 0.16, 0.18)
+        case .cupertino: return (0.12, 0.14, 0.19)
+        case .dune: return (0.16, 0.12, 0.08)
+        case .neonTokyo: return (0.16, 0.08, 0.20)
+        case .crimson: return (0.18, 0.06, 0.10)
+        case .slate: return (0.13, 0.13, 0.15)
+        case .nordic: return (0.10, 0.15, 0.19)
+        case .starlight: return (0.16, 0.14, 0.11)
+        case .noir: return (0.10, 0.10, 0.10)
+        case .emerald: return (0.08, 0.15, 0.10)
+        }
+    }
+
     // 30% Structural Secondary (Surfaces, Cards, Inactive Pills, Dividers)
     @MainActor
     public var structureColor: Color {
-        switch self {
-        case .adaptive, .activeApp, .circadian, .musicReactive:
-            return DynamicThemeEngine.shared.structureColor
-        case .midnight:
-            return Color(red: 0.11, green: 0.16, blue: 0.25)
-        case .cyberpunk:
-            return Color(red: 0.07, green: 0.13, blue: 0.11)
-        case .sunset:
-            return Color(red: 0.15, green: 0.08, blue: 0.11)
-        case .solar:
-            return Color(red: 0.14, green: 0.11, blue: 0.07)
-        case .amethyst:
-            return Color(red: 0.12, green: 0.08, blue: 0.17)
-        case .titanium:
-            return Color(red: 0.14, green: 0.14, blue: 0.16)
-        case .aurora:
-            return Color(red: 0.09, green: 0.16, blue: 0.18)
-        case .cupertino:
-            return Color(red: 0.12, green: 0.14, blue: 0.19)
-        case .dune:
-            return Color(red: 0.16, green: 0.12, blue: 0.08)
-        case .neonTokyo:
-            return Color(red: 0.16, green: 0.08, blue: 0.20)
-        case .crimson:
-            return Color(red: 0.18, green: 0.06, blue: 0.10)
-        case .slate:
-            return Color(red: 0.13, green: 0.13, blue: 0.15)
-        case .nordic:
-            return Color(red: 0.10, green: 0.15, blue: 0.19)
-        case .starlight:
-            return Color(red: 0.16, green: 0.14, blue: 0.11)
-        case .noir:
-            return Color(red: 0.10, green: 0.10, blue: 0.10)
-        case .emerald:
-            return Color(red: 0.08, green: 0.15, blue: 0.10)
-        }
+        let rgb = baseStructureRGB
+        return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
     
+    public var baseAccentRGB: (CGFloat, CGFloat, CGFloat) {
+        switch self {
+        case .adaptive, .activeApp, .circadian, .musicReactive: return (0.22, 0.62, 1.0)
+        case .midnight: return (0.32, 0.62, 0.90)
+        case .cyberpunk: return (0.38, 0.76, 0.62)
+        case .sunset: return (0.90, 0.42, 0.50)
+        case .solar: return (0.91, 0.68, 0.34)
+        case .amethyst: return (0.72, 0.54, 0.90)
+        case .titanium: return (0.84, 0.88, 0.94)
+        case .aurora: return (0.18, 0.83, 0.75)
+        case .cupertino: return (0.04, 0.52, 1.00)
+        case .dune: return (0.96, 0.62, 0.12)
+        case .neonTokyo: return (0.96, 0.25, 0.44)
+        case .crimson: return (0.88, 0.11, 0.28)
+        case .slate: return (0.89, 0.91, 0.94)
+        case .nordic: return (0.35, 0.78, 0.90)
+        case .starlight: return (0.92, 0.78, 0.50)
+        case .noir: return (0.98, 0.98, 0.98)
+        case .emerald: return (0.20, 0.82, 0.45)
+        }
+    }
+
     // 10% Accent Pop Color (Active states, Focus, Highlights, Primary Badges)
     @MainActor
     public var accentColor: Color {
+        let rgb = baseAccentRGB
+        return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+    }
+    
+    public var baseSecondaryTextRGB: (CGFloat, CGFloat, CGFloat) {
         switch self {
-        case .adaptive, .activeApp, .circadian, .musicReactive:
-            return DynamicThemeEngine.shared.accentColor
-        case .midnight:
-            return Color(red: 0.32, green: 0.62, blue: 0.90)
-        case .cyberpunk:
-            return Color(red: 0.38, green: 0.76, blue: 0.62)
-        case .sunset:
-            return Color(red: 0.90, green: 0.42, blue: 0.50)
-        case .solar:
-            return Color(red: 0.91, green: 0.68, blue: 0.34)
-        case .amethyst:
-            return Color(red: 0.72, green: 0.54, blue: 0.90)
-        case .titanium:
-            return Color(red: 0.84, green: 0.88, blue: 0.94)
-        case .aurora:
-            return Color(red: 0.18, green: 0.83, blue: 0.75)
-        case .cupertino:
-            return Color(red: 0.04, green: 0.52, blue: 1.00)
-        case .dune:
-            return Color(red: 0.96, green: 0.62, blue: 0.12)
-        case .neonTokyo:
-            return Color(red: 0.96, green: 0.25, blue: 0.44)
-        case .crimson:
-            return Color(red: 0.88, green: 0.11, blue: 0.28)
-        case .slate:
-            return Color(red: 0.89, green: 0.91, blue: 0.94)
-        case .nordic:
-            return Color(red: 0.35, green: 0.78, blue: 0.90)
-        case .starlight:
-            return Color(red: 0.92, green: 0.78, blue: 0.50)
-        case .noir:
-            return Color(red: 0.98, green: 0.98, blue: 0.98)
-        case .emerald:
-            return Color(red: 0.20, green: 0.82, blue: 0.45)
+        case .adaptive, .activeApp, .circadian, .musicReactive: return (0.75, 0.82, 0.92)
+        case .midnight: return (0.65, 0.75, 0.88)
+        case .cyberpunk: return (0.62, 0.80, 0.70)
+        case .sunset: return (0.82, 0.68, 0.75)
+        case .solar: return (0.82, 0.75, 0.65)
+        case .amethyst: return (0.78, 0.68, 0.88)
+        case .titanium: return (0.85, 0.85, 0.85)
+        case .aurora: return (0.65, 0.85, 0.82)
+        case .cupertino: return (0.72, 0.80, 0.90)
+        case .dune: return (0.86, 0.78, 0.68)
+        case .neonTokyo: return (0.88, 0.70, 0.82)
+        case .crimson: return (0.85, 0.68, 0.72)
+        case .slate: return (0.75, 0.77, 0.80)
+        case .nordic: return (0.70, 0.84, 0.90)
+        case .starlight: return (0.88, 0.82, 0.72)
+        case .noir: return (0.80, 0.80, 0.80)
+        case .emerald: return (0.65, 0.85, 0.72)
         }
     }
     
     @MainActor
     public var secondaryTextColor: Color {
-        switch self {
-        case .adaptive, .activeApp, .circadian, .musicReactive:
-            return DynamicThemeEngine.shared.secondaryTextColor
-        case .midnight:
-            return Color(red: 0.65, green: 0.75, blue: 0.88)
-        case .cyberpunk:
-            return Color(red: 0.62, green: 0.80, blue: 0.70)
-        case .sunset:
-            return Color(red: 0.82, green: 0.68, blue: 0.75)
-        case .solar:
-            return Color(red: 0.82, green: 0.75, blue: 0.65)
-        case .amethyst:
-            return Color(red: 0.78, green: 0.68, blue: 0.88)
-        case .titanium:
-            return Color.white.opacity(0.65)
-        case .aurora:
-            return Color(red: 0.65, green: 0.85, blue: 0.82)
-        case .cupertino:
-            return Color(red: 0.72, green: 0.80, blue: 0.90)
-        case .dune:
-            return Color(red: 0.86, green: 0.78, blue: 0.68)
-        case .neonTokyo:
-            return Color(red: 0.88, green: 0.70, blue: 0.82)
-        case .crimson:
-            return Color(red: 0.85, green: 0.68, blue: 0.72)
-        case .slate:
-            return Color(red: 0.75, green: 0.77, blue: 0.80)
-        case .nordic:
-            return Color(red: 0.70, green: 0.84, blue: 0.90)
-        case .starlight:
-            return Color(red: 0.88, green: 0.82, blue: 0.72)
-        case .noir:
-            return Color.white.opacity(0.60)
-        case .emerald:
-            return Color(red: 0.65, green: 0.85, blue: 0.72)
-        }
+        let rgb = baseSecondaryTextRGB
+        return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
 }
 
@@ -455,11 +407,42 @@ public final class DynamicThemeEngine: ObservableObject {
     
     public func refreshColors() {
         let theme = SettingsStore.shared.currentTheme
-        guard theme.isDynamic else {
+        if !theme.isDynamic {
             if let activationObserver {
                 NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
                 self.activationObserver = nil
             }
+            let vibrancy = SettingsStore.shared.dynamicVibrancy.factor
+            
+            let baseAccent = theme.baseAccentRGB
+            let nsAccent = NSColor(red: baseAccent.0, green: baseAccent.1, blue: baseAccent.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
+            var ah: CGFloat = 0, asat: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 1
+            nsAccent.getHue(&ah, saturation: &asat, brightness: &ab, alpha: &aa)
+            let adjustedAccentSat = min(1.0, max(0.05, asat * vibrancy))
+            let newAccent = Color(hue: ah, saturation: adjustedAccentSat, brightness: ab)
+            
+            let baseStruct = theme.baseStructureRGB
+            let nsStruct = NSColor(red: baseStruct.0, green: baseStruct.1, blue: baseStruct.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .darkGray
+            var sh: CGFloat = 0, ss: CGFloat = 0, sb: CGFloat = 0, sa: CGFloat = 1
+            nsStruct.getHue(&sh, saturation: &ss, brightness: &sb, alpha: &sa)
+            let adjustedStructSat = min(1.0, max(0.02, ss * vibrancy))
+            let newStruct = Color(hue: sh, saturation: adjustedStructSat, brightness: sb)
+            
+            let baseCanvas = theme.baseCanvasRGB
+            let nsCanvas = NSColor(red: baseCanvas.0, green: baseCanvas.1, blue: baseCanvas.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .black
+            var ch: CGFloat = 0, cs: CGFloat = 0, cb: CGFloat = 0, ca: CGFloat = 1
+            nsCanvas.getHue(&ch, saturation: &cs, brightness: &cb, alpha: &ca)
+            let adjustedCanvasSat = min(1.0, max(0.01, cs * vibrancy))
+            let newCanvas = Color(hue: ch, saturation: adjustedCanvasSat, brightness: cb)
+            
+            let baseSec = theme.baseSecondaryTextRGB
+            let newSec = Color(red: baseSec.0, green: baseSec.1, blue: baseSec.2)
+            
+            if accentColor != newAccent { accentColor = newAccent }
+            if structureColor != newStruct { structureColor = newStruct }
+            if canvasColor != newCanvas { canvasColor = newCanvas }
+            if secondaryTextColor != newSec { secondaryTextColor = newSec }
+            if paletteSource != theme.displayName { paletteSource = theme.displayName }
             return
         }
 
@@ -718,10 +701,10 @@ public struct DesignSystem {
     }
     
     // 60-30-10 Rule Dynamic Colors
-    public static var canvasColor: Color { currentTheme.canvasColor }
-    public static var structureColor: Color { currentTheme.structureColor }
-    public static var accentColor: Color { currentTheme.accentColor }
-    public static var secondaryText: Color { currentTheme.secondaryTextColor }
+    public static var canvasColor: Color { DynamicThemeEngine.shared.canvasColor }
+    public static var structureColor: Color { DynamicThemeEngine.shared.structureColor }
+    public static var accentColor: Color { DynamicThemeEngine.shared.accentColor }
+    public static var secondaryText: Color { DynamicThemeEngine.shared.secondaryTextColor }
     public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     
     public static let primaryText = Color.white
@@ -852,6 +835,8 @@ public struct CustomNotchShape: Shape {
 // Clean Glass Background (No outer shadow, crisp specular hairline reflection)
 public struct NotchGlassBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ObservedObject private var store = SettingsStore.shared
+    @ObservedObject private var themeEngine = DynamicThemeEngine.shared
     public var topRadius: CGFloat
     public var bottomRadius: CGFloat
     public var showsMaterial: Bool
@@ -863,55 +848,56 @@ public struct NotchGlassBackground: View {
     }
     
     public var body: some View {
-        let glassStyle = SettingsStore.shared.glassMaterialStyle
-        let glowEnabled = SettingsStore.shared.specularGlowEnabled
+        let glassStyle = store.glassMaterialStyle
+        let glowEnabled = store.specularGlowEnabled
         
         ZStack {
             if showsMaterial && !reduceTransparency {
-                if #available(macOS 26.0, *) {
-                    CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                        .fill(.clear)
-                        .glassEffect(.regular.tint(DesignSystem.canvasColor.opacity(0.18)), in: CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
-                        .transition(.opacity)
-                } else {
-                    let material: NSVisualEffectView.Material = (glassStyle == .crystal) ? .hudWindow : .headerView
-                    let canvasOpacity: Double = {
-                        switch glassStyle {
-                        case .frosted: return 0.58
-                        case .deepOLED: return 0.92
-                        case .luminous: return 0.42
-                        case .crystal: return 0.22
-                        }
-                    }()
-                    
-                    VisualEffectBlur(material: material, blendingMode: .behindWindow)
-                        .clipShape(CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
-                        .overlay(
-                            CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                                .fill(DesignSystem.canvasColor.opacity(canvasOpacity))
-                        )
-                        .overlay(
-                            Group {
-                                if glassStyle == .luminous {
-                                    CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [
-                                                    DesignSystem.accentColor.opacity(0.16),
-                                                    Color.clear
-                                                ],
-                                                startPoint: .top,
-                                                endPoint: .bottom
-                                            )
+                let material: NSVisualEffectView.Material = {
+                    switch glassStyle {
+                    case .frosted: return .hudWindow
+                    case .deepOLED: return .underWindowBackground
+                    case .luminous: return .hudWindow
+                    case .crystal: return .headerView
+                    }
+                }()
+                let canvasOpacity: Double = {
+                    switch glassStyle {
+                    case .frosted: return 0.58
+                    case .deepOLED: return 0.92
+                    case .luminous: return 0.38
+                    case .crystal: return 0.18
+                    }
+                }()
+                
+                VisualEffectBlur(material: material, blendingMode: .behindWindow)
+                    .clipShape(CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
+                    .overlay(
+                        CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+                            .fill(themeEngine.canvasColor.opacity(canvasOpacity))
+                    )
+                    .overlay(
+                        Group {
+                            if glassStyle == .luminous {
+                                CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                themeEngine.accentColor.opacity(0.24),
+                                                themeEngine.accentColor.opacity(0.04),
+                                                Color.clear
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom
                                         )
-                                }
+                                    )
                             }
-                        )
-                        .transition(.opacity)
-                }
+                        }
+                    )
+                    .transition(.opacity)
             } else {
                 CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                    .fill(DesignSystem.canvasColor.opacity(0.95))
+                    .fill(themeEngine.canvasColor.opacity(0.95))
                     .transition(.opacity)
             }
             
@@ -920,9 +906,9 @@ public struct NotchGlassBackground: View {
                 .stroke(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(glowEnabled ? 0.32 : 0.18),
-                            DesignSystem.accentColor.opacity(glowEnabled ? 0.35 : 0.15),
-                            Color.white.opacity(0.08)
+                            Color.white.opacity(glowEnabled ? 0.38 : 0.18),
+                            themeEngine.accentColor.opacity(glowEnabled ? 0.42 : 0.14),
+                            Color.white.opacity(0.06)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
