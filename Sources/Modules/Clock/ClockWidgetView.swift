@@ -26,137 +26,30 @@ public struct ClockWidgetView: View {
     // MARK: - 1-Space Mode
     @ViewBuilder
     private func oneSpaceView(date: Date) -> some View {
-        GeometryReader { geo in
-            let isCompact = geo.size.width < 165
-            if isCompact {
-                VStack(spacing: 6) {
-                    if store.clockDialStyle == .analog {
-                        let dialSize = max(44, min(geo.size.width - 24, 70))
-                        AnalogClockFace(date: date, showSeconds: store.clockShowSeconds, size: dialSize)
-                            .frame(width: dialSize, height: dialSize)
-                        
-                        VStack(spacing: 2) {
-                            Text(digitalTimeString(date))
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            
-                            Text(dayOfWeekString(date).uppercased() + " " + dateFormattedString(date))
-                                .font(.system(size: 8.5, weight: .medium))
-                                .foregroundColor(DesignSystem.secondaryText)
-                                .lineLimit(1)
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock.fill")
-                                    .font(.system(size: 9.5))
-                                    .foregroundColor(Color(red: 0.35, green: 0.85, blue: 0.65))
-                                Text(dayOfWeekString(date).uppercased())
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                                    .lineLimit(1)
-                            }
-                            
-                            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                Text(digitalHourMinuteString(date))
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                
-                                if store.clockShowSeconds {
-                                    Text(":\(secondString(date))")
-                                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                        .foregroundColor(Color(red: 0.35, green: 0.85, blue: 0.65))
-                                        .lineLimit(1)
-                                }
-                            }
-                            
-                            Text(dateFormattedString(date))
-                                .font(.system(size: 8.5, weight: .medium))
-                                .foregroundColor(DesignSystem.secondaryText)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                HStack(spacing: 12) {
-                    if store.clockDialStyle == .analog {
-                        // Analog Mini Face
-                        AnalogClockFace(date: date, showSeconds: store.clockShowSeconds, size: 84)
-                            .frame(width: 84, height: 84)
-                        
-                        // Adjacent Info
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(dayOfWeekString(date).uppercased())
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundColor(Color(red: 0.35, green: 0.85, blue: 0.65))
-                                .lineLimit(1)
-                            
-                            Text(digitalTimeString(date))
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            
-                            Text(dateFormattedString(date))
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(DesignSystem.secondaryText)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                    } else {
-                        // Digital Face
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "clock.fill")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.35, green: 0.85, blue: 0.65))
-                                Text(dayOfWeekString(date).uppercased())
-                                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                                    .lineLimit(1)
-                                
-                                Spacer()
-                                
-                                if !store.clockIs24Hour {
-                                    Text(amPmString(date))
-                                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Capsule().fill(Color(red: 0.35, green: 0.85, blue: 0.65).opacity(0.25)))
-                                }
-                            }
-                            
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Text(digitalHourMinuteString(date))
-                                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                
-                                if store.clockShowSeconds {
-                                    Text(":\(secondString(date))")
-                                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                                        .foregroundColor(Color(red: 0.35, green: 0.85, blue: 0.65))
-                                        .lineLimit(1)
-                                }
-                            }
-                            
-                            Text(dateFormattedString(date))
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(DesignSystem.secondaryText)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+        VStack(spacing: 6) {
+            // Centered analog quartz dial (70pt) with smooth sweeping second hand
+            AnalogClockFace(date: date, showSeconds: store.clockShowSeconds, size: 70)
+                .frame(width: 70, height: 70)
+            
+            // Bold digital readout
+            Text(digitalTimeString(date))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            
+            // Day/date pill
+            Text(dayOfWeekString(date).uppercased() + " · " + dateFormattedString(date))
+                .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                .foregroundColor(DesignSystem.secondaryText)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2.5)
+                .background(Capsule().fill(Color.white.opacity(0.08)))
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(10)
-        .frame(maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
                 .fill(DesignSystem.cardFill)

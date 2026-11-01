@@ -58,8 +58,8 @@ public struct NotesWidgetView: View {
     // MARK: - 1-Space Mode (Compact Tile)
     private var oneSpaceView: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Header bar
-            HStack(spacing: 6) {
+            // Header: Note icon + Text("Notes") + Spacer() + Text("\(wordCount)w")
+            HStack(spacing: 5) {
                 Image(systemName: "note.text")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(red: 0.98, green: 0.72, blue: 0.20))
@@ -67,18 +67,52 @@ public struct NotesWidgetView: View {
                 Text("Notes")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 
                 Spacer()
                 
-                // Words/Chars badge
                 Text("\(wordCount)w")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(DesignSystem.secondaryText)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.white.opacity(0.08)))
-                
-                // Key Sound button
+            }
+            
+            // Body: CustomTextEditor filling available height
+            ZStack(alignment: .topLeading) {
+                if uiState.showUndoClear {
+                    HStack(spacing: 6) {
+                        Text("Note cleared")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(DesignSystem.secondaryText)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                        
+                        Spacer()
+                        
+                        Button("Undo") {
+                            undoClear()
+                        }
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(DesignSystem.accentColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(DesignSystem.accentColor.opacity(0.2)))
+                        .buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    CustomTextEditor(text: $uiState.text, placeholder: "Type note...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            
+            // Bottom Action Bar: Sound button on left, Spacer(), Copy button and Clear button on right
+            HStack(spacing: 8) {
                 Button {
                     FeedbackManager.playClick()
                     if thock.isRunning {
@@ -88,13 +122,14 @@ public struct NotesWidgetView: View {
                     }
                 } label: {
                     Image(systemName: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
                 }
                 .buttonStyle(.plain)
                 .help(thock.isRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
                 
-                // Copy button
+                Spacer()
+                
                 Button {
                     copyToClipboard()
                 } label: {
@@ -103,8 +138,8 @@ public struct NotesWidgetView: View {
                         .foregroundColor(uiState.isCopied ? .green : DesignSystem.secondaryText)
                 }
                 .buttonStyle(.plain)
+                .help("Copy notes")
                 
-                // Clear button
                 Button {
                     clearNotes()
                 } label: {
@@ -113,34 +148,9 @@ public struct NotesWidgetView: View {
                         .foregroundColor(DesignSystem.secondaryText)
                 }
                 .buttonStyle(.plain)
+                .help("Clear notes")
             }
-            
-            // Text Editor or Undo Overlay
-            ZStack(alignment: .topLeading) {
-                if uiState.showUndoClear {
-                    HStack(spacing: 8) {
-                        Text("Note cleared")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(DesignSystem.secondaryText)
-                        
-                        Spacer()
-                        
-                        Button("Undo") {
-                            undoClear()
-                        }
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(DesignSystem.accentColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(DesignSystem.accentColor.opacity(0.2)))
-                        .buttonStyle(.plain)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    CustomTextEditor(text: $uiState.text, placeholder: "Type a quick thought...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
+            .padding(.top, 2)
         }
         .padding(10)
         .background(

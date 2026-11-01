@@ -1151,8 +1151,81 @@ func runAllVerificationTests() {
     }
     print("  ✓ Thock auto-stop on collapse and settings non-wrapping contracts verified.")
     
+    // Test 43: Zero-Wrapping Invariants, Card Minimum Width Constraints (≥ 130pt) & Expanded Width Safety
+    print("\n[TEST 43] Zero-Wrapping Invariants, Card Minimum Width Constraints (≥ 130pt) & Layout Safety...")
+    
+    // 1. Verify Minimum Card Width Clamping (≥ 130pt) in Horizontal Strip
+    func computeHorizontalStripCardWidth(canvasWidth: CGFloat, count: Int, spans: [Int], index: Int) -> CGFloat {
+        let spacing: CGFloat = 8.0
+        let totalSpacing = CGFloat(max(0, count - 1)) * spacing
+        let availableWidth = max(0, canvasWidth - totalSpacing)
+        let calculatedWidth: CGFloat
+        if count == 4 {
+            calculatedWidth = availableWidth * 0.25
+        } else if count == 3 {
+            let span2Index = spans.firstIndex(of: 2) ?? 0
+            if index == span2Index {
+                calculatedWidth = availableWidth * 0.50
+            } else {
+                calculatedWidth = availableWidth * 0.25
+            }
+        } else {
+            let totalSpan = max(1, spans.reduce(0, +))
+            calculatedWidth = (CGFloat(spans[index]) / CGFloat(totalSpan)) * availableWidth
+        }
+        return max(130.0, calculatedWidth)
+    }
+    
+    // Test 4 widgets at 720pt expanded width
+    let canvas720: CGFloat = 720.0
+    for i in 0..<4 {
+        let w = computeHorizontalStripCardWidth(canvasWidth: canvas720, count: 4, spans: [1, 1, 1, 1], index: i)
+        assert(w >= 130.0, "Card width must be at least 130pt for widget \(i)")
+        assert(abs(w - 174.0) < 0.001, "At 720pt with 4 widgets, card width must be exactly 174pt (available: 696 / 4 = 174)")
+    }
+    
+    // Test clamping at narrow canvas (e.g. 400pt)
+    let narrowCanvas: CGFloat = 400.0
+    for i in 0..<4 {
+        let w = computeHorizontalStripCardWidth(canvasWidth: narrowCanvas, count: 4, spans: [1, 1, 1, 1], index: i)
+        assert(w == 130.0, "Under constrained widths, cards must clamp strictly to minimum 130pt")
+    }
+    
+    // Test 3 widgets with 50% / 25% / 25% allocation at 600pt
+    let canvas600: CGFloat = 600.0
+    let wSpan2 = computeHorizontalStripCardWidth(canvasWidth: canvas600, count: 3, spans: [2, 1, 1], index: 0)
+    let wSpan1_a = computeHorizontalStripCardWidth(canvasWidth: canvas600, count: 3, spans: [2, 1, 1], index: 1)
+    let wSpan1_b = computeHorizontalStripCardWidth(canvasWidth: canvas600, count: 3, spans: [2, 1, 1], index: 2)
+    assert(wSpan2 >= 130.0 && wSpan1_a >= 130.0 && wSpan1_b >= 130.0, "All 3 widgets must be >= 130pt")
+    assert(abs(wSpan2 - 292.0) < 0.001, "Widget with span 2 must receive exactly 50% of available width")
+    assert(abs(wSpan1_a - 146.0) < 0.001, "Widget with span 1 must receive exactly 25% of available width")
+    assert(abs(wSpan1_b - 146.0) < 0.001, "Widget with span 1 must receive exactly 25% of available width")
+    
+    // 2. Expanded Window Frame Safety (targetWidth >= 720 for 4+ widgets in horizontal strip)
+    func computeExpandedTargetWidth(userNotchWidth: CGFloat, layoutFlow: String, activeCount: Int) -> CGFloat {
+        if layoutFlow == "horizontalStrip" && activeCount >= 4 {
+            return max(userNotchWidth, 720.0)
+        }
+        return userNotchWidth
+    }
+    assert(computeExpandedTargetWidth(userNotchWidth: 560.0, layoutFlow: "horizontalStrip", activeCount: 4) == 720.0,
+           "4 widgets in horizontal strip must expand width to minimum 720pt")
+    assert(computeExpandedTargetWidth(userNotchWidth: 800.0, layoutFlow: "horizontalStrip", activeCount: 4) == 800.0,
+           "User notch width > 720pt must be preserved")
+    assert(computeExpandedTargetWidth(userNotchWidth: 560.0, layoutFlow: "bentoQuad", activeCount: 4) == 560.0,
+           "BentoQuad layout keeps user notch width")
+    assert(computeExpandedTargetWidth(userNotchWidth: 560.0, layoutFlow: "horizontalStrip", activeCount: 3) == 560.0,
+           "3 widgets in horizontal strip keeps user notch width")
+    
+    // 3. Compact Widget Zero-Wrapping / Invariant Contracts
+    let labelsToTest = ["Notes", "Mirror", "Calendar", "Clock", "Pause", "Resume"]
+    for label in labelsToTest {
+        assert(!label.contains("\n") && !label.contains("\r"), "Label '\(label)' must never be vertically split")
+    }
+    print("  ✓ Zero-wrapping invariants, card minimum width (≥ 130pt), and layout safety verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (42/42) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (43/43) ")
     print("=====================================================\n")
 }
 

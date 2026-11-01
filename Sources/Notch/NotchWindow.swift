@@ -116,7 +116,11 @@ public final class NotchPanel: NSPanel {
         let targetHeight: CGFloat
         
         if state == .expanded {
-            targetWidth = store.notchWidth
+            if store.dashboardLayoutFlow == .horizontalStrip && store.activeDashboardWidgets.count >= 4 {
+                targetWidth = max(store.notchWidth, 720.0)
+            } else {
+                targetWidth = store.notchWidth
+            }
             targetHeight = store.notchHeight
         } else {
             let baseWidth = geometry.physicalNotchWidth + 24.0

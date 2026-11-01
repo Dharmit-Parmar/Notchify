@@ -371,8 +371,8 @@ public struct CalendarMiniGlanceView: View {
     
     private var weekdayAbbrev: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
-        return formatter.string(from: todayDate).uppercased()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: todayDate)
     }
     
     private var nextEvent: CalendarEventItem? {
@@ -383,91 +383,91 @@ public struct CalendarMiniGlanceView: View {
     }
     
     public var body: some View {
-        HStack(spacing: 12) {
-            // Left Date Badge (iOS Calendar style)
-            VStack(spacing: 0) {
+        VStack(spacing: 6) {
+            // Top: Month Badge & App Launcher
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Color(red: 0.95, green: 0.28, blue: 0.32))
+                
                 Text(monthAbbrev)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 2.5)
-                    .background(Color(red: 0.95, green: 0.28, blue: 0.32))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.95, green: 0.28, blue: 0.32))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 
-                VStack(spacing: 0) {
-                    Text(dayNumber)
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Text(weekdayAbbrev)
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black.opacity(0.4))
-            }
-            .frame(width: 58, height: 68)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
-            )
-            
-            // Right Agenda / Upcoming Details
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("UPCOMING")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(DesignSystem.secondaryText)
-                    
-                    Spacer()
-                    
-                    Button {
-                        if let url = URL(string: "calshow:") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up.forward.app")
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundColor(DesignSystem.secondaryText)
+                Spacer()
+                
+                Button {
+                    if let url = URL(string: "calshow:") {
+                        NSWorkspace.shared.open(url)
                     }
-                    .buttonStyle(.plain)
-                    .help("Open Calendar.app")
+                } label: {
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(DesignSystem.secondaryText)
                 }
+                .buttonStyle(.plain)
+                .help("Open Calendar.app")
+            }
+            
+            // Center: Large bold day numeral + weekday
+            VStack(spacing: 1) {
+                Text(dayNumber)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 
+                Text(weekdayAbbrev)
+                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(DesignSystem.secondaryText)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Bottom: Upcoming Event Capsule
+            HStack(spacing: 5) {
                 if let event = nextEvent {
+                    Circle()
+                        .fill(event.color)
+                        .frame(width: 5, height: 5)
                     Text(event.title)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 9.5, weight: .medium))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                    
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(event.color)
-                            .frame(width: 5, height: 5)
-                        Text(event.timeString)
-                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                            .foregroundColor(DesignSystem.secondaryText)
-                    }
-                } else {
-                    Text("No upcoming events")
-                        .font(.system(size: 10.5, weight: .medium))
+                    Spacer(minLength: 0)
+                    Text(event.timeString)
+                        .font(.system(size: 8.5, weight: .medium, design: .monospaced))
                         .foregroundColor(DesignSystem.secondaryText)
-                    Text("Enjoy your clear day")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.tertiaryText)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.green)
+                    Text("No events")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(DesignSystem.secondaryText)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Spacer()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.white.opacity(0.08)))
         }
         .padding(10)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                .fill(DesignSystem.cardGradient)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+                .fill(DesignSystem.cardFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                        .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.9)
+                )
         )
     }
 }

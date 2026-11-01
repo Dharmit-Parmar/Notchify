@@ -240,16 +240,35 @@ public struct MirrorCompactTileView: View {
     @ObservedObject var module: MirrorModule = MirrorModule.shared
     
     public var body: some View {
-        HStack(spacing: 12) {
-            // Live Squircle Preview
+        VStack(spacing: 8) {
+            // Header: Camera icon + Text("Mirror") + Spacer() + status dot
+            HStack(spacing: 5) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(red: 0.98, green: 0.72, blue: 0.20))
+                
+                Text("Mirror")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                
+                Spacer()
+                
+                Circle()
+                    .fill(module.isRunning ? Color.green : Color.orange)
+                    .frame(width: 6, height: 6)
+            }
+            
+            // Center: 76×76 camera preview squircle (corner radius 12) with subtle 0.9pt border
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.black.opacity(0.85))
-                    .frame(width: 80, height: 80)
+                    .frame(width: 76, height: 76)
                 
                 CameraLivePreview(session: module.manager.captureSession)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .frame(width: 80, height: 80)
+                    .frame(width: 76, height: 76)
                     .opacity(module.isRunning ? 1 : 0)
                 
                 if !module.isRunning {
@@ -263,54 +282,39 @@ public struct MirrorCompactTileView: View {
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.9)
             )
             
-            // Mirror Controls & Status
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 5) {
+            // Bottom: Centered capsule button [ ● Pause ] / [ ● Resume ]
+            Button(action: {
+                if module.isRunning {
+                    module.stop()
+                } else {
+                    module.start()
+                }
+            }) {
+                HStack(spacing: 4) {
                     Circle()
                         .fill(module.isRunning ? Color.green : Color.orange)
-                        .frame(width: 6, height: 6)
-                    Text(module.isRunning ? "MIRROR ACTIVE" : "MIRROR PAUSED")
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundColor(module.isRunning ? .green : DesignSystem.secondaryText)
-                }
-                
-                Text("Quick Glance")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                
-                Text("Look sharp before meetings")
-                    .font(.system(size: 9.5))
-                    .foregroundColor(DesignSystem.secondaryText)
-                    .lineLimit(1)
-                
-                Button(action: {
-                    if module.isRunning {
-                        module.stop()
-                    } else {
-                        module.start()
-                    }
-                }) {
+                        .frame(width: 5, height: 5)
                     Text(module.isRunning ? "Pause" : "Resume")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.white.opacity(0.12)))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3.5)
+                .background(Capsule().fill(Color.white.opacity(0.12)))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
         }
         .padding(10)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                .fill(DesignSystem.cardGradient)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+                .fill(DesignSystem.cardFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                        .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.9)
+                )
         )
         .onAppear { module.start() }
         .onDisappear { module.stop() }

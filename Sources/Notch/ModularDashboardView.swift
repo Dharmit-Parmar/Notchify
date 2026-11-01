@@ -53,16 +53,32 @@ public struct ModularDashboardView: View {
             let spacing: CGFloat = 8.0
             let totalSpacing = CGFloat(max(0, count - 1)) * spacing
             let availableWidth = max(0, geo.size.width - totalSpacing)
-            let totalSpan = widgets.reduce(0) { $0 + store.span(for: $1) }
-            let safeTotalSpan = max(1, totalSpan)
             
             HStack(spacing: spacing) {
                 ForEach(widgets) { widget in
-                    let widgetSpan = store.span(for: widget)
-                    let widgetWidth = (CGFloat(widgetSpan) / CGFloat(safeTotalSpan)) * availableWidth
+                    let (widgetSpan, widgetWidth): (Int, CGFloat) = {
+                        if count == 4 {
+                            // Enforce equal 25% share for each widget (widgetSpan = 1) in compact glance
+                            return (1, availableWidth * 0.25)
+                        } else if count == 3 {
+                            // Allocate 50% width to the widget with span 2 and 25% each to the other two widgets
+                            let span2Index = widgets.firstIndex(where: { store.span(for: $0) == 2 }) ?? 0
+                            if widget == widgets[span2Index] {
+                                return (2, availableWidth * 0.50)
+                            } else {
+                                return (1, availableWidth * 0.25)
+                            }
+                        } else {
+                            let totalSpan = widgets.reduce(0) { $0 + store.span(for: $1) }
+                            let safeTotalSpan = max(1, totalSpan)
+                            let span = store.span(for: widget)
+                            let width = (CGFloat(span) / CGFloat(safeTotalSpan)) * availableWidth
+                            return (span, width)
+                        }
+                    }()
                     
                     Self.renderWidget(type: widget, span: widgetSpan)
-                        .frame(width: max(60, widgetWidth), height: geo.size.height)
+                        .frame(width: max(130, widgetWidth), height: geo.size.height)
                 }
             }
         }
