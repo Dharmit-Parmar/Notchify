@@ -32,6 +32,7 @@ public final class NotchShellCoordinator: ObservableObject {
     private var hoverWorkItem: DispatchWorkItem?
     private var collapseWorkItem: DispatchWorkItem?
     private var expandedWatchdog: Timer?
+    private var cachedExpandedRect: NSRect = .zero
     
     private init() {
         NotificationCenter.default.addObserver(
@@ -119,6 +120,14 @@ public final class NotchShellCoordinator: ObservableObject {
         stopExpandedWatchdog()
         guard state == .expanded, !isLockedOpen else { return }
         
+        if let panel = self.panel {
+            cachedExpandedRect = NotchPanel.calculateFrame(
+                for: .expanded,
+                store: SettingsStore.shared,
+                screen: panel.currentScreen
+            )
+        }
+        
         // 0.15s interval: highly responsive to cursor without thrashing CPU
         let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -129,12 +138,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 }
                 guard let panel = self.panel else { return }
                 let mouseLoc = NSEvent.mouseLocation
-                let expandedRect = NotchPanel.calculateFrame(
-                    for: .expanded,
-                    store: SettingsStore.shared,
-                    screen: panel.currentScreen
-                )
-                let effectiveBounds = panel.frame.union(expandedRect)
+                let effectiveBounds = panel.frame.union(self.cachedExpandedRect)
                 let containsMouse = effectiveBounds.contains(mouseLoc)
                 
                 if !containsMouse {
@@ -332,6 +336,7 @@ public final class NotchShellCoordinator: ObservableObject {
         }
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
         ModuleRegistry.shared.stopAll()
+        NoteStorageManager.shared.saveImmediately()
         if ThockModule.shared.isRunning {
             ThockModule.shared.stopEngine()
         }

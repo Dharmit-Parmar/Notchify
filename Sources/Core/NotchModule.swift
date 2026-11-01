@@ -157,9 +157,10 @@ public class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(clockShowSeconds, forKey: "NotchApp_ClockShowSeconds") }
     }
     
-    // Quick Notes Persistence
-    @Published public var quickNotesText: String = "" {
-        didSet { UserDefaults.standard.set(quickNotesText, forKey: "NotchApp_QuickNotesText") }
+    // Quick Notes Persistence (Debounced & Managed via NoteStorageManager to prevent full UI invalidation)
+    public var quickNotesText: String {
+        get { NoteStorageManager.shared.text }
+        set { NoteStorageManager.shared.text = newValue }
     }
     
     // Geometry & Layout: allow generous breathing room for tools and calendar

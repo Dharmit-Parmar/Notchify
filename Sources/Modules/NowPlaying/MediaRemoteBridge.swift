@@ -36,12 +36,12 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     private var cachedBundleId: String? = nil
     private var cachedAppIcon: NSImage? = nil
     private var cachedIsPlaying: Bool = false
-    private var cachedArtworkData: Data?
+    private var cachedArtworkHash: Int = 0
     private var cachedArtworkImage: NSImage?
     private var appIconCache: [String: NSImage] = [:]
     
     public func clearCachedArtwork() {
-        cachedArtworkData = nil
+        cachedArtworkHash = 0
         cachedArtworkImage = nil
         cachedAppIcon = nil
         if appIconCache.count > 5 {
@@ -139,8 +139,9 @@ public final class MediaRemoteBridge: @unchecked Sendable {
             
             var directArt: NSImage? = nil
             if let artData = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data, !artData.isEmpty {
-                if self.cachedArtworkData?.count != artData.count || self.cachedArtworkData != artData {
-                    self.cachedArtworkData = artData
+                let artHash = artData.count ^ (artData.prefix(32).hashValue)
+                if self.cachedArtworkHash != artHash {
+                    self.cachedArtworkHash = artHash
                     self.cachedArtworkImage = Self.makeArtworkImage(from: artData)
                 }
                 directArt = self.cachedArtworkImage
@@ -195,8 +196,9 @@ public final class MediaRemoteBridge: @unchecked Sendable {
                     if let obj = artworkObj as? NSObject,
                        let data = obj.value(forKey: "imageData") as? Data,
                        !data.isEmpty {
-                        if self.cachedArtworkData?.count != data.count || self.cachedArtworkData != data {
-                            self.cachedArtworkData = data
+                        let artHash = data.count ^ (data.prefix(32).hashValue)
+                        if self.cachedArtworkHash != artHash {
+                            self.cachedArtworkHash = artHash
                             self.cachedArtworkImage = Self.makeArtworkImage(from: data)
                         }
                         retrievedImage = self.cachedArtworkImage

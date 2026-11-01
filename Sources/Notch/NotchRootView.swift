@@ -653,7 +653,7 @@ private struct CompactNotchIndicator: View {
     }
     
     private var dateTimeIndicator: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+        TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
             HStack(spacing: 6) {
                 Image(systemName: "calendar")
                     .font(.system(size: 9))
@@ -679,7 +679,7 @@ private struct CompactNotchIndicator: View {
                 .foregroundColor(.white)
                 .lineLimit(1)
             Spacer()
-            TimelineView(.periodic(from: .now, by: 1.0)) { timeline in
+            TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
                 Text(timeline.date.formatted(date: .omitted, time: .shortened))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(DesignSystem.secondaryText)

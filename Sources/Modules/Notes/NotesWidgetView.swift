@@ -1,22 +1,19 @@
 import SwiftUI
 import AppKit
 
-import SwiftUI
-import AppKit
-
 @MainActor
 final class NotesUIState: ObservableObject {
-    @Published var text: String = ""
     @Published var isCopied: Bool = false
     @Published var showUndoClear: Bool = false
+    @Published var isThockRunning: Bool = ThockModule.shared.isRunning
     var previousTextBeforeClear: String = ""
     var undoTimer: Timer? = nil
 }
 
 public struct NotesWidgetView: View {
-    @ObservedObject private var store = SettingsStore.shared
-    @ObservedObject private var thock = ThockModule.shared
+    @ObservedObject private var noteStorage = NoteStorageManager.shared
     @StateObject private var uiState = NotesUIState()
+    
     public var span: Int // 1, 2, or 4 spaces
     
     public init(span: Int = 1) {
@@ -24,11 +21,11 @@ public struct NotesWidgetView: View {
     }
     
     private var wordCount: Int {
-        uiState.text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        noteStorage.text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
     
     private var charCount: Int {
-        uiState.text.count
+        noteStorage.text.count
     }
     
     public var body: some View {
@@ -41,17 +38,16 @@ public struct NotesWidgetView: View {
                 fourSpaceView
             }
         }
-        .onAppear {
-            self.uiState.text = store.quickNotesText
+        .onReceive(ThockModule.shared.$isRunning) { running in
+            self.uiState.isThockRunning = running
         }
         .onDisappear {
-            // Guarantee typing sounds stop immediately when Note is closed or collapsed
+            // Immediate save when collapsing or navigating away
+            noteStorage.saveImmediately()
+            // Stop typing sounds when Notes widget is hidden or collapsed
             if ThockModule.shared.isRunning {
                 ThockModule.shared.stopEngine()
             }
-        }
-        .onChange(of: uiState.text) { _, newValue in
-            store.quickNotesText = newValue
         }
     }
     
@@ -106,7 +102,7 @@ public struct NotesWidgetView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    CustomTextEditor(text: $uiState.text, placeholder: "Type note...")
+                    editorWithPlaceholder(placeholder: "Type note...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
@@ -115,18 +111,18 @@ public struct NotesWidgetView: View {
             HStack(spacing: 8) {
                 Button {
                     FeedbackManager.playClick()
-                    if thock.isRunning {
-                        thock.stopEngine()
+                    if uiState.isThockRunning {
+                        ThockModule.shared.stopEngine()
                     } else {
-                        thock.startEngine()
+                        ThockModule.shared.startEngine()
                     }
                 } label: {
-                    Image(systemName: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
+                    Image(systemName: uiState.isThockRunning ? "speaker.wave.2.fill" : "speaker.slash")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
+                        .foregroundColor(uiState.isThockRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
                 }
                 .buttonStyle(.plain)
-                .help(thock.isRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
+                .help(uiState.isThockRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
                 
                 Spacer()
                 
@@ -191,20 +187,20 @@ public struct NotesWidgetView: View {
                 // Key Sound button
                 Button {
                     FeedbackManager.playClick()
-                    if thock.isRunning {
-                        thock.stopEngine()
+                    if uiState.isThockRunning {
+                        ThockModule.shared.stopEngine()
                     } else {
-                        thock.startEngine()
+                        ThockModule.shared.startEngine()
                     }
                 } label: {
-                    Image(systemName: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
+                    Image(systemName: uiState.isThockRunning ? "speaker.wave.2.fill" : "speaker.slash")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
+                        .foregroundColor(uiState.isThockRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : DesignSystem.secondaryText)
                         .frame(width: 22, height: 22)
                         .background(Circle().fill(Color.white.opacity(0.08)))
                 }
                 .buttonStyle(.plain)
-                .help(thock.isRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
+                .help(uiState.isThockRunning ? "Mechanical key sound active (auto-stops on close)" : "Turn on typing sound")
                 
                 // Bullet point button
                 Button {
@@ -266,7 +262,7 @@ public struct NotesWidgetView: View {
             }
             
             // Richer Editor
-            CustomTextEditor(text: $uiState.text, placeholder: "Capture quick tasks, links, snippets, or meeting notes...")
+            editorWithPlaceholder(placeholder: "Capture quick tasks, links, snippets, or meeting notes...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(12)
@@ -315,15 +311,15 @@ public struct NotesWidgetView: View {
                 HStack(spacing: 8) {
                     Button {
                         FeedbackManager.playClick()
-                        if thock.isRunning {
-                            thock.stopEngine()
+                        if uiState.isThockRunning {
+                            ThockModule.shared.stopEngine()
                         } else {
-                            thock.startEngine()
+                            ThockModule.shared.startEngine()
                         }
                     } label: {
-                        Label(thock.isRunning ? "Sound ON" : "Sound OFF", systemImage: thock.isRunning ? "speaker.wave.2.fill" : "speaker.slash")
+                        Label(uiState.isThockRunning ? "Sound ON" : "Sound OFF", systemImage: uiState.isThockRunning ? "speaker.wave.2.fill" : "speaker.slash")
                             .font(.system(size: 10.5, weight: .medium))
-                            .foregroundColor(thock.isRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : .white)
+                            .foregroundColor(uiState.isThockRunning ? Color(red: 0.98, green: 0.72, blue: 0.20) : .white)
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 8)
@@ -360,7 +356,7 @@ public struct NotesWidgetView: View {
             Divider().background(Color.white.opacity(0.12))
             
             // Right wide editor
-            CustomTextEditor(text: $uiState.text, placeholder: "Write anything... thoughts, code snippets, temporary credentials, or to-dos.")
+            editorWithPlaceholder(placeholder: "Write anything... thoughts, code snippets, temporary credentials, or to-dos.")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(12)
@@ -374,10 +370,26 @@ public struct NotesWidgetView: View {
         )
     }
     
+    // MARK: - Editor with Placeholder Helper
+    @ViewBuilder
+    private func editorWithPlaceholder(placeholder: String) -> some View {
+        ZStack(alignment: .topLeading) {
+            if noteStorage.text.isEmpty {
+                Text(placeholder)
+                    .font(.system(size: 11.5, weight: .regular))
+                    .foregroundColor(DesignSystem.secondaryText.opacity(0.6))
+                    .padding(.top, 2)
+                    .padding(.leading, 1)
+                    .allowsHitTesting(false)
+            }
+            CustomTextEditor(text: $noteStorage.text, placeholder: placeholder)
+        }
+    }
+    
     // MARK: - Actions
     private func copyToClipboard() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(uiState.text, forType: .string)
+        NSPasteboard.general.setString(noteStorage.text, forType: .string)
         FeedbackManager.playClick()
         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
             uiState.isCopied = true
@@ -390,9 +402,9 @@ public struct NotesWidgetView: View {
     }
     
     private func clearNotes() {
-        guard !uiState.text.isEmpty else { return }
-        uiState.previousTextBeforeClear = uiState.text
-        uiState.text = ""
+        guard !noteStorage.text.isEmpty else { return }
+        uiState.previousTextBeforeClear = noteStorage.text
+        noteStorage.clear()
         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
             uiState.showUndoClear = true
         }
@@ -408,23 +420,24 @@ public struct NotesWidgetView: View {
     
     private func undoClear() {
         uiState.undoTimer?.invalidate()
-        uiState.text = uiState.previousTextBeforeClear
+        noteStorage.text = uiState.previousTextBeforeClear
         uiState.previousTextBeforeClear = ""
         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
             uiState.showUndoClear = false
         }
+        noteStorage.saveImmediately()
     }
     
     private func insertBullet() {
-        if uiState.text.isEmpty || uiState.text.hasSuffix("\n") {
-            uiState.text += "• "
+        if noteStorage.text.isEmpty || noteStorage.text.hasSuffix("\n") {
+            noteStorage.text += "• "
         } else {
-            uiState.text += "\n• "
+            noteStorage.text += "\n• "
         }
     }
 }
 
-// MARK: - AppKit Native CustomTextEditor for Flawless macOS Typing
+// MARK: - AppKit Native CustomTextEditor for Flawless, Thermal-Safe macOS Typing
 struct CustomTextEditor: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String = ""
@@ -474,7 +487,9 @@ struct CustomTextEditor: NSViewRepresentable {
         
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            parent.text = textView.string
+            if parent.text != textView.string {
+                parent.text = textView.string
+            }
         }
     }
 }

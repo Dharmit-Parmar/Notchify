@@ -544,7 +544,12 @@ public final class ThockModule: NotchModule {
         
         outP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty, let rawStr = String(data: data, encoding: .utf8) else { return }
+            guard !data.isEmpty else {
+                // EOF reached: disable handler immediately to halt GCD spin
+                handle.readabilityHandler = nil
+                return
+            }
+            guard let rawStr = String(data: data, encoding: .utf8) else { return }
             let clean: String
             if let regex = Self.ansiRegex {
                 let range = NSRange(location: 0, length: rawStr.utf16.count)
@@ -815,6 +820,10 @@ public final class ThockModule: NotchModule {
     
     // MARK: - Internal Helpers
     private func appendLog(_ text: String) {
+        // Thermal & UI Optimization: Only accumulate and broadcast terminal logs when user is viewing CLI Terminal!
+        // This avoids dozens of MainActor publisher emissions per second during fast typing.
+        guard selectedSection == .terminal else { return }
+        
         let lines = text.components(separatedBy: .newlines)
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)

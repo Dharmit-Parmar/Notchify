@@ -59,18 +59,9 @@ public final class CameraSessionManager: @unchecked Sendable {
     public func stop(completion: @escaping @MainActor @Sendable () -> Void) {
         queue.async { [weak self] in
             guard let self = self else { return }
-            if let session = self.captureSession {
-                if session.isRunning {
-                    session.stopRunning()
-                }
-                session.beginConfiguration()
-                for input in session.inputs {
-                    session.removeInput(input)
-                }
-                session.commitConfiguration()
+            if let session = self.captureSession, session.isRunning {
+                session.stopRunning()
             }
-            self.captureSession = nil
-            self.isConfigured = false
             DispatchQueue.main.async {
                 completion()
             }
@@ -88,6 +79,7 @@ public final class MirrorModule: NotchModule {
     @Published public var isEnabled: Bool = true
     
     @Published public var isRunning: Bool = false
+    @Published public var isUserPaused: Bool = false
     @Published public var hasPermission: Bool = false
     @Published public var errorMessage: String? = nil
     
@@ -99,7 +91,7 @@ public final class MirrorModule: NotchModule {
     }
     
     public func start() {
-        guard !isActive else { return }
+        guard !isActive, !isUserPaused else { return }
         isActive = true
         checkPermissionAndStart()
     }
@@ -109,6 +101,16 @@ public final class MirrorModule: NotchModule {
         isActive = false
         manager.stop { [weak self] in
             self?.isRunning = false
+        }
+    }
+    
+    public func togglePause() {
+        if isRunning {
+            isUserPaused = true
+            stop()
+        } else {
+            isUserPaused = false
+            start()
         }
     }
     
@@ -284,11 +286,7 @@ public struct MirrorCompactTileView: View {
             
             // Bottom: Centered capsule button [ ● Pause ] / [ ● Resume ]
             Button(action: {
-                if module.isRunning {
-                    module.stop()
-                } else {
-                    module.start()
-                }
+                module.togglePause()
             }) {
                 HStack(spacing: 4) {
                     Circle()
@@ -356,16 +354,12 @@ public struct CameraLivePreview: NSViewRepresentable {
     
     public func makeNSView(context: Context) -> CameraHostingNSView {
         let view = CameraHostingNSView()
-        if let s = session {
-            view.setSession(s)
-        }
+        view.setSession(session)
         return view
     }
     
     public func updateNSView(_ nsView: CameraHostingNSView, context: Context) {
-        if let s = session {
-            nsView.setSession(s)
-        }
+        nsView.setSession(session)
     }
 }
 
@@ -387,7 +381,7 @@ public final class CameraHostingNSView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public func setSession(_ session: AVCaptureSession) {
+    public func setSession(_ session: AVCaptureSession?) {
         if previewLayer?.session !== session {
             previewLayer?.session = session
         }

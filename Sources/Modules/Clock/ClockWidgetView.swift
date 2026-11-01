@@ -1,15 +1,103 @@
 import SwiftUI
 
+// MARK: - Zero-Allocation Static Date Formatters
+private enum ClockFormatters {
+    static let time24WithSeconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+    
+    static let time24NoSeconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+    
+    static let time12WithSeconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm:ss a"
+        return f
+    }()
+    
+    static let time12NoSeconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f
+    }()
+    
+    static let hourMinute24: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+    
+    static let hourMinute12: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm"
+        return f
+    }()
+    
+    static let seconds: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "ss"
+        return f
+    }()
+    
+    static let amPm: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "a"
+        return f
+    }()
+    
+    static let dayOfWeek: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        return f
+    }()
+    
+    static let dateShort: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        return f
+    }()
+    
+    static let dateLong: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMMM d, yyyy"
+        return f
+    }()
+    
+    static let utcTime: DateFormatter = {
+        let f = DateFormatter()
+        f.timeZone = TimeZone(abbreviation: "UTC")
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+}
+
 public struct ClockWidgetView: View {
     @ObservedObject private var store = SettingsStore.shared
+    @ObservedObject private var coordinator = NotchShellCoordinator.shared
     public var span: Int // 1, 2, or 4 spaces
     
     public init(span: Int = 1) {
         self.span = span
     }
     
+    /// Only analog chronometer with visible seconds benefits from 30fps animation.
+    /// Digital clock only advances once per second, so 30fps is throttled to 1.0s to save CPU and battery.
+    private var isSweepingAnalog: Bool {
+        store.clockShowSeconds && (span == 1 || store.clockDialStyle == .analog)
+    }
+    
+    private var minimumInterval: Double {
+        isSweepingAnalog ? (1.0 / 30.0) : 1.0
+    }
+    
     public var body: some View {
-        TimelineView(.animation(minimumInterval: store.clockShowSeconds ? 1.0/30.0 : 1.0)) { timeline in
+        // Gates TimelineView: completely pauses when Notch is collapsed, eliminating background CPU draw!
+        TimelineView(.animation(minimumInterval: minimumInterval, paused: coordinator.state != .expanded)) { timeline in
             let date = timeline.date
             Group {
                 if span == 1 {
@@ -219,54 +307,41 @@ public struct ClockWidgetView: View {
         )
     }
     
-    // MARK: - Formatting Helpers
+    // MARK: - Zero-Allocation Formatting Helpers
     private func digitalTimeString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = store.clockIs24Hour ? (store.clockShowSeconds ? "HH:mm:ss" : "HH:mm") : (store.clockShowSeconds ? "h:mm:ss a" : "h:mm a")
-        return formatter.string(from: date)
+        if store.clockIs24Hour {
+            return store.clockShowSeconds ? ClockFormatters.time24WithSeconds.string(from: date) : ClockFormatters.time24NoSeconds.string(from: date)
+        } else {
+            return store.clockShowSeconds ? ClockFormatters.time12WithSeconds.string(from: date) : ClockFormatters.time12NoSeconds.string(from: date)
+        }
     }
     
     private func digitalHourMinuteString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = store.clockIs24Hour ? "HH:mm" : "h:mm"
-        return formatter.string(from: date)
+        return store.clockIs24Hour ? ClockFormatters.hourMinute24.string(from: date) : ClockFormatters.hourMinute12.string(from: date)
     }
     
     private func secondString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "ss"
-        return formatter.string(from: date)
+        return ClockFormatters.seconds.string(from: date)
     }
     
     private func amPmString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "a"
-        return formatter.string(from: date)
+        return ClockFormatters.amPm.string(from: date)
     }
     
     private func dayOfWeekString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        return formatter.string(from: date)
+        return ClockFormatters.dayOfWeek.string(from: date)
     }
     
     private func dateFormattedString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: date)
+        return ClockFormatters.dateShort.string(from: date)
     }
     
     private func fullLongDateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMMM d, yyyy"
-        return formatter.string(from: date)
+        return ClockFormatters.dateLong.string(from: date)
     }
     
     private func utcTimeString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeZone = TimeZone(abbreviation: "UTC")
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        return ClockFormatters.utcTime.string(from: date)
     }
     
     private var timeZoneAbbreviation: String {
@@ -352,9 +427,7 @@ struct TimezonePill: View {
     
     private var targetTime: String {
         let target = baseDate.addingTimeInterval(Double(offsetHours) * 3600)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: target)
+        return ClockFormatters.hourMinute24.string(from: target)
     }
     
     var body: some View {

@@ -64,6 +64,12 @@ public final class NowPlayingModule: ObservableObject {
     private var lastFetchTimestamp: Date = .distantPast
     
     public func refreshMediaState() {
+        let isCollapsed = NotchShellCoordinator.shared.state == .collapsed
+        let showsMediaIndicator = SettingsStore.shared.compactIndicatorStyle == .media
+        if isCollapsed && !showsMediaIndicator {
+            return
+        }
+        
         pendingRefreshWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }

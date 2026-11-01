@@ -22,6 +22,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     public func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.delegateInstance = self
         
+        // Prevent fatal SIGPIPE crash if any subprocess or audio pipe terminates
+        signal(SIGPIPE, SIG_IGN)
+        
         // Single-instance enforcement: kill any stale duplicate NotchApp processes
         let myPID = ProcessInfo.processInfo.processIdentifier
         let running = NSWorkspace.shared.runningApplications
@@ -176,24 +179,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         window.isReleasedWhenClosed = false
         window.level = .statusBar + 1
         window.delegate = AppDelegate.sharedDelegate
-        
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: window,
-            queue: .main
-        ) { [weak window] _ in
-            Task { @MainActor [weak window] in
-                guard AppDelegate.isSettingsOpen || AppDelegate.settingsWindow === window else { return }
-                AppDelegate.isSettingsOpen = false
-                AppDelegate.settingsWindow = nil
-                if NotchShellCoordinator.shared.state == .expanded,
-                   !NotchShellCoordinator.shared.isLockedOpen,
-                   let panel = NotchShellCoordinator.shared.panel,
-                   !panel.frame.contains(NSEvent.mouseLocation) {
-                    NotchShellCoordinator.shared.collapseImmediately()
-                }
-            }
-        }
         
         isSettingsOpen = true
         settingsWindow = window

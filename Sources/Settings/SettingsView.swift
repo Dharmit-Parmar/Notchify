@@ -42,6 +42,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
 public final class SettingsNavigationState: ObservableObject {
     public static let shared = SettingsNavigationState()
     @Published public var selectedCategory: SettingsCategory = .dashboard
+    @Published public var hasCopiedPath: Bool = false
 }
 
 public struct SettingsView: View {
@@ -1007,11 +1008,12 @@ public struct SettingsView: View {
     
     // MARK: - Section 6: Permissions
     private var permissionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            // Header
             HStack {
                 HStack(spacing: 8) {
                     Image(systemName: SettingsCategory.permissions.icon)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(SettingsCategory.permissions.tintColor)
                     Text("System Permissions & macOS Privacy")
                         .font(.system(size: 13, weight: .bold))
@@ -1028,185 +1030,288 @@ public struct SettingsView: View {
                             .font(.system(size: 10.5, weight: .semibold))
                     }
                     .foregroundColor(SettingsCategory.permissions.tintColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4.5)
                     .background(Capsule().fill(SettingsCategory.permissions.tintColor.opacity(0.12)))
                     .overlay(Capsule().strokeBorder(SettingsCategory.permissions.tintColor.opacity(0.3), lineWidth: 0.8))
                 }
                 .buttonStyle(.spring)
-                .help("Reveal NotchApp binary in Finder to drag directly into System Settings (+)")
+                .help("Reveal Notch application in Finder to drag directly into System Settings")
             }
             
-            // Accessibility Status Card
-            HStack(spacing: 12) {
-                Image(systemName: store.isAccessibilityGranted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(store.isAccessibilityGranted ? .green : .orange)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(store.isAccessibilityGranted ? "Accessibility Permission Granted" : "Accessibility Permission Required")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(store.isAccessibilityGranted ? "1-Click Direct Sending in WhatsApp & Telegram is active." : "Required for Notch to auto-send in WhatsApp/Telegram and window automation.")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                
-                Spacer()
-                
-                if !store.isAccessibilityGranted {
-                    Button("Grant Access") {
-                        DirectMessenger.requestAccessibilityPermission()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            store.refreshAccessibility()
+            // Live Status Cards
+            VStack(spacing: 8) {
+                // Accessibility Status Card
+                HStack(spacing: 12) {
+                    Image(systemName: store.isAccessibilityGranted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(store.isAccessibilityGranted ? .green : .orange)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Accessibility Permission")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(store.isAccessibilityGranted ? "Active" : "Action Required")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(store.isAccessibilityGranted ? .green : .orange)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill((store.isAccessibilityGranted ? Color.green : Color.orange).opacity(0.15)))
                         }
+                        Text(store.isAccessibilityGranted ? "1-Click Direct Sending in WhatsApp & Telegram is active." : "Required for Notch to auto-send in WhatsApp/Telegram and window automation.")
+                            .font(.system(size: 10))
+                            .foregroundColor(DesignSystem.secondaryText)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                } else {
-                    Button("Settings") {
-                        PermissionsHelper.openAccessibilitySettings()
-                    }
-                    .buttonStyle(.spring)
-                    .controlSize(.small)
-                }
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.structureColor.opacity(0.5)))
-
-            // Input Monitoring Status Card (for Thock Mechanical Keyboard audio)
-            HStack(spacing: 12) {
-                Image(systemName: store.isInputMonitoringGranted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(store.isInputMonitoringGranted ? .green : .orange)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(store.isInputMonitoringGranted ? "Input Monitoring Granted" : "Input Monitoring Required")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(store.isInputMonitoringGranted ? "Thock mechanical keyboard sound engine active." : "Required for Thock to play tactile key sounds as you type anywhere.")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                
-                Spacer()
-                
-                if !store.isInputMonitoringGranted {
-                    Button("Grant Access") {
-                        ThockModule.requestIOHIDListenAccess()
-                        PermissionsHelper.openInputMonitoringSettings()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            store.refreshAccessibility()
+                    
+                    Spacer()
+                    
+                    if !store.isAccessibilityGranted {
+                        Button("Grant Access") {
+                            DirectMessenger.requestAccessibilityPermission()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                store.refreshAccessibility()
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Button("Open Settings") {
+                            PermissionsHelper.openAccessibilitySettings()
+                        }
+                        .buttonStyle(.spring)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                } else {
-                    Button("Settings") {
-                        PermissionsHelper.openInputMonitoringSettings()
-                    }
-                    .buttonStyle(.spring)
-                    .controlSize(.small)
                 }
+                .padding(11)
+                .background(RoundedRectangle(cornerRadius: 10).fill(DesignSystem.structureColor.opacity(0.5)))
+                
+                // Input Monitoring Status Card
+                HStack(spacing: 12) {
+                    Image(systemName: store.isInputMonitoringGranted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(store.isInputMonitoringGranted ? .green : .orange)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Input Monitoring Permission")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(store.isInputMonitoringGranted ? "Active" : "Required for Audio")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(store.isInputMonitoringGranted ? .green : .orange)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill((store.isInputMonitoringGranted ? Color.green : Color.orange).opacity(0.15)))
+                        }
+                        Text(store.isInputMonitoringGranted ? "Thock mechanical keyboard sound engine active." : "Required for Thock to play tactile key sounds as you type anywhere.")
+                            .font(.system(size: 10))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
+                    
+                    Spacer()
+                    
+                    if !store.isInputMonitoringGranted {
+                        Button("Grant Access") {
+                            ThockModule.requestIOHIDListenAccess()
+                            PermissionsHelper.openInputMonitoringSettings()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                store.refreshAccessibility()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    } else {
+                        Button("Open Settings") {
+                            PermissionsHelper.openInputMonitoringSettings()
+                        }
+                        .buttonStyle(.spring)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(11)
+                .background(RoundedRectangle(cornerRadius: 10).fill(DesignSystem.structureColor.opacity(0.5)))
             }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.structureColor.opacity(0.5)))
-
-            // Helper Guide
-            VStack(alignment: .leading, spacing: 10) {
+            
+            // Foolproof 3-Step Visual Drag-and-Drop Guide
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 6) {
-                    Image(systemName: "info.circle.fill")
+                    Image(systemName: "hand.point.up.left.fill")
                         .foregroundColor(DesignSystem.accentColor)
                         .font(.system(size: 13))
-                    Text("Where to find NotchApp when clicking (+)")
-                        .font(.system(size: 11.5, weight: .bold))
+                    Text("How to Grant Permission (Fast & Foolproof)")
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
                 }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("NotchApp is installed directly in your system **Applications** folder:")
-                        .font(.system(size: 10))
-                        .foregroundColor(.white)
+                
+                VStack(spacing: 12) {
+                    // Step 1
+                    HStack(alignment: .top, spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(DesignSystem.accentColor)
+                                .frame(width: 24, height: 24)
+                            Text("1")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Click \"Reveal Notch in Finder\"")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Finder opens directly to Applications with the **Notch** app highlighted and selected.")
+                                .font(.system(size: 10))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            
+                            Button(action: {
+                                PermissionsHelper.revealAppInFinder()
+                            }) {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "arrow.up.right.square.fill")
+                                    Text("Reveal Notch in Finder")
+                                }
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(DesignSystem.accentColor))
+                                .foregroundColor(.black)
+                            }
+                            .buttonStyle(.spring)
+                            .padding(.top, 2)
+                        }
+                        Spacer()
+                    }
                     
-                    Text("/Applications/NotchApp.app")
-                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                        .foregroundColor(DesignSystem.accentColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.35)))
-
-                    Text("When the (+) file window opens:")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.85))
-                        .padding(.top, 2)
+                    Divider().background(Color.white.opacity(0.1))
                     
-                    Text("1. Click **Applications** in the left sidebar, then select **NotchApp**.")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
-                    Text("2. OR press **⌘⇧G** (Command+Shift+G), paste the path, and hit Return.")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
-                    Text("3. OR drag NotchApp directly from Finder into the System Settings window!")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                    // Step 2
+                    HStack(alignment: .top, spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(DesignSystem.accentColor)
+                                .frame(width: 24, height: 24)
+                            Text("2")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Drag the highlighted \"Notch\" icon into System Settings")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Drag the highlighted **Notch** icon directly from the Finder window into the list in System Settings! (You don't even need to click +).")
+                                .font(.system(size: 10))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            
+                            // ⌘⇧G Path Helper
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Alternatively, if using the (+) button: Press **⌘⇧G**, paste the path, and hit Return:")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(Color.white.opacity(0.75))
+                                
+                                HStack(spacing: 8) {
+                                    Text("/Applications/Notch.app")
+                                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                        .foregroundColor(DesignSystem.accentColor)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.4)))
+                                    
+                                    Button(action: {
+                                        PermissionsHelper.copyAppPathToClipboard()
+                                        withAnimation {
+                                            nav.hasCopiedPath = true
+                                        }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                                            withAnimation {
+                                                nav.hasCopiedPath = false
+                                            }
+                                        }
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: nav.hasCopiedPath ? "checkmark" : "doc.on.doc")
+                                            Text(nav.hasCopiedPath ? "Copied!" : "Copy Path to Clipboard (⌘⇧G)")
+                                        }
+                                        .font(.system(size: 9.5, weight: .semibold))
+                                        .foregroundColor(nav.hasCopiedPath ? .green : .white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3.5)
+                                        .background(Capsule().fill(Color.white.opacity(0.1)))
+                                    }
+                                    .buttonStyle(.spring)
+                                }
+                            }
+                            .padding(.top, 2)
+                        }
+                        Spacer()
+                    }
+                    
+                    Divider().background(Color.white.opacity(0.1))
+                    
+                    // Step 3
+                    HStack(alignment: .top, spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(DesignSystem.accentColor)
+                                .frame(width: 24, height: 24)
+                            Text("3")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.black)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Toggle the switch to ON")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Ensure the toggle switch next to **Notch** is turned ON (blue). Permissions take effect immediately.")
+                                .font(.system(size: 10))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    PermissionsHelper.openAccessibilitySettings()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "hand.raised.fill")
+                                        Text("Open Accessibility Settings")
+                                    }
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                                    .foregroundColor(.white)
+                                }
+                                .buttonStyle(.spring)
+                                
+                                Button(action: {
+                                    PermissionsHelper.openInputMonitoringSettings()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "slider.horizontal.3")
+                                        Text("Open Input Monitoring")
+                                    }
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                                    .foregroundColor(.white)
+                                }
+                                .buttonStyle(.spring)
+                            }
+                            .padding(.top, 2)
+                        }
+                        Spacer()
+                    }
                 }
-
-                HStack(spacing: 8) {
-                    Button(action: {
-                        PermissionsHelper.copyAppPathToClipboard()
-                        PermissionsHelper.revealAppInFinder()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.up.right.square.fill")
-                            Text("Reveal in Finder (Drag-Ready)")
-                        }
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5.5)
-                        .background(Capsule().fill(DesignSystem.accentColor))
-                        .foregroundColor(.black)
-                    }
-                    .buttonStyle(.spring)
-
-                    Button(action: {
-                        PermissionsHelper.copyAppPathToClipboard()
-                        PermissionsHelper.openAccessibilitySettings()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "hand.raised.fill")
-                            Text("Open Accessibility Settings")
-                        }
-                        .font(.system(size: 10, weight: .medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5.5)
-                        .background(Capsule().fill(Color.white.opacity(0.08)))
-                        .foregroundColor(.white)
-                    }
-                    .buttonStyle(.spring)
-
-                    Button(action: {
-                        PermissionsHelper.copyAppPathToClipboard()
-                        PermissionsHelper.openInputMonitoringSettings()
-                    }) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "slider.horizontal.3")
-                            Text("Input Monitoring")
-                        }
-                        .font(.system(size: 10, weight: .medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5.5)
-                        .background(Capsule().fill(Color.white.opacity(0.08)))
-                        .foregroundColor(.white)
-                    }
-                    .buttonStyle(.spring)
-
-                    Spacer()
-                }
-                .padding(.top, 2)
             }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.7))
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8))
         }
         .settingsCard()
+        .onAppear {
+            PermissionsHelper.ensureApplicationsSymlink()
+            store.refreshAccessibility()
+        }
     }
     
     // MARK: - Footer Bar

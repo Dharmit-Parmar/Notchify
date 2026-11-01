@@ -15,7 +15,7 @@ public final class BatteryModule: NotchModule {
     @Published public var isCharging: Bool = true
     @Published public var timeRemaining: String = "Fully Charged"
     
-    private var updateTimer: AnyCancellable?
+    private var powerRunLoopSource: CFRunLoopSource?
     
     public init() {
         refresh()
@@ -23,18 +23,23 @@ public final class BatteryModule: NotchModule {
     
     public func start() {
         refresh()
-        if updateTimer == nil {
-            updateTimer = Timer.publish(every: 15.0, on: .main, in: .common)
-                .autoconnect()
-                .sink { [weak self] _ in
-                    self?.refresh()
+        if powerRunLoopSource == nil {
+            // Event-driven kernel power notification: 0% CPU consumption
+            let source = IOPSNotificationCreateRunLoopSource({ _ in
+                Task { @MainActor in
+                    BatteryModule.shared.refresh()
                 }
+            }, nil).takeRetainedValue()
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            powerRunLoopSource = source
         }
     }
     
     public func stop() {
-        updateTimer?.cancel()
-        updateTimer = nil
+        if let source = powerRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            powerRunLoopSource = nil
+        }
     }
     
     public func refresh() {
