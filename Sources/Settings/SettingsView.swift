@@ -1376,6 +1376,8 @@ private struct TelegramSettingsBotRow: View {
                 TextField("Bot Token from @BotFather", text: $module.botToken)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11))
+                    .textContentType(.none)
+                    .autocorrectionDisabled(true)
                 
                 Button(action: {
                     module.testBotConnection()

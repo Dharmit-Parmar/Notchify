@@ -465,6 +465,10 @@ struct CustomTextEditor: NSViewRepresentable {
         textView.insertionPointColor = NSColor.white
         textView.isRichText = false
         textView.allowsUndo = true
+        textView.isAutomaticTextCompletionEnabled = false
+        if #available(macOS 14.0, *) {
+            textView.contentType = nil
+        }
         textView.textContainerInset = NSSize(width: 0, height: 2)
         textView.string = text
         

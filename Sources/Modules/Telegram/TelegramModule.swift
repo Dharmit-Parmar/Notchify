@@ -1061,6 +1061,11 @@ public struct PasteableTextField: NSViewRepresentable {
         field.focusRingType = .none
         field.textColor = .white
         field.font = .systemFont(ofSize: 11, weight: .regular)
+        field.isAutomaticTextCompletionEnabled = false
+        field.allowsCharacterPickerTouchBarItem = false
+        if #available(macOS 14.0, *) {
+            field.contentType = nil
+        }
         field.delegate = context.coordinator
         field.onCommitWithText = { committed in
             context.coordinator.parent.text = ""
