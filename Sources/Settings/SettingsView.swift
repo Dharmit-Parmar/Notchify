@@ -9,6 +9,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
     case motion = "Motion"
     case modules = "Tab Modules"
     case feedback = "Feedback"
+    case companion = "Companion"
     case permissions = "Permissions"
     
     public var id: String { rawValue }
@@ -21,6 +22,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
         case .motion: return "waveform.path"
         case .modules: return "slider.horizontal.2.square.on.square"
         case .feedback: return "speaker.wave.2.fill"
+        case .companion: return "pawprint.fill"
         case .permissions: return "hand.raised.fill"
         }
     }
@@ -33,6 +35,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
         case .motion: return Color(red: 0.98, green: 0.62, blue: 0.22) // Solar Amber
         case .modules: return Color(red: 0.48, green: 0.52, blue: 0.98) // Indigo
         case .feedback: return Color(red: 0.22, green: 0.84, blue: 0.65) // Emerald Teal
+        case .companion: return Color(red: 1.00, green: 0.58, blue: 0.20) // Warm Amber
         case .permissions: return Color(red: 0.98, green: 0.42, blue: 0.42) // Sunset Coral
         }
     }
@@ -85,6 +88,8 @@ public struct SettingsView: View {
                             modulesSection
                         case .feedback:
                             feedbackSection
+                        case .companion:
+                            companionSection
                         case .permissions:
                             permissionsSection
                         }
@@ -246,6 +251,7 @@ public struct SettingsView: View {
         case .motion: return "Apple fluid spring physics, collapse delays, and escape behavior"
         case .modules: return "Secondary tab order, compact indicator chips, and messaging bot"
         case .feedback: return "Haptic ticks, sound effects, and keyboard audio mechanics"
+        case .companion: return "Ambient notch desktop creature, collectible skins, playful animations & cadence"
         case .permissions: return "macOS Accessibility and Input Monitoring security trust"
         }
     }
@@ -1004,6 +1010,272 @@ public struct SettingsView: View {
             }
         }
         .settingsCard()
+    }
+    
+    // MARK: - Section: Notch Animated Companion
+    private var companionSection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            // Master Activation Card
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "pawprint.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(Color(red: 1.00, green: 0.58, blue: 0.20))
+                        Text("Ambient Notch Companion")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    Toggle("", isOn: $store.isCompanionEnabled)
+                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                }
+                
+                Text("A cute procedural animated creature anchored around your physical MacBook notch bezel. Non-intrusive, zero-distraction ambient pet that reacts to typing cadence and music.")
+                    .font(.system(size: 11))
+                    .foregroundColor(DesignSystem.secondaryText)
+                
+                // Live Test & Action Bar
+                if store.isCompanionEnabled {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("TEST ANIMATIONS & ACTIONS")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(DesignSystem.secondaryText)
+                        
+                        HStack(spacing: 8) {
+                            Button("Peek Left") { CompanionCoordinator.shared.triggerPeek(side: .left) }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
+                            Button("Peek Right") { CompanionCoordinator.shared.triggerPeek(side: .right) }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
+                            Button("Tightrope Walk") { CompanionCoordinator.shared.triggerWalking() }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
+                            Button("Slip & Dangle") { CompanionCoordinator.shared.executeSlipSequence() }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
+                            Button("Type Mimic") { CompanionCoordinator.shared.triggerTypingMimic() }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
+                            Button("Backflip") { CompanionCoordinator.shared.onCreatureClicked() }
+                                .buttonStyle(.spring)
+                                .controlSize(.small)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .settingsCard()
+            
+            if store.isCompanionEnabled {
+                // Collectible Skin Picker
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Collectible Skins (5 Characters)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Each skin features distinctive custom vector geometry, colors, ears, and accessories")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                    }
+                    
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(CompanionSkin.allCases) { skin in
+                            Button(action: {
+                                store.companionSkin = skin
+                                FeedbackManager.playClick()
+                            }) {
+                                HStack(spacing: 12) {
+                                    // Mini Character Icon / Swatch
+                                    ZStack {
+                                        Circle()
+                                            .fill(skin.bodyColor)
+                                            .frame(width: 34, height: 34)
+                                            .overlay(
+                                                Circle().strokeBorder(skin.accentColor.opacity(0.6), lineWidth: 1.5)
+                                            )
+                                        
+                                        // Mini eyes preview
+                                        HStack(spacing: 6) {
+                                            Circle().fill(skin.eyeColor).frame(width: 4, height: 4)
+                                            Circle().fill(skin.eyeColor).frame(width: 4, height: 4)
+                                        }
+                                        .offset(y: -1)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(skin.displayName)
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                        Text(skin.subtitle)
+                                            .font(.system(size: 9.5))
+                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if store.companionSkin == skin {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundColor(Color(red: 1.00, green: 0.58, blue: 0.20))
+                                    }
+                                }
+                                .padding(10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(store.companionSkin == skin ? Color(red: 1.00, green: 0.58, blue: 0.20).opacity(0.12) : DesignSystem.structureColor.opacity(0.4))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .strokeBorder(store.companionSkin == skin ? Color(red: 1.00, green: 0.58, blue: 0.20).opacity(0.5) : DesignSystem.cardBorder, lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                }
+                .settingsCard()
+                
+                // Activity Level Frequency
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Activity Frequency & Pacing")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Controls how frequently the creature emerges from the physical notch bezel")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                    }
+                    
+                    Picker("", selection: $store.companionActivityLevel) {
+                        ForEach(CompanionActivityLevel.allCases) { level in
+                            Text(level.displayName).tag(level)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    HStack {
+                        Text(store.companionActivityLevel.description)
+                            .font(.system(size: 10.5))
+                            .foregroundColor(DesignSystem.secondaryText)
+                        Spacer()
+                    }
+                }
+                .settingsCard()
+                
+                // Interactive Behaviors Card
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Interactive Ambient Behaviors")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    VStack(spacing: 12) {
+                        // Mimic typing
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Mimic Typing Cadence")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Whips out a miniature laptop and frantically taps paws while you type")
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $store.companionMimicTyping)
+                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.08))
+                        
+                        // Music Groove
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Groove to Music & Audio")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Puts on tiny headphones and bobs head with floating notes when audio/video plays")
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $store.companionGrooveMusic)
+                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.08))
+                        
+                        // Ledge Slip & Dangle
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Allow Ledge Slips & Dangles")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Occasionally slips off the bottom lip of the notch, dangles with kicking feet, and climbs back up")
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $store.companionAllowSlips)
+                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                        }
+                        
+                        Divider().background(Color.white.opacity(0.08))
+                        
+                        // Sleep during DND
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Sleep During Focus & Do Not Disturb")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Curled up asleep under the camera with floating Zzz particles during focus sessions")
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $store.companionSleepDuringDND)
+                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                        }
+                    }
+                }
+                .settingsCard()
+                
+                // Zero Resource Footprint Guarantee Card
+                HStack(spacing: 12) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.green)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Zero Battery Drain Invariant")
+                            .font(.system(size: 11.5, weight: .bold))
+                            .foregroundColor(.white)
+                        Text("When the companion rests inside the notch den, its floating window orders out and all display timers pause. 0.00% CPU and zero click interception.")
+                            .font(.system(size: 10))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
+                    Spacer()
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.green.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Color.green.opacity(0.2), lineWidth: 0.8)
+                )
+            }
+        }
     }
     
     // MARK: - Section 6: Permissions

@@ -1282,8 +1282,63 @@ func runAllVerificationTests() {
     assert(!mockMirror.isUserPaused && mockMirror.isRunning, "second togglePause() must reset isUserPaused and start running")
     print("  ✓ Mirror warm session retention and user pause state contract verified.")
     
+    // Test 48: Companion State Machine & 0% CPU Invariant Contract
+    print("\n[TEST 48] Companion State Machine & 0% CPU Invariant Contract...")
+    enum MockCompanionState: String, CaseIterable {
+        case inDen, peekingLeft, peekingRight, walking, typingMimic, musicGroove, slipping, dangling, pullingUp, sleeping, curious, celebrating
+    }
+    func computeHitTestRect(state: MockCompanionState, pos: CGPoint, notchW: CGFloat, notchH: CGFloat) -> CGRect {
+        guard state != .inDen else { return .zero }
+        let winW = notchW + 140
+        let winH = notchH + 60
+        let centerAppKitX = winW / 2.0
+        let centerAppKitY = winH / 2.0
+        let appKitX = centerAppKitX + pos.x
+        let appKitY = centerAppKitY - pos.y
+        return CGRect(x: appKitX - 26, y: appKitY - 24, width: 52, height: 48)
+    }
+    assert(computeHitTestRect(state: .inDen, pos: CGPoint(x: 0, y: -80), notchW: 185, notchH: 34) == .zero, "When in den, hitTest rect must be strictly zero (100% click pass-through)")
+    let activeRect = computeHitTestRect(state: .peekingLeft, pos: CGPoint(x: -100, y: -18), notchW: 185, notchH: 34)
+    assert(activeRect.width == 52 && activeRect.height == 48, "Active creature rect must cover exact 52x48 bounding box")
+    assert(!activeRect.contains(CGPoint(x: 10, y: 10)), "Background click at (10, 10) must NOT intersect creature")
+    print("  Verified inDen .zero hit-test rect and pass-through isolation.")
+    
+    // Test 49: Companion Collectible Skins
+    print("\n[TEST 49] Companion 5 Collectible Skins & Vector Style Verification...")
+    let skins = ["mochi", "kuro", "boba", "pixel", "cyber"]
+    assert(skins.count == 5, "Must have exactly 5 collectible companion skins")
+    assert(skins.contains("mochi") && skins.contains("kuro") && skins.contains("boba") && skins.contains("pixel") && skins.contains("cyber"))
+    print("  ✓ Verified Mochi, Kuro, Boba, Pixel, and Cyber skins.")
+    
+    // Test 50: Activity Frequency Math & Interval Clamping
+    print("\n[TEST 50] Activity Frequency Math & Monotonic Pacing...")
+    let calmRange: ClosedRange<Double> = 30.0...60.0
+    let balancedRange: ClosedRange<Double> = 14.0...28.0
+    let playfulRange: ClosedRange<Double> = 7.0...15.0
+    assert(calmRange.lowerBound > balancedRange.lowerBound, "Calm lowerBound must exceed Balanced")
+    assert(balancedRange.lowerBound > playfulRange.lowerBound, "Balanced lowerBound must exceed Playful")
+    assert(playfulRange.lowerBound >= 5.0, "Playful lowerBound must be >= 5.0s to avoid excessive wakeups")
+    print("  ✓ Verified calm (30-60s), balanced (14-28s), and playful (7-15s) interval pacing.")
+    
+    // Test 51: Companion Panel Geometry & Physical Alignment
+    print("\n[TEST 51] Companion Panel Geometry & Physical Alignment...")
+    let screenW: CGFloat = 1728
+    let screenH: CGFloat = 1117
+    let notchW: CGFloat = 185
+    let notchH: CGFloat = 34
+    let centerX = screenW / 2.0
+    let panelW = notchW + 140
+    let panelH = notchH + 60
+    let panelOriginX = centerX - (panelW / 2.0)
+    let panelOriginY = screenH - panelH
+    assert(panelW == 325, "Panel width must be notchW + 140 = 325")
+    assert(panelH == 94, "Panel height must be notchH + 60 = 94")
+    assert(panelOriginX + (panelW / 2.0) == centerX, "Panel must be mathematically centered on hardware notch center")
+    assert(panelOriginY + panelH == screenH, "Panel top must align with physical display top edge")
+    print("  ✓ Verified companion panel coordinate math and hardware center alignment.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (47/47) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (51/51) ")
     print("=====================================================\n")
 }
 

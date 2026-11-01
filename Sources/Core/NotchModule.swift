@@ -247,6 +247,29 @@ public class SettingsStore: ObservableObject {
         }
     }
     
+    // Notch Companion Desktop Pet Options
+    @Published public var isCompanionEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(isCompanionEnabled, forKey: "NotchApp_IsCompanionEnabled") }
+    }
+    @Published public var companionSkin: CompanionSkin = .mochi {
+        didSet { UserDefaults.standard.set(companionSkin.rawValue, forKey: "NotchApp_CompanionSkin") }
+    }
+    @Published public var companionActivityLevel: CompanionActivityLevel = .balanced {
+        didSet { UserDefaults.standard.set(companionActivityLevel.rawValue, forKey: "NotchApp_CompanionActivityLevel") }
+    }
+    @Published public var companionMimicTyping: Bool = true {
+        didSet { UserDefaults.standard.set(companionMimicTyping, forKey: "NotchApp_CompanionMimicTyping") }
+    }
+    @Published public var companionGrooveMusic: Bool = true {
+        didSet { UserDefaults.standard.set(companionGrooveMusic, forKey: "NotchApp_CompanionGrooveMusic") }
+    }
+    @Published public var companionAllowSlips: Bool = true {
+        didSet { UserDefaults.standard.set(companionAllowSlips, forKey: "NotchApp_CompanionAllowSlips") }
+    }
+    @Published public var companionSleepDuringDND: Bool = true {
+        didSet { UserDefaults.standard.set(companionSleepDuringDND, forKey: "NotchApp_CompanionSleepDuringDND") }
+    }
+    
     @Published public var isAccessibilityGranted: Bool = AXIsProcessTrusted()
     @Published public var isInputMonitoringGranted: Bool = false
     
@@ -361,6 +384,29 @@ public class SettingsStore: ObservableObject {
         }
         if let notes = UserDefaults.standard.string(forKey: "NotchApp_QuickNotesText") {
             self.quickNotesText = notes
+        }
+        if let rawComp = UserDefaults.standard.object(forKey: "NotchApp_IsCompanionEnabled") as? Bool {
+            self.isCompanionEnabled = rawComp
+        }
+        if let rawSkin = UserDefaults.standard.string(forKey: "NotchApp_CompanionSkin"),
+           let skin = CompanionSkin(rawValue: rawSkin) {
+            self.companionSkin = skin
+        }
+        if let rawAct = UserDefaults.standard.string(forKey: "NotchApp_CompanionActivityLevel"),
+           let act = CompanionActivityLevel(rawValue: rawAct) {
+            self.companionActivityLevel = act
+        }
+        if let rawMimic = UserDefaults.standard.object(forKey: "NotchApp_CompanionMimicTyping") as? Bool {
+            self.companionMimicTyping = rawMimic
+        }
+        if let rawGroove = UserDefaults.standard.object(forKey: "NotchApp_CompanionGrooveMusic") as? Bool {
+            self.companionGrooveMusic = rawGroove
+        }
+        if let rawSlips = UserDefaults.standard.object(forKey: "NotchApp_CompanionAllowSlips") as? Bool {
+            self.companionAllowSlips = rawSlips
+        }
+        if let rawDND = UserDefaults.standard.object(forKey: "NotchApp_CompanionSleepDuringDND") as? Bool {
+            self.companionSleepDuringDND = rawDND
         }
         self.isAccessibilityGranted = AXIsProcessTrusted()
         self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()

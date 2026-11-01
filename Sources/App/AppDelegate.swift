@@ -16,6 +16,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     
     private var notchPanel: NotchPanel?
+    private var companionPanel: CompanionPanel?
     private var statusItem: NSStatusItem?
     private var cancellables = Set<AnyCancellable>()
     
@@ -54,6 +55,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         setupMainMenu()
         setupStatusItem()
         setupNotchPanel()
+        setupCompanionPanel()
         setupSettingsObserver()
     }
     
@@ -128,6 +130,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         
         panel.orderFrontRegardless()
         self.notchPanel = panel
+    }
+    
+    private func setupCompanionPanel() {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let panel = CompanionPanel(screen: screen)
+        CompanionCoordinator.shared.panel = panel
+        CompanionCoordinator.shared.start()
+        self.companionPanel = panel
     }
     
     @objc private func toggleNotch() {
