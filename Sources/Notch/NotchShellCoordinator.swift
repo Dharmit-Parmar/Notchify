@@ -225,21 +225,27 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             return
         }
+        
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
         isHovered = true
         
-        guard state != .expanded, hoverWorkItem == nil else { return }
+        guard state != .expanded else { return }
+        hoverWorkItem?.cancel()
         
-        let delay = SettingsStore.shared.hoverDelay
+        let delay = max(0.02, min(0.08, SettingsStore.shared.hoverDelay))
         let item = DispatchWorkItem { [weak self] in
             guard let self = self, self.isHovered else { return }
+            self.hoverWorkItem = nil
             withAnimation(self.transitionAnimation) {
                 self.state = .expanded
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
             NowPlayingModule.shared.refreshMediaState()
             ModuleRegistry.shared.activeModule?.start()
+            if self.expandedWatchdog == nil && !self.isLockedOpen {
+                self.startExpandedWatchdog()
+            }
         }
         hoverWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
@@ -253,10 +259,11 @@ public final class NotchShellCoordinator: ObservableObject {
                 store: SettingsStore.shared,
                 screen: panel.currentScreen
             )
-            let effectiveBounds = (state == .expanded) ? panel.frame.union(expandedRect) : panel.frame
+            let effectiveBounds = (state == .expanded)
+                ? panel.frame.union(expandedRect).insetBy(dx: -24, dy: -14)
+                : panel.frame.insetBy(dx: -20, dy: -10)
             if effectiveBounds.contains(mouseLoc) {
-                // The cursor is physically still inside the notch window!
-                // Spurious exit event from subview transition; ignore completely.
+                // The cursor is physically still inside or adjacent to the notch window!
                 return
             }
         }
@@ -279,7 +286,9 @@ public final class NotchShellCoordinator: ObservableObject {
                     store: SettingsStore.shared,
                     screen: panel.currentScreen
                 )
-                let effectiveBounds = (self.state == .expanded) ? panel.frame.union(expandedRect) : panel.frame
+                let effectiveBounds = (self.state == .expanded)
+                    ? panel.frame.union(expandedRect).insetBy(dx: -24, dy: -14)
+                    : panel.frame.insetBy(dx: -20, dy: -10)
                 if effectiveBounds.contains(mouseLoc) {
                     self.isHovered = true
                     return
@@ -298,8 +307,8 @@ public final class NotchShellCoordinator: ObservableObject {
             }
         }
         collapseWorkItem = item
-        let collapseDelay = AppDelegate.isSettingsOpen ? 0.08 : SettingsStore.shared.autoCollapseDelay
-        DispatchQueue.main.asyncAfter(deadline: .now() + collapseDelay, execute: item)
+        let collapseDelay = AppDelegate.isSettingsOpen ? 0.30 : SettingsStore.shared.autoCollapseDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.25, collapseDelay), execute: item)
     }
     
     public func collapseImmediately(force: Bool = false) {

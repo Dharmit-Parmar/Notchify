@@ -25,7 +25,7 @@ public final class NotchPanel: NSPanel {
         )
         
         self.isFloatingPanel = true
-        self.level = .statusBar
+        self.level = .screenSaver
         self.collectionBehavior = [
             .canJoinAllSpaces,
             .fullScreenAuxiliary,
@@ -184,7 +184,7 @@ public final class NotchHostingView<Content: View>: NSHostingView<Content> {
     
     public override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        if !NotchShellCoordinator.shared.isHovered {
+        if NotchShellCoordinator.shared.state != .expanded || !NotchShellCoordinator.shared.isHovered {
             NotchShellCoordinator.shared.onMouseEnter()
         }
     }

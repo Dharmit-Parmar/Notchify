@@ -81,7 +81,11 @@ public final class ModuleRegistry: ObservableObject {
     
     // Hover action: When mouse enters a tab, preview it after a smooth dwell
     public func onTabHover(_ id: String?) {
-        guard let id = id else { return } // Do not clear preview when moving from tab into content card!
+        guard let id = id else {
+            // Hovering over Dashboard home tab (id == nil)
+            onDashboardHover()
+            return
+        }
         
         if id == suppressedHoverId {
             return
@@ -95,6 +99,29 @@ public final class ModuleRegistry: ObservableObject {
         }
         tabHoverWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+    }
+    
+    // Hover over Dashboard home tab: smoothly previews the Home Dashboard
+    public func onDashboardHover() {
+        cancelPendingTabHover()
+        guard hoveredModuleId != nil || activeModuleId != nil else { return }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if self.pinnedModuleId == nil {
+                self.hoverToHome()
+            }
+        }
+        tabHoverWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+    }
+    
+    public func hoverToHome() {
+        if let currentId = activeModuleId {
+            modules.first(where: { $0.id == currentId })?.stop()
+        }
+        hoveredModuleId = nil
+        suppressedHoverId = nil
+        FeedbackManager.playHover()
     }
 
     private func activateHoveredModule(_ id: String) {

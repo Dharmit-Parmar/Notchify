@@ -312,6 +312,17 @@ public struct DashboardSettingsView: View {
                 .padding(.top, 10)
                 .padding(4)
             }
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    FeedbackManager.playHover()
+                    NotchShellCoordinator.shared.previewDashboard(duration: 4.5)
+                }
+            }
+            .onTapGesture {
+                FeedbackManager.playHover()
+                NotchShellCoordinator.shared.previewDashboard(duration: 5.0)
+            }
             
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

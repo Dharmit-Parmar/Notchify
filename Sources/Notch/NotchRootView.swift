@@ -115,14 +115,6 @@ public struct NotchRootView: View {
                 }
             }
         }
-        .onContinuousHover { phase in
-            switch phase {
-            case .active:
-                coordinator.onMouseEnter()
-            case .ended:
-                coordinator.onMouseExit()
-            }
-        }
     }
     
     // Persistent Navigation Dock with Reorderable Tabs & Edge Auto-Scroll
@@ -155,6 +147,11 @@ public struct NotchRootView: View {
             }
             .buttonStyle(.spring)
             .help("Home Media & Calendar")
+            .onHover { hovering in
+                if hovering {
+                    registry.onDashboardHover()
+                }
+            }
             .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: nil) { providers in
                 let valid = providers.filter { $0.canLoadObject(ofClass: URL.self) }
                 guard !valid.isEmpty else { return false }
