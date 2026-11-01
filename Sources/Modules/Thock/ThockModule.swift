@@ -48,12 +48,46 @@ public final class ThockModule: NotchModule {
     public let iconName = "keyboard"
     @Published public var isEnabled: Bool = true
     
-    // File Paths
-    public let projectDir = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound")
-    public let binaryURL = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound/target/release/thock-cli")
-    public let packsDir = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound/packs")
-    public let settingsURL = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound/packs/.settings.json")
-    public let favoritesURL = URL(fileURLWithPath: "/Users/dharmitparmar/Doc/KeySound/packs/.favorites.json")
+    // Dynamic Portable Paths
+    public static func resolveKeySoundDirectory() -> URL {
+        let fm = FileManager.default
+        let homeDir = URL(fileURLWithPath: NSHomeDirectory())
+        
+        // 1. Check user Application Support directory (~/Library/Application Support/Notch/KeySound)
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? homeDir.appendingPathComponent("Library/Application Support")
+        let notchKeySound = appSupport.appendingPathComponent("Notch/KeySound")
+        if fm.fileExists(atPath: notchKeySound.appendingPathComponent("target/release/thock-cli").path) {
+            return notchKeySound
+        }
+        
+        // 2. Check local dev directory (~/Doc/KeySound)
+        let docKeySound = homeDir.appendingPathComponent("Doc/KeySound")
+        if fm.fileExists(atPath: docKeySound.appendingPathComponent("target/release/thock-cli").path) {
+            return docKeySound
+        }
+        
+        // 3. Check ~/Documents/KeySound
+        let documentsKeySound = homeDir.appendingPathComponent("Documents/KeySound")
+        if fm.fileExists(atPath: documentsKeySound.appendingPathComponent("target/release/thock-cli").path) {
+            return documentsKeySound
+        }
+        
+        // Default target for new installations
+        return notchKeySound
+    }
+    
+    public var projectDir: URL { Self.resolveKeySoundDirectory() }
+    public var binaryURL: URL { projectDir.appendingPathComponent("target/release/thock-cli") }
+    public var packsDir: URL { projectDir.appendingPathComponent("packs") }
+    public var settingsURL: URL { packsDir.appendingPathComponent(".settings.json") }
+    public var favoritesURL: URL { packsDir.appendingPathComponent(".favorites.json") }
+    
+    // Installation State
+    public var isInstalled: Bool {
+        FileManager.default.fileExists(atPath: binaryURL.path)
+    }
+    @Published public var isInstalling: Bool = false
+    @Published public var installProgressMessage: String = ""
     
     // Active Subsection
     @Published public var selectedSection: ThockSubSection = .keySound
@@ -376,6 +410,110 @@ public final class ThockModule: NotchModule {
         playPackSample(currentPack)
     }
     
+    // MARK: - Auto-Installer & GitHub Setup Pipeline
+    public func downloadAndSetupThock() {
+        guard !isInstalling else { return }
+        isInstalling = true
+        installProgressMessage = "Preparing installation directory..."
+        FeedbackManager.playClick()
+        
+        let targetDir = projectDir
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // Step 1: Ensure directory structure
+            do {
+                try FileManager.default.createDirectory(at: targetDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+            } catch {
+                Task { @MainActor [weak self] in
+                    self?.isInstalling = false
+                    self?.installProgressMessage = "Directory error: \(error.localizedDescription)"
+                }
+                return
+            }
+            
+            // Check if local dev KeySound exists and can be linked or copied for speed
+            let devSource = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Doc/KeySound")
+            let hasDevCopy = FileManager.default.fileExists(atPath: devSource.appendingPathComponent("target/release/thock-cli").path)
+            
+            if hasDevCopy && targetDir != devSource && !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("target/release/thock-cli").path) {
+                Task { @MainActor [weak self] in
+                    self?.installProgressMessage = "Linking local KeySound acoustic assets..."
+                }
+                try? FileManager.default.createSymbolicLink(at: targetDir, withDestinationURL: devSource)
+            }
+            
+            // Step 2: If repo still not present, git clone from GitHub
+            if !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("Cargo.toml").path) {
+                Task { @MainActor [weak self] in
+                    self?.installProgressMessage = "Cloning KeySound from GitHub..."
+                }
+                let cloneProc = Process()
+                cloneProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                cloneProc.arguments = ["clone", "--depth", "1", "https://github.com/Dharmit-Parmar/KeySound.git", targetDir.path]
+                do {
+                    try cloneProc.run()
+                    cloneProc.waitUntilExit()
+                } catch {
+                    Task { @MainActor [weak self] in
+                        self?.isInstalling = false
+                        self?.installProgressMessage = "Git clone failed: \(error.localizedDescription)"
+                    }
+                    return
+                }
+            }
+            
+            // Step 3: Build release binary with Cargo if binary is missing
+            if !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("target/release/thock-cli").path) {
+                Task { @MainActor [weak self] in
+                    self?.installProgressMessage = "Compiling acoustic engine with cargo..."
+                }
+                
+                let cargoPaths = [
+                    URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cargo/bin/cargo").path,
+                    "/opt/homebrew/bin/cargo",
+                    "/usr/local/bin/cargo",
+                    "/usr/bin/cargo"
+                ]
+                let cargoPath = cargoPaths.first(where: { FileManager.default.fileExists(atPath: $0) }) ?? "/usr/bin/cargo"
+                
+                let cargoProc = Process()
+                cargoProc.executableURL = URL(fileURLWithPath: cargoPath)
+                cargoProc.arguments = ["build", "--release", "--bin", "thock-cli"]
+                cargoProc.currentDirectoryURL = targetDir
+                
+                var env = ProcessInfo.processInfo.environment
+                let pathEnv = env["PATH"] ?? ""
+                env["PATH"] = "\(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cargo/bin").path):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\(pathEnv)"
+                cargoProc.environment = env
+                
+                do {
+                    try cargoProc.run()
+                    cargoProc.waitUntilExit()
+                } catch {
+                    Task { @MainActor [weak self] in
+                        self?.isInstalling = false
+                        self?.installProgressMessage = "Compilation error: \(error.localizedDescription)"
+                    }
+                    return
+                }
+            }
+            
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.isInstalling = false
+                let success = FileManager.default.fileExists(atPath: self.binaryURL.path)
+                if success {
+                    self.installProgressMessage = "Engine installed successfully!"
+                    self.loadPacksFromDisk()
+                    self.checkProcessStateZeroOverhead()
+                    FeedbackManager.playSuccess()
+                } else {
+                    self.installProgressMessage = "Setup incomplete. Check terminal logs."
+                }
+            }
+        }
+    }
+    
     // MARK: - Process Execution (Start & Stop)
     public func startEngine() {
         guard !isRunning else { return }
@@ -494,6 +632,8 @@ public final class ThockModule: NotchModule {
     public func toggleEngine() {
         if isRunning {
             stopEngine()
+        } else if !isInstalled {
+            downloadAndSetupThock()
         } else {
             startEngine()
         }
@@ -977,14 +1117,68 @@ public struct ThockExpandedView: View {
                 .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.7))
             }
             
+            // Thock Missing / Auto-Setup Banner
+            if !module.isInstalled {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(DesignSystem.accentColor)
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Thock Acoustic Engine Not Installed")
+                            .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        Text(module.isInstalling ? module.installProgressMessage : "Clone & compile the open-source mechanical keyboard sound engine from GitHub in 1 click.")
+                            .font(.system(size: 8, weight: .regular))
+                            .foregroundColor(Color.white.opacity(0.75))
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                    
+                    if module.isInstalling {
+                        HStack(spacing: 5) {
+                            ProgressView()
+                                .scaleEffect(0.65)
+                                .frame(width: 14, height: 14)
+                            Text("Setting up...")
+                                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                                .foregroundColor(DesignSystem.accentColor)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                    } else {
+                        Button(action: { module.downloadAndSetupThock() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.down.to.line.compact")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                Text("Download & Setup Thock")
+                                    .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                            }
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4.5)
+                            .background(Capsule().fill(DesignSystem.accentColor))
+                        }
+                        .buttonStyle(.spring)
+                        .help("Clone KeySound from GitHub and build thock-cli binary automatically")
+                    }
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(DesignSystem.accentColor.opacity(0.3), lineWidth: 0.8))
+            }
+            
             // Top Controls Bar: Engine Power, Audition Sound & Key Sound Volume
             HStack(spacing: 10) {
                 // Engine Start / Stop Button
                 Button(action: { module.toggleEngine() }) {
                     HStack(spacing: 5) {
-                        Image(systemName: module.isRunning ? "stop.fill" : "play.fill")
+                        Image(systemName: module.isRunning ? "stop.fill" : (module.isInstalled ? "play.fill" : "arrow.down.circle"))
                             .font(.system(size: 9, weight: .bold))
-                        Text(module.isRunning ? "Stop Engine" : "Start Engine")
+                        Text(module.isRunning ? "Stop Engine" : (module.isInstalled ? "Start Engine" : "Install Engine"))
                             .font(.system(size: 10, weight: .bold, design: .rounded))
                     }
                     .foregroundColor(module.isRunning ? Color.white : Color.black)

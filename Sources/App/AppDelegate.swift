@@ -85,14 +85,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     
     private func setupSettingsObserver() {
-        SettingsStore.shared.$notchWidth
-            .combineLatest(SettingsStore.shared.$notchHeight, SettingsStore.shared.$hoverTriggerHeight)
-            .dropFirst()
-            .sink { [weak self] _ in
-                guard let self = self, let panel = self.notchPanel else { return }
-                panel.updateFrame(for: NotchShellCoordinator.shared.state, animated: false)
-            }
-            .store(in: &cancellables)
+        Publishers.CombineLatest4(
+            SettingsStore.shared.$notchWidth,
+            SettingsStore.shared.$notchHeight,
+            SettingsStore.shared.$hoverTriggerHeight,
+            SettingsStore.shared.$hoverTriggerWidth
+        )
+        .dropFirst()
+        .sink { [weak self] _ in
+            guard let self = self, let panel = self.notchPanel else { return }
+            panel.updateFrame(for: NotchShellCoordinator.shared.state, animated: false)
+        }
+        .store(in: &cancellables)
     }
     
     private func setupStatusItem() {

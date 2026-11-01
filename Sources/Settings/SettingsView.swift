@@ -532,6 +532,21 @@ public struct SettingsView: View {
                 .tint(SettingsCategory.geometry.tintColor)
             }
             
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Hover Trigger Width: \(Int(store.hoverTriggerWidth)) pt (Activation Zone)")
+                        .font(.system(size: 12))
+                    Spacer()
+                    Text("Physical: \(Int(NotchGeometry.current().physicalNotchWidth)) pt")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                Slider(value: $store.hoverTriggerWidth, in: 160...380, step: 10) { editing in
+                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                }
+                .tint(SettingsCategory.geometry.tintColor)
+            }
+            
             Divider()
                 .padding(.vertical, 4)
             

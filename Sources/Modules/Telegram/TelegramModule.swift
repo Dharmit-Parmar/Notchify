@@ -242,6 +242,89 @@ public struct DirectMessenger {
     }
 }
 
+// MARK: - Security & Anti-Malware Contact Safety Validator
+public struct ContactSafetyValidator {
+    public static func validate(name: String, platform: String, handle: String, handleType: String) -> (isValid: Bool, sanitizedHandle: String, error: String?) {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanName.isEmpty {
+            return (false, "", "Contact name cannot be empty")
+        }
+        
+        // Security check: Check name for dangerous injection metacharacters
+        let dangerousChars = CharacterSet(charactersIn: ";|&$`<>\\\"'\n\r\0")
+        if cleanName.rangeOfCharacter(from: dangerousChars) != nil {
+            return (false, "", "Security Alert: Name contains forbidden characters")
+        }
+        
+        let trimmedHandle = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedHandle.isEmpty {
+            return (false, "", "Phone number or username required")
+        }
+        
+        if trimmedHandle.rangeOfCharacter(from: dangerousChars) != nil {
+            return (false, "", "Security Alert: Handle contains forbidden script injection characters")
+        }
+        
+        let isPhoneNumber = (platform == "WhatsApp") || (handleType == "Number")
+        
+        if isPhoneNumber {
+            // Strict Phone Number Safety Validation (India +91 & 10 digits restriction)
+            var cleaned = trimmedHandle.replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: "-", with: "")
+                .replacingOccurrences(of: "(", with: "")
+                .replacingOccurrences(of: ")", with: "")
+            
+            let hasLeadingPlus = cleaned.hasPrefix("+")
+            if hasLeadingPlus {
+                cleaned = String(cleaned.dropFirst())
+            }
+            
+            if cleaned.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) != nil {
+                return (false, "", "Phone numbers may only contain digits and '+'")
+            }
+            
+            // Check country code and digit count
+            var mobileDigits = cleaned
+            if mobileDigits.hasPrefix("91") && mobileDigits.count > 10 {
+                // Strip +91 country prefix to isolate the 10-digit mobile number
+                mobileDigits = String(mobileDigits.dropFirst(2))
+            } else if mobileDigits.hasPrefix("0") && mobileDigits.count == 11 {
+                // Strip trunk 0
+                mobileDigits = String(mobileDigits.dropFirst())
+            }
+            
+            if mobileDigits.count > 10 {
+                return (false, "", "Error: Number exceeds 10 digits. Indian mobile numbers must be exactly 10 digits.")
+            } else if mobileDigits.count < 10 {
+                return (false, "", "Error: Number has only \(mobileDigits.count) digits. Please enter a 10-digit mobile number.")
+            }
+            
+            let standardized = "+91" + mobileDigits
+            return (true, standardized, nil)
+        } else {
+            // Username validation for Telegram (@username)
+            var u = trimmedHandle
+            if u.hasPrefix("@") {
+                u = String(u.dropFirst())
+            }
+            
+            if u.count < 3 {
+                return (false, "", "Username must be at least 3 characters")
+            }
+            if u.count > 32 {
+                return (false, "", "Username cannot exceed 32 characters")
+            }
+            
+            let validUsernameChars = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+            if u.rangeOfCharacter(from: validUsernameChars.inverted) != nil {
+                return (false, "", "Usernames may only contain letters, numbers, and underscores")
+            }
+            
+            return (true, "@" + u, nil)
+        }
+    }
+}
+
 @MainActor
 public final class TelegramModule: NotchModule {
     public let id = "telegram"
@@ -258,6 +341,7 @@ public final class TelegramModule: NotchModule {
     @Published public var newPersonPlatform: String = "Telegram"
     @Published public var newPersonHandle: String = ""
     @Published public var newPersonHandleType: String = "Number"
+    @Published public var contactValidationError: String? = nil
     
     @Published public var isDispatching: Bool = false
     @Published public var isAccessibilityGranted: Bool = DirectMessenger.isAccessibilityGranted
@@ -369,8 +453,20 @@ public final class TelegramModule: NotchModule {
     }
     
     public func addContact(name: String, platform: String, handle: String) {
-        let cleanName = name.trimmingCharacters(in: .whitespaces)
-        guard !cleanName.isEmpty else { return }
+        let validation = ContactSafetyValidator.validate(
+            name: name,
+            platform: platform,
+            handle: handle,
+            handleType: newPersonHandleType
+        )
+        guard validation.isValid else {
+            contactValidationError = validation.error
+            FeedbackManager.playDelete()
+            return
+        }
+        
+        contactValidationError = nil
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         
         if contacts.count == 1 && contacts[0].name.contains("Add Contact") {
             contacts.removeAll()
@@ -379,7 +475,7 @@ public final class TelegramModule: NotchModule {
         let newContact = ChatContact(
             name: cleanName,
             platform: platform,
-            handle: handle.trimmingCharacters(in: .whitespaces),
+            handle: validation.sanitizedHandle,
             messages: [
                 ChatMessage(
                     sender: cleanName,
@@ -739,6 +835,22 @@ public struct TelegramModuleExpandedView: View {
                         .background(Capsule().fill(DesignSystem.accentColor))
                         .foregroundColor(.black)
                         .font(.system(size: 10, weight: .bold))
+                    }
+                    
+                    if let err = module.contactValidationError {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.red)
+                            Text(err)
+                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                                .foregroundColor(.red)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.top, 2)
+                        .transition(.opacity)
                     }
                 }
                 .padding(8)

@@ -408,6 +408,8 @@ public final class DynamicThemeEngine: ObservableObject {
     private var samplingAppBundleIDs: Set<String> = []
     private var isSamplingWallpaper = false
     private var activationObserver: NSObjectProtocol?
+    private var spaceChangeObserver: NSObjectProtocol?
+    private var displayChangeObserver: NSObjectProtocol?
 
     private init() {
         DispatchQueue.main.async { [weak self] in
@@ -421,6 +423,14 @@ public final class DynamicThemeEngine: ObservableObject {
             if let activationObserver {
                 NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
                 self.activationObserver = nil
+            }
+            if let spaceChangeObserver {
+                NSWorkspace.shared.notificationCenter.removeObserver(spaceChangeObserver)
+                self.spaceChangeObserver = nil
+            }
+            if let displayChangeObserver {
+                NotificationCenter.default.removeObserver(displayChangeObserver)
+                self.displayChangeObserver = nil
             }
             let vibrancy = SettingsStore.shared.dynamicVibrancy.factor
             
@@ -463,10 +473,37 @@ public final class DynamicThemeEngine: ObservableObject {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
+                    self?.refreshColors()
+                }
+            }
+        }
+
+        if spaceChangeObserver == nil {
+            spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.activeSpaceDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    if NotchShellCoordinator.shared.state == .expanded {
-                        self.refreshColors()
-                    }
+                    self.sampledWallpaperURL = nil
+                    self.sampledWallpaperColor = nil
+                    self.refreshColors()
+                }
+            }
+        }
+
+        if displayChangeObserver == nil {
+            displayChangeObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.sampledWallpaperURL = nil
+                    self.sampledWallpaperColor = nil
+                    self.refreshColors()
                 }
             }
         }

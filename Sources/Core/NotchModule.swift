@@ -45,6 +45,9 @@ public class SettingsStore: ObservableObject {
     @Published public var hoverTriggerHeight: CGFloat = 34.0 {
         didSet { UserDefaults.standard.set(Double(hoverTriggerHeight), forKey: "NotchApp_HoverTriggerHeight") }
     }
+    @Published public var hoverTriggerWidth: CGFloat = 210.0 {
+        didSet { UserDefaults.standard.set(Double(hoverTriggerWidth), forKey: "NotchApp_HoverTriggerWidth") }
+    }
     @Published public var contentHorizontalPadding: CGFloat = 16.0 {
         didSet { UserDefaults.standard.set(Double(contentHorizontalPadding), forKey: "NotchApp_ContentHorizontalPadding") }
     }
@@ -141,6 +144,9 @@ public class SettingsStore: ObservableObject {
         }
         if defaults.object(forKey: "NotchApp_HoverTriggerHeight") != nil {
             self.hoverTriggerHeight = min(54, max(24, CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerHeight"))))
+        }
+        if defaults.object(forKey: "NotchApp_HoverTriggerWidth") != nil {
+            self.hoverTriggerWidth = min(380, max(160, CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerWidth"))))
         }
         if defaults.object(forKey: "NotchApp_ContentHorizontalPadding") != nil {
             self.contentHorizontalPadding = min(32, max(12, CGFloat(defaults.double(forKey: "NotchApp_ContentHorizontalPadding"))))
