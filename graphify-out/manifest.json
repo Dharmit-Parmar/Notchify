@@ -1,0 +1,158 @@
+{
+  "Package.swift": {
+    "mtime": 1793454897.4622018,
+    "seen": 1793525341.0704541,
+    "ast_hash": "7c62cb20d26d0676dcc5b546d498cd42",
+    "semantic_hash": "7c62cb20d26d0676dcc5b546d498cd42"
+  },
+  "Sources/App/AppDelegate.swift": {
+    "mtime": 1793522863.523885,
+    "seen": 1793525341.070456,
+    "ast_hash": "887a10df22aa86c55ccf41084db6e266",
+    "semantic_hash": "887a10df22aa86c55ccf41084db6e266"
+  },
+  "Sources/App/Main.swift": {
+    "mtime": 1793454897.4628623,
+    "seen": 1793525341.070457,
+    "ast_hash": "08f3225fa571111c91fd7b52f3051faa",
+    "semantic_hash": "08f3225fa571111c91fd7b52f3051faa"
+  },
+  "Sources/Core/ModuleRegistry.swift": {
+    "mtime": 1793517835.9464412,
+    "seen": 1793525341.070457,
+    "ast_hash": "6ff90ad061cf28f7f8af9f3ca4ec8e60",
+    "semantic_hash": "6ff90ad061cf28f7f8af9f3ca4ec8e60"
+  },
+  "Sources/Core/NotchModule.swift": {
+    "mtime": 1793522838.1478288,
+    "seen": 1793525341.0704582,
+    "ast_hash": "05f59e6efa691849ebf150d4be88c916",
+    "semantic_hash": "05f59e6efa691849ebf150d4be88c916"
+  },
+  "Sources/Modules/Battery/BatteryModule.swift": {
+    "mtime": 1793476121.6078413,
+    "seen": 1793525341.0704598,
+    "ast_hash": "2d66003a037b7e802f8bd6ef11f94a3e",
+    "semantic_hash": "2d66003a037b7e802f8bd6ef11f94a3e"
+  },
+  "Sources/Modules/Calendar/CalendarModule.swift": {
+    "mtime": 1793519989.720616,
+    "seen": 1793525341.0704598,
+    "ast_hash": "263f9c2239324623a3ec8a1d0e5a6f23",
+    "semantic_hash": "263f9c2239324623a3ec8a1d0e5a6f23"
+  },
+  "Sources/Modules/Mirror/MirrorModule.swift": {
+    "mtime": 1793513990.461915,
+    "seen": 1793525341.070461,
+    "ast_hash": "307af698803f24a5a411fc19aaadb951",
+    "semantic_hash": "307af698803f24a5a411fc19aaadb951"
+  },
+  "Sources/Modules/Notifications/NotificationModule.swift": {
+    "mtime": 1793454897.464005,
+    "seen": 1793525341.070461,
+    "ast_hash": "6f5d57941c0d8d03c4472d0a808c9f1b",
+    "semantic_hash": "6f5d57941c0d8d03c4472d0a808c9f1b"
+  },
+  "Sources/Modules/NowPlaying/MediaRemoteBridge.swift": {
+    "mtime": 1793514123.307848,
+    "seen": 1793525341.070462,
+    "ast_hash": "3adf67cf55dac998f0ad53d7d9f8c4eb",
+    "semantic_hash": "3adf67cf55dac998f0ad53d7d9f8c4eb"
+  },
+  "Sources/Modules/NowPlaying/NowPlayingModule.swift": {
+    "mtime": 1793514146.083681,
+    "seen": 1793525341.070462,
+    "ast_hash": "d4696b77befb7f32c8c6d50f81b0a287",
+    "semantic_hash": "d4696b77befb7f32c8c6d50f81b0a287"
+  },
+  "Sources/Modules/Shelf/ShelfModule.swift": {
+    "mtime": 1793520028.1616745,
+    "seen": 1793525341.070463,
+    "ast_hash": "7f710767978501a5180ac500da201e27",
+    "semantic_hash": "7f710767978501a5180ac500da201e27"
+  },
+  "Sources/Modules/Telegram/TelegramModule.swift": {
+    "mtime": 1793523071.8260412,
+    "seen": 1793525341.070463,
+    "ast_hash": "10703f064336a34cea467a511cd8102d",
+    "semantic_hash": "10703f064336a34cea467a511cd8102d"
+  },
+  "Sources/Notch/NotchGeometry.swift": {
+    "mtime": 1793454897.4650185,
+    "seen": 1793525341.070464,
+    "ast_hash": "1e2a4f4865b00363b1e232643242a98a",
+    "semantic_hash": "1e2a4f4865b00363b1e232643242a98a"
+  },
+  "Sources/Notch/NotchRootView.swift": {
+    "mtime": 1793519077.6512892,
+    "seen": 1793525341.070464,
+    "ast_hash": "a13939928c949e9c697aaa3c88a5f317",
+    "semantic_hash": "a13939928c949e9c697aaa3c88a5f317"
+  },
+  "Sources/Notch/NotchShellCoordinator.swift": {
+    "mtime": 1793518793.833763,
+    "seen": 1793525341.070465,
+    "ast_hash": "33e795d6498059fa93c4a11cd9b8313c",
+    "semantic_hash": "33e795d6498059fa93c4a11cd9b8313c"
+  },
+  "Sources/Notch/NotchWindow.swift": {
+    "mtime": 1793522851.2847905,
+    "seen": 1793525341.070465,
+    "ast_hash": "b1b2cb4250b3e53a5e5002aa5340bab2",
+    "semantic_hash": "b1b2cb4250b3e53a5e5002aa5340bab2"
+  },
+  "Sources/Settings/SettingsView.swift": {
+    "mtime": 1793522880.622292,
+    "seen": 1793525341.070465,
+    "ast_hash": "a9693fd2d5288aa2f4e012c2d90a6af5",
+    "semantic_hash": "a9693fd2d5288aa2f4e012c2d90a6af5"
+  },
+  "Sources/UI/DesignSystem.swift": {
+    "mtime": 1793522932.376019,
+    "seen": 1793525341.070466,
+    "ast_hash": "f58f1a6c816d6253f566a2ff83ad9f9c",
+    "semantic_hash": "f58f1a6c816d6253f566a2ff83ad9f9c"
+  },
+  "Tests/VerificationTests.swift": {
+    "mtime": 1793523324.800427,
+    "seen": 1793525341.070466,
+    "ast_hash": "81804f9b49321d1f754d81a6b60fb4c7",
+    "semantic_hash": "81804f9b49321d1f754d81a6b60fb4c7"
+  },
+  "run_notch.sh": {
+    "mtime": 1793478803.830388,
+    "seen": 1793525341.070467,
+    "ast_hash": "41736d55efb05b82d26628cfbf5c0bf4",
+    "semantic_hash": "41736d55efb05b82d26628cfbf5c0bf4"
+  },
+  "stop_notch.sh": {
+    "mtime": 1793454897.4659708,
+    "seen": 1793525341.070467,
+    "ast_hash": "07c426bc56614479060722fb7f47bb2b",
+    "semantic_hash": "07c426bc56614479060722fb7f47bb2b"
+  },
+  "README.md": {
+    "mtime": 1793454897.4624007,
+    "seen": 1793525341.070467,
+    "ast_hash": "5e1160626050da6d83bb0f7ddfe87876",
+    "semantic_hash": "5e1160626050da6d83bb0f7ddfe87876"
+  },
+  "Sources/Modules/AirDrop/AirDropModule.swift": {
+    "mtime": 1793478749.2600803,
+    "seen": 1793525341.0704598,
+    "ast_hash": "54ad3ff40e34ea4ca50d01a304162864",
+    "semantic_hash": "54ad3ff40e34ea4ca50d01a304162864"
+  },
+  "Sources/Core/PermissionsHelper.swift": {
+    "mtime": 1793478661.2787457,
+    "seen": 1793525341.070459,
+    "ast_hash": "5a7e0629980290005b0dfd50ca85b03a",
+    "semantic_hash": "5a7e0629980290005b0dfd50ca85b03a"
+  },
+  "Sources/Modules/Thock/ThockModule.swift": {
+    "mtime": 1793523385.3764403,
+    "seen": 1793525341.070463,
+    "ast_hash": "1ced957e9cfdb9a8ebf20b6440d9f7de",
+    "semantic_hash": "1ced957e9cfdb9a8ebf20b6440d9f7de"
+  }
+}

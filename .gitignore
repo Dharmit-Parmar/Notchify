@@ -108,7 +108,9 @@ scratch/
 .gemini/
 .claude/
 .planning/
-graphify-out/
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
 .idea/
 .vscode/
 *.swp
