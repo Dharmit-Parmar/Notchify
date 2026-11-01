@@ -132,7 +132,7 @@ public struct TorsoBones: Equatable {
     
     // Normal vector perpendicular to spine
     private var normalVector: CGPoint {
-        CGPoint(x: -sin(spineAngle), y: cos(spineAngle))
+        CGPoint(x: sin(spineAngle), y: -cos(spineAngle))
     }
     
     public var leftShoulderAnchor: CGPoint {
@@ -230,6 +230,10 @@ public struct SkeletonPose: Equatable {
     
     // Debug Skeleton Overlay Toggle
     public var debugSkeleton: Bool = false
+    public var drawsTorso: Bool = true
+    public var drawsHead: Bool = true
+    public var drawsArms: Bool = true
+    public var drawsLegs: Bool = true
     
     // Convenience accessors for backwards compatibility & tests
     public var root: CGPoint {

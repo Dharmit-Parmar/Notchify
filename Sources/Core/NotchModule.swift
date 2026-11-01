@@ -248,10 +248,10 @@ public class SettingsStore: ObservableObject {
     }
     
     // Notch Companion Desktop Pet Options
-    @Published public var isCompanionEnabled: Bool = true {
+    @Published public var isCompanionEnabled: Bool = false {
         didSet { UserDefaults.standard.set(isCompanionEnabled, forKey: "NotchApp_IsCompanionEnabled") }
     }
-    @Published public var companionSkin: CompanionSkin = .mochi {
+    @Published public var companionSkin: CompanionSkin = .bubu {
         didSet { UserDefaults.standard.set(companionSkin.rawValue, forKey: "NotchApp_CompanionSkin") }
     }
     @Published public var companionActivityLevel: CompanionActivityLevel = .balanced {

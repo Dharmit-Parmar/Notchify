@@ -251,7 +251,7 @@ public struct SettingsView: View {
         case .motion: return "Apple fluid spring physics, collapse delays, and escape behavior"
         case .modules: return "Secondary tab order, compact indicator chips, and messaging bot"
         case .feedback: return "Haptic ticks, sound effects, and keyboard audio mechanics"
-        case .companion: return "Ambient notch desktop creature, collectible skins, playful animations & cadence"
+        case .companion: return "Ambient notch desktop creature (Bubu mascot), collectible skins & playful animations"
         case .permissions: return "macOS Accessibility and Input Monitoring security trust"
         }
     }
@@ -1017,15 +1017,23 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 18) {
             // Master Activation Card
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
+                HStack(alignment: .center, spacing: 10) {
                     HStack(spacing: 8) {
                         Image(systemName: "pawprint.fill")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(Color(red: 1.00, green: 0.58, blue: 0.20))
-                        Text("Ambient Notch Companion")
+                        Text("Notch Companion (Bubu Mascot)")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
                     }
+                    
+                    Text("Zero-RAM when disabled")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(Color.green)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.green.opacity(0.12)))
+                        .overlay(Capsule().strokeBorder(Color.green.opacity(0.28), lineWidth: 0.7))
                     
                     Spacer()
                     
@@ -1033,7 +1041,7 @@ public struct SettingsView: View {
                         .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
                 }
                 
-                Text("A cute procedural animated creature anchored around your physical MacBook notch bezel. Non-intrusive, zero-distraction ambient pet that reacts to typing cadence and music.")
+                Text("When turned off, 0 MB is loaded into RAM. Turn on to bring Bubu to life around your MacBook notch with cute animations.")
                     .font(.system(size: 11))
                     .foregroundColor(DesignSystem.secondaryText)
                 
@@ -1052,7 +1060,10 @@ public struct SettingsView: View {
                                 Button("Peek Right") { CompanionCoordinator.shared.triggerPeek(side: .right) }
                                     .buttonStyle(.spring)
                                     .controlSize(.small)
-                                Button("Walk (Gait)") { CompanionCoordinator.shared.triggerWalking() }
+                                Button("Walk from Left") { CompanionCoordinator.shared.triggerWalking(from: .left) }
+                                    .buttonStyle(.spring)
+                                    .controlSize(.small)
+                                Button("Walk from Right") { CompanionCoordinator.shared.triggerWalking(from: .right) }
                                     .buttonStyle(.spring)
                                     .controlSize(.small)
                                 Button("Crawl (Limb)") { CompanionCoordinator.shared.triggerCrawling() }
@@ -1083,7 +1094,7 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Collectible Skins (5 Characters)")
+                            Text("Collectible Skins (6 Characters)")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.white)
                             Text("Each skin features distinctive custom vector geometry, colors, ears, and accessories")
@@ -1280,10 +1291,10 @@ public struct SettingsView: View {
                         .foregroundColor(.green)
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Zero Battery Drain Invariant")
+                        Text("Zero-RAM & Battery Drain Guarantee")
                             .font(.system(size: 11.5, weight: .bold))
                             .foregroundColor(.white)
-                        Text("When the companion rests inside the notch den, its floating window orders out and all display timers pause. 0.00% CPU and zero click interception.")
+                        Text("When turned off, 0 MB is loaded into RAM (windows and views are fully deallocated). When resting inside the notch den, display timers pause with 0.00% CPU.")
                             .font(.system(size: 10))
                             .foregroundColor(DesignSystem.secondaryText)
                     }

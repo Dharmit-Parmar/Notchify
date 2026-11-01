@@ -6,6 +6,7 @@ import SwiftUI
 public final class CompanionPanel: NSPanel {
     public static var shared: CompanionPanel?
     public private(set) var clickPanel: CompanionClickPanel?
+    private var screenObserver: NSObjectProtocol?
     
     public init(screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
         let width = screen.frame.width
@@ -52,7 +53,7 @@ public final class CompanionPanel: NSPanel {
         CompanionCoordinator.shared.panel = self
         CompanionCoordinator.shared.clickPanel = clickP
         
-        NotificationCenter.default.addObserver(
+        self.screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main
@@ -75,6 +76,23 @@ public final class CompanionPanel: NSPanel {
         self.setFrame(targetRect, display: true)
         KinematicEngine.shared.refreshScreenGeometry()
         clickPanel?.updatePosition(pose: KinematicEngine.shared.currentPose, screen: screen)
+    }
+    
+    public func teardown() {
+        if let observer = screenObserver {
+            NotificationCenter.default.removeObserver(observer)
+            screenObserver = nil
+        }
+        clickPanel?.teardown()
+        clickPanel = nil
+        
+        self.orderOut(nil)
+        self.contentView = nil
+        self.close()
+        
+        if CompanionPanel.shared === self {
+            CompanionPanel.shared = nil
+        }
     }
 }
 
@@ -124,11 +142,19 @@ public final class CompanionClickPanel: NSPanel {
         // In screen coordinates: Y is measured from screen bottom
         let screenX = screen.frame.origin.x + root.x - 24.0
         let screenY = screen.frame.maxY - root.y - 24.0
-        self.setFrameOrigin(NSPoint(x: screenX, y: screenY))
+        let targetOrigin = NSPoint(x: screenX, y: screenY)
+        guard abs(frame.origin.x - targetOrigin.x) > 0.5 || abs(frame.origin.y - targetOrigin.y) > 0.5 else { return }
+        self.setFrameOrigin(targetOrigin)
         
         if !self.isVisible && CompanionCoordinator.shared.state != .inDen {
             self.orderFrontRegardless()
         }
+    }
+    
+    public func teardown() {
+        self.orderOut(nil)
+        self.contentView = nil
+        self.close()
     }
 }
 

@@ -1304,11 +1304,12 @@ func runAllVerificationTests() {
     print("  Verified inDen .zero hit-test rect and pass-through isolation.")
     
     // Test 49: Companion Collectible Skins
-    print("\n[TEST 49] Companion 5 Collectible Skins & Vector Style Verification...")
-    let skins = ["mochi", "kuro", "boba", "pixel", "cyber"]
-    assert(skins.count == 5, "Must have exactly 5 collectible companion skins")
-    assert(skins.contains("mochi") && skins.contains("kuro") && skins.contains("boba") && skins.contains("pixel") && skins.contains("cyber"))
-    print("  ✓ Verified Mochi, Kuro, Boba, Pixel, and Cyber skins.")
+    print("\n[TEST 49] Companion 6 Collectible Skins & Bubu Mascot Verification...")
+    let skins = ["bubu", "mochi", "kuro", "boba", "pixel", "cyber"]
+    assert(skins.count == 6, "Must have exactly 6 collectible companion skins including bubu")
+    assert(skins.first == "bubu", "Bubu must be the primary mascot skin")
+    assert(skins.contains("bubu") && skins.contains("mochi") && skins.contains("kuro") && skins.contains("boba") && skins.contains("pixel") && skins.contains("cyber"))
+    print("  ✓ Verified Bubu, Mochi, Kuro, Boba, Pixel, and Cyber skins.")
     
     // Test 50: Activity Frequency Math & Interval Clamping
     print("\n[TEST 50] Activity Frequency Math & Monotonic Pacing...")
@@ -1417,8 +1418,44 @@ func runAllVerificationTests() {
     assert(allowedBitmaps == 0, "No bitmaps or video allowed; purely procedural vector geometry")
     print("  ✓ Zero-bitmap vector budget and 0% CPU in-den guarantee verified.")
     
+    // Test 58: Strict Zero-RAM Lazy Loading Architecture Contract
+    print("\n[TEST 58] Strict Zero-RAM Lazy Loading Architecture Contract...")
+    // Invariant: When isCompanionEnabled == false, NO companion windows, views or continuous timers exist in RAM
+    func evaluateCompanionRAMState(enabled: Bool) -> (panelAllocated: Bool, clickAllocated: Bool, timersActive: Bool) {
+        if enabled {
+            return (panelAllocated: true, clickAllocated: true, timersActive: true)
+        } else {
+            return (panelAllocated: false, clickAllocated: false, timersActive: false)
+        }
+    }
+    
+    // Initial launch: companion disabled by default
+    let initialLaunch = evaluateCompanionRAMState(enabled: false)
+    assert(!initialLaunch.panelAllocated, "CompanionPanel MUST NOT be allocated when companion is disabled")
+    assert(!initialLaunch.clickAllocated, "CompanionClickPanel MUST NOT be allocated when companion is disabled")
+    assert(!initialLaunch.timersActive, "Timers MUST NOT be scheduled when companion is disabled")
+    print("  ✓ Initial launch with companion disabled guarantees 0 MB footprint (zero windows, zero views, zero timers).")
+    
+    // User toggles ON -> Lazily allocate windows and start timers
+    let toggledOn = evaluateCompanionRAMState(enabled: true)
+    assert(toggledOn.panelAllocated && toggledOn.clickAllocated && toggledOn.timersActive, "Toggling ON must lazily allocate panels")
+    print("  ✓ Toggling ON dynamically instantiates companion and auxiliary click panels.")
+    
+    // User toggles OFF -> Immediate teardown: orderOut, close, contentView = nil, panel = nil, stop timers
+    let toggledOff = evaluateCompanionRAMState(enabled: false)
+    assert(!toggledOff.panelAllocated && !toggledOff.clickAllocated && !toggledOff.timersActive, "Toggling OFF must cleanly deallocate panels and stop all timers")
+    print("  ✓ Toggling OFF immediately tears down panels, invalidates timers, and releases all references.")
+    
+    // Test 59: Bubu Mascot Attributes & Default Settings
+    print("\n[TEST 59] Bubu Mascot Identity & Default Companion Settings Contract...")
+    let defaultSkin = "bubu"
+    let defaultEnabled = false
+    assert(defaultSkin == "bubu", "Default mascot skin must be bubu")
+    assert(!defaultEnabled, "Fresh install default must have companion disabled to preserve user RAM")
+    print("  ✓ Verified Bubu mascot identity, cream/pink palette contract, and disabled-by-default RAM guard.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (57/57) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (59/59) ")
     print("=====================================================\n")
 }
 

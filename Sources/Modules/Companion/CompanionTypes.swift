@@ -2,6 +2,7 @@ import SwiftUI
 
 // MARK: - Companion Skins
 public enum CompanionSkin: String, Codable, CaseIterable, Identifiable {
+    case bubu = "bubu"
     case mochi = "mochi"
     case kuro = "kuro"
     case boba = "boba"
@@ -12,6 +13,7 @@ public enum CompanionSkin: String, Codable, CaseIterable, Identifiable {
     
     public var displayName: String {
         switch self {
+        case .bubu: return "Bubu (Bear)"
         case .mochi: return "Mochi (Fluff)"
         case .kuro: return "Kuro (Cat)"
         case .boba: return "Boba (Dino)"
@@ -22,6 +24,7 @@ public enum CompanionSkin: String, Codable, CaseIterable, Identifiable {
     
     public var subtitle: String {
         switch self {
+        case .bubu: return "Sweet chubby bear with warm cream fur and rosy cheeks"
         case .mochi: return "Classic warm marshmallow with pink blush"
         case .kuro: return "Midnight obsidian cat with emerald eyes"
         case .boba: return "Matcha green pastel dinosaur with spine bumps"
@@ -32,6 +35,7 @@ public enum CompanionSkin: String, Codable, CaseIterable, Identifiable {
     
     public var primaryColor: Color {
         switch self {
+        case .bubu: return Color(red: 0.99, green: 0.99, blue: 0.98) // Pure warm white
         case .mochi: return Color(red: 0.98, green: 0.97, blue: 0.95)
         case .kuro: return Color(red: 0.12, green: 0.12, blue: 0.14)
         case .boba: return Color(red: 0.45, green: 0.82, blue: 0.55)
@@ -44,15 +48,36 @@ public enum CompanionSkin: String, Codable, CaseIterable, Identifiable {
     
     public var eyeColor: Color {
         switch self {
+        case .bubu: return Color(red: 0.17, green: 0.12, blue: 0.13)
         case .kuro: return accentColor
         case .cyber: return accentColor
-        default: return Color(red: 0.12, green: 0.12, blue: 0.15)
+        default: return Color(red: 0.17, green: 0.12, blue: 0.13)
+        }
+    }
+    
+    public var outlineColor: Color {
+        switch self {
+        case .kuro: return Color(red: 0.06, green: 0.06, blue: 0.08)
+        case .cyber: return Color(red: 0.10, green: 0.12, blue: 0.16)
+        default: return Color(red: 0.17, green: 0.12, blue: 0.13)
+        }
+    }
+    
+    public var darkAccentColor: Color {
+        switch self {
+        case .bubu: return Color(red: 0.22, green: 0.14, blue: 0.15) // Dark chocolate ears/pads/band
+        case .kuro: return Color(red: 0.08, green: 0.08, blue: 0.10)
+        case .mochi: return Color(red: 0.88, green: 0.82, blue: 0.84)
+        case .boba: return Color(red: 0.20, green: 0.45, blue: 0.28)
+        case .pixel: return Color(red: 0.15, green: 0.15, blue: 0.20)
+        case .cyber: return Color(red: 0.10, green: 0.14, blue: 0.20)
         }
     }
     
     public var accentColor: Color {
         switch self {
-        case .mochi: return Color(red: 1.0, green: 0.60, blue: 0.70) // Pink blush
+        case .bubu: return Color(red: 1.0, green: 0.68, blue: 0.71) // Giant rosy pink blush
+        case .mochi: return Color(red: 1.0, green: 0.68, blue: 0.71) // Pink blush
         case .kuro: return Color(red: 0.30, green: 0.95, blue: 0.65) // Emerald eyes
         case .boba: return Color(red: 0.98, green: 0.55, blue: 0.50) // Coral belly
         case .pixel: return Color(red: 0.20, green: 0.55, blue: 0.95) // Cyan accents

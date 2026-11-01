@@ -10,8 +10,9 @@ public final class CompanionCoordinator: ObservableObject {
     @Published public var state: CompanionBehaviorState = .inDen
     @Published public var isHovered: Bool = false
     
-    public weak var panel: CompanionPanel?
-    public weak var clickPanel: CompanionClickPanel?
+    // Strong references for strict zero-RAM lifecycle management
+    public var panel: CompanionPanel?
+    public var clickPanel: CompanionClickPanel?
     
     // Internal Timers & Monitored Events
     private var schedulerTimer: Timer?
@@ -23,6 +24,7 @@ public final class CompanionCoordinator: ObservableObject {
     private var recentKeystrokes: Int = 0
     private var isSequenceRunning: Bool = false
     private var hasSlippedInSession: Bool = false
+    private var walkStartRouteCount = 0
     private var isStarted: Bool = false
     private var isObserving: Bool = false
     
@@ -31,28 +33,29 @@ public final class CompanionCoordinator: ObservableObject {
     // MARK: - AppKit Hit-Test Target Frame
     public var creatureInteractiveRectInWindow: NSRect {
         guard state != .inDen else { return .zero }
-        let geom = NotchGeometry.current()
-        let winW = geom.physicalNotchWidth + 140
-        let winH = geom.physicalNotchHeight + 60
-        
-        let centerAppKitX = winW / 2.0
-        let notchLipY = geom.physicalNotchHeight
-        
+        let winH: CGFloat = 160
         let rootPose = KinematicEngine.shared.currentPose.root
-        let appKitX = centerAppKitX + rootPose.x
-        let appKitY = (winH - notchLipY) - rootPose.y
-        
-        return NSRect(x: appKitX - 26, y: appKitY - 24, width: 52, height: 48)
+        return NSRect(x: rootPose.x - 26, y: winH - rootPose.y - 24, width: 52, height: 48)
     }
     
     // MARK: - Lifecycle
     public func start() {
+        setupObservers()
         guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         guard !isStarted else { return }
         isStarted = true
-        setupObservers()
         setupTypingMonitor()
         scheduleNextBehavior()
+    }
+    
+    public func ensurePanelsCreated() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        guard panel == nil else { return }
+        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+        let p = CompanionPanel(screen: screen)
+        self.panel = p
+        self.clickPanel = p.clickPanel
     }
     
     public func stop() {
@@ -69,7 +72,14 @@ public final class CompanionCoordinator: ObservableObject {
             keyMonitor = nil
         }
         
-        retreatToDen(immediate: true)
+        panel?.teardown()
+        clickPanel?.teardown()
+        panel = nil
+        clickPanel = nil
+        
+        state = .inDen
+        KinematicEngine.shared.setBehavior(.inDen)
+        isSequenceRunning = false
     }
     
     // MARK: - Observers
@@ -88,6 +98,15 @@ public final class CompanionCoordinator: ObservableObject {
                 } else {
                     self.stop()
                 }
+            }
+            .store(in: &cancellables)
+
+        SettingsStore.shared.$companionActivityLevel
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.isStarted, self.state == .inDen else { return }
+                self.scheduleNextBehavior()
             }
             .store(in: &cancellables)
         
@@ -204,7 +223,7 @@ public final class CompanionCoordinator: ObservableObject {
         case .peekingRight:
             triggerPeek(side: .right)
         case .walking:
-            triggerWalking()
+            triggerWalking(from: Bool.random() ? .left : .right)
         case .crawling:
             triggerCrawling()
         case .thinking:
@@ -218,6 +237,8 @@ public final class CompanionCoordinator: ObservableObject {
     
     // MARK: - Action Triggers (Kinematic Skeleton Driven)
     public func triggerPeek(side: PeekSide) {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
@@ -237,29 +258,37 @@ public final class CompanionCoordinator: ObservableObject {
     
     public enum PeekSide { case left, right }
     
-    public func triggerWalking() {
+    public func triggerWalking(from side: PeekSide = .left) {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
         
         state = .walking
-        KinematicEngine.shared.setBehavior(.walking)
-        
+        KinematicEngine.shared.setBehavior(.walking, startingFromRight: side == .right)
+        walkStartRouteCount = KinematicEngine.shared.completedRouteCount
         actionDurationTimer?.invalidate()
-        let walkDuration = Double.random(in: 8.0...14.0)
-        actionDurationTimer = Timer.scheduledTimer(withTimeInterval: walkDuration, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                if SettingsStore.shared.companionAllowSlips && !self.hasSlippedInSession && Bool.random() {
-                    self.executeSlipSequence()
-                } else {
-                    self.retreatToDen()
-                }
-            }
+    }
+
+    public func companionRouteDidAdvance() {
+        let engine = KinematicEngine.shared
+        if state == .walking,
+           engine.routeStage == .monkeyBarTraversal,
+           engine.behaviorTime == 0,
+           SettingsStore.shared.companionAllowSlips,
+           !hasSlippedInSession,
+           Int.random(in: 0..<20) == 0 {
+            executeSlipSequence()
+            return
         }
+        guard state == .walking, engine.completedRouteCount > walkStartRouteCount else { return }
+        retreatToDen()
     }
     
     public func triggerCrawling() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
@@ -277,6 +306,8 @@ public final class CompanionCoordinator: ObservableObject {
     }
     
     public func triggerThinking() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
@@ -295,14 +326,15 @@ public final class CompanionCoordinator: ObservableObject {
     
     // MARK: - Signature Slip & Dangle Comedy Sequence
     public func executeSlipSequence() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         hasSlippedInSession = true
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
         
-        state = .dangling
-        FeedbackManager.playClick()
-        KinematicEngine.shared.setBehavior(.dangling)
+        state = .slipping
+        KinematicEngine.shared.setBehavior(.slipping)
         
         actionDurationTimer?.invalidate()
         // Dangle for 3.0s swinging as a damped pendulum, then initiate pull-up!
@@ -321,6 +353,8 @@ public final class CompanionCoordinator: ObservableObject {
     }
     
     public func triggerTypingMimic() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
@@ -330,6 +364,8 @@ public final class CompanionCoordinator: ObservableObject {
     }
     
     public func triggerMusicGroove() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
@@ -352,6 +388,8 @@ public final class CompanionCoordinator: ObservableObject {
     }
     
     public func triggerSleeping() {
+        guard SettingsStore.shared.isCompanionEnabled else { return }
+        ensurePanelsCreated()
         isSequenceRunning = true
         panel?.orderFrontRegardless()
         clickPanel?.orderFrontRegardless()
