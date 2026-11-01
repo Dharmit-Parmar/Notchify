@@ -352,18 +352,8 @@ public struct NotchRootView: View {
                         .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
                 )
             } else {
-                // Home Landing Dashboard: Left: Currently Playing, Right: Calendar
-                HStack(alignment: .top, spacing: 12) {
-                    // Left Side: Live Currently Playing Media Card
-                    NowPlayingHomeCardView()
-                        .frame(maxWidth: .infinity)
-                    
-                    // Right Side: Interactive Calendar Card
-                    CalendarHomeCardView()
-                        .frame(width: 260)
-                }
-                .frame(maxHeight: .infinity, alignment: .top)
-                .transition(.opacity.combined(with: .scale(scale: 0.99)))
+                // Modular 4-Slot Customizable Home Dashboard
+                ModularDashboardView()
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: registry.activeModuleId)

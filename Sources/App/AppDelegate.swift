@@ -42,7 +42,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         registry.register(ThockModule.shared)
         registry.register(TelegramModule())
         registry.register(BatteryModule.shared)
-        registry.register(MirrorModule())
+        registry.register(MirrorModule.shared)
         registry.register(NotificationModule())
         
         // Ensure standard /Applications and ~/Applications bundle discovery
@@ -151,15 +151,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 640),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.minSize = NSSize(width: 720, height: 540)
+        window.setFrameAutosaveName("NotchIslandSettingsWindow")
         if let screen = NSScreen.main ?? NSScreen.screens.first {
             let screenFrame = screen.visibleFrame
-            let winW: CGFloat = 560
-            let winH: CGFloat = min(screenFrame.height - 40, 640)
+            let winW: CGFloat = 760
+            let winH: CGFloat = min(screenFrame.height - 40, 600)
             let originX = screenFrame.midX - (winW / 2)
             let originY = max(screenFrame.minY + 20, screenFrame.maxY - winH - 24)
             window.setFrame(NSRect(x: originX, y: originY, width: winW, height: winH), display: true)

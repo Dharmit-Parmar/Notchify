@@ -80,6 +80,8 @@ public final class CameraSessionManager: @unchecked Sendable {
 
 @MainActor
 public final class MirrorModule: NotchModule {
+    public static let shared = MirrorModule()
+    
     public let id = "mirror"
     public let title = "Mirror"
     public let iconName = "camera.fill"
@@ -229,6 +231,118 @@ public struct MirrorContainerView: View {
         }
         .onDisappear {
             module.stop()
+        }
+    }
+}
+
+// MARK: - 1-Space Compact Mirror Glance View
+public struct MirrorCompactTileView: View {
+    @ObservedObject var module: MirrorModule = MirrorModule.shared
+    
+    public var body: some View {
+        HStack(spacing: 12) {
+            // Live Squircle Preview
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.black.opacity(0.85))
+                    .frame(width: 80, height: 80)
+                
+                CameraLivePreview(session: module.manager.captureSession)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(width: 80, height: 80)
+                    .opacity(module.isRunning ? 1 : 0)
+                
+                if !module.isRunning {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.9)
+            )
+            
+            // Mirror Controls & Status
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(module.isRunning ? Color.green : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(module.isRunning ? "MIRROR ACTIVE" : "MIRROR PAUSED")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundColor(module.isRunning ? .green : DesignSystem.secondaryText)
+                }
+                
+                Text("Quick Glance")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                
+                Text("Look sharp before meetings")
+                    .font(.system(size: 9.5))
+                    .foregroundColor(DesignSystem.secondaryText)
+                    .lineLimit(1)
+                
+                Button(action: {
+                    if module.isRunning {
+                        module.stop()
+                    } else {
+                        module.start()
+                    }
+                }) {
+                    Text(module.isRunning ? "Pause" : "Resume")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .frame(maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .fill(DesignSystem.cardGradient)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+        )
+        .onAppear { module.start() }
+        .onDisappear { module.stop() }
+    }
+}
+
+// MARK: - Adaptive Mirror Widget Container
+public struct MirrorAdaptiveWidgetView: View {
+    public var span: Int
+    @ObservedObject var module: MirrorModule = MirrorModule.shared
+    
+    public init(span: Int = 2) {
+        self.span = span
+    }
+    
+    public var body: some View {
+        Group {
+            if span == 1 {
+                MirrorCompactTileView(module: module)
+            } else {
+                MirrorContainerView(module: module)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                            .fill(DesignSystem.cardGradient)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                            .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+                    )
+            }
         }
     }
 }

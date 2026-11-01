@@ -350,3 +350,151 @@ public struct CalendarHomeCardView: View {
         )
     }
 }
+
+// MARK: - 1-Space Mini Calendar Glance View
+public struct CalendarMiniGlanceView: View {
+    @ObservedObject var module: CalendarModule = CalendarModule.shared
+    
+    private var todayDate: Date { Date() }
+    
+    private var monthAbbrev: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: todayDate).uppercased()
+    }
+    
+    private var dayNumber: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: todayDate)
+    }
+    
+    private var weekdayAbbrev: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: todayDate).uppercased()
+    }
+    
+    private var nextEvent: CalendarEventItem? {
+        let calendar = Calendar.current
+        return module.upcomingEvents.first { event in
+            calendar.isDate(event.date, inSameDayAs: todayDate) || event.date >= todayDate
+        }
+    }
+    
+    public var body: some View {
+        HStack(spacing: 12) {
+            // Left Date Badge (iOS Calendar style)
+            VStack(spacing: 0) {
+                Text(monthAbbrev)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 2.5)
+                    .background(Color(red: 0.95, green: 0.28, blue: 0.32))
+                
+                VStack(spacing: 0) {
+                    Text(dayNumber)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Text(weekdayAbbrev)
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black.opacity(0.4))
+            }
+            .frame(width: 58, height: 68)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
+            )
+            
+            // Right Agenda / Upcoming Details
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("UPCOMING")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(DesignSystem.secondaryText)
+                    
+                    Spacer()
+                    
+                    Button {
+                        if let url = URL(string: "calshow:") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open Calendar.app")
+                }
+                
+                if let event = nextEvent {
+                    Text(event.title)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(event.color)
+                            .frame(width: 5, height: 5)
+                        Text(event.timeString)
+                            .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
+                } else {
+                    Text("No upcoming events")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(DesignSystem.secondaryText)
+                    Text("Enjoy your clear day")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.tertiaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .frame(maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .fill(DesignSystem.cardGradient)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+        )
+    }
+}
+
+// MARK: - Adaptive Calendar Widget Container (1, 2, or 4 spaces)
+public struct CalendarAdaptiveWidgetView: View {
+    public var span: Int
+    
+    public init(span: Int = 2) {
+        self.span = span
+    }
+    
+    public var body: some View {
+        Group {
+            if span == 1 {
+                CalendarMiniGlanceView()
+            } else if span == 2 {
+                CalendarHomeCardView()
+            } else {
+                HStack(spacing: 12) {
+                    CalendarHomeCardView()
+                        .frame(width: 270)
+                    Divider().background(Color.white.opacity(0.12))
+                    CalendarMiniGlanceView()
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+}

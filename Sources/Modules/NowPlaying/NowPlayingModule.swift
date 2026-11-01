@@ -332,3 +332,148 @@ public struct NowPlayingHomeCardView: View {
         .onAppear { module.refreshMediaState() }
     }
 }
+
+// MARK: - 1-Space Compact Media Tile View
+public struct NowPlayingCompactTileView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject var module: NowPlayingModule = NowPlayingModule.shared
+    
+    public var body: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                // Album Art / App Icon
+                ZStack {
+                    if let artwork = module.artwork {
+                        Image(nsImage: artwork)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.08))
+                            .overlay(
+                                Image(systemName: "music.note")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            )
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
+                )
+                
+                // Track Info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(module.trackTitle.isEmpty ? "Not Playing" : module.trackTitle)
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    
+                    Text(module.artistName.isEmpty ? (module.sourceApp.isEmpty ? "Media Ready" : module.sourceApp) : module.artistName)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(DesignSystem.secondaryText)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                // Live mini equalizer or transport
+                if module.isPlaying {
+                    LiveEqualizerIndicator(isPlaying: module.isPlaying)
+                        .frame(width: 14, height: 12)
+                }
+            }
+            
+            // Progress Bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(height: 3)
+                    
+                    Capsule()
+                        .fill(DesignSystem.accentColor)
+                        .frame(width: max(0, min(geo.size.width * CGFloat(module.progress), geo.size.width)), height: 3)
+                }
+            }
+            .frame(height: 3)
+            
+            // Transport Dock
+            HStack(spacing: 12) {
+                Button(action: {
+                    FeedbackManager.playClick()
+                    module.previousTrack()
+                }) {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: {
+                    FeedbackManager.playClick()
+                    module.togglePlayPause()
+                }) {
+                    Image(systemName: module.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: {
+                    FeedbackManager.playClick()
+                    module.nextTrack()
+                }) {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                Text(module.sourceApp.isEmpty ? "macOS" : module.sourceApp)
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundColor(DesignSystem.secondaryText)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.white.opacity(0.06)))
+            }
+        }
+        .padding(10)
+        .frame(maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .fill(DesignSystem.cardGradient)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+        )
+        .onAppear { module.refreshMediaState() }
+    }
+}
+
+// MARK: - Adaptive Now Playing Widget Container
+public struct NowPlayingAdaptiveWidgetView: View {
+    public var span: Int
+    
+    public init(span: Int = 2) {
+        self.span = span
+    }
+    
+    public var body: some View {
+        Group {
+            if span == 1 {
+                NowPlayingCompactTileView()
+            } else {
+                NowPlayingHomeCardView()
+            }
+        }
+    }
+}

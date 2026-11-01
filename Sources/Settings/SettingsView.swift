@@ -1,10 +1,13 @@
 import SwiftUI
 
+import SwiftUI
+
 public enum SettingsCategory: String, CaseIterable, Identifiable {
+    case dashboard = "Dashboard"
     case appearance = "Appearance"
     case geometry = "Geometry"
     case motion = "Motion"
-    case modules = "Modules"
+    case modules = "Tab Modules"
     case feedback = "Feedback"
     case permissions = "Permissions"
     
@@ -12,10 +15,11 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
     
     public var icon: String {
         switch self {
+        case .dashboard: return "square.grid.2x2.fill"
         case .appearance: return "paintpalette.fill"
         case .geometry: return "macbook.and.iphone"
         case .motion: return "waveform.path"
-        case .modules: return "square.grid.2x2.fill"
+        case .modules: return "slider.horizontal.2.square.on.square"
         case .feedback: return "speaker.wave.2.fill"
         case .permissions: return "hand.raised.fill"
         }
@@ -23,6 +27,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
     
     public var tintColor: Color {
         switch self {
+        case .dashboard: return Color(red: 0.20, green: 0.60, blue: 1.00) // Electric Blue
         case .appearance: return Color(red: 0.76, green: 0.44, blue: 0.98) // Royal Purple
         case .geometry: return Color(red: 0.22, green: 0.74, blue: 0.98) // Electric Cyan
         case .motion: return Color(red: 0.98, green: 0.62, blue: 0.22) // Solar Amber
@@ -36,7 +41,7 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
 @MainActor
 public final class SettingsNavigationState: ObservableObject {
     public static let shared = SettingsNavigationState()
-    @Published public var selectedCategory: SettingsCategory = .appearance
+    @Published public var selectedCategory: SettingsCategory = .dashboard
 }
 
 public struct SettingsView: View {
@@ -48,71 +53,166 @@ public struct SettingsView: View {
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 0) {
-            // Header Bar
-            headerBar
+        HStack(spacing: 0) {
+            // Left Sidebar Navigation
+            sidebarNavigation
+                .frame(width: 210)
+                .background(DesignSystem.canvasColor.opacity(0.65))
             
-            // Category Navigation Segmented Bar
-            categoryNavigationBar
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(DesignSystem.canvasColor.opacity(0.4))
+            Divider().background(Color.white.opacity(0.12))
             
-            Divider()
-            
-            // Tab Content
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch nav.selectedCategory {
-                    case .appearance:
-                        appearanceSection
-                    case .geometry:
-                        geometrySection
-                    case .motion:
-                        motionSection
-                    case .modules:
-                        modulesSection
-                    case .feedback:
-                        feedbackSection
-                    case .permissions:
-                        permissionsSection
+            // Right Fluid Detail Stage
+            VStack(spacing: 0) {
+                // Detail Header Bar
+                detailHeaderBar
+                
+                Divider().background(Color.white.opacity(0.12))
+                
+                // Detail Scroll Area
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        switch nav.selectedCategory {
+                        case .dashboard:
+                            DashboardSettingsView()
+                        case .appearance:
+                            appearanceSection
+                        case .geometry:
+                            geometrySection
+                        case .motion:
+                            motionSection
+                        case .modules:
+                            modulesSection
+                        case .feedback:
+                            feedbackSection
+                        case .permissions:
+                            permissionsSection
+                        }
                     }
+                    .padding(24)
                 }
-                .padding(20)
+                .animation(DesignSystem.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.9), value: nav.selectedCategory)
+                
+                Divider().background(Color.white.opacity(0.12))
+                
+                // Footer Bar
+                footerBar
             }
-            .animation(DesignSystem.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.9), value: nav.selectedCategory)
-            
-            Divider()
-            
-            // Footer Bar
-            footerBar
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DesignSystem.canvasColor)
         }
         .background(DesignSystem.canvasColor)
         .tint(DesignSystem.accentColor)
         .animation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.22), value: themeEngine.canvasColor)
-        .frame(width: 540, height: 620)
+        .frame(minWidth: 720, minHeight: 560)
         .onAppear {
             store.refreshAccessibility()
         }
     }
     
-    // MARK: - Header Bar
-    private var headerBar: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(nav.selectedCategory.tintColor.opacity(0.18))
-                    .frame(width: 36, height: 36)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(nav.selectedCategory.tintColor)
+    // MARK: - Left Sidebar Navigation
+    private var sidebarNavigation: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // App Branding Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(DesignSystem.accentColor.opacity(0.2))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(DesignSystem.accentColor)
+                }
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Notch Island")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Text("Liquid Retina Workspace")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 18)
+            .padding(.bottom, 16)
+            
+            Divider().background(Color.white.opacity(0.08))
+            
+            // Categories List
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 4) {
+                    ForEach(SettingsCategory.allCases) { category in
+                        let isSelected = nav.selectedCategory == category
+                        Button {
+                            FeedbackManager.playClick()
+                            withAnimation(DesignSystem.reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)) {
+                                nav.selectedCategory = category
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(category.tintColor.opacity(isSelected ? 0.9 : 0.18))
+                                        .frame(width: 24, height: 24)
+                                    Image(systemName: category.icon)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(isSelected ? .white : category.tintColor)
+                                }
+                                
+                                Text(category.rawValue)
+                                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium, design: .rounded))
+                                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 12)
             }
             
+            Spacer()
+            
+            Divider().background(Color.white.opacity(0.08))
+            
+            // Current Theme Footer Chip
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(themeEngine.accentColor)
+                    .frame(width: 8, height: 8)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("ACTIVE THEME")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundColor(DesignSystem.secondaryText)
+                    Text(store.currentTheme.displayName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+    
+    // MARK: - Detail Header Bar
+    private var detailHeaderBar: some View {
+        HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Notch Preferences")
+                Text(nav.selectedCategory.rawValue)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                Text("Crafted native macOS liquid retina experience")
+                Text(categorySubtitle(nav.selectedCategory))
                     .font(.system(size: 11))
                     .foregroundColor(DesignSystem.secondaryText)
             }
@@ -122,53 +222,30 @@ public struct SettingsView: View {
             HStack(spacing: 6) {
                 Circle()
                     .fill(themeEngine.accentColor)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 7, height: 7)
                 Text(store.currentTheme.displayName)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundColor(themeEngine.accentColor)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
             .background(Capsule().fill(DesignSystem.structureColor.opacity(0.6)))
             .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.7))
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 24)
         .padding(.vertical, 14)
-        .background(DesignSystem.canvasColor.opacity(0.8))
+        .background(DesignSystem.canvasColor.opacity(0.5))
     }
     
-    // MARK: - Category Navigation
-    private var categoryNavigationBar: some View {
-        HStack(spacing: 4) {
-            ForEach(SettingsCategory.allCases) { category in
-                let isSelected = nav.selectedCategory == category
-                Button {
-                    FeedbackManager.playClick()
-                    withAnimation(DesignSystem.reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)) {
-                        nav.selectedCategory = category
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: category.icon)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(isSelected ? .white : category.tintColor)
-                        Text(category.rawValue)
-                            .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(isSelected ? category.tintColor.opacity(0.22) : Color.clear)
-                    )
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(isSelected ? category.tintColor.opacity(0.85) : Color.white.opacity(0.06), lineWidth: isSelected ? 1.2 : 0.6)
-                    )
-                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
-                }
-                .buttonStyle(.plain)
-            }
+    private func categorySubtitle(_ category: SettingsCategory) -> String {
+        switch category {
+        case .dashboard: return "Configure 4-slot modular widgets, layout presets, and auto-stretching"
+        case .appearance: return "Glass styles, dynamic vibrancy, corner squircle radii, and theme palettes"
+        case .geometry: return "MacBook camera notch padding, dimensions, and hover trigger width"
+        case .motion: return "Apple fluid spring physics, collapse delays, and escape behavior"
+        case .modules: return "Secondary tab order, compact indicator chips, and messaging bot"
+        case .feedback: return "Haptic ticks, sound effects, and keyboard audio mechanics"
+        case .permissions: return "macOS Accessibility and Input Monitoring security trust"
         }
     }
     

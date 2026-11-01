@@ -31,9 +31,98 @@ public extension NotchModule {
     }
 }
 
+// MARK: - Dashboard Widget Models
+
+public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
+    case nowPlaying = "nowPlaying"
+    case calendar = "calendar"
+    case notes = "notes"
+    case clock = "clock"
+    case mirror = "mirror"
+    
+    public var id: String { rawValue }
+    
+    public var title: String {
+        switch self {
+        case .nowPlaying: return "Now Playing"
+        case .calendar: return "Calendar"
+        case .notes: return "Quick Notes"
+        case .clock: return "Clock"
+        case .mirror: return "Mirror"
+        }
+    }
+    
+    public var icon: String {
+        switch self {
+        case .nowPlaying: return "music.note"
+        case .calendar: return "calendar"
+        case .notes: return "note.text"
+        case .clock: return "clock.fill"
+        case .mirror: return "camera.fill"
+        }
+    }
+    
+    public var tintColor: Color {
+        switch self {
+        case .nowPlaying: return Color(red: 0.95, green: 0.32, blue: 0.45)
+        case .calendar: return Color(red: 0.20, green: 0.60, blue: 1.00)
+        case .notes: return Color(red: 0.98, green: 0.72, blue: 0.20)
+        case .clock: return Color(red: 0.35, green: 0.85, blue: 0.65)
+        case .mirror: return Color(red: 0.90, green: 0.40, blue: 0.85)
+        }
+    }
+    
+    public var subtitle: String {
+        switch self {
+        case .nowPlaying: return "Live audio & video scrubber"
+        case .calendar: return "Interactive month & agenda"
+        case .notes: return "Instant scratchpad & memo"
+        case .clock: return "Analog dial or digital display"
+        case .mirror: return "Fast camera glance & preview"
+        }
+    }
+}
+
+public enum ClockDialStyle: String, Codable, CaseIterable, Identifiable {
+    case analog = "analog"
+    case digital = "digital"
+    
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .analog: return "Analog Dial"
+        case .digital: return "Digital Display"
+        }
+    }
+}
+
 @MainActor
 public class SettingsStore: ObservableObject {
     public static let shared = SettingsStore()
+    
+    // Modular Dashboard Configuration (4 Slots)
+    @Published public var dashboardSlots: [DashboardWidgetType?] = [.nowPlaying, .calendar, nil, nil] {
+        didSet {
+            let serialized = dashboardSlots.map { $0?.rawValue ?? "empty" }
+            UserDefaults.standard.set(serialized, forKey: "NotchApp_DashboardSlots")
+        }
+    }
+    
+    // Clock Widget Options
+    @Published public var clockDialStyle: ClockDialStyle = .analog {
+        didSet { UserDefaults.standard.set(clockDialStyle.rawValue, forKey: "NotchApp_ClockDialStyle") }
+    }
+    @Published public var clockIs24Hour: Bool = false {
+        didSet { UserDefaults.standard.set(clockIs24Hour, forKey: "NotchApp_ClockIs24Hour") }
+    }
+    @Published public var clockShowSeconds: Bool = true {
+        didSet { UserDefaults.standard.set(clockShowSeconds, forKey: "NotchApp_ClockShowSeconds") }
+    }
+    
+    // Quick Notes Persistence
+    @Published public var quickNotesText: String = "" {
+        didSet { UserDefaults.standard.set(quickNotesText, forKey: "NotchApp_QuickNotesText") }
+    }
     
     // Geometry & Layout: allow generous breathing room for tools and calendar
     @Published public var notchWidth: CGFloat = 620.0 {
@@ -208,8 +297,65 @@ public class SettingsStore: ObservableObject {
         if let savedModules = UserDefaults.standard.dictionary(forKey: "NotchApp_EnabledModules") as? [String: Bool] {
             self.enabledModules.merge(savedModules, uniquingKeysWith: { _, saved in saved })
         }
+        if let rawSlots = UserDefaults.standard.stringArray(forKey: "NotchApp_DashboardSlots"), rawSlots.count == 4 {
+            self.dashboardSlots = rawSlots.map { raw in
+                if raw == "empty" { return nil }
+                return DashboardWidgetType(rawValue: raw)
+            }
+        }
+        if let savedClockStyle = UserDefaults.standard.string(forKey: "NotchApp_ClockDialStyle"),
+           let style = ClockDialStyle(rawValue: savedClockStyle) {
+            self.clockDialStyle = style
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_ClockIs24Hour") != nil {
+            self.clockIs24Hour = UserDefaults.standard.bool(forKey: "NotchApp_ClockIs24Hour")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_ClockShowSeconds") != nil {
+            self.clockShowSeconds = UserDefaults.standard.bool(forKey: "NotchApp_ClockShowSeconds")
+        }
+        if let notes = UserDefaults.standard.string(forKey: "NotchApp_QuickNotesText") {
+            self.quickNotesText = notes
+        }
         self.isAccessibilityGranted = AXIsProcessTrusted()
         self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
+    }
+    
+    // MARK: - Dashboard Slot Helpers
+    
+    /// Returns the unique active widgets currently placed in any slot
+    public var activeDashboardWidgets: [DashboardWidgetType] {
+        var result: [DashboardWidgetType] = []
+        for slot in dashboardSlots {
+            if let widget = slot, !result.contains(widget) {
+                result.append(widget)
+            }
+        }
+        return result
+    }
+    
+    public func setDashboardSlot(at index: Int, widget: DashboardWidgetType?) {
+        guard index >= 0 && index < 4 else { return }
+        // If widget is already in another slot, clear that slot to avoid duplicates
+        if let widget = widget {
+            for i in 0..<dashboardSlots.count where i != index && dashboardSlots[i] == widget {
+                dashboardSlots[i] = nil
+            }
+        }
+        dashboardSlots[index] = widget
+    }
+    
+    public func removeDashboardWidget(_ widget: DashboardWidgetType) {
+        for i in 0..<dashboardSlots.count where dashboardSlots[i] == widget {
+            dashboardSlots[i] = nil
+        }
+    }
+    
+    public func applyPresetDashboard(slots: [DashboardWidgetType?]) {
+        var newSlots: [DashboardWidgetType?] = [nil, nil, nil, nil]
+        for (i, item) in slots.prefix(4).enumerated() {
+            newSlots[i] = item
+        }
+        self.dashboardSlots = newSlots
     }
     
     public func refreshAccessibility() {
