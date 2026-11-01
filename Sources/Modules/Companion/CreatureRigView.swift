@@ -19,84 +19,70 @@ public struct CreatureRigView: View {
                 // Zero CPU / early exit if in den
                 guard coordinator.state != .inDen else { return }
                 
-                let originX = size.width / 2.0
-                let originY = NotchGeometry.current().physicalNotchHeight
-                
                 renderSkeleton(
                     context: &context,
                     pose: engine.currentPose,
-                    origin: CGPoint(x: originX, y: originY),
-                    skin: skin
+                    skin: skin,
+                    debugSkeleton: store.companionDebugSkeleton || engine.currentPose.debugSkeleton
                 )
             }
-            .onChange(of: timelineContext.date) { _, newDate in
+            .onChange(of: timelineContext.date) { _, _ in
                 guard coordinator.state != .inDen else { return }
                 
                 let mouseScreen = NSEvent.mouseLocation
-                let screen = NSScreen.main ?? NSScreen.screens[0]
-                let geom = NotchGeometry.current(for: screen)
-                let cursorNotchX = mouseScreen.x - geom.notchCenterX
-                let cursorNotchY = (screen.frame.maxY - geom.physicalNotchHeight) - mouseScreen.y
-                let cursorNotchPos = CGPoint(x: cursorNotchX, y: cursorNotchY)
+                let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+                let cursorX = mouseScreen.x - screen.frame.origin.x
+                let cursorY = screen.frame.maxY - mouseScreen.y
+                let cursorScreenPos = CGPoint(x: cursorX, y: cursorY)
                 
                 engine.update(
                     deltaTime: 1.0 / 60.0,
-                    cursorNotchPos: cursorNotchPos,
-                    notchWidth: geom.physicalNotchWidth
+                    cursorScreenPos: cursorScreenPos
                 )
+                
+                CompanionPanel.shared?.clickPanel?.updatePosition(pose: engine.currentPose, screen: screen)
             }
         }
-        .frame(width: 325, height: 94)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            coordinator.onCursorHover(hovering)
-        }
-        .onTapGesture {
-            coordinator.onCreatureClicked()
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
     }
     
-    // MARK: - Core Vector Canvas Drawing Engine
+    // MARK: - Core Single-Pass Vector Canvas Drawing Engine
     private func renderSkeleton(
         context: inout GraphicsContext,
         pose: SkeletonPose,
-        origin: CGPoint,
-        skin: CompanionSkin
+        skin: CompanionSkin,
+        debugSkeleton: Bool
     ) {
-        // Coordinate converter from notch-relative to Canvas view space
-        func toView(_ pt: CGPoint) -> CGPoint {
-            CGPoint(x: origin.x + pt.x, y: origin.y + pt.y)
-        }
+        let torso = pose.torso
+        let rootPt = torso.root
+        let headPt = pose.headCenter
         
-        let rootPt = toView(pose.root)
-        let chestPt = toView(pose.chest)
-        let headPt = toView(pose.head)
+        let lShoulderPt = pose.leftArm.anchor
+        let lElbowPt = pose.leftArm.joint
+        let lHandPt = pose.leftArm.end
         
-        let lShoulderPt = toView(pose.leftShoulder)
-        let lElbowPt = toView(pose.leftElbow)
-        let lHandPt = toView(pose.leftHand)
+        let rShoulderPt = pose.rightArm.anchor
+        let rElbowPt = pose.rightArm.joint
+        let rHandPt = pose.rightArm.end
         
-        let rShoulderPt = toView(pose.rightShoulder)
-        let rElbowPt = toView(pose.rightElbow)
-        let rHandPt = toView(pose.rightHand)
+        let lHipPt = pose.leftLeg.anchor
+        let lKneePt = pose.leftLeg.joint
+        let lFootPt = pose.leftLeg.end
         
-        let lHipPt = toView(pose.leftHip)
-        let lKneePt = toView(pose.leftKnee)
-        let lFootPt = toView(pose.leftFoot)
+        let rHipPt = pose.rightLeg.anchor
+        let rKneePt = pose.rightLeg.joint
+        let rFootPt = pose.rightLeg.end
         
-        let rHipPt = toView(pose.rightHip)
-        let rKneePt = toView(pose.rightKnee)
-        let rFootPt = toView(pose.rightFoot)
-        
-        // 1. Soft Contact Shadow (fades when jumping or hanging)
-        if pose.root.y < 4.0 {
-            let shadowDist = max(0, -pose.root.y)
+        // 1. Contact Shadow on Ledge Line (fades when dangling or jumping)
+        if rootPt.y <= engine.ledgeY + 4.0 && rootPt.y >= 0 {
+            let shadowDist = max(0, engine.ledgeY - rootPt.y)
             let shadowOpacity = max(0.0, min(0.35, 0.35 - Double(shadowDist) * 0.015))
             let shadowRect = CGRect(
                 x: rootPt.x - 14,
-                y: origin.y - 3,
+                y: engine.ledgeY - 2,
                 width: 28,
-                height: 6
+                height: 5
             )
             context.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(shadowOpacity)))
         }
@@ -105,15 +91,15 @@ public struct CreatureRigView: View {
         drawTail(context: &context, root: rootPt, facingRight: pose.facingRight, skin: skin)
         
         // 3. Back Limbs (Right limbs if facing right, drawn in slightly shaded tone)
-        let backTone = skin.primaryColor.opacity(0.85)
+        let backTone = skin.primaryColor.opacity(0.82)
         drawLimb(context: &context, p1: rHipPt, p2: rKneePt, p3: rFootPt, thickness: 4.5, color: backTone)
         drawPaw(context: &context, center: rFootPt, size: 5.5, color: backTone)
         
         drawLimb(context: &context, p1: rShoulderPt, p2: rElbowPt, p3: rHandPt, thickness: 4.0, color: backTone)
-        drawHand(context: &context, center: rHandPt, size: 5.0, color: backTone, isClinging: pose.rightHandPlanted)
+        drawHand(context: &context, center: rHandPt, size: 5.0, color: backTone, isClinging: pose.rightArm.isPlantedOrGripping)
         
-        // 4. Torso / Squishy Body Capsule (Bends along spine from hips to chest)
-        drawTorso(context: &context, root: rootPt, chest: chestPt, facingRight: pose.facingRight, skin: skin)
+        // 4. Torso Hull (Bends along spine from hips to neck, anchored to shoulder/hip anchors)
+        drawTorso(context: &context, torso: torso, skin: skin)
         
         // 5. Head Rig with Skin Accessories & Facial Features
         drawHead(context: &context, head: headPt, angle: pose.headAngle, pose: pose, skin: skin)
@@ -124,14 +110,87 @@ public struct CreatureRigView: View {
         drawPaw(context: &context, center: lFootPt, size: 6.0, color: frontTone)
         
         drawLimb(context: &context, p1: lShoulderPt, p2: lElbowPt, p3: lHandPt, thickness: 4.5, color: frontTone)
-        drawHand(context: &context, center: lHandPt, size: 5.5, color: frontTone, isClinging: pose.leftHandPlanted)
+        drawHand(context: &context, center: lHandPt, size: 5.5, color: frontTone, isClinging: pose.leftArm.isPlantedOrGripping)
         
         // 7. Props (Mini Laptop or Headphones if active)
         if coordinator.state == .typingMimic {
-            drawMiniLaptop(context: &context, position: CGPoint(x: rootPt.x, y: origin.y - 6))
+            drawMiniLaptop(context: &context, position: CGPoint(x: rootPt.x, y: engine.ledgeY - 4))
         } else if coordinator.state == .musicGroove {
             drawMiniHeadphones(context: &context, head: headPt, skin: skin)
         }
+        
+        // 8. Visual Skeleton Rig Debug Overlay
+        if debugSkeleton {
+            drawDebugSkeletonOverlay(
+                context: &context,
+                pose: pose
+            )
+        }
+    }
+    
+    // MARK: - Skeleton Debug Overlay
+    private func drawDebugSkeletonOverlay(
+        context: inout GraphicsContext,
+        pose: SkeletonPose
+    ) {
+        let torso = pose.torso
+        
+        // Spine bone
+        drawLine(context: &context, from: torso.root, to: torso.neck, color: .green, width: 2.0)
+        // Shoulder clavicle
+        drawLine(context: &context, from: torso.leftShoulderAnchor, to: torso.rightShoulderAnchor, color: .green, width: 1.5)
+        // Pelvis bar
+        drawLine(context: &context, from: torso.leftHipAnchor, to: torso.rightHipAnchor, color: .green, width: 1.5)
+        // Neck to head
+        drawLine(context: &context, from: torso.neck, to: pose.headCenter, color: .green, width: 2.0)
+        
+        // Left Arm bones (Cyan)
+        drawLine(context: &context, from: pose.leftArm.anchor, to: pose.leftArm.joint, color: .cyan, width: 2.0)
+        drawLine(context: &context, from: pose.leftArm.joint, to: pose.leftArm.end, color: .cyan, width: 2.0)
+        
+        // Right Arm bones (Cyan)
+        drawLine(context: &context, from: pose.rightArm.anchor, to: pose.rightArm.joint, color: .cyan, width: 2.0)
+        drawLine(context: &context, from: pose.rightArm.joint, to: pose.rightArm.end, color: .cyan, width: 2.0)
+        
+        // Left Leg bones (Yellow)
+        drawLine(context: &context, from: pose.leftLeg.anchor, to: pose.leftLeg.joint, color: .yellow, width: 2.0)
+        drawLine(context: &context, from: pose.leftLeg.joint, to: pose.leftLeg.end, color: .yellow, width: 2.0)
+        
+        // Right Leg bones (Yellow)
+        drawLine(context: &context, from: pose.rightLeg.anchor, to: pose.rightLeg.joint, color: .yellow, width: 2.0)
+        drawLine(context: &context, from: pose.rightLeg.joint, to: pose.rightLeg.end, color: .yellow, width: 2.0)
+        
+        // Joint Dots
+        let jointList: [(CGPoint, Color, CGFloat)] = [
+            (torso.root, .white, 3.0),
+            (torso.neck, .green, 3.0),
+            (pose.headCenter, .white, 3.5),
+            (pose.leftArm.anchor, .cyan, 2.5),
+            (pose.leftArm.joint, .cyan, 2.5),
+            (pose.leftArm.end, .white, 3.0),
+            (pose.rightArm.anchor, .cyan, 2.5),
+            (pose.rightArm.joint, .cyan, 2.5),
+            (pose.rightArm.end, .white, 3.0),
+            (pose.leftLeg.anchor, .yellow, 2.5),
+            (pose.leftLeg.joint, .yellow, 2.5),
+            (pose.leftLeg.end, .white, 3.0),
+            (pose.rightLeg.anchor, .yellow, 2.5),
+            (pose.rightLeg.joint, .yellow, 2.5),
+            (pose.rightLeg.end, .white, 3.0)
+        ]
+        
+        for (pt, col, rad) in jointList {
+            let rect = CGRect(x: pt.x - rad, y: pt.y - rad, width: rad * 2, height: rad * 2)
+            context.fill(Path(ellipseIn: rect), with: .color(col))
+            context.stroke(Path(ellipseIn: rect), with: .color(.black), lineWidth: 0.8)
+        }
+    }
+    
+    private func drawLine(context: inout GraphicsContext, from: CGPoint, to: CGPoint, color: Color, width: CGFloat) {
+        var p = Path()
+        p.move(to: from)
+        p.addLine(to: to)
+        context.stroke(p, with: .color(color), lineWidth: width)
     }
     
     // MARK: - Vector Drawing Components
@@ -178,13 +237,13 @@ public struct CreatureRigView: View {
     
     private func drawTorso(
         context: inout GraphicsContext,
-        root: CGPoint,
-        chest: CGPoint,
-        facingRight: Bool,
+        torso: TorsoBones,
         skin: CompanionSkin
     ) {
-        let dx = chest.x - root.x
-        let dy = chest.y - root.y
+        let root = torso.root
+        let neck = torso.neck
+        let dx = neck.x - root.x
+        let dy = neck.y - root.y
         let spineLength = sqrt(dx * dx + dy * dy)
         let spineAngle = atan2(dy, dx)
         
@@ -204,7 +263,7 @@ public struct CreatureRigView: View {
             transformedPath,
             with: .linearGradient(
                 Gradient(colors: [skin.primaryColor, skin.primaryColor.opacity(0.92)]),
-                startPoint: CGPoint(x: chest.x, y: chest.y - 10),
+                startPoint: CGPoint(x: neck.x, y: neck.y - 10),
                 endPoint: CGPoint(x: root.x, y: root.y + 10)
             )
         )
@@ -336,7 +395,6 @@ public struct CreatureRigView: View {
     private func drawAccessories(context: inout GraphicsContext, transform: CGAffineTransform, skin: CompanionSkin) {
         switch skin {
         case .kuro:
-            // Pointed Cat Ears
             var earL = Path()
             earL.move(to: CGPoint(x: -9, y: -8))
             earL.addLine(to: CGPoint(x: -5, y: -16))
@@ -352,7 +410,6 @@ public struct CreatureRigView: View {
             context.fill(earR.applying(transform), with: .color(skin.primaryColor))
             
         case .boba:
-            // Dino Back Spines
             for xOffset in [-6.0, 0.0, 6.0] {
                 var spine = Path()
                 spine.move(to: CGPoint(x: xOffset - 2.5, y: -10))
@@ -363,7 +420,6 @@ public struct CreatureRigView: View {
             }
             
         case .pixel, .cyber:
-            // Robot Antenna Beacon
             var ant = Path()
             ant.move(to: CGPoint(x: 0, y: -9))
             ant.addLine(to: CGPoint(x: 0, y: -16))

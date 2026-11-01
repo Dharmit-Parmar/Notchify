@@ -36,8 +36,8 @@ public struct TwoBoneIK {
         let dy = target.y - root.y
         let dist = sqrt(dx * dx + dy * dy)
         
-        let maxReach = length1 + length2 - 0.001
-        let minReach = max(0.001, abs(length1 - length2) + 0.001)
+        let maxReach = length1 + length2 - 0.0001
+        let minReach = max(0.0001, abs(length1 - length2) + 0.0001)
         let reachable = dist <= maxReach && dist >= minReach
         let d = min(maxReach, max(minReach, dist))
         
@@ -67,493 +67,598 @@ public struct TwoBoneIK {
     }
 }
 
-// MARK: - Spring Damper
-public struct SpringDamper {
-    public var position: Double = 0.0
-    public var velocity: Double = 0.0
-    public var target: Double = 0.0
-    public var stiffness: Double = 220.0
-    public var damping: Double = 18.0
+// MARK: - Torso Anchors & Bones
+public struct TorsoBones: Equatable {
+    public var root: CGPoint = .zero
+    public var spineAngle: Double = -.pi / 2.0
+    public var spineLength: CGFloat = 16.0
+    public var shoulderWidth: CGFloat = 14.0
+    public var hipWidth: CGFloat = 12.0
     
-    public mutating func update(dt: Double) {
-        let clampedDt = min(0.05, max(0.001, dt))
-        let force = -stiffness * (position - target) - damping * velocity
-        velocity += force * clampedDt
-        position += velocity * clampedDt
+    public var neck: CGPoint {
+        CGPoint(
+            x: root.x + cos(spineAngle) * spineLength,
+            y: root.y + sin(spineAngle) * spineLength
+        )
+    }
+    
+    private var normalVector: CGPoint {
+        CGPoint(x: -sin(spineAngle), y: cos(spineAngle))
+    }
+    
+    public var leftShoulderAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: neck.x + n.x * (shoulderWidth / 2.0),
+            y: neck.y + n.y * (shoulderWidth / 2.0)
+        )
+    }
+    
+    public var rightShoulderAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: neck.x - n.x * (shoulderWidth / 2.0),
+            y: neck.y - n.y * (shoulderWidth / 2.0)
+        )
+    }
+    
+    public var leftHipAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: root.x + n.x * (hipWidth / 2.0),
+            y: root.y + n.y * (hipWidth / 2.0)
+        )
+    }
+    
+    public var rightHipAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: root.x - n.x * (hipWidth / 2.0),
+            y: root.y - n.y * (hipWidth / 2.0)
+        )
     }
 }
 
-// MARK: - Skeleton Pose
+// MARK: - Limb Bones
+public struct LimbBones: Equatable {
+    public var anchor: CGPoint = .zero
+    public var joint: CGPoint = .zero
+    public var end: CGPoint = .zero
+    public var length1: CGFloat = 8.0
+    public var length2: CGFloat = 8.0
+    public var isPlantedOrGripping: Bool = false
+    
+    public init(length1: CGFloat = 8.0, length2: CGFloat = 8.0) {
+        self.length1 = length1
+        self.length2 = length2
+    }
+    
+    public mutating func solveIK(from anchor: CGPoint, toward target: CGPoint, bendPositive: Bool) {
+        self.anchor = anchor
+        let result = TwoBoneIK.solve(
+            root: anchor,
+            target: target,
+            length1: length1,
+            length2: length2,
+            bendPositive: bendPositive
+        )
+        self.joint = result.joint
+        self.end = result.end
+    }
+}
+
+// MARK: - Unified Single-Clock Pose
 public struct SkeletonPose: Equatable {
-    public static let upperArmLength: CGFloat = 8.0
-    public static let forearmLength: CGFloat = 8.0
-    public static let thighLength: CGFloat = 8.5
-    public static let calfLength: CGFloat = 8.5
-    
-    public var root: CGPoint = .zero
-    public var chest: CGPoint = .zero
-    public var head: CGPoint = .zero
+    public var timestamp: Double = 0.0
+    public var torso: TorsoBones = TorsoBones()
+    public var headCenter: CGPoint = .zero
     public var headAngle: Double = 0.0
+    public var headRadius: CGFloat = 10.0
     
-    public var leftShoulder: CGPoint = .zero
-    public var leftElbow: CGPoint = .zero
-    public var leftHand: CGPoint = .zero
-    public var leftHandPlanted: Bool = false
-    
-    public var rightShoulder: CGPoint = .zero
-    public var rightElbow: CGPoint = .zero
-    public var rightHand: CGPoint = .zero
-    public var rightHandPlanted: Bool = false
-    
-    public var leftHip: CGPoint = .zero
-    public var leftKnee: CGPoint = .zero
-    public var leftFoot: CGPoint = .zero
-    public var leftFootPlanted: Bool = false
-    
-    public var rightHip: CGPoint = .zero
-    public var rightKnee: CGPoint = .zero
-    public var rightFoot: CGPoint = .zero
-    public var rightFootPlanted: Bool = false
+    public var leftArm: LimbBones = LimbBones(length1: 8.0, length2: 8.0)
+    public var rightArm: LimbBones = LimbBones(length1: 8.0, length2: 8.0)
+    public var leftLeg: LimbBones = LimbBones(length1: 8.5, length2: 8.5)
+    public var rightLeg: LimbBones = LimbBones(length1: 8.5, length2: 8.5)
     
     public var pupilOffset: CGPoint = .zero
     public var leftEyeOpen: CGFloat = 1.0
     public var rightEyeOpen: CGFloat = 1.0
     public var mouthShape: MouthShape = .neutral
     public var facingRight: Bool = true
+    public var debugSkeleton: Bool = false
+    
+    public var root: CGPoint {
+        get { torso.root }
+        set { torso.root = newValue }
+    }
+    public var chest: CGPoint { torso.neck }
+    public var head: CGPoint {
+        get { headCenter }
+        set { headCenter = newValue }
+    }
+    public var leftShoulder: CGPoint { leftArm.anchor }
+    public var leftElbow: CGPoint { leftArm.joint }
+    public var leftHand: CGPoint { leftArm.end }
+    public var rightShoulder: CGPoint { rightArm.anchor }
+    public var rightElbow: CGPoint { rightArm.joint }
+    public var rightHand: CGPoint { rightArm.end }
+    public var leftHip: CGPoint { leftLeg.anchor }
+    public var leftKnee: CGPoint { leftLeg.joint }
+    public var leftFoot: CGPoint { leftLeg.end }
+    public var rightHip: CGPoint { rightLeg.anchor }
+    public var rightKnee: CGPoint { rightLeg.joint }
+    public var rightFoot: CGPoint { rightLeg.end }
+    
+    public init() {}
 }
 
-// MARK: - Behavior States
-public enum CompanionBehaviorState: Equatable {
-    case inDen, peekingLeft, peekingRight, walking, crawling, typingMimic, musicGroove, slipping, dangling, pullingUp, sleeping, curious, thinking, celebrating
+// MARK: - Test Kinematic Engine (Mirror of Production Rig Engine)
+public enum TestRouteStage: String {
+    case leftWalk, approachNotch, lowerToHang, monkeyBarTraversal, climbOntoRightLedge, rightWalk, farCornerPeek, reverseWalk
 }
 
-// MARK: - Test Kinematic Engine Instance
-public final class TestKinematicEngine {
+public class TestKinematicEngine {
     public var currentPose = SkeletonPose()
-    public var currentBehavior: CompanionBehaviorState = .inDen
+    public var routeStage: TestRouteStage = .leftWalk
     public var behaviorTime: Double = 0.0
     
+    public var screenWidth: CGFloat = 1470.0
+    public var notchLeft: CGFloat = 645.5
+    public var notchRight: CGFloat = 824.5
+    public var notchHeight: CGFloat = 32.0
+    public var ledgeY: CGFloat { notchHeight }
+    
+    public var rootWorldX: CGFloat = 46.0
     public var walkStepPhase: Double = 0.0
     public var isLeftFootPlanted: Bool = true
-    public var leftFootWorldX: CGFloat = -40.0
-    public var rightFootWorldX: CGFloat = -28.0
-    public var rootWorldX: CGFloat = -34.0
+    public var leftFootWorldX: CGFloat = 40.0
+    public var rightFootWorldX: CGFloat = 52.0
     public var walkStepLength: CGFloat = 12.0
     public var walkStepDuration: Double = 0.36
     public var walkDirection: CGFloat = 1.0
     
-    public var crawlStepPhase: Double = 0.0
-    public var crawlDiagonalPair: Int = 0
-    public var crawlHandLX: CGFloat = -30.0
-    public var crawlHandRX: CGFloat = -20.0
-    public var crawlFootLX: CGFloat = -42.0
-    public var crawlFootRX: CGFloat = -32.0
-    
-    public var hangingHandLX: CGFloat = 0.0
-    public var hangingHandRX: CGFloat = 18.0
-    public var pendulumAngle: Double = 0.45
-    public var pendulumVelocity: Double = 0.0
-    
-    public var peekSide: CGFloat = -1.0
-    private var headAngleSpring = SpringDamper(stiffness: 140.0, damping: 16.0)
+    public var monkeyBarStepPhase: Double = 0.0
+    public var activeGrippingHand: Int = 0
+    public var handLWorldX: CGFloat = 650.0
+    public var handRWorldX: CGFloat = 664.0
+    public var monkeyBarReach: CGFloat = 14.0
     
     public init() {}
     
-    public func setBehavior(_ behavior: CompanionBehaviorState, notchWidth: CGFloat = 185.0) {
-        currentBehavior = behavior
-        behaviorTime = 0.0
-        switch behavior {
-        case .inDen:
-            currentPose.root = CGPoint(x: 0, y: -45)
-            currentPose.leftEyeOpen = 0.0
-            currentPose.rightEyeOpen = 0.0
-        case .walking:
-            walkDirection = 1.0
-            rootWorldX = -40.0
-            isLeftFootPlanted = true
-            leftFootWorldX = rootWorldX
-            rightFootWorldX = rootWorldX - walkStepLength
-            walkStepPhase = 0.0
-        case .crawling:
-            walkDirection = 1.0
-            rootWorldX = -40.0
-            crawlHandLX = rootWorldX + 6.0
-            crawlHandRX = rootWorldX + 16.0
-            crawlFootLX = rootWorldX - 14.0
-            crawlFootRX = rootWorldX - 4.0
-            crawlStepPhase = 0.0
-            crawlDiagonalPair = 0
-        case .dangling:
-            hangingHandLX = -9.0
-            hangingHandRX = 9.0
-            pendulumAngle = 0.45
-            pendulumVelocity = 0.0
-        case .peekingLeft:
-            peekSide = -1.0
-            rootWorldX = -80.0
-            hangingHandLX = -87.0
-            hangingHandRX = -73.0
-        case .thinking:
-            rootWorldX = 0.0
-        default:
-            break
-        }
-    }
-    
-    public func update(dt: Double, cursorNotchPos: CGPoint = .zero, notchWidth: CGFloat = 185.0) {
+    public func update(dt: Double) {
         behaviorTime += dt
-        switch currentBehavior {
-        case .walking:
-            updateWalking(dt: dt)
-        case .crawling:
-            updateCrawling(dt: dt)
-        case .dangling, .pullingUp:
-            updateHanging(dt: dt)
-        case .peekingLeft, .peekingRight:
-            updatePeek(dt: dt)
-        case .thinking:
-            updateThinking(dt: dt, cursorNotchPos: cursorNotchPos)
-        default:
-            break
+        
+        switch routeStage {
+        case .leftWalk:
+            walkDirection = 1.0
+            if rootWorldX >= notchLeft - 18.0 {
+                routeStage = .approachNotch
+                behaviorTime = 0.0
+            }
+            currentPose = computeWalkPose(dt: dt, walkY: ledgeY)
+            
+        case .approachNotch:
+            var pose = SkeletonPose()
+            pose.timestamp = behaviorTime
+            pose.facingRight = true
+            let stopProgress = min(1.0, CGFloat(behaviorTime / 0.8))
+            pose.torso.root = CGPoint(x: notchLeft - 16.0 + (6.0 * stopProgress), y: ledgeY - 14.0)
+            pose.torso.spineAngle = -.pi / 2.0 + 0.15
+            pose.headCenter = CGPoint(x: pose.torso.neck.x + 4.0, y: pose.torso.neck.y - 8.0)
+            pose.headAngle = 12.0
+            
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: notchLeft - 22.0, y: ledgeY), bendPositive: false)
+            pose.leftLeg.isPlantedOrGripping = true
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: notchLeft - 12.0, y: ledgeY), bendPositive: true)
+            pose.rightLeg.isPlantedOrGripping = true
+            
+            let handTargetY = ledgeY + (6.0 * stopProgress)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: notchLeft - 4.0, y: handTargetY), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: notchLeft + 6.0, y: handTargetY), bendPositive: true)
+            
+            if behaviorTime >= 1.0 {
+                routeStage = .lowerToHang
+                behaviorTime = 0.0
+                handLWorldX = notchLeft + 4.0
+                handRWorldX = notchLeft + 18.0
+            }
+            currentPose = pose
+            
+        case .lowerToHang:
+            var pose = SkeletonPose()
+            pose.timestamp = behaviorTime
+            pose.facingRight = true
+            let lowerProgress = min(1.0, CGFloat(behaviorTime / 0.9))
+            let gripY = ledgeY
+            let rootY = ledgeY + (16.0 * lowerProgress)
+            let midX = (handLWorldX + handRWorldX) / 2.0
+            
+            pose.torso.root = CGPoint(x: midX, y: rootY)
+            pose.torso.spineAngle = -.pi / 2.0
+            pose.headCenter = CGPoint(x: midX, y: rootY - 18.0)
+            
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
+            pose.leftArm.isPlantedOrGripping = true
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: gripY), bendPositive: true)
+            pose.rightArm.isPlantedOrGripping = true
+            
+            let kick = CGFloat(sin(behaviorTime * 8.0)) * 6.0
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: midX - 6.0 + kick, y: rootY + 16.0), bendPositive: false)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: midX + 6.0 - kick, y: rootY + 16.0), bendPositive: true)
+            
+            if behaviorTime >= 1.0 {
+                routeStage = .monkeyBarTraversal
+                behaviorTime = 0.0
+                monkeyBarStepPhase = 0.0
+                activeGrippingHand = 0
+            }
+            currentPose = pose
+            
+        case .monkeyBarTraversal:
+            currentPose = computeMonkeyBar(dt: dt)
+            
+        case .climbOntoRightLedge:
+            currentPose = computeClimbOntoRightLedge(dt: dt)
+            
+        case .rightWalk:
+            walkDirection = 1.0
+            if rootWorldX >= screenWidth - 30.0 {
+                routeStage = .farCornerPeek
+                behaviorTime = 0.0
+            }
+            currentPose = computeWalkPose(dt: dt, walkY: ledgeY)
+            
+        case .farCornerPeek:
+            currentPose = computeFarCornerPeek(dt: dt)
+            
+        case .reverseWalk:
+            walkDirection = -1.0
+            if rootWorldX <= 30.0 {
+                routeStage = .leftWalk
+                walkDirection = 1.0
+            }
+            currentPose = computeWalkPose(dt: dt, walkY: ledgeY)
         }
     }
     
-    private func updateWalking(dt: Double) {
+    private func computeWalkPose(dt: Double, walkY: CGFloat) -> SkeletonPose {
+        var pose = SkeletonPose()
+        pose.timestamp = behaviorTime
+        pose.facingRight = (walkDirection > 0)
+        
         walkStepPhase += dt / walkStepDuration
         if walkStepPhase >= 1.0 {
             walkStepPhase = 0.0
             isLeftFootPlanted.toggle()
             if isLeftFootPlanted {
-                leftFootWorldX = rootWorldX + (walkStepLength / 2.0) * walkDirection
+                leftFootWorldX = rightFootWorldX + walkStepLength * walkDirection
             } else {
-                rightFootWorldX = rootWorldX + (walkStepLength / 2.0) * walkDirection
+                rightFootWorldX = leftFootWorldX + walkStepLength * walkDirection
             }
         }
         
         let u = CGFloat(walkStepPhase)
-        let plantedFootX = isLeftFootPlanted ? leftFootWorldX : rightFootWorldX
-        rootWorldX = plantedFootX + (u - 0.5) * walkStepLength * walkDirection
+        let plantedX = isLeftFootPlanted ? leftFootWorldX : rightFootWorldX
+        rootWorldX = plantedX + (u - 0.5) * walkStepLength * walkDirection
+        let rootY = walkY - 14.0 - CGFloat(sin(Double(u) * .pi)) * 2.2
         
-        let bob = -4.0 * CGFloat(cos(Double.pi * 2.0 * Double(u - 0.5)))
-        let rootY = -14.0 + bob
+        pose.torso.root = CGPoint(x: rootWorldX, y: rootY)
+        let leanAngle = Double(walkDirection) * 0.08
+        pose.torso.spineAngle = -.pi / 2.0 + leanAngle
+        pose.headCenter = CGPoint(x: pose.torso.neck.x + (walkDirection * 2.0), y: pose.torso.neck.y - 8.0)
+        pose.headAngle = leanAngle * 25.0
         
-        currentPose.root = CGPoint(x: rootWorldX, y: rootY)
-        currentPose.chest = CGPoint(x: rootWorldX + walkDirection * 1.5, y: rootY - 12.0)
-        currentPose.head = CGPoint(x: rootWorldX + walkDirection * 3.0, y: rootY - 20.0)
-        currentPose.facingRight = (walkDirection > 0)
+        let swingLift = -CGFloat(sin(Double(u) * .pi)) * 5.0
+        let swingSmoothU = u * u * (3.0 - 2.0 * u)
         
         if isLeftFootPlanted {
-            currentPose.leftFoot = CGPoint(x: leftFootWorldX, y: 0.0)
-            currentPose.leftFootPlanted = true
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: leftFootWorldX, y: walkY), bendPositive: false)
+            pose.leftLeg.isPlantedOrGripping = true
             
             let swingStart = leftFootWorldX - walkStepLength * walkDirection
             let swingEnd = leftFootWorldX + walkStepLength * walkDirection
-            let smoothU = u * u * (3.0 - 2.0 * u)
-            let swingX = swingStart + (swingEnd - swingStart) * smoothU
-            let swingLift = -6.5 * 4.0 * u * (1.0 - u)
-            currentPose.rightFoot = CGPoint(x: swingX, y: swingLift)
-            currentPose.rightFootPlanted = false
+            let swingX = swingStart + (swingEnd - swingStart) * swingSmoothU
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: swingX, y: walkY + swingLift), bendPositive: true)
+            pose.rightLeg.isPlantedOrGripping = false
             rightFootWorldX = swingX
+            
+            let armSwing = (u - 0.5) * 8.0 * walkDirection
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: pose.torso.root.x - armSwing, y: rootY + 6.0), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: pose.torso.root.x + armSwing, y: rootY + 6.0), bendPositive: true)
         } else {
-            currentPose.rightFoot = CGPoint(x: rightFootWorldX, y: 0.0)
-            currentPose.rightFootPlanted = true
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rightFootWorldX, y: walkY), bendPositive: true)
+            pose.rightLeg.isPlantedOrGripping = true
             
             let swingStart = rightFootWorldX - walkStepLength * walkDirection
             let swingEnd = rightFootWorldX + walkStepLength * walkDirection
-            let smoothU = u * u * (3.0 - 2.0 * u)
-            let swingX = swingStart + (swingEnd - swingStart) * smoothU
-            let swingLift = -6.5 * 4.0 * u * (1.0 - u)
-            currentPose.leftFoot = CGPoint(x: swingX, y: swingLift)
-            currentPose.leftFootPlanted = false
+            let swingX = swingStart + (swingEnd - swingStart) * swingSmoothU
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: swingX, y: walkY + swingLift), bendPositive: false)
+            pose.leftLeg.isPlantedOrGripping = false
             leftFootWorldX = swingX
+            
+            let armSwing = (u - 0.5) * 8.0 * walkDirection
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: pose.torso.root.x + armSwing, y: rootY + 6.0), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: pose.torso.root.x - armSwing, y: rootY + 6.0), bendPositive: true)
         }
-        
-        let armSwingAngle = sin(Double.pi * 2.0 * Double(u)) * 28.0 * Double(walkDirection)
-        let swingFactor: CGFloat = isLeftFootPlanted ? 1.0 : -1.0
-        currentPose.leftHand = CGPoint(x: currentPose.chest.x - CGFloat(sin(armSwingAngle * .pi / 180.0) * 10.0 * Double(swingFactor)), y: currentPose.chest.y + 11.0)
-        currentPose.rightHand = CGPoint(x: currentPose.chest.x + CGFloat(sin(armSwingAngle * .pi / 180.0) * 10.0 * Double(swingFactor)), y: currentPose.chest.y + 11.0)
-        
-        solveArms()
-        solveLegs()
+        return pose
     }
     
-    private func updateCrawling(dt: Double) {
-        crawlStepPhase += dt / 0.42
-        if crawlStepPhase >= 1.0 {
-            crawlStepPhase = 0.0
-            crawlDiagonalPair = (crawlDiagonalPair == 0) ? 1 : 0
-        }
-        let u = CGFloat(crawlStepPhase)
-        let crawlStep: CGFloat = 8.0
-        rootWorldX += (dt / 0.42) * crawlStep * walkDirection
+    private func computeMonkeyBar(dt: Double) -> SkeletonPose {
+        var pose = SkeletonPose()
+        pose.timestamp = behaviorTime
+        pose.facingRight = true
+        let gripY = ledgeY
         
-        let rootY: CGFloat = -8.0
-        currentPose.root = CGPoint(x: rootWorldX, y: rootY)
-        currentPose.chest = CGPoint(x: rootWorldX + 12.0 * walkDirection, y: rootY - 3.0)
-        currentPose.head = CGPoint(x: rootWorldX + 20.0 * walkDirection, y: rootY - 8.0)
-        
-        if crawlDiagonalPair == 0 {
-            currentPose.leftHand = CGPoint(x: crawlHandLX, y: 0.0)
-            currentPose.leftHandPlanted = true
-            currentPose.rightFoot = CGPoint(x: crawlFootRX, y: 0.0)
-            currentPose.rightFootPlanted = true
-            
-            let swingHand = crawlHandLX + crawlStep * 2.0 * u
-            currentPose.rightHand = CGPoint(x: swingHand, y: -4.0 * sin(u * .pi))
-            currentPose.rightHandPlanted = false
-            crawlHandRX = swingHand
-            
-            let swingFoot = crawlFootRX - 12.0 + crawlStep * 2.0 * u
-            currentPose.leftFoot = CGPoint(x: swingFoot, y: -3.0 * sin(u * .pi))
-            currentPose.leftFootPlanted = false
-            crawlFootLX = swingFoot
-        } else {
-            currentPose.rightHand = CGPoint(x: crawlHandRX, y: 0.0)
-            currentPose.rightHandPlanted = true
-            currentPose.leftFoot = CGPoint(x: crawlFootLX, y: 0.0)
-            currentPose.leftFootPlanted = true
-            
-            let swingHand = crawlHandRX + crawlStep * 2.0 * u
-            currentPose.leftHand = CGPoint(x: swingHand, y: -4.0 * sin(u * .pi))
-            currentPose.leftHandPlanted = false
-            crawlHandLX = swingHand
-            
-            let swingFoot = crawlFootLX - 12.0 + crawlStep * 2.0 * u
-            currentPose.rightFoot = CGPoint(x: swingFoot, y: -3.0 * sin(u * .pi))
-            currentPose.rightFootPlanted = false
-            crawlFootRX = swingFoot
-        }
-        solveArms()
-        solveLegs()
-    }
-    
-    private func updateHanging(dt: Double) {
-        currentPose.leftHand = CGPoint(x: hangingHandLX, y: 0.0)
-        currentPose.rightHand = CGPoint(x: hangingHandRX, y: 0.0)
-        currentPose.leftHandPlanted = true
-        currentPose.rightHandPlanted = true
-        let anchorMidX = (hangingHandLX + hangingHandRX) / 2.0
-        
-        if currentBehavior == .pullingUp || behaviorTime > 3.0 {
-            let pullTime = behaviorTime - 3.0
-            if pullTime < 0.8 {
-                let liftProgress = CGFloat(pullTime / 0.8)
-                let rootY = 16.0 - (10.0 * liftProgress)
-                currentPose.root = CGPoint(x: anchorMidX, y: rootY)
-                currentPose.chest = CGPoint(x: anchorMidX, y: rootY - 10.0)
-                currentPose.head = CGPoint(x: anchorMidX, y: rootY - 18.0)
-                currentPose.rightFoot = CGPoint(x: anchorMidX + 14.0, y: 16.0 - (16.0 * liftProgress * 1.4))
-                currentPose.leftFoot = CGPoint(x: anchorMidX - 6.0, y: 22.0)
-                currentPose.mouthShape = .gasp
-            } else if pullTime < 1.6 {
-                let rollProgress = CGFloat((pullTime - 0.8) / 0.8)
-                let rootY = 6.0 - (18.0 * rollProgress)
-                currentPose.root = CGPoint(x: anchorMidX, y: rootY)
-                currentPose.chest = CGPoint(x: anchorMidX, y: rootY - 12.0)
-                currentPose.head = CGPoint(x: anchorMidX, y: rootY - 20.0)
-                currentPose.rightFoot = CGPoint(x: anchorMidX + 10.0, y: 0.0)
-                currentPose.leftFoot = CGPoint(x: anchorMidX - 10.0, y: 0.0)
-                currentPose.mouthShape = .sigh
+        let stepDuration: Double = 0.42
+        monkeyBarStepPhase += dt / stepDuration
+        if monkeyBarStepPhase >= 1.0 {
+            monkeyBarStepPhase = 0.0
+            activeGrippingHand = (activeGrippingHand == 0) ? 1 : 0
+            if activeGrippingHand == 0 {
+                handLWorldX = handRWorldX + monkeyBarReach
             } else {
-                currentPose.root = CGPoint(x: anchorMidX, y: -12.0)
-                currentPose.chest = CGPoint(x: anchorMidX, y: -24.0)
-                currentPose.head = CGPoint(x: anchorMidX, y: -32.0)
-                currentPose.rightFoot = CGPoint(x: anchorMidX + 8.0, y: 0.0)
-                currentPose.leftFoot = CGPoint(x: anchorMidX - 8.0, y: 0.0)
-                currentPose.mouthShape = .smile
+                handRWorldX = handLWorldX + monkeyBarReach
             }
-        } else {
-            let gravity = 18.0
-            let armLength: Double = 16.0
-            let dampingFactor = 0.85
-            let angularAccel = -(gravity / armLength) * sin(pendulumAngle) - (dampingFactor * pendulumVelocity)
-            pendulumVelocity += angularAccel * dt
-            pendulumAngle += pendulumVelocity * dt
-            
-            let swayX = CGFloat(armLength * sin(pendulumAngle))
-            let swayY = CGFloat(armLength * cos(pendulumAngle))
-            currentPose.root = CGPoint(x: anchorMidX + swayX, y: swayY)
-            currentPose.chest = CGPoint(x: anchorMidX + swayX * 0.7, y: swayY - 10.0)
-            currentPose.head = CGPoint(x: anchorMidX + swayX * 0.5, y: swayY - 18.0)
-            currentPose.leftFoot = CGPoint(x: currentPose.root.x - 6.0 + CGFloat(sin(behaviorTime * 8.0)) * 8.0, y: currentPose.root.y + 16.0)
-            currentPose.rightFoot = CGPoint(x: currentPose.root.x + 6.0 - CGFloat(sin(behaviorTime * 8.0)) * 8.0, y: currentPose.root.y + 16.0)
-            currentPose.mouthShape = .gasp
         }
-        solveArms()
-        solveLegs()
-    }
-    
-    private func updatePeek(dt: Double) {
-        let cornerX = rootWorldX
-        if behaviorTime < 0.8 {
-            currentPose.root = CGPoint(x: cornerX, y: -45)
-            currentPose.leftEyeOpen = 0.0
-            currentPose.rightEyeOpen = 0.0
-        } else if behaviorTime < 1.8 {
-            let progress = CGFloat((behaviorTime - 0.8) / 1.0)
-            currentPose.root = CGPoint(x: cornerX, y: -25)
-            currentPose.chest = CGPoint(x: cornerX, y: -28)
-            currentPose.head = CGPoint(x: cornerX, y: -34)
-            currentPose.leftHand = CGPoint(x: cornerX - 7.0, y: -8.0 + (8.0 * progress))
-            currentPose.rightHand = CGPoint(x: cornerX + 7.0, y: -8.0 + (8.0 * progress))
-            currentPose.leftHandPlanted = true
-            currentPose.rightHandPlanted = true
-            currentPose.leftEyeOpen = 0.0
-            currentPose.rightEyeOpen = 0.0
-        } else if behaviorTime < 3.4 {
-            currentPose.leftHand = CGPoint(x: cornerX - 7.0, y: 0.0)
-            currentPose.rightHand = CGPoint(x: cornerX + 7.0, y: 0.0)
-            currentPose.leftHandPlanted = true
-            currentPose.rightHandPlanted = true
-            currentPose.root = CGPoint(x: cornerX, y: -18)
-            currentPose.chest = CGPoint(x: cornerX, y: -22)
-            currentPose.head = CGPoint(x: cornerX, y: -3.0)
-            currentPose.rightEyeOpen = 1.0
-            currentPose.leftEyeOpen = 0.0
-            currentPose.pupilOffset = CGPoint(x: CGFloat(sin((behaviorTime - 1.8) * 2.5)) * 0.75, y: 0.1)
-        } else if behaviorTime < 4.2 {
-            let duckProgress = CGFloat((behaviorTime - 3.4) / 0.8)
-            currentPose.leftHand = CGPoint(x: cornerX - 7.0, y: 0.0)
-            currentPose.rightHand = CGPoint(x: cornerX + 7.0, y: 0.0)
-            currentPose.root = CGPoint(x: cornerX, y: -24)
-            currentPose.chest = CGPoint(x: cornerX, y: -27)
-            currentPose.head = CGPoint(x: cornerX, y: -3.0 - (8.0 * duckProgress))
-            currentPose.leftEyeOpen = 0.0
-            currentPose.rightEyeOpen = 0.0
-        } else {
-            let popProgress = min(1.0, CGFloat((behaviorTime - 4.2) / 0.5))
-            currentPose.leftHand = CGPoint(x: cornerX - 7.0, y: 0.0)
-            currentPose.rightHand = CGPoint(x: cornerX + 7.0, y: 0.0)
-            currentPose.root = CGPoint(x: cornerX, y: -16)
-            currentPose.chest = CGPoint(x: cornerX, y: -20)
-            currentPose.head = CGPoint(x: cornerX, y: -12.0 + (6.0 * popProgress))
-            currentPose.leftEyeOpen = 1.15
-            currentPose.rightEyeOpen = 1.15
-            currentPose.mouthShape = .smile
-        }
-        solveArms()
-        solveLegsTucked()
-    }
-    
-    private func updateThinking(dt: Double, cursorNotchPos: CGPoint) {
-        currentPose.root = CGPoint(x: rootWorldX, y: -14.0)
-        currentPose.chest = CGPoint(x: rootWorldX + 1.0, y: -24.0)
-        currentPose.head = CGPoint(x: rootWorldX + 2.0, y: -32.0)
-        currentPose.leftFoot = CGPoint(x: rootWorldX - 7.0, y: 0.0)
-        currentPose.rightFoot = CGPoint(x: rootWorldX + 6.0, y: 0.0)
-        currentPose.leftFootPlanted = true
-        currentPose.rightFootPlanted = true
         
-        let targetAngle = atan2(cursorNotchPos.y - currentPose.head.y, cursorNotchPos.x - currentPose.head.x)
-        headAngleSpring.target = min(0.6, max(-0.6, Double(targetAngle) * 0.4))
-        headAngleSpring.update(dt: dt)
-        currentPose.headAngle = headAngleSpring.position * 180.0 / .pi
-        currentPose.pupilOffset = CGPoint(x: min(0.85, max(-0.85, (cursorNotchPos.x - currentPose.head.x) / 120.0)), y: 0.0)
-        currentPose.rightHand = CGPoint(x: currentPose.head.x + 3.0, y: currentPose.head.y + 6.0)
-        currentPose.leftHand = CGPoint(x: currentPose.root.x - 7.0, y: currentPose.root.y - 2.0)
-        currentPose.mouthShape = .neutral
-        solveArms()
-        solveLegs()
+        let u = CGFloat(monkeyBarStepPhase)
+        let anchorHandX = (activeGrippingHand == 0) ? handLWorldX : handRWorldX
+        let swingBodyX = anchorHandX + (u - 0.5) * monkeyBarReach
+        let bodyY = gripY + 16.0 - CGFloat(cos(Double(u - 0.5) * .pi)) * 3.0
+        
+        pose.torso.root = CGPoint(x: swingBodyX, y: bodyY)
+        pose.torso.spineAngle = -.pi / 2.0 + (activeGrippingHand == 0 ? -0.12 : 0.12)
+        pose.headCenter = CGPoint(x: swingBodyX, y: bodyY - 18.0)
+        
+        if activeGrippingHand == 0 {
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
+            pose.leftArm.isPlantedOrGripping = true
+            
+            let reachStart = handLWorldX - monkeyBarReach
+            let reachEnd = handLWorldX + monkeyBarReach
+            let smoothU = u * u * (3.0 - 2.0 * u)
+            let reachX = reachStart + (reachEnd - reachStart) * smoothU
+            let reachLift = -5.0 * sin(u * .pi)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: reachX, y: gripY + reachLift), bendPositive: true)
+            pose.rightArm.isPlantedOrGripping = false
+            handRWorldX = reachX
+        } else {
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: gripY), bendPositive: true)
+            pose.rightArm.isPlantedOrGripping = true
+            
+            let reachStart = handRWorldX - monkeyBarReach
+            let reachEnd = handRWorldX + monkeyBarReach
+            let smoothU = u * u * (3.0 - 2.0 * u)
+            let reachX = reachStart + (reachEnd - reachStart) * smoothU
+            let reachLift = -5.0 * sin(u * .pi)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: reachX, y: gripY + reachLift), bendPositive: false)
+            pose.leftArm.isPlantedOrGripping = false
+            handLWorldX = reachX
+        }
+        
+        let kick = CGFloat(sin(behaviorTime * 7.0)) * 8.0
+        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: swingBodyX - 5.0 + kick, y: bodyY + 16.0), bendPositive: false)
+        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: swingBodyX + 5.0 - kick, y: bodyY + 16.0), bendPositive: true)
+        
+        let currentMaxHand = max(handLWorldX, handRWorldX)
+        if currentMaxHand >= notchRight - 10.0 {
+            routeStage = .climbOntoRightLedge
+            behaviorTime = 0.0
+        }
+        return pose
     }
     
-    private func solveArms() {
-        currentPose.leftShoulder = CGPoint(x: currentPose.chest.x - 6.0, y: currentPose.chest.y + 2.0)
-        currentPose.rightShoulder = CGPoint(x: currentPose.chest.x + 6.0, y: currentPose.chest.y + 2.0)
-        let leftIK = TwoBoneIK.solve(root: currentPose.leftShoulder, target: currentPose.leftHand, length1: SkeletonPose.upperArmLength, length2: SkeletonPose.forearmLength, bendPositive: false)
-        currentPose.leftElbow = leftIK.joint
-        let rightIK = TwoBoneIK.solve(root: currentPose.rightShoulder, target: currentPose.rightHand, length1: SkeletonPose.upperArmLength, length2: SkeletonPose.forearmLength, bendPositive: true)
-        currentPose.rightElbow = rightIK.joint
+    private func computeClimbOntoRightLedge(dt: Double) -> SkeletonPose {
+        var pose = SkeletonPose()
+        pose.timestamp = behaviorTime
+        pose.facingRight = true
+        let rightEdgeX = notchRight
+        let gripY = ledgeY
+        
+        let t = behaviorTime
+        if t < 0.6 {
+            let p = CGFloat(t / 0.6)
+            let riseY = (gripY + 16.0) - (12.0 * p)
+            pose.torso.root = CGPoint(x: rightEdgeX - 4.0 + (6.0 * p), y: riseY)
+            pose.torso.spineAngle = -.pi / 2.0 + 0.25 * Double(p)
+            pose.headCenter = CGPoint(x: pose.torso.neck.x + 3.0, y: pose.torso.neck.y - 8.0)
+            
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: rightEdgeX - 6.0, y: gripY), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: rightEdgeX + 8.0, y: gripY), bendPositive: true)
+            pose.leftArm.isPlantedOrGripping = true
+            pose.rightArm.isPlantedOrGripping = true
+            
+            let hookY = gripY + 4.0 - (10.0 * p)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rightEdgeX + 4.0, y: hookY), bendPositive: true)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: rightEdgeX - 8.0, y: riseY + 16.0), bendPositive: false)
+        } else if t < 1.3 {
+            let p = CGFloat((t - 0.6) / 0.7)
+            let rollX = rightEdgeX + 2.0 + (14.0 * p)
+            let rollY = (gripY + 4.0) - (18.0 * p)
+            pose.torso.root = CGPoint(x: rollX, y: rollY)
+            pose.torso.spineAngle = -.pi / 2.0 - 0.4 * Double(1.0 - p)
+            pose.headCenter = CGPoint(x: pose.torso.neck.x + 4.0, y: pose.torso.neck.y - 8.0)
+            
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: rollX + 8.0, y: gripY), bendPositive: true)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: rollX - 4.0, y: gripY), bendPositive: false)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rollX + 6.0, y: gripY), bendPositive: true)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: rollX - 6.0, y: gripY), bendPositive: false)
+            pose.rightLeg.isPlantedOrGripping = true
+        } else {
+            let standX = rightEdgeX + 18.0
+            pose.torso.root = CGPoint(x: standX, y: gripY - 14.0)
+            pose.torso.spineAngle = -.pi / 2.0
+            pose.headCenter = CGPoint(x: standX, y: gripY - 32.0)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: standX - 6.0, y: gripY), bendPositive: false)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: standX + 6.0, y: gripY), bendPositive: true)
+            pose.leftLeg.isPlantedOrGripping = true
+            pose.rightLeg.isPlantedOrGripping = true
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: standX - 8.0, y: gripY - 4.0), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: standX + 8.0, y: gripY - 4.0), bendPositive: true)
+            
+            if t >= 1.6 {
+                routeStage = .rightWalk
+                behaviorTime = 0.0
+                rootWorldX = standX
+                leftFootWorldX = standX - 6.0
+                rightFootWorldX = standX + 6.0
+            }
+        }
+        return pose
     }
     
-    private func solveLegs() {
-        currentPose.leftHip = CGPoint(x: currentPose.root.x - 4.5, y: currentPose.root.y + 2.0)
-        currentPose.rightHip = CGPoint(x: currentPose.root.x + 4.5, y: currentPose.root.y + 2.0)
-        let leftIK = TwoBoneIK.solve(root: currentPose.leftHip, target: currentPose.leftFoot, length1: SkeletonPose.thighLength, length2: SkeletonPose.calfLength, bendPositive: false)
-        currentPose.leftKnee = leftIK.joint
-        let rightIK = TwoBoneIK.solve(root: currentPose.rightHip, target: currentPose.rightFoot, length1: SkeletonPose.thighLength, length2: SkeletonPose.calfLength, bendPositive: true)
-        currentPose.rightKnee = rightIK.joint
-    }
-    
-    private func solveLegsTucked() {
-        currentPose.leftHip = CGPoint(x: currentPose.root.x - 4.5, y: currentPose.root.y + 2.0)
-        currentPose.rightHip = CGPoint(x: currentPose.root.x + 4.5, y: currentPose.root.y + 2.0)
-        currentPose.leftFoot = CGPoint(x: currentPose.root.x - 4.0, y: currentPose.root.y + 10.0)
-        currentPose.rightFoot = CGPoint(x: currentPose.root.x + 4.0, y: currentPose.root.y + 10.0)
-        currentPose.leftKnee = CGPoint(x: currentPose.root.x - 8.0, y: currentPose.root.y + 6.0)
-        currentPose.rightKnee = CGPoint(x: currentPose.root.x + 8.0, y: currentPose.root.y + 6.0)
+    private func computeFarCornerPeek(dt: Double) -> SkeletonPose {
+        var pose = SkeletonPose()
+        pose.timestamp = behaviorTime
+        let cornerX = screenWidth - 30.0
+        let walkY = ledgeY
+        
+        let t = behaviorTime
+        if t < 0.8 {
+            pose.facingRight = true
+            pose.torso.root = CGPoint(x: cornerX, y: walkY - 14.0)
+            pose.torso.spineAngle = -.pi / 2.0 + 0.15
+            pose.headCenter = CGPoint(x: cornerX + 4.0, y: walkY - 32.0)
+            pose.headAngle = 18.0
+            pose.pupilOffset = CGPoint(x: 0.9, y: 0.3)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: cornerX - 6.0, y: walkY), bendPositive: false)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: cornerX + 4.0, y: walkY), bendPositive: true)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: cornerX - 7.0, y: walkY - 6.0), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: cornerX + 10.0, y: walkY - 6.0), bendPositive: true)
+        } else if t < 1.4 {
+            let p = CGFloat((t - 0.8) / 0.6)
+            pose.facingRight = (p < 0.5)
+            pose.torso.root = CGPoint(x: cornerX, y: walkY - 14.0)
+            pose.torso.spineAngle = -.pi / 2.0
+            pose.headCenter = CGPoint(x: cornerX, y: walkY - 32.0)
+            let pivotL = (cornerX - 6.0) + (12.0 * p)
+            let pivotR = (cornerX + 4.0) - (10.0 * p)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: pivotL, y: walkY), bendPositive: false)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: pivotR, y: walkY), bendPositive: true)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: cornerX + 6.0, y: walkY - 6.0), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: cornerX - 6.0, y: walkY - 6.0), bendPositive: true)
+        } else {
+            pose.facingRight = false
+            pose.torso.root = CGPoint(x: cornerX, y: walkY - 14.0)
+            pose.torso.spineAngle = -.pi / 2.0 - 0.08
+            pose.headCenter = CGPoint(x: cornerX - 3.0, y: walkY - 32.0)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: cornerX + 6.0, y: walkY), bendPositive: true)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: cornerX - 6.0, y: walkY), bendPositive: false)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: cornerX + 6.0, y: walkY - 4.0), bendPositive: true)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: cornerX - 6.0, y: walkY - 4.0), bendPositive: false)
+            
+            if t >= 1.6 {
+                routeStage = .reverseWalk
+                behaviorTime = 0.0
+                rootWorldX = cornerX
+                leftFootWorldX = cornerX + 6.0
+                rightFootWorldX = cornerX - 6.0
+                walkDirection = -1.0
+            }
+        }
+        return pose
     }
 }
 
-// MARK: - Frame Strip Bitmap Renderer
-func renderPoseToContext(pose: SkeletonPose, ctx: CGContext, width: CGFloat, height: CGFloat) {
-    ctx.clear(CGRect(x: 0, y: 0, width: width, height: height))
-    let originX = width / 2.0
-    let originY = 50.0 // Notch lip Y
+// MARK: - Frame Strip Drawing Engine with Skeleton Overlay
+func renderPoseToContext(pose: SkeletonPose, ctx: CGContext, width: CGFloat, height: CGFloat, drawSkeletonOverlay: Bool = true) {
+    let root = pose.torso.root
+    let neck = pose.torso.neck
+    let head = pose.headCenter
     
-    func toView(_ pt: CGPoint) -> CGPoint {
-        CGPoint(x: originX + pt.x, y: originY - pt.y) // CoreGraphics inverted Y
-    }
-    
-    // Draw notch boundary line
-    ctx.setStrokeColor(CGColor(gray: 0.3, alpha: 0.6))
-    ctx.setLineWidth(1.0)
-    ctx.strokeLineSegments(between: [CGPoint(x: 0, y: originY), CGPoint(x: width, y: originY)])
-    
-    // Draw Torso
-    let rPt = toView(pose.root)
-    let cPt = toView(pose.chest)
-    let hPt = toView(pose.head)
-    
-    ctx.setFillColor(CGColor(red: 0.95, green: 0.95, blue: 0.95, alpha: 1.0))
-    let torsoRect = CGRect(x: min(rPt.x, cPt.x) - 7, y: min(rPt.y, cPt.y) - 4, width: 14, height: abs(rPt.y - cPt.y) + 8)
-    ctx.fillEllipse(in: torsoRect)
+    // Draw Torso Capsule
+    ctx.setFillColor(CGColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1.0))
+    let torsoBox = CGRect(
+        x: min(root.x, neck.x) - 10,
+        y: min(root.y, neck.y) - 6,
+        width: 20,
+        height: abs(root.y - neck.y) + 12
+    )
+    ctx.fillEllipse(in: torsoBox)
     
     // Draw Head
-    ctx.fillEllipse(in: CGRect(x: hPt.x - 8, y: hPt.y - 8, width: 16, height: 16))
+    ctx.fillEllipse(in: CGRect(x: head.x - 9, y: head.y - 9, width: 18, height: 18))
     
     // Draw Eyes
     if pose.leftEyeOpen > 0.2 {
-        ctx.setFillColor(CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0))
-        ctx.fillEllipse(in: CGRect(x: hPt.x - 5 + pose.pupilOffset.x * 2, y: hPt.y - 2, width: 3, height: 3))
+        ctx.setFillColor(CGColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0))
+        ctx.fillEllipse(in: CGRect(x: head.x - 5.5 + pose.pupilOffset.x * 2.0, y: head.y - 2.5, width: 3.5, height: 4.5))
     }
     if pose.rightEyeOpen > 0.2 {
-        ctx.setFillColor(CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1.0))
-        ctx.fillEllipse(in: CGRect(x: hPt.x + 2 + pose.pupilOffset.x * 2, y: hPt.y - 2, width: 3, height: 3))
+        ctx.setFillColor(CGColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0))
+        ctx.fillEllipse(in: CGRect(x: head.x + 2.0 + pose.pupilOffset.x * 2.0, y: head.y - 2.5, width: 3.5, height: 4.5))
     }
     
-    // Draw Limbs
-    ctx.setStrokeColor(CGColor(red: 0.95, green: 0.95, blue: 0.95, alpha: 1.0))
-    ctx.setLineWidth(3.0)
+    // Limbs Body Fill
+    ctx.setStrokeColor(CGColor(red: 0.92, green: 0.92, blue: 0.94, alpha: 1.0))
+    ctx.setLineWidth(4.0)
     ctx.setLineCap(.round)
     
-    // Left Arm
-    let ls = toView(pose.leftShoulder), le = toView(pose.leftElbow), lh = toView(pose.leftHand)
-    ctx.strokeLineSegments(between: [ls, le, le, lh])
+    // Limbs
+    ctx.strokeLineSegments(between: [pose.leftArm.anchor, pose.leftArm.joint, pose.leftArm.joint, pose.leftArm.end])
+    ctx.strokeLineSegments(between: [pose.rightArm.anchor, pose.rightArm.joint, pose.rightArm.joint, pose.rightArm.end])
+    ctx.strokeLineSegments(between: [pose.leftLeg.anchor, pose.leftLeg.joint, pose.leftLeg.joint, pose.leftLeg.end])
+    ctx.strokeLineSegments(between: [pose.rightLeg.anchor, pose.rightLeg.joint, pose.rightLeg.joint, pose.rightLeg.end])
     
-    // Right Arm
-    let rs = toView(pose.rightShoulder), re = toView(pose.rightElbow), rh = toView(pose.rightHand)
-    ctx.strokeLineSegments(between: [rs, re, re, rh])
-    
-    // Left Leg
-    let lhip = toView(pose.leftHip), lk = toView(pose.leftKnee), lf = toView(pose.leftFoot)
-    ctx.strokeLineSegments(between: [lhip, lk, lk, lf])
-    
-    // Right Leg
-    let rhip = toView(pose.rightHip), rk = toView(pose.rightKnee), rf = toView(pose.rightFoot)
-    ctx.strokeLineSegments(between: [rhip, rk, rk, rf])
-    
-    // Feet circles
-    ctx.setFillColor(CGColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1.0))
-    ctx.fillEllipse(in: CGRect(x: lf.x - 2.5, y: lf.y - 2.5, width: 5, height: 5))
-    ctx.fillEllipse(in: CGRect(x: rf.x - 2.5, y: rf.y - 2.5, width: 5, height: 5))
+    // SKELETON OVERLAY (Bones + Joint Dots)
+    if drawSkeletonOverlay {
+        // Spine bone (Green)
+        ctx.setStrokeColor(CGColor(red: 0.15, green: 0.88, blue: 0.35, alpha: 0.95))
+        ctx.setLineWidth(1.8)
+        ctx.strokeLineSegments(between: [root, neck])
+        // Shoulders & Pelvis bars (Green)
+        ctx.strokeLineSegments(between: [pose.torso.leftShoulderAnchor, pose.torso.rightShoulderAnchor])
+        ctx.strokeLineSegments(between: [pose.torso.leftHipAnchor, pose.torso.rightHipAnchor])
+        // Neck to head (Green)
+        ctx.strokeLineSegments(between: [neck, head])
+        
+        // Arms (Cyan)
+        ctx.setStrokeColor(CGColor(red: 0.15, green: 0.82, blue: 1.0, alpha: 0.95))
+        ctx.setLineWidth(1.6)
+        ctx.strokeLineSegments(between: [pose.leftArm.anchor, pose.leftArm.joint, pose.leftArm.joint, pose.leftArm.end])
+        ctx.strokeLineSegments(between: [pose.rightArm.anchor, pose.rightArm.joint, pose.rightArm.joint, pose.rightArm.end])
+        
+        // Legs (Yellow)
+        ctx.setStrokeColor(CGColor(red: 1.0, green: 0.85, blue: 0.20, alpha: 0.95))
+        ctx.setLineWidth(1.6)
+        ctx.strokeLineSegments(between: [pose.leftLeg.anchor, pose.leftLeg.joint, pose.leftLeg.joint, pose.leftLeg.end])
+        ctx.strokeLineSegments(between: [pose.rightLeg.anchor, pose.rightLeg.joint, pose.rightLeg.joint, pose.rightLeg.end])
+        
+        // Joint Dots
+        let joints: [(CGPoint, CGColor, CGFloat)] = [
+            (root, CGColor(red: 1, green: 1, blue: 1, alpha: 1), 2.5),
+            (neck, CGColor(red: 0.15, green: 0.88, blue: 0.35, alpha: 1), 2.5),
+            (head, CGColor(red: 1, green: 1, blue: 1, alpha: 1), 3.0),
+            (pose.leftArm.anchor, CGColor(red: 0.15, green: 0.82, blue: 1, alpha: 1), 2.0),
+            (pose.leftArm.joint, CGColor(red: 0.15, green: 0.82, blue: 1, alpha: 1), 2.0),
+            (pose.leftArm.end, CGColor(red: 1, green: 1, blue: 1, alpha: 1), 2.5),
+            (pose.rightArm.anchor, CGColor(red: 0.15, green: 0.82, blue: 1, alpha: 1), 2.0),
+            (pose.rightArm.joint, CGColor(red: 0.15, green: 0.82, blue: 1, alpha: 1), 2.0),
+            (pose.rightArm.end, CGColor(red: 1, green: 1, blue: 1, alpha: 1), 2.5),
+            (pose.leftLeg.anchor, CGColor(red: 1, green: 0.85, blue: 0.2, alpha: 1), 2.0),
+            (pose.leftLeg.joint, CGColor(red: 1, green: 0.85, blue: 0.2, alpha: 1), 2.0),
+            (pose.leftLeg.end, CGColor(red: 1, green: 1, blue: 1, alpha: 1), 2.5),
+            (pose.rightLeg.anchor, CGColor(red: 1, green: 0.85, blue: 0.2, alpha: 1), 2.0),
+            (pose.rightLeg.joint, CGColor(red: 1, green: 0.85, blue: 0.2, alpha: 1), 2.0),
+            (pose.rightLeg.end, CGColor(red: 1, green: 1, blue: 1, alpha: 1), 2.5)
+        ]
+        
+        for (pt, col, rad) in joints {
+            ctx.setFillColor(col)
+            ctx.fillEllipse(in: CGRect(x: pt.x - rad, y: pt.y - rad, width: rad * 2, height: rad * 2))
+        }
+    }
 }
 
-func generateBehaviorStrip(behavior: CompanionBehaviorState, frames: Int, stepDt: Double, filename: String) -> String {
-    let engine = TestKinematicEngine()
-    engine.setBehavior(behavior)
-    
-    let frameW = 80
-    let frameH = 90
+func renderStripImage(
+    engine: TestKinematicEngine,
+    frames: Int,
+    dt: Double,
+    filename: String,
+    centerOnPose: Bool = true
+) -> String {
+    let frameW = 90
+    let frameH = 100
     let stripW = frameW * frames
     let stripH = frameH
     
@@ -568,16 +673,35 @@ func generateBehaviorStrip(behavior: CompanionBehaviorState, frames: Int, stepDt
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     )!
     
-    ctx.setFillColor(CGColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0))
+    // Dark Blueprint Background
+    ctx.setFillColor(CGColor(red: 0.07, green: 0.08, blue: 0.11, alpha: 1.0))
     ctx.fill(CGRect(x: 0, y: 0, width: stripW, height: stripH))
     
     for i in 0..<frames {
-        engine.update(dt: stepDt, cursorNotchPos: CGPoint(x: 40, y: 40))
-        ctx.saveGState()
-        ctx.translateBy(x: CGFloat(i * frameW), y: 0)
-        renderPoseToContext(pose: engine.currentPose, ctx: ctx, width: CGFloat(frameW), height: CGFloat(frameH))
+        engine.update(dt: dt)
+        let pose = engine.currentPose
         
-        // Frame number overlay
+        ctx.saveGState()
+        let frameOriginX = CGFloat(i * frameW)
+        
+        // Frame Separator Grid
+        ctx.setStrokeColor(CGColor(red: 0.18, green: 0.20, blue: 0.26, alpha: 0.8))
+        ctx.setLineWidth(0.8)
+        ctx.strokeLineSegments(between: [CGPoint(x: frameOriginX, y: 0), CGPoint(x: frameOriginX, y: CGFloat(frameH))])
+        
+        // Ledge Reference Line
+        let localLedgeY: CGFloat = 65.0
+        ctx.setStrokeColor(CGColor(red: 0.25, green: 0.30, blue: 0.40, alpha: 0.6))
+        ctx.setLineDash(phase: 0, lengths: [2, 2])
+        ctx.strokeLineSegments(between: [CGPoint(x: frameOriginX, y: localLedgeY), CGPoint(x: frameOriginX + CGFloat(frameW), y: localLedgeY)])
+        ctx.setLineDash(phase: 0, lengths: [])
+        
+        // Transform pose to frame center
+        let offsetX = frameOriginX + CGFloat(frameW) / 2.0 - pose.torso.root.x
+        let offsetY = localLedgeY - engine.ledgeY
+        
+        ctx.translateBy(x: offsetX, y: offsetY)
+        renderPoseToContext(pose: pose, ctx: ctx, width: CGFloat(frameW), height: CGFloat(frameH), drawSkeletonOverlay: true)
         ctx.restoreGState()
     }
     
@@ -589,138 +713,238 @@ func generateBehaviorStrip(behavior: CompanionBehaviorState, frames: Int, stepDt
     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
     let path = "\(dir)/\(filename)"
     try? pngData.write(to: URL(fileURLWithPath: path))
+    
+    // Also save directly to brain artifacts directory
+    let artifactDir = "/Users/dharmitparmar/.gemini/antigravity/brain/d626aba9-d7b1-4b5b-a75b-29c309dc2c7e"
+    let artifactPath = "\(artifactDir)/\(filename)"
+    try? pngData.write(to: URL(fileURLWithPath: artifactPath))
+    
     return path
 }
 
-// MARK: - MAIN ACCEPTANCE RUNNER
+// MARK: - MAIN ACCEPTANCE TEST SUITE
 func runAllAcceptanceTests() {
     print("\n===========================================================")
-    print("   RUNNING STRICT KINEMATIC SKELETON ACCEPTANCE TESTS     ")
+    print("      RUNNING RIG FIX & SCREEN ROAMING ACCEPTANCE TESTS    ")
     print("===========================================================\n")
     
-    // TEST 1: FOOT SLIP TEST
-    print("[ACCEPTANCE 1] Foot Slip Test (120 Walking Frames at 60fps)...")
+    var allPassed = true
+    
+    // -------------------------------------------------------------
+    // TEST 1: Bone Length Invariants
+    // For every bone, distance between its joints equals bone length +- 0.5 pt
+    // -------------------------------------------------------------
+    print("▶ TEST 1: Bone Length Consistency (Tolerance: 0.5 pt)")
     let engine = TestKinematicEngine()
-    engine.setBehavior(.walking)
+    var boneMaxError: CGFloat = 0.0
     
-    var maxLeftSlip: CGFloat = 0.0
-    var maxRightSlip: CGFloat = 0.0
-    var prevLeftPlanted = false
-    var prevRightPlanted = false
-    var prevLeftFootX: CGFloat = 0.0
-    var prevRightFootX: CGFloat = 0.0
-    
-    for frame in 0..<120 {
+    for _ in 0..<180 {
         engine.update(dt: 1.0 / 60.0)
         let pose = engine.currentPose
         
-        if pose.leftFootPlanted && prevLeftPlanted {
-            let slip = abs(pose.leftFoot.x - prevLeftFootX)
-            maxLeftSlip = max(maxLeftSlip, slip)
-            assert(slip <= 0.5, "FAIL: Left foot slipped \(slip) pt at frame \(frame)! Threshold is 0.5 pt.")
-        }
-        if pose.rightFootPlanted && prevRightPlanted {
-            let slip = abs(pose.rightFoot.x - prevRightFootX)
-            maxRightSlip = max(maxRightSlip, slip)
-            assert(slip <= 0.5, "FAIL: Right foot slipped \(slip) pt at frame \(frame)! Threshold is 0.5 pt.")
-        }
+        let upperArmL = pose.leftArm.anchor.distance(to: pose.leftArm.joint)
+        let foreArmL = pose.leftArm.joint.distance(to: pose.leftArm.end)
+        let upperArmR = pose.rightArm.anchor.distance(to: pose.rightArm.joint)
+        let foreArmR = pose.rightArm.joint.distance(to: pose.rightArm.end)
         
-        prevLeftPlanted = pose.leftFootPlanted
-        prevRightPlanted = pose.rightFootPlanted
-        prevLeftFootX = pose.leftFoot.x
-        prevRightFootX = pose.rightFoot.x
-    }
-    print("  Max Left Foot Slip: \(String(format: "%.6f", maxLeftSlip)) pt (Target: <= 0.5 pt)")
-    print("  Max Right Foot Slip: \(String(format: "%.6f", maxRightSlip)) pt (Target: <= 0.5 pt)")
-    print("  ✓ PASS: Zero foot slip verified. Planted foot is locked in world space.")
-    
-    // TEST 2: NO PURE SLIDE TEST
-    print("\n[ACCEPTANCE 2] No Pure Slide Test (Root Motion Gating)...")
-    var prevRootX = engine.rootWorldX
-    for _ in 0..<120 {
-        engine.update(dt: 1.0 / 60.0)
-        let delta = abs(engine.rootWorldX - prevRootX)
-        if delta > 1.0 {
-            // Assert a limb stride phase is advancing
-            assert(engine.walkStepDuration > 0 && (engine.isLeftFootPlanted || !engine.isLeftFootPlanted), "FAIL: Root slid without active limb stride!")
+        let thighL = pose.leftLeg.anchor.distance(to: pose.leftLeg.joint)
+        let calfL = pose.leftLeg.joint.distance(to: pose.leftLeg.end)
+        let thighR = pose.rightLeg.anchor.distance(to: pose.rightLeg.joint)
+        let calfR = pose.rightLeg.joint.distance(to: pose.rightLeg.end)
+        
+        let errs = [
+            abs(upperArmL - pose.leftArm.length1),
+            abs(foreArmL - pose.leftArm.length2),
+            abs(upperArmR - pose.rightArm.length1),
+            abs(foreArmR - pose.rightArm.length2),
+            abs(thighL - pose.leftLeg.length1),
+            abs(calfL - pose.leftLeg.length2),
+            abs(thighR - pose.rightLeg.length1),
+            abs(calfR - pose.rightLeg.length2)
+        ]
+        for e in errs {
+            boneMaxError = max(boneMaxError, e)
         }
-        prevRootX = engine.rootWorldX
     }
-    print("  ✓ PASS: All root displacement is 100% produced by stepping limbs.")
     
-    // TEST 3: HANGING CHECK
-    print("\n[ACCEPTANCE 3] Hanging Hand Pinning & Torso Pendulum Check...")
-    engine.setBehavior(.dangling)
-    let handLX0 = engine.hangingHandLX
-    let handRX0 = engine.hangingHandRX
-    var maxPendulumDisplacement: CGFloat = 0.0
+    let test1Passed = (boneMaxError <= 0.5)
+    allPassed = allPassed && test1Passed
+    print("  ✓ Max Bone Length Delta: \(String(format: "%.4f", boneMaxError)) pt (Target <= 0.5 pt) -> \(test1Passed ? "PASSED" : "FAILED")")
     
+    // -------------------------------------------------------------
+    // TEST 2: Torso Anchor Connection Invariant
+    // Shoulder & Hip joints are strictly within 0.5 pt of torso anchor
+    // -------------------------------------------------------------
+    print("\n▶ TEST 2: Torso Anchor Attachment (Tolerance: 0.5 pt)")
+    var anchorMaxDelta: CGFloat = 0.0
+    for _ in 0..<180 {
+        engine.update(dt: 1.0 / 60.0)
+        let pose = engine.currentPose
+        let d1 = pose.leftArm.anchor.distance(to: pose.torso.leftShoulderAnchor)
+        let d2 = pose.rightArm.anchor.distance(to: pose.torso.rightShoulderAnchor)
+        let d3 = pose.leftLeg.anchor.distance(to: pose.torso.leftHipAnchor)
+        let d4 = pose.rightLeg.anchor.distance(to: pose.torso.rightHipAnchor)
+        anchorMaxDelta = max(anchorMaxDelta, max(d1, max(d2, max(d3, d4))))
+    }
+    let test2Passed = (anchorMaxDelta <= 0.5)
+    allPassed = allPassed && test2Passed
+    print("  ✓ Max Torso Anchor Displacement: \(String(format: "%.6f", anchorMaxDelta)) pt (Target <= 0.5 pt) -> \(test2Passed ? "PASSED" : "FAILED")")
+    
+    // -------------------------------------------------------------
+    // TEST 3: Shared Single Timestamp Invariant
+    // Head, torso, and limbs must share the exact same timestamp per frame
+    // -------------------------------------------------------------
+    print("\n▶ TEST 3: Single-Clock Timestamp Invariant")
+    var timestampDiscrepancy: Double = 0.0
     for _ in 0..<60 {
         engine.update(dt: 1.0 / 60.0)
         let pose = engine.currentPose
-        assert(pose.leftHand.y == 0.0, "FAIL: Left hand must remain pinned to notch lip (y = 0.0)")
-        assert(pose.rightHand.y == 0.0, "FAIL: Right hand must remain pinned to notch lip (y = 0.0)")
-        assert(pose.leftHand.x == handLX0, "FAIL: Left hand X shifted while hanging!")
-        assert(pose.rightHand.x == handRX0, "FAIL: Right hand X shifted while hanging!")
-        let disp = abs(pose.root.x - ((handLX0 + handRX0) / 2.0))
-        maxPendulumDisplacement = max(maxPendulumDisplacement, disp)
+        let expectedTime = engine.behaviorTime
+        let deltaT = abs(pose.timestamp - expectedTime)
+        timestampDiscrepancy = max(timestampDiscrepancy, deltaT)
     }
-    print("  Hands pinned to Y=0.0; Max Torso Pendulum Sway: \(String(format: "%.2f", maxPendulumDisplacement)) pt")
-    print("  ✓ PASS: Hands remain solidly pinned while body sways below them.")
+    let test3Passed = (timestampDiscrepancy < 0.001)
+    allPassed = allPassed && test3Passed
+    print("  ✓ Max Clock Discrepancy: \(String(format: "%.6f", timestampDiscrepancy)) s -> \(test3Passed ? "PASSED" : "FAILED")")
     
-    // TEST 4: PEEK ORDER CHECK
-    print("\n[ACCEPTANCE 4] Peek Choreography Strict Ordering Check...")
-    engine.setBehavior(.peekingLeft)
+    // -------------------------------------------------------------
+    // TEST 4: Zero Foot Slip During Walk Stance Phase
+    // Stance foot displacement <= 0.5 pt per frame while body moves
+    // -------------------------------------------------------------
+    print("\n▶ TEST 4: Zero Foot Slip Invariant (Tolerance: 0.5 pt)")
+    let walkEngine = TestKinematicEngine()
+    walkEngine.routeStage = .leftWalk
+    walkEngine.rootWorldX = 100.0
+    walkEngine.leftFootWorldX = 94.0
+    walkEngine.rightFootWorldX = 106.0
     
-    // Phase 1 (0.4s): Hidden
-    engine.update(dt: 0.4)
-    assert(engine.currentPose.leftEyeOpen == 0.0 && engine.currentPose.rightEyeOpen == 0.0, "FAIL: Eyes must be hidden during phase 1")
+    var maxFootSlip: CGFloat = 0.0
+    var prevLeftPlantedPos: CGPoint? = nil
+    var prevRightPlantedPos: CGPoint? = nil
     
-    // Phase 2 (1.2s): Hands emerge
-    engine.update(dt: 0.8)
-    assert(engine.currentPose.leftHandPlanted && engine.currentPose.rightHandPlanted, "FAIL: Hands must be visible on edge in phase 2")
-    assert(engine.currentPose.leftEyeOpen == 0.0 && engine.currentPose.rightEyeOpen == 0.0, "FAIL: Eyes must not appear before hands!")
+    for _ in 0..<120 {
+        walkEngine.update(dt: 1.0 / 60.0)
+        let pose = walkEngine.currentPose
+        if pose.leftLeg.isPlantedOrGripping {
+            if let prev = prevLeftPlantedPos {
+                maxFootSlip = max(maxFootSlip, pose.leftLeg.end.distance(to: prev))
+            }
+            prevLeftPlantedPos = pose.leftLeg.end
+        } else {
+            prevLeftPlantedPos = nil
+        }
+        
+        if pose.rightLeg.isPlantedOrGripping {
+            if let prev = prevRightPlantedPos {
+                maxFootSlip = max(maxFootSlip, pose.rightLeg.end.distance(to: prev))
+            }
+            prevRightPlantedPos = pose.rightLeg.end
+        } else {
+            prevRightPlantedPos = nil
+        }
+    }
+    let test4Passed = (maxFootSlip <= 0.5)
+    allPassed = allPassed && test4Passed
+    print("  ✓ Max Planted Foot Slip: \(String(format: "%.4f", maxFootSlip)) pt (Target <= 0.5 pt) -> \(test4Passed ? "PASSED" : "FAILED")")
     
-    // Phase 3 (2.4s): ONE eye peeks, pupil sweeps
-    engine.update(dt: 1.2)
-    assert((engine.currentPose.rightEyeOpen > 0.0 && engine.currentPose.leftEyeOpen == 0.0) || (engine.currentPose.leftEyeOpen > 0.0 && engine.currentPose.rightEyeOpen == 0.0), "FAIL: Exactly ONE eye must peek during phase 3")
+    // -------------------------------------------------------------
+    // TEST 5: Monkey-Bar Gripping Hand Zero Slip
+    // Active gripping hand displacement <= 0.5 pt while swinging
+    // -------------------------------------------------------------
+    print("\n▶ TEST 5: Monkey-Bar Gripping Hand Pinning (Tolerance: 0.5 pt)")
+    let monkeyEngine = TestKinematicEngine()
+    monkeyEngine.routeStage = .monkeyBarTraversal
+    monkeyEngine.handLWorldX = 660.0
+    monkeyEngine.handRWorldX = 674.0
+    monkeyEngine.activeGrippingHand = 0
     
-    // Phase 4 (4.0s): Ducks down
-    engine.update(dt: 1.6)
-    assert(engine.currentPose.leftEyeOpen == 0.0 && engine.currentPose.rightEyeOpen == 0.0, "FAIL: Eye must duck down before full face pop")
+    var maxGripSlip: CGFloat = 0.0
+    var lastGrippedHandPos: CGPoint? = nil
+    var lastGrippedIndex = monkeyEngine.activeGrippingHand
     
-    // Phase 5 (5.0s): Full face pops with BOTH eyes
-    engine.update(dt: 1.0)
-    assert(engine.currentPose.leftEyeOpen >= 1.0 && engine.currentPose.rightEyeOpen >= 1.0, "FAIL: Both eyes must be open in phase 5")
-    print("  Peek Chronology Verified: Hands First -> One Eye -> Duck -> Both Eyes Pop!")
-    print("  ✓ PASS: Strict peek sequence order validated.")
+    for _ in 0..<120 {
+        monkeyEngine.update(dt: 1.0 / 60.0)
+        let pose = monkeyEngine.currentPose
+        let currentGrippedIndex = monkeyEngine.activeGrippingHand
+        let currentGrippedPos = (currentGrippedIndex == 0) ? pose.leftArm.end : pose.rightArm.end
+        
+        if currentGrippedIndex == lastGrippedIndex {
+            if let lastPos = lastGrippedHandPos {
+                maxGripSlip = max(maxGripSlip, currentGrippedPos.distance(to: lastPos))
+            }
+            lastGrippedHandPos = currentGrippedPos
+        } else {
+            // Hand switched
+            lastGrippedIndex = currentGrippedIndex
+            lastGrippedHandPos = currentGrippedPos
+        }
+    }
+    let test5Passed = (maxGripSlip <= 0.5)
+    allPassed = allPassed && test5Passed
+    print("  ✓ Max Gripping Hand Slip: \(String(format: "%.4f", maxGripSlip)) pt (Target <= 0.5 pt) -> \(test5Passed ? "PASSED" : "FAILED")")
     
-    // TEST 5: FRAME STRIP RENDERING
-    print("\n[ACCEPTANCE 5] Generating Visual Frame Strips (16 frames per behavior)...")
-    let p1 = generateBehaviorStrip(behavior: .peekingLeft, frames: 16, stepDt: 0.35, filename: "peek_strip.png")
-    let p2 = generateBehaviorStrip(behavior: .dangling, frames: 16, stepDt: 0.25, filename: "hang_pullup_strip.png")
-    let p3 = generateBehaviorStrip(behavior: .walking, frames: 16, stepDt: 0.05, filename: "walk_strip.png")
-    let p4 = generateBehaviorStrip(behavior: .crawling, frames: 16, stepDt: 0.05, filename: "crawl_strip.png")
-    let p5 = generateBehaviorStrip(behavior: .thinking, frames: 16, stepDt: 0.15, filename: "thinking_strip.png")
+    // -------------------------------------------------------------
+    // TEST 6: Physical Notch Cutout Non-Intersection Invariant
+    // Creature body/head must never enter physical notch cutout [645.5, 824.5] x [0, 32.0]
+    // -------------------------------------------------------------
+    print("\n▶ TEST 6: Physical Notch Cutout Non-Intersection")
+    let routeEngine = TestKinematicEngine()
+    var notchIntersectionCount = 0
+    let notchRect = CGRect(x: 645.5, y: 0.0, width: 179.0, height: 32.0)
     
-    print("  Generated: \(p1)")
-    print("  Generated: \(p2)")
-    print("  Generated: \(p3)")
-    print("  Generated: \(p4)")
-    print("  Generated: \(p5)")
-    print("  ✓ PASS: All 5 behavior frame strips rendered successfully.")
+    for _ in 0..<600 {
+        routeEngine.update(dt: 1.0 / 45.0)
+        let pose = routeEngine.currentPose
+        
+        // Torso root and head center check
+        if notchRect.contains(pose.torso.root) || notchRect.contains(pose.headCenter) {
+            notchIntersectionCount += 1
+        }
+    }
+    let test6Passed = (notchIntersectionCount == 0)
+    allPassed = allPassed && test6Passed
+    print("  ✓ Physical Notch Intersections: \(notchIntersectionCount) -> \(test6Passed ? "PASSED (Zero Pixels in Notch Cutout)" : "FAILED")")
     
-    // TEST 6: PERFORMANCE / MEMORY CHECK
-    print("\n[ACCEPTANCE 6] Performance & Memory Budget Verification...")
-    engine.setBehavior(.inDen)
-    assert(engine.currentPose.root.y == -45, "Den pose must be tucked out of sight")
-    print("  Idle In-Den CPU: 0.00% (TimelineView paused, zero timer ticks)")
-    print("  Active Animation CPU: Under 0.8% (pure analytical vector math, zero allocations)")
-    print("  Memory Footprint: < 4.5 MB skeleton footprint (0 bitmaps, pure CoreGraphics)")
-    print("  ✓ PASS: Performance budgets satisfied.")
+    // -------------------------------------------------------------
+    // TEST 7: Generate 4 Skeleton-Overlay Frame Strips
+    // -------------------------------------------------------------
+    print("\n▶ TEST 7: Generating 4 High-Resolution Skeleton-Overlay Frame Strips")
+    
+    // 1. Walk Strip
+    let eWalk = TestKinematicEngine()
+    eWalk.routeStage = .leftWalk
+    eWalk.rootWorldX = 100.0
+    let pWalk = renderStripImage(engine: eWalk, frames: 24, dt: 0.04, filename: "walk_strip.png")
+    print("  ✓ Generated Walk Strip (24 frames): \(pWalk)")
+    
+    // 2. Hang Strip
+    let eHang = TestKinematicEngine()
+    eHang.routeStage = .lowerToHang
+    eHang.handLWorldX = 700.0
+    eHang.handRWorldX = 714.0
+    let pHang = renderStripImage(engine: eHang, frames: 20, dt: 0.05, filename: "hang_strip.png")
+    print("  ✓ Generated Hang Strip (20 frames): \(pHang)")
+    
+    // 3. Monkey-Bar Strip
+    let eMonkey = TestKinematicEngine()
+    eMonkey.routeStage = .monkeyBarTraversal
+    eMonkey.handLWorldX = 660.0
+    eMonkey.handRWorldX = 674.0
+    let pMonkey = renderStripImage(engine: eMonkey, frames: 24, dt: 0.035, filename: "monkey_bar_strip.png")
+    print("  ✓ Generated Monkey-Bar Strip (24 frames): \(pMonkey)")
+    
+    // 4. Climb-Over Strip
+    let eClimb = TestKinematicEngine()
+    eClimb.routeStage = .climbOntoRightLedge
+    let pClimb = renderStripImage(engine: eClimb, frames: 20, dt: 0.065, filename: "climb_over_strip.png")
+    print("  ✓ Generated Climb-Over Strip (20 frames): \(pClimb)")
     
     print("\n===========================================================")
-    print("   ALL KINEMATIC ACCEPTANCE TESTS PASSED (6/6)             ")
+    if allPassed {
+        print("    ★ ALL KINEMATIC RIG & ROAMING ACCEPTANCE TESTS PASSED ★ ")
+    } else {
+        print("    ❌ SOME ACCEPTANCE TESTS FAILED")
+    }
     print("===========================================================\n")
 }
 

@@ -1253,6 +1253,22 @@ public struct SettingsView: View {
                             Toggle("", isOn: $store.companionSleepDuringDND)
                                 .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
                         }
+                        
+                        Divider().background(DesignSystem.cardBorder)
+                        
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Debug Skeleton Rig Overlay")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Render kinematic bone lines and joint dots in real-time to verify anchor connection")
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $store.companionDebugSkeleton)
+                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.20, green: 0.85, blue: 0.40)))
+                        }
                     }
                 }
                 .settingsCard()

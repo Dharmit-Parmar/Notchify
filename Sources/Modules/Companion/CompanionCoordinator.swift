@@ -11,6 +11,7 @@ public final class CompanionCoordinator: ObservableObject {
     @Published public var isHovered: Bool = false
     
     public weak var panel: CompanionPanel?
+    public weak var clickPanel: CompanionClickPanel?
     
     // Internal Timers & Monitored Events
     private var schedulerTimer: Timer?
@@ -219,11 +220,11 @@ public final class CompanionCoordinator: ObservableObject {
     public func triggerPeek(side: PeekSide) {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         let peekState: CompanionBehaviorState = (side == .left) ? .peekingLeft : .peekingRight
         state = peekState
-        KinematicEngine.shared.setBehavior(peekState, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(peekState)
         
         actionDurationTimer?.invalidate()
         let peekDuration = Double.random(in: 6.0...8.5)
@@ -239,10 +240,10 @@ public final class CompanionCoordinator: ObservableObject {
     public func triggerWalking() {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .walking
-        KinematicEngine.shared.setBehavior(.walking, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.walking)
         
         actionDurationTimer?.invalidate()
         let walkDuration = Double.random(in: 8.0...14.0)
@@ -261,10 +262,10 @@ public final class CompanionCoordinator: ObservableObject {
     public func triggerCrawling() {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .crawling
-        KinematicEngine.shared.setBehavior(.crawling, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.crawling)
         
         actionDurationTimer?.invalidate()
         let crawlDuration = Double.random(in: 6.0...10.0)
@@ -278,10 +279,10 @@ public final class CompanionCoordinator: ObservableObject {
     public func triggerThinking() {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .thinking
-        KinematicEngine.shared.setBehavior(.thinking, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.thinking)
         
         actionDurationTimer?.invalidate()
         let thinkDuration = Double.random(in: 5.0...8.0)
@@ -297,11 +298,11 @@ public final class CompanionCoordinator: ObservableObject {
         hasSlippedInSession = true
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .dangling
         FeedbackManager.playClick()
-        KinematicEngine.shared.setBehavior(.dangling, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.dangling)
         
         actionDurationTimer?.invalidate()
         // Dangle for 3.0s swinging as a damped pendulum, then initiate pull-up!
@@ -322,19 +323,19 @@ public final class CompanionCoordinator: ObservableObject {
     public func triggerTypingMimic() {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .typingMimic
-        KinematicEngine.shared.setBehavior(.typingMimic, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.typingMimic)
     }
     
     public func triggerMusicGroove() {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .musicGroove
-        KinematicEngine.shared.setBehavior(.musicGroove, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.musicGroove)
         
         actionDurationTimer?.invalidate()
         let grooveDuration = Double.random(in: 8.0...14.0)
@@ -353,10 +354,10 @@ public final class CompanionCoordinator: ObservableObject {
     public func triggerSleeping() {
         isSequenceRunning = true
         panel?.orderFrontRegardless()
+        clickPanel?.orderFrontRegardless()
         
-        let geom = NotchGeometry.current()
         state = .sleeping
-        KinematicEngine.shared.setBehavior(.sleeping, notchWidth: geom.physicalNotchWidth)
+        KinematicEngine.shared.setBehavior(.sleeping)
         
         actionDurationTimer?.invalidate()
         let napDuration = Double.random(in: 14.0...26.0)
@@ -375,6 +376,7 @@ public final class CompanionCoordinator: ObservableObject {
         state = .inDen
         KinematicEngine.shared.setBehavior(.inDen)
         panel?.orderOut(nil)
+        clickPanel?.orderOut(nil)
         isSequenceRunning = false
         
         if !immediate {

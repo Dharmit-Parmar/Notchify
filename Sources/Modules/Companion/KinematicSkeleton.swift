@@ -11,7 +11,7 @@ public extension CGPoint {
     }
     
     func lerp(to target: CGPoint, t: CGFloat) -> CGPoint {
-        return CGPoint(
+        CGPoint(
             x: self.x + (target.x - self.x) * t,
             y: self.y + (target.y - self.y) * t
         )
@@ -49,10 +49,9 @@ public struct TwoBoneIK {
         let dy = target.y - root.y
         let dist = sqrt(dx * dx + dy * dy)
         
-        let maxReach = length1 + length2 - 0.001
-        let minReach = max(0.001, abs(length1 - length2) + 0.001)
+        let maxReach = length1 + length2 - 0.0001
+        let minReach = max(0.0001, abs(length1 - length2) + 0.0001)
         let reachable = dist <= maxReach && dist >= minReach
-        
         let d = min(maxReach, max(minReach, dist))
         
         // Base direction from root to target
@@ -115,49 +114,106 @@ public struct SpringDamper {
     }
 }
 
-// MARK: - Complete Kinematic Skeleton Rig Pose
+// MARK: - Torso Anchors & Geometry
+public struct TorsoBones: Equatable {
+    public var root: CGPoint = .zero            // Hips center
+    public var spineAngle: Double = -.pi / 2.0  // Points upward by default
+    public var spineLength: CGFloat = 16.0
+    public var shoulderWidth: CGFloat = 14.0
+    public var hipWidth: CGFloat = 12.0
+    
+    // Computed Anchors on Torso Hull
+    public var neck: CGPoint {
+        CGPoint(
+            x: root.x + cos(spineAngle) * spineLength,
+            y: root.y + sin(spineAngle) * spineLength
+        )
+    }
+    
+    // Normal vector perpendicular to spine
+    private var normalVector: CGPoint {
+        CGPoint(x: -sin(spineAngle), y: cos(spineAngle))
+    }
+    
+    public var leftShoulderAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: neck.x + n.x * (shoulderWidth / 2.0),
+            y: neck.y + n.y * (shoulderWidth / 2.0)
+        )
+    }
+    
+    public var rightShoulderAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: neck.x - n.x * (shoulderWidth / 2.0),
+            y: neck.y - n.y * (shoulderWidth / 2.0)
+        )
+    }
+    
+    public var leftHipAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: root.x + n.x * (hipWidth / 2.0),
+            y: root.y + n.y * (hipWidth / 2.0)
+        )
+    }
+    
+    public var rightHipAnchor: CGPoint {
+        let n = normalVector
+        return CGPoint(
+            x: root.x - n.x * (hipWidth / 2.0),
+            y: root.y - n.y * (hipWidth / 2.0)
+        )
+    }
+}
+
+// MARK: - Limb Bone Systems
+public struct LimbBones: Equatable {
+    public var anchor: CGPoint = .zero  // Strictly attached to torso anchor
+    public var joint: CGPoint = .zero   // Elbow or knee
+    public var end: CGPoint = .zero     // Hand or foot
+    public var length1: CGFloat = 8.0
+    public var length2: CGFloat = 8.0
+    public var isPlantedOrGripping: Bool = false
+    
+    public init(length1: CGFloat = 8.0, length2: CGFloat = 8.0) {
+        self.length1 = length1
+        self.length2 = length2
+    }
+    
+    public mutating func solveIK(from anchor: CGPoint, toward target: CGPoint, bendPositive: Bool) {
+        self.anchor = anchor
+        let result = TwoBoneIK.solve(
+            root: anchor,
+            target: target,
+            length1: length1,
+            length2: length2,
+            bendPositive: bendPositive
+        )
+        self.joint = result.joint
+        self.end = result.end
+    }
+}
+
+// MARK: - Unified Single-Clock Kinematic Skeleton Pose
 public struct SkeletonPose: Equatable {
-    // Proportions
-    public static let upperArmLength: CGFloat = 8.0
-    public static let forearmLength: CGFloat = 8.0
-    public static let thighLength: CGFloat = 8.5
-    public static let calfLength: CGFloat = 8.5
-    public static let torsoHeight: CGFloat = 16.0
-    public static let headRadius: CGFloat = 10.0
+    // Single shared frame timestamp
+    public var timestamp: Double = 0.0
     
-    // Core Bones & Joint Transforms
-    public var root: CGPoint = .zero            // Hips in notch coordinates
-    public var pelvisAngle: Double = 0.0        // Pelvic tilt (degrees)
-    public var chest: CGPoint = .zero           // Upper torso / shoulders
-    public var chestAngle: Double = 0.0         // Torso curvature
-    public var head: CGPoint = .zero            // Head center
-    public var headAngle: Double = 0.0          // Head tilt
+    // Core Rig
+    public var torso: TorsoBones = TorsoBones()
+    public var headCenter: CGPoint = .zero
+    public var headAngle: Double = 0.0
+    public var headRadius: CGFloat = 10.0
     
-    // Left Arm (Back limb if facing right)
-    public var leftShoulder: CGPoint = .zero
-    public var leftElbow: CGPoint = .zero
-    public var leftHand: CGPoint = .zero
-    public var leftHandPlanted: Bool = false
+    // Four Limbs attached strictly to Torso Anchors
+    public var leftArm: LimbBones = LimbBones(length1: 8.0, length2: 8.0)
+    public var rightArm: LimbBones = LimbBones(length1: 8.0, length2: 8.0)
+    public var leftLeg: LimbBones = LimbBones(length1: 8.5, length2: 8.5)
+    public var rightLeg: LimbBones = LimbBones(length1: 8.5, length2: 8.5)
     
-    // Right Arm (Front limb if facing right)
-    public var rightShoulder: CGPoint = .zero
-    public var rightElbow: CGPoint = .zero
-    public var rightHand: CGPoint = .zero
-    public var rightHandPlanted: Bool = false
-    
-    // Left Leg (Back leg if facing right)
-    public var leftHip: CGPoint = .zero
-    public var leftKnee: CGPoint = .zero
-    public var leftFoot: CGPoint = .zero
-    public var leftFootPlanted: Bool = false
-    
-    // Right Leg (Front leg if facing right)
-    public var rightHip: CGPoint = .zero
-    public var rightKnee: CGPoint = .zero
-    public var rightFoot: CGPoint = .zero
-    public var rightFootPlanted: Bool = false
-    
-    // Tail (Physics chain of 4 segments)
+    // Tail (Physics Chain)
     public var tailSegments: [CGPoint] = [
         CGPoint(x: -8, y: 0),
         CGPoint(x: -14, y: -2),
@@ -165,18 +221,47 @@ public struct SkeletonPose: Equatable {
         CGPoint(x: -24, y: -9)
     ]
     
-    // Facial Rig
-    public var pupilOffset: CGPoint = .zero     // Normalized -1...1
-    public var leftEyeOpen: CGFloat = 1.0       // 0 = closed, 1 = normal, 1.4 = wide
+    // Facial Features
+    public var pupilOffset: CGPoint = .zero
+    public var leftEyeOpen: CGFloat = 1.0
     public var rightEyeOpen: CGFloat = 1.0
-    public var mouthOpen: CGFloat = 0.0
     public var mouthShape: MouthShape = .neutral
-    
-    // Secondary Motion Overlays
     public var facingRight: Bool = true
-    public var breathScale: CGFloat = 1.0
-    public var squashStretch: CGPoint = CGPoint(x: 1.0, y: 1.0)
-    public var weightShift: Double = 0.0        // -1 (all weight on left) to +1 (on right)
+    
+    // Debug Skeleton Overlay Toggle
+    public var debugSkeleton: Bool = false
+    
+    // Convenience accessors for backwards compatibility & tests
+    public var root: CGPoint {
+        get { torso.root }
+        set { torso.root = newValue }
+    }
+    public var chest: CGPoint {
+        torso.neck
+    }
+    public var head: CGPoint {
+        get { headCenter }
+        set { headCenter = newValue }
+    }
+    public var leftShoulder: CGPoint { leftArm.anchor }
+    public var leftElbow: CGPoint { leftArm.joint }
+    public var leftHand: CGPoint { leftArm.end }
+    public var leftHandPlanted: Bool { leftArm.isPlantedOrGripping }
+    
+    public var rightShoulder: CGPoint { rightArm.anchor }
+    public var rightElbow: CGPoint { rightArm.joint }
+    public var rightHand: CGPoint { rightArm.end }
+    public var rightHandPlanted: Bool { rightArm.isPlantedOrGripping }
+    
+    public var leftHip: CGPoint { leftLeg.anchor }
+    public var leftKnee: CGPoint { leftLeg.joint }
+    public var leftFoot: CGPoint { leftLeg.end }
+    public var leftFootPlanted: Bool { leftLeg.isPlantedOrGripping }
+    
+    public var rightHip: CGPoint { rightLeg.anchor }
+    public var rightKnee: CGPoint { rightLeg.joint }
+    public var rightFoot: CGPoint { rightLeg.end }
+    public var rightFootPlanted: Bool { rightLeg.isPlantedOrGripping }
     
     public init() {}
 }

@@ -1,25 +1,92 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Dedicated Floating Companion Panel
+// MARK: - Full-Screen Overlay Companion Panel
 @MainActor
 public final class CompanionPanel: NSPanel {
     public static var shared: CompanionPanel?
+    public private(set) var clickPanel: CompanionClickPanel?
     
-    public init(screen: NSScreen = NSScreen.main ?? NSScreen.screens[0]) {
-        let geom = NotchGeometry.current(for: screen)
-        let width = geom.physicalNotchWidth + 140
-        let height = geom.physicalNotchHeight + 60
+    public init(screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
+        let width = screen.frame.width
+        let height: CGFloat = 160.0
         
         let frameRect = NSRect(
-            x: geom.notchCenterX - (width / 2.0),
-            y: geom.screenFrame.origin.y + geom.screenFrame.height - height,
+            x: screen.frame.origin.x,
+            y: screen.frame.maxY - height,
             width: width,
             height: height
         )
         
         super.init(
             contentRect: frameRect,
+            styleMask: [.nonactivatingPanel, .borderless],
+            backing: .buffered,
+            defer: false
+        )
+        
+        self.isFloatingPanel = true
+        self.level = .screenSaver // Renders above menu bar and full screen apps
+        self.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .stationary,
+            .ignoresCycle
+        ]
+        self.isOpaque = false
+        self.backgroundColor = .clear
+        self.hasShadow = false
+        self.ignoresMouseEvents = true // Full-screen click-through: menus, status icons and apps work uninterrupted!
+        self.isMovable = false
+        self.acceptsMouseMovedEvents = true
+        
+        let hostingView = NSHostingView(rootView: CreatureContainerView())
+        hostingView.autoresizingMask = [.width, .height]
+        self.contentView = hostingView
+        
+        // Auxiliary Miniature Click-Target Panel following the creature's body
+        let clickP = CompanionClickPanel(screen: screen)
+        self.clickPanel = clickP
+        
+        CompanionPanel.shared = self
+        CompanionCoordinator.shared.panel = self
+        CompanionCoordinator.shared.clickPanel = clickP
+        
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFramePosition()
+            }
+        }
+    }
+    
+    public func updateFramePosition(for screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
+        let width = screen.frame.width
+        let height: CGFloat = 160.0
+        let targetRect = NSRect(
+            x: screen.frame.origin.x,
+            y: screen.frame.maxY - height,
+            width: width,
+            height: height
+        )
+        self.setFrame(targetRect, display: true)
+        KinematicEngine.shared.refreshScreenGeometry()
+        clickPanel?.updatePosition(pose: KinematicEngine.shared.currentPose, screen: screen)
+    }
+}
+
+// MARK: - Auxiliary Miniature Click Panel (Creature Body Tap & Hover)
+@MainActor
+public final class CompanionClickPanel: NSPanel {
+    public init(screen: NSScreen) {
+        let size: CGFloat = 48.0
+        let rect = NSRect(x: -200, y: -200, width: size, height: size)
+        
+        super.init(
+            contentRect: rect,
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -40,53 +107,47 @@ public final class CompanionPanel: NSPanel {
         self.isMovable = false
         self.acceptsMouseMovedEvents = true
         
-        let hostingView = CompanionHostingView(rootView: CreatureContainerView())
-        hostingView.autoresizingMask = [.width, .height]
-        self.contentView = hostingView
-        
-        CompanionPanel.shared = self
-        
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.updateFramePosition()
-            }
-        }
+        let clickHost = NSHostingView(rootView: CreatureClickTargetView())
+        clickHost.autoresizingMask = [.width, .height]
+        self.contentView = clickHost
     }
     
-    public func updateFramePosition(for screen: NSScreen = NSScreen.main ?? NSScreen.screens[0]) {
-        let geom = NotchGeometry.current(for: screen)
-        let width = geom.physicalNotchWidth + 140
-        let height = geom.physicalNotchHeight + 60
+    public func updatePosition(pose: SkeletonPose, screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
+        guard CompanionCoordinator.shared.state != .inDen else {
+            if self.isVisible {
+                self.orderOut(nil)
+            }
+            return
+        }
         
-        let targetRect = NSRect(
-            x: geom.notchCenterX - (width / 2.0),
-            y: geom.screenFrame.origin.y + geom.screenFrame.height - height,
-            width: width,
-            height: height
-        )
-        self.setFrame(targetRect, display: true)
+        let root = pose.root
+        // In screen coordinates: Y is measured from screen bottom
+        let screenX = screen.frame.origin.x + root.x - 24.0
+        let screenY = screen.frame.maxY - root.y - 24.0
+        self.setFrameOrigin(NSPoint(x: screenX, y: screenY))
+        
+        if !self.isVisible && CompanionCoordinator.shared.state != .inDen {
+            self.orderFrontRegardless()
+        }
     }
 }
 
-// MARK: - Specialized Hit-Testing Host View
-// Pass-through architecture: ONLY the creature body intercepts mouse events.
-// Transparent window regions pass clicks directly to underlying applications!
-public final class CompanionHostingView<Content: View>: NSHostingView<Content> {
-    public override func hitTest(_ point: NSPoint) -> NSView? {
-        let coord = CompanionCoordinator.shared
-        guard coord.state != .inDen else { return nil }
-        
-        let interactiveRect = coord.creatureInteractiveRectInWindow
-        if interactiveRect.contains(point) {
-            return super.hitTest(point)
-        }
-        
-        // Pass click straight through to active macOS window / menu bar!
-        return nil
+// MARK: - Miniature Click Target View
+public struct CreatureClickTargetView: View {
+    @ObservedObject var coordinator = CompanionCoordinator.shared
+    
+    public init() {}
+    
+    public var body: some View {
+        Color.clear
+            .frame(width: 48, height: 48)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                coordinator.onCursorHover(hovering)
+            }
+            .onTapGesture {
+                coordinator.onCreatureClicked()
+            }
     }
 }
 

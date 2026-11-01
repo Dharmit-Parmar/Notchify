@@ -269,6 +269,9 @@ public class SettingsStore: ObservableObject {
     @Published public var companionSleepDuringDND: Bool = true {
         didSet { UserDefaults.standard.set(companionSleepDuringDND, forKey: "NotchApp_CompanionSleepDuringDND") }
     }
+    @Published public var companionDebugSkeleton: Bool = false {
+        didSet { UserDefaults.standard.set(companionDebugSkeleton, forKey: "NotchApp_CompanionDebugSkeleton") }
+    }
     
     @Published public var isAccessibilityGranted: Bool = AXIsProcessTrusted()
     @Published public var isInputMonitoringGranted: Bool = false
@@ -407,6 +410,9 @@ public class SettingsStore: ObservableObject {
         }
         if let rawDND = UserDefaults.standard.object(forKey: "NotchApp_CompanionSleepDuringDND") as? Bool {
             self.companionSleepDuringDND = rawDND
+        }
+        if let rawDebug = UserDefaults.standard.object(forKey: "NotchApp_CompanionDebugSkeleton") as? Bool {
+            self.companionDebugSkeleton = rawDebug
         }
         self.isAccessibilityGranted = AXIsProcessTrusted()
         self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
