@@ -301,6 +301,16 @@ public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
         case .circadian: return "sun.max.fill"
         }
     }
+    
+    public var tintColor: Color {
+        switch self {
+        case .media: return Color(red: 0.98, green: 0.35, blue: 0.55) // Living Rose
+        case .minimal: return Color(red: 0.35, green: 0.85, blue: 0.98) // Cyan Jewel
+        case .battery: return Color(red: 0.40, green: 0.88, blue: 0.45) // Lime Green
+        case .dateTime: return Color(red: 0.30, green: 0.65, blue: 1.00) // Electric Blue
+        case .circadian: return Color(red: 0.98, green: 0.72, blue: 0.22) // Solar Gold
+        }
+    }
 }
 
 // MARK: - Apple Music Live Waveform Equalizer

@@ -121,11 +121,11 @@ public struct SettingsView: View {
             
             HStack(spacing: 6) {
                 Circle()
-                    .fill(store.currentTheme.accentColor)
+                    .fill(themeEngine.accentColor)
                     .frame(width: 8, height: 8)
                 Text(store.currentTheme.displayName)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(DesignSystem.accentColor)
+                    .foregroundColor(themeEngine.accentColor)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -203,7 +203,7 @@ public struct SettingsView: View {
                 HStack {
                     Image(systemName: "sparkles")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(DesignSystem.accentColor)
+                        .foregroundColor(SettingsCategory.appearance.tintColor)
                     Text("Dynamic Living Themes")
                         .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(.white)
@@ -308,6 +308,9 @@ public struct SettingsView: View {
             // Sub-Section 2: Curated Studio Presets
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
+                    Image(systemName: "paintpalette.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(SettingsCategory.appearance.tintColor)
                     Text("Studio Color Presets (16 Styles)")
                         .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(.white)
@@ -386,9 +389,14 @@ public struct SettingsView: View {
             
             // Glass Material Style
             VStack(alignment: .leading, spacing: 8) {
-                Text("Glass Material Style")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white)
+                HStack {
+                    Image(systemName: "square.2.layers.3d.top.filled")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(SettingsCategory.appearance.tintColor)
+                    Text("Glass Material Style")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
                 
                 HStack(spacing: 8) {
                     ForEach(GlassMaterialStyle.allCases) { style in
@@ -431,9 +439,14 @@ public struct SettingsView: View {
             // Corner Curvature & Specular Glow
             HStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Corner Geometry")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
+                    HStack {
+                        Image(systemName: "square.dashed")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(SettingsCategory.appearance.tintColor)
+                        Text("Corner Geometry")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
                     
                     Picker("", selection: Binding(
                         get: { store.cornerStyle },
@@ -474,9 +487,14 @@ public struct SettingsView: View {
     // MARK: - Section 2: Geometry & Sizing
     private var geometrySection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Spatial Geometry & Sizing")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
+            HStack(spacing: 8) {
+                Image(systemName: SettingsCategory.geometry.icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(SettingsCategory.geometry.tintColor)
+                Text("Spatial Geometry & Sizing")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+            }
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -484,7 +502,10 @@ public struct SettingsView: View {
                         .font(.system(size: 12))
                     Spacer()
                 }
-                Slider(value: $store.notchWidth, in: 480...800, step: 20)
+                Slider(value: $store.notchWidth, in: 480...800, step: 20) { editing in
+                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                }
+                .tint(SettingsCategory.geometry.tintColor)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -493,7 +514,10 @@ public struct SettingsView: View {
                         .font(.system(size: 12))
                     Spacer()
                 }
-                Slider(value: $store.notchHeight, in: 310...420, step: 10)
+                Slider(value: $store.notchHeight, in: 310...420, step: 10) { editing in
+                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                }
+                .tint(SettingsCategory.geometry.tintColor)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -502,7 +526,10 @@ public struct SettingsView: View {
                         .font(.system(size: 12))
                     Spacer()
                 }
-                Slider(value: $store.hoverTriggerHeight, in: 24...54, step: 2)
+                Slider(value: $store.hoverTriggerHeight, in: 24...54, step: 2) { editing in
+                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                }
+                .tint(SettingsCategory.geometry.tintColor)
             }
             
             Divider()
@@ -519,6 +546,7 @@ public struct SettingsView: View {
                     Spacer()
                 }
                 Slider(value: $store.contentHorizontalPadding, in: 12...32, step: 2)
+                .tint(SettingsCategory.geometry.tintColor)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -528,6 +556,7 @@ public struct SettingsView: View {
                     Spacer()
                 }
                 Slider(value: $store.contentVerticalPadding, in: 8...24, step: 2)
+                .tint(SettingsCategory.geometry.tintColor)
             }
         }
         .settingsCard()
@@ -536,9 +565,14 @@ public struct SettingsView: View {
     // MARK: - Section 3: Motion & Delays
     private var motionSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Apple Motion Physics")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
+            HStack(spacing: 8) {
+                Image(systemName: SettingsCategory.motion.icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(SettingsCategory.motion.tintColor)
+                Text("Apple Motion Physics")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+            }
             
             HStack(spacing: 8) {
                 ForEach(MotionPhysicsStyle.allCases) { motion in
@@ -644,9 +678,14 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             // Collapsed Notch Indicator Style
             VStack(alignment: .leading, spacing: 8) {
-                Text("Collapsed Notch Indicator")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                HStack(spacing: 8) {
+                    Image(systemName: SettingsCategory.modules.icon)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(SettingsCategory.modules.tintColor)
+                    Text("Collapsed Notch Indicator")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                }
                 
                 HStack(spacing: 8) {
                     ForEach(CompactIndicatorStyle.allCases) { style in
@@ -661,6 +700,7 @@ public struct SettingsView: View {
                             HStack(spacing: 5) {
                                 Image(systemName: style.icon)
                                     .font(.system(size: 10))
+                                    .foregroundColor(style.tintColor)
                                 Text(style.rawValue)
                                     .font(.system(size: 10.5, weight: isSelected ? .bold : .medium, design: .rounded))
                             }
@@ -668,11 +708,11 @@ public struct SettingsView: View {
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
-                                    .fill(isSelected ? DesignSystem.structureColor : Color.white.opacity(0.04))
+                                    .fill(isSelected ? style.tintColor.opacity(0.18) : Color.white.opacity(0.04))
                             )
                             .overlay(
                                 Capsule()
-                                    .strokeBorder(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
+                                    .strokeBorder(isSelected ? style.tintColor.opacity(0.85) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
                             .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
                         }
@@ -800,14 +840,19 @@ public struct SettingsView: View {
     // MARK: - Section 5: Sound & Haptics
     private var feedbackSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Interactive Audio & Haptics")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
+            HStack(spacing: 8) {
+                Image(systemName: SettingsCategory.feedback.icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(SettingsCategory.feedback.tintColor)
+                Text("Interactive Audio & Haptics")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+            }
             
             Toggle(isOn: $store.soundFeedbackEnabled) {
                 HStack(spacing: 8) {
                     Image(systemName: "speaker.wave.2.fill")
-                        .foregroundColor(DesignSystem.accentColor)
+                        .foregroundColor(SettingsCategory.feedback.tintColor)
                         .frame(width: 16)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Sound Feedback")
@@ -824,7 +869,7 @@ public struct SettingsView: View {
             Toggle(isOn: $store.hapticFeedbackEnabled) {
                 HStack(spacing: 8) {
                     Image(systemName: "hand.tap.fill")
-                        .foregroundColor(DesignSystem.accentColor)
+                        .foregroundColor(SettingsCategory.feedback.tintColor)
                         .frame(width: 16)
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Haptic Feedback")
@@ -872,9 +917,14 @@ public struct SettingsView: View {
     private var permissionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("System Permissions & macOS Privacy")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                HStack(spacing: 8) {
+                    Image(systemName: SettingsCategory.permissions.icon)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(SettingsCategory.permissions.tintColor)
+                    Text("System Permissions & macOS Privacy")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                }
                 Spacer()
                 Button(action: {
                     PermissionsHelper.revealAppInFinder()
@@ -885,11 +935,11 @@ public struct SettingsView: View {
                         Text("Reveal in Finder")
                             .font(.system(size: 10.5, weight: .semibold))
                     }
-                    .foregroundColor(DesignSystem.accentColor)
+                    .foregroundColor(SettingsCategory.permissions.tintColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(DesignSystem.accentColor.opacity(0.12)))
-                    .overlay(Capsule().strokeBorder(DesignSystem.accentColor.opacity(0.3), lineWidth: 0.8))
+                    .background(Capsule().fill(SettingsCategory.permissions.tintColor.opacity(0.12)))
+                    .overlay(Capsule().strokeBorder(SettingsCategory.permissions.tintColor.opacity(0.3), lineWidth: 0.8))
                 }
                 .buttonStyle(.spring)
                 .help("Reveal NotchApp binary in Finder to drag directly into System Settings (+)")

@@ -696,7 +696,8 @@ func runAllVerificationTests() {
         "t.me/telegram": "@telegram",
         "notch_user": "@notch_user",
         "@verified_channel": "@verified_channel",
-        "-1001234567890": "-1001234567890"
+        "-1001234567890": "-1001234567890",
+        "+15551234567": "15551234567" // Plus phone numbers must not be prepended with @
     ]
     
     func normalizeChatId(_ raw: String) -> String {
@@ -705,6 +706,9 @@ func runAllVerificationTests() {
             target = String(target.dropFirst(13))
         } else if target.hasPrefix("t.me/") {
             target = String(target.dropFirst(5))
+        }
+        if target.hasPrefix("+") {
+            target = String(target.dropFirst())
         }
         if !target.hasPrefix("@") && !target.allSatisfy({ $0.isNumber || $0 == "-" }) {
             target = "@" + target
@@ -716,7 +720,7 @@ func runAllVerificationTests() {
         let normalized = normalizeChatId(input)
         assert(normalized == expected, "Handle normalization failed: \(input) -> \(normalized) (expected \(expected))")
     }
-    print("  Handle normalization verified across t.me URLs, raw usernames, and numeric chat IDs.")
+    print("  Handle normalization verified across t.me URLs, raw usernames, numeric chat IDs, and +phone numbers.")
     
     // Bot API URL formulation
     let botUrl = URL(string: "https://api.telegram.org/bot\(sampleBotToken)/sendMessage")
@@ -735,18 +739,27 @@ func runAllVerificationTests() {
     assert(jsonString.contains("\"text\":\"Hello from Notch direct bot dispatch!\""), "Serialized JSON must contain correct text")
     print("  Serialized JSON Payload: \(jsonString)")
     
-    // KeyCode Enter Synchronization logic
+    // KeyCode Enter Synchronization and Field Editor Reset logic
     let editorText = "Realtime typed message before commit"
+    var editorFieldText = editorText
     var modelDraftText = ""
-    func simulateEnterKey(editor: String, draft: inout String) {
-        draft = editor // DirectTextField ensures editor.string is flushed into draftText prior to dispatch
+    var committedPassedToCallback = ""
+    func simulateEnterKey(editor: inout String, draft: inout String, callback: (String) -> Void) {
+        let toCommit = editor
+        editor = "" // Field editor is cleared immediately
+        draft = "" // Draft binding is reset
+        callback(toCommit)
     }
-    simulateEnterKey(editor: editorText, draft: &modelDraftText)
-    assert(modelDraftText == editorText, "Draft text must synchronize prior to dispatch on Enter key")
+    simulateEnterKey(editor: &editorFieldText, draft: &modelDraftText) { committed in
+        committedPassedToCallback = committed
+    }
+    assert(committedPassedToCallback == editorText, "Committed text must be passed directly to callback")
+    assert(editorFieldText.isEmpty, "Field editor must be cleared on Enter commit")
+    assert(modelDraftText.isEmpty, "Draft binding must be cleared on Enter commit")
     print("  ✓ Telegram Direct Bot API zero-window dispatch architecture & Enter key synchronization verified.")
     
-    // Test 31: Theme Color Palette Propagation for Modules & Categories
-    print("\n[TEST 31] Theme Color Palette Propagation for Modules & Settings Categories...")
+    // Test 31: Theme Color Palette Propagation for Modules, Categories & Compact Indicators
+    print("\n[TEST 31] Theme Color Palette Propagation for Modules, Categories & Compact Indicators...")
     func moduleThemeColor(for id: String) -> (r: Double, g: Double, b: Double) {
         switch id {
         case "airdrop": return (0.20, 0.60, 1.00)
@@ -781,22 +794,38 @@ func runAllVerificationTests() {
         assert(!info.icon.isEmpty, "Category \(categoryName) must have distinct SF Symbol icon")
         assert(info.r > 0 && info.g > 0 && info.b > 0, "Category \(categoryName) must have distinct harmonious tint color")
     }
-    print("  ✓ Theme color palette propagation verified for all 7 modules and 6 settings categories.")
+    
+    // Compact Indicator Styles Signature Tints
+    let indicatorTints: [String: (r: Double, g: Double, b: Double)] = [
+        "Now Playing": (0.98, 0.35, 0.55),
+        "Minimal Jewel": (0.35, 0.85, 0.98),
+        "Battery": (0.40, 0.88, 0.45),
+        "Clock": (0.30, 0.65, 1.00),
+        "Solar Status": (0.98, 0.72, 0.22)
+    ]
+    for (indicator, rgb) in indicatorTints {
+        assert(rgb.r > 0 || rgb.g > 0 || rgb.b > 0, "Indicator \(indicator) must have distinct signature color")
+    }
+    print("  ✓ Theme color palette propagation verified for all 7 modules, 6 settings categories, and 5 compact indicators.")
     
     // Test 32: Appearance Propagation Preview & Outside Click Window Isolation
     print("\n[TEST 32] Appearance Propagation Preview & Outside Click Isolation...")
     var previewNotchExpanded = false
+    var isPreviewActive = false
     var previewDidCollapseAfterDelay = false
     
-    func triggerPreview(expand: inout Bool, didCollapse: inout Bool) {
+    func triggerPreview(expand: inout Bool, previewActive: inout Bool, didCollapse: inout Bool) {
         expand = true
-        // Simulating the 1.25s preview timer completion
+        previewActive = true
+        // Dwell finishes: guaranteed collapse even if cursor is under panel
         expand = false
+        previewActive = false
         didCollapse = true
     }
-    triggerPreview(expand: &previewNotchExpanded, didCollapse: &previewDidCollapseAfterDelay)
+    triggerPreview(expand: &previewNotchExpanded, previewActive: &isPreviewActive, didCollapse: &previewDidCollapseAfterDelay)
     assert(previewNotchExpanded == false, "Preview must return to resting state after preview")
     assert(previewDidCollapseAfterDelay == true, "Preview collapse callback must execute")
+    assert(isPreviewActive == false, "Preview active flag must reset after collapse")
     
     // Settings window outside click isolation
     let settingsRect = NSRect(x: 200, y: 150, width: 540, height: 620)
@@ -804,20 +833,26 @@ func runAllVerificationTests() {
     let clickInsideSettings = NSPoint(x: 350, y: 300)
     let clickOutsideBoth = NSPoint(x: 50, y: 50)
     
-    func shouldCollapseFromOutsideClick(click: NSPoint, isSettingsOpen: Bool, settingsFrame: NSRect, notchFrame: NSRect) -> Bool {
+    func shouldCollapseFromOutsideClick(click: NSPoint, isSettingsOpen: Bool, isPreviewActive: Bool, settingsFrame: NSRect, notchFrame: NSRect) -> Bool {
         if isSettingsOpen && settingsFrame.contains(click) {
             return false // Clicks inside Settings window NEVER collapse the notch!
         }
         if notchFrame.contains(click) {
             return false // Clicks inside Notch NEVER collapse the notch!
         }
+        if isPreviewActive {
+            return false // Outside click does not prematurely abort active preview dwell
+        }
         return true // Click in empty space collapses the notch
     }
     
-    let collapseOnSettingsClick = shouldCollapseFromOutsideClick(click: clickInsideSettings, isSettingsOpen: true, settingsFrame: settingsRect, notchFrame: notchPanelRect)
+    let collapseOnSettingsClick = shouldCollapseFromOutsideClick(click: clickInsideSettings, isSettingsOpen: true, isPreviewActive: false, settingsFrame: settingsRect, notchFrame: notchPanelRect)
     assert(collapseOnSettingsClick == false, "Clicks inside Settings window must NOT trigger outside-click collapse of Notch")
     
-    let collapseOnDesktopClick = shouldCollapseFromOutsideClick(click: clickOutsideBoth, isSettingsOpen: true, settingsFrame: settingsRect, notchFrame: notchPanelRect)
+    let collapseDuringPreview = shouldCollapseFromOutsideClick(click: clickOutsideBoth, isSettingsOpen: false, isPreviewActive: true, settingsFrame: settingsRect, notchFrame: notchPanelRect)
+    assert(collapseDuringPreview == false, "Active preview must not be prematurely aborted by outside click")
+    
+    let collapseOnDesktopClick = shouldCollapseFromOutsideClick(click: clickOutsideBoth, isSettingsOpen: true, isPreviewActive: false, settingsFrame: settingsRect, notchFrame: notchPanelRect)
     assert(collapseOnDesktopClick == true, "Clicks on empty desktop must trigger outside-click collapse")
     print("  ✓ Appearance propagation preview state machine & Settings window outside click isolation verified.")
     

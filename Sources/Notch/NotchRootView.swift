@@ -611,7 +611,7 @@ private struct CompactNotchIndicator: View {
                     .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
             } else {
                 Circle()
-                    .fill(DesignSystem.accentColor)
+                    .fill(CompactIndicatorStyle.media.tintColor)
                     .frame(width: 5, height: 5)
             }
 
@@ -624,9 +624,9 @@ private struct CompactNotchIndicator: View {
 
             if nowPlaying.isPlaying {
                 HStack(spacing: 1.5) {
-                    RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 6)
-                    RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 11)
-                    RoundedRectangle(cornerRadius: 1).fill(DesignSystem.accentColor).frame(width: 2, height: 7)
+                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 6)
+                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 11)
+                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 7)
                 }
             } else {
                 Image(systemName: "pause.fill")
@@ -635,7 +635,7 @@ private struct CompactNotchIndicator: View {
             }
         } else {
             Spacer()
-            Circle().fill(DesignSystem.accentColor).frame(width: 5, height: 5)
+            Circle().fill(CompactIndicatorStyle.media.tintColor).frame(width: 5, height: 5)
             Spacer()
         }
     }
@@ -644,7 +644,7 @@ private struct CompactNotchIndicator: View {
         HStack {
             Spacer()
             Capsule()
-                .fill(DesignSystem.accentColor)
+                .fill(CompactIndicatorStyle.minimal.tintColor)
                 .frame(width: 16, height: 4)
             Spacer()
         }
@@ -654,7 +654,7 @@ private struct CompactNotchIndicator: View {
         HStack(spacing: 6) {
             Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
                 .font(.system(size: 10))
-                .foregroundColor(battery.percentage < 20 ? .red : (battery.isCharging ? DesignSystem.accentColor : .green))
+                .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.battery.tintColor)
             Text("\(battery.percentage)%")
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
@@ -670,7 +670,7 @@ private struct CompactNotchIndicator: View {
             HStack(spacing: 6) {
                 Image(systemName: "calendar")
                     .font(.system(size: 9))
-                    .foregroundColor(DesignSystem.accentColor)
+                    .foregroundColor(CompactIndicatorStyle.dateTime.tintColor)
                 Text(timeline.date.formatted(date: .omitted, time: .shortened))
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
@@ -686,7 +686,7 @@ private struct CompactNotchIndicator: View {
         HStack(spacing: 6) {
             Image(systemName: "sun.max.fill")
                 .font(.system(size: 9))
-                .foregroundColor(DesignSystem.accentColor)
+                .foregroundColor(CompactIndicatorStyle.circadian.tintColor)
             Text(themeEngine.paletteSource)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundColor(.white)

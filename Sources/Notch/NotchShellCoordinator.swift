@@ -54,11 +54,13 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     private var appearancePreviewWorkItem: DispatchWorkItem?
+    public private(set) var isAppearancePreviewActive: Bool = false
     
     /// Provides visual feedback when appearance settings change by smoothly opening and closing the notch
     public func triggerAppearancePropagationPreview() {
         guard !isFileDraggingActive else { return }
         appearancePreviewWorkItem?.cancel()
+        isAppearancePreviewActive = true
         
         if state != .expanded {
             withAnimation(transitionAnimation) {
@@ -71,15 +73,17 @@ public final class NotchShellCoordinator: ObservableObject {
         
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
-            if !self.isLockedOpen && !self.isHovered && !self.isFileDraggingActive {
-                withAnimation(self.transitionAnimation) {
-                    self.state = .collapsed
-                }
-                self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
+            self.isAppearancePreviewActive = false
+            self.isHovered = false
+            guard !self.isLockedOpen && !self.isFileDraggingActive else { return }
+            self.stopExpandedWatchdog()
+            withAnimation(self.transitionAnimation) {
+                self.state = .collapsed
             }
+            self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
         }
         appearancePreviewWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.25, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.15, execute: item)
     }
     
     private func startExpandedWatchdog() {
@@ -109,8 +113,10 @@ public final class NotchShellCoordinator: ObservableObject {
                         self.onMouseExit()
                     }
                 } else {
-                    if !self.isHovered || self.collapseWorkItem != nil {
-                        self.onMouseEnter()
+                    if !self.isAppearancePreviewActive {
+                        if !self.isHovered || self.collapseWorkItem != nil {
+                            self.onMouseEnter()
+                        }
                     }
                 }
             }
@@ -177,6 +183,9 @@ public final class NotchShellCoordinator: ObservableObject {
     
     public func onMouseEnter() {
         if state == .expanded {
+            if isAppearancePreviewActive && AppDelegate.isSettingsOpen {
+                return // Do not trap preview in expanded state when clicking settings
+            }
             isHovered = true
             if collapseWorkItem != nil {
                 collapseWorkItem?.cancel()
@@ -271,11 +280,14 @@ public final class NotchShellCoordinator: ObservableObject {
             isLockedOpen = false
             isFileDraggingActive = false
         }
+        isAppearancePreviewActive = false
         stopExpandedWatchdog()
         hoverWorkItem?.cancel()
         hoverWorkItem = nil
         collapseWorkItem?.cancel()
         collapseWorkItem = nil
+        appearancePreviewWorkItem?.cancel()
+        appearancePreviewWorkItem = nil
         
         guard force || (!isLockedOpen && !isFileDraggingActive) else { return }
         if isHovered { isHovered = false }

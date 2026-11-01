@@ -187,6 +187,9 @@ public struct DirectMessenger {
         } else if targetChatId.hasPrefix("t.me/") {
             targetChatId = String(targetChatId.dropFirst(5))
         }
+        if targetChatId.hasPrefix("+") {
+            targetChatId = String(targetChatId.dropFirst())
+        }
         if !targetChatId.hasPrefix("@") && !targetChatId.allSatisfy({ $0.isNumber || $0 == "-" }) {
             targetChatId = "@" + targetChatId
         }
@@ -802,13 +805,13 @@ public struct TelegramModuleExpandedView: View {
                         .transition(.opacity)
                     }
                     
-                    // Input Bar with DirectTextField (guarantees Enter key always sends)
+                    // Input Bar with PasteableTextField (guarantees Enter key always sends)
                     HStack(spacing: 6) {
-                        DirectTextField(
+                        PasteableTextField(
                             text: $module.draftText,
                             placeholder: "Message \(contact.name) (Press Enter to send)...",
-                            onCommit: {
-                                module.sendMessage()
+                            onCommit: { text in
+                                module.sendMessage(overrideText: text)
                             }
                         )
                         .padding(.horizontal, 10)
@@ -854,16 +857,29 @@ public struct TelegramModuleExpandedView: View {
 
 // Robust AppKit TextField with native Cmd+V (Paste), Cmd+C (Copy), Cmd+A (Select All), Cmd+X (Cut) and immediate Return/Enter handling
 public final class CustomPasteableNSTextField: NSTextField {
-    public var onCommit: (() -> Void)?
+    public var onCommitWithText: ((String) -> Void)?
     
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
         // Handle Return (36) and Keypad Enter (76) without modifiers
         if (event.keyCode == 36 || event.keyCode == 76) && event.modifierFlags.intersection([.command, .option, .control]).isEmpty {
+            let committedText: String = {
+                if let editor = currentEditor() as? NSTextView {
+                    return editor.string
+                }
+                return self.stringValue
+            }()
+            
+            // Clear editor text immediately so it doesn't linger on screen
             if let editor = currentEditor() as? NSTextView {
-                self.stringValue = editor.string
+                editor.string = ""
             }
+            self.stringValue = ""
             NotificationCenter.default.post(name: NSControl.textDidChangeNotification, object: self)
-            self.onCommit?()
+            
+            let trimmed = committedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                self.onCommitWithText?(committedText)
+            }
             return true
         }
         
@@ -912,9 +928,9 @@ public final class CustomPasteableNSTextField: NSTextField {
 public struct PasteableTextField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
-    var onCommit: (() -> Void)?
+    var onCommit: ((String) -> Void)?
     
-    public init(text: Binding<String>, placeholder: String, onCommit: (() -> Void)? = nil) {
+    public init(text: Binding<String>, placeholder: String, onCommit: ((String) -> Void)? = nil) {
         self._text = text
         self.placeholder = placeholder
         self.onCommit = onCommit
@@ -934,18 +950,28 @@ public struct PasteableTextField: NSViewRepresentable {
         field.textColor = .white
         field.font = .systemFont(ofSize: 11, weight: .regular)
         field.delegate = context.coordinator
-        field.onCommit = onCommit
+        field.onCommitWithText = { committed in
+            context.coordinator.parent.text = ""
+            onCommit?(committed)
+        }
         return field
     }
     
     public func updateNSView(_ nsView: CustomPasteableNSTextField, context: Context) {
+        context.coordinator.parent = self
         if nsView.stringValue != text {
             nsView.stringValue = text
+            if let editor = nsView.currentEditor() as? NSTextView {
+                editor.string = text
+            }
         }
         if nsView.placeholderString != placeholder {
             nsView.placeholderString = placeholder
         }
-        nsView.onCommit = onCommit
+        nsView.onCommitWithText = { committed in
+            context.coordinator.parent.text = ""
+            onCommit?(committed)
+        }
     }
     
     public class Coordinator: NSObject, NSTextFieldDelegate {
@@ -963,8 +989,13 @@ public struct PasteableTextField: NSViewRepresentable {
         
         public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                parent.text = textView.string
-                parent.onCommit?()
+                let committed = textView.string
+                textView.string = ""
+                parent.text = ""
+                let trimmed = committed.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    parent.onCommit?(committed)
+                }
                 return true
             }
             return false
@@ -972,80 +1003,5 @@ public struct PasteableTextField: NSViewRepresentable {
     }
 }
 
-// Custom AppKit TextField ensuring Enter/Return key always commits
-public struct DirectTextField: NSViewRepresentable {
-    @Binding var text: String
-    var placeholder: String
-    var onCommit: () -> Void
-    
-    public init(text: Binding<String>, placeholder: String, onCommit: @escaping () -> Void) {
-        self._text = text
-        self.placeholder = placeholder
-        self.onCommit = onCommit
-    }
-    
-    public func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    public func makeNSView(context: Context) -> CustomPasteableNSTextField {
-        let field = CustomPasteableNSTextField()
-        field.placeholderString = placeholder
-        field.stringValue = text
-        field.isBordered = false
-        field.drawsBackground = false
-        field.focusRingType = .none
-        field.textColor = .white
-        field.font = .systemFont(ofSize: 11, weight: .regular)
-        field.delegate = context.coordinator
-        field.onCommit = {
-            if let editor = field.currentEditor() as? NSTextView {
-                context.coordinator.parent.text = editor.string
-            } else {
-                context.coordinator.parent.text = field.stringValue
-            }
-            onCommit()
-        }
-        return field
-    }
-    
-    public func updateNSView(_ nsView: CustomPasteableNSTextField, context: Context) {
-        if nsView.stringValue != text {
-            nsView.stringValue = text
-        }
-        if nsView.placeholderString != placeholder {
-            nsView.placeholderString = placeholder
-        }
-        nsView.onCommit = {
-            if let editor = nsView.currentEditor() as? NSTextView {
-                context.coordinator.parent.text = editor.string
-            } else {
-                context.coordinator.parent.text = nsView.stringValue
-            }
-            onCommit()
-        }
-    }
-    
-    public class Coordinator: NSObject, NSTextFieldDelegate {
-        var parent: DirectTextField
-        
-        init(_ parent: DirectTextField) {
-            self.parent = parent
-        }
-        
-        public func controlTextDidChange(_ obj: Notification) {
-            if let textField = obj.object as? NSTextField {
-                parent.text = textField.stringValue
-            }
-        }
-        
-        public func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                parent.text = textView.string
-                parent.onCommit()
-                return true
-            }
-            return false
-        }
-    }
-}
+// Backward-compatibility alias
+public typealias DirectTextField = PasteableTextField
