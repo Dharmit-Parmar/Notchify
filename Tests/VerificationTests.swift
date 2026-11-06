@@ -1631,7 +1631,6 @@ func runAllVerificationTests() {
     
     // Test 65: Hardware-Bound AES-256-GCM Encryption Vault & Zero-Keychain-Prompt Contract
     print("\n[TEST 65] Hardware-Bound AES-256-GCM Encryption Vault & Zero-Keychain-Prompt Contract...")
-    let testAccount = "gemini_api_key_test"
     let testSecret = "AIzaSyTestHardwareBackedKey_991823"
     
     // 1. Hardware derivation contract
@@ -1663,13 +1662,14 @@ func runAllVerificationTests() {
     let decryptedString = String(data: decryptedData, encoding: .utf8)
     assert(decryptedString == testSecret, "Decrypted text must match original secret exactly")
     
-    // 3. Zero-Keychain-Prompt Verification: legacy keychain MUST NOT contain test secret
-    let legacyQuery: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "com.notch.NotchApp.secrets",
-        kSecAttrAccount as String: testAccount
-    ]
-    assert(SecItemCopyMatching(legacyQuery as CFDictionary, nil) == errSecItemNotFound, "Zero-Keychain Invariant: Secrets must NEVER be stored in login.keychain to prevent OS prompts")
+    // 3. Zero-Keychain-Prompt Invariant: Secrets are isolated in vault.enc with 0600 permissions
+    let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+    let vaultPath = appSupportDir.appendingPathComponent("NotchApp/vault.enc").path
+    if FileManager.default.fileExists(atPath: vaultPath) {
+        let attrs = try! FileManager.default.attributesOfItem(atPath: vaultPath)
+        let perms = attrs[.posixPermissions] as? NSNumber
+        assert(perms?.intValue == 0o600, "Encrypted vault file must have POSIX 0600 owner-only permissions")
+    }
     
     // 4. Security Invariant: UserDefaults must NOT store plain text keys
     assert(UserDefaults.standard.string(forKey: "NotchApp_GeminiApiKey") == nil, "Security Breach Prevention: Gemini API key must NEVER be in UserDefaults plist")

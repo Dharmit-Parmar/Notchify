@@ -1,7 +1,6 @@
 import Foundation
 import CryptoKit
 import IOKit
-import Security
 
 // MARK: - KeychainHelper: Hardware-Bound AES-256-GCM Secure Secret Vault
 /// Provides military-grade AES-256-GCM authenticated encryption for sensitive credentials
@@ -12,8 +11,8 @@ import Security
 ///    making the ciphertext strictly decryptable only on this physical Mac.
 /// 2. POSIX 0600 Isolation: Vault is saved in `~/Library/Application Support/NotchApp/vault.enc`
 ///    with `0600` permissions (read/write by owner only; inaccessible to other system users).
-/// 3. Zero Keychain Prompt Interruptions: Bypasses legacy `login.keychain-db` Access Control List
-///    prompts that occur during local debug and SPM re-compilations.
+/// 3. Zero Keychain Prompt Interruptions: Completely bypasses Apple's `login.keychain-db` and `SecItem*`
+///    APIs, eliminating OS password prompts during debug and SPM re-compilations.
 /// 4. Zero Plaintext Leakage: Credentials are never written to `UserDefaults` plists or git.
 public final class KeychainHelper: @unchecked Sendable {
     public static let shared = KeychainHelper()
@@ -33,9 +32,6 @@ public final class KeychainHelper: @unchecked Sendable {
             ])
         }
         self.vaultURL = dirURL.appendingPathComponent("vault.enc")
-        
-        // Silently purge any legacy entries from macOS login.keychain to prevent future OS prompts
-        cleanLegacyKeychainItems()
     }
     
     // MARK: - Public Secret Storage API
@@ -148,13 +144,5 @@ public final class KeychainHelper: @unchecked Sendable {
         } catch {
             return false
         }
-    }
-    
-    private func cleanLegacyKeychainItems() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName
-        ]
-        SecItemDelete(query as CFDictionary)
     }
 }
