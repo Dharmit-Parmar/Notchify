@@ -914,7 +914,7 @@ public struct SettingsView: View {
                         .font(.system(size: 12.5, weight: .bold))
                         .foregroundColor(.white)
                     Spacer()
-                    if let token = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken"), !token.isEmpty {
+                    if let token = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token"), !token.isEmpty {
                         Text("Active ✓")
                             .font(.system(size: 9.5, weight: .bold))
                             .foregroundColor(.green)
@@ -1069,7 +1069,7 @@ public struct SettingsView: View {
                                 Button("Crawl (Limb)") { CompanionCoordinator.shared.triggerCrawling() }
                                     .buttonStyle(.spring)
                                     .controlSize(.small)
-                                Button("Hang & Pull-Up") { CompanionCoordinator.shared.executeSlipSequence() }
+                                Button("Hang & Pull-Up") { CompanionCoordinator.shared.executeSlipSequence(force: true) }
                                     .buttonStyle(.spring)
                                     .controlSize(.small)
                                 Button("Think & Track") { CompanionCoordinator.shared.triggerThinking() }

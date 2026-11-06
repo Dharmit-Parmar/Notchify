@@ -350,15 +350,27 @@ public final class TelegramModule: NotchModule {
     @Published public var testBotStatus: String? = nil
     @Published public var isTestingBot: Bool = false
     
-    @Published public var botToken: String = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken") ?? "" {
+    @Published public var botToken: String = "" {
         didSet {
-            UserDefaults.standard.set(botToken.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "NotchApp_TelegramBotToken")
+            let clean = botToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            KeychainHelper.shared.saveSecret(clean, forKey: "telegram_bot_token")
         }
     }
     
     private let contactsStorageKey = "NotchApp_SavedContacts"
     
     public init() {
+        // Secure Hardware Keychain Retrieval & Legacy Plist Residue Eradication
+        let keychainToken = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token")
+        let legacyToken = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken")
+        if let token = keychainToken, !token.isEmpty {
+            self.botToken = token
+        } else if let legacy = legacyToken, !legacy.isEmpty {
+            self.botToken = legacy
+            KeychainHelper.shared.saveSecret(legacy, forKey: "telegram_bot_token")
+        }
+        UserDefaults.standard.removeObject(forKey: "NotchApp_TelegramBotToken") // Erase plaintext plist residue
+        
         loadSavedContacts()
         self.isAccessibilityGranted = DirectMessenger.isAccessibilityGranted
     }

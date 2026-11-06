@@ -39,6 +39,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
     case notes = "notes"
     case clock = "clock"
     case mirror = "mirror"
+    case askAI = "askAI"
     
     public var id: String { rawValue }
     
@@ -49,6 +50,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .notes: return "Quick Notes"
         case .clock: return "Clock"
         case .mirror: return "Mirror"
+        case .askAI: return "Ask AI"
         }
     }
     
@@ -59,6 +61,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .notes: return "note.text"
         case .clock: return "clock.fill"
         case .mirror: return "camera.fill"
+        case .askAI: return "sparkles"
         }
     }
     
@@ -69,6 +72,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .notes: return Color(red: 0.98, green: 0.72, blue: 0.20)
         case .clock: return Color(red: 0.35, green: 0.85, blue: 0.65)
         case .mirror: return Color(red: 0.90, green: 0.40, blue: 0.85)
+        case .askAI: return Color(red: 0.68, green: 0.42, blue: 0.98)
         }
     }
     
@@ -79,6 +83,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .notes: return "Instant scratchpad & memo"
         case .clock: return "Analog dial or digital display"
         case .mirror: return "Fast camera glance & preview"
+        case .askAI: return "Siri, Gemini & ChatGPT Assistant"
         }
     }
 }
@@ -141,7 +146,8 @@ public class SettingsStore: ObservableObject {
         "calendar": 2,
         "notes": 1,
         "clock": 1,
-        "mirror": 1
+        "mirror": 1,
+        "askAI": 1
     ] {
         didSet { UserDefaults.standard.set(widgetSpans, forKey: "NotchApp_WidgetSpans") }
     }
@@ -157,10 +163,37 @@ public class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(clockShowSeconds, forKey: "NotchApp_ClockShowSeconds") }
     }
     
-    // Quick Notes Persistence (Debounced & Managed via NoteStorageManager to prevent full UI invalidation)
+    // Quick Notes Persistence & AI Integration
     public var quickNotesText: String {
         get { NoteStorageManager.shared.text }
         set { NoteStorageManager.shared.text = newValue }
+    }
+    @Published public var isNotesAIEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(isNotesAIEnabled, forKey: "NotchApp_IsNotesAIEnabled") }
+    }
+    
+    // Ask AI (Gemini, GPT, Siri) Assistant Settings
+    @Published public var aiDefaultProvider: AIProvider = .gemini {
+        didSet { UserDefaults.standard.set(aiDefaultProvider.rawValue, forKey: "NotchApp_AIDefaultProvider") }
+    }
+    // Secure Hardware-Backed Storage for AI Credentials (Keychain AES-256)
+    @Published public var geminiApiKey: String = "" {
+        didSet { KeychainHelper.shared.saveSecret(geminiApiKey, forKey: "gemini_api_key") }
+    }
+    @Published public var openAIApiKey: String = "" {
+        didSet { KeychainHelper.shared.saveSecret(openAIApiKey, forKey: "openai_api_key") }
+    }
+    @Published public var connectedGoogleEmail: String = "" {
+        didSet { KeychainHelper.shared.saveSecret(connectedGoogleEmail, forKey: "google_account_email") }
+    }
+    @Published public var geminiModel: String = "gemini-1.5-flash" {
+        didSet { UserDefaults.standard.set(geminiModel, forKey: "NotchApp_GeminiModel") }
+    }
+    @Published public var gptModel: String = "gpt-4o-mini" {
+        didSet { UserDefaults.standard.set(gptModel, forKey: "NotchApp_GPTModel") }
+    }
+    @Published public var aiSystemPrompt: String = "You are a concise, helpful assistant integrated into macOS Notch Island scratchpad. Answer clearly and concisely." {
+        didSet { UserDefaults.standard.set(aiSystemPrompt, forKey: "NotchApp_AISystemPrompt") }
     }
     
     // Geometry & Layout: allow generous breathing room for tools and calendar
@@ -387,6 +420,47 @@ public class SettingsStore: ObservableObject {
         }
         if let notes = UserDefaults.standard.string(forKey: "NotchApp_QuickNotesText") {
             self.quickNotesText = notes
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_IsNotesAIEnabled") != nil {
+            self.isNotesAIEnabled = UserDefaults.standard.bool(forKey: "NotchApp_IsNotesAIEnabled")
+        }
+        if let aiRaw = UserDefaults.standard.string(forKey: "NotchApp_AIDefaultProvider"),
+           let provider = AIProvider(rawValue: aiRaw) {
+            self.aiDefaultProvider = provider
+        }
+        
+        // Secure Keychain Secret Retrieval & Automatic Legacy Plist Migration
+        let keychainGemini = KeychainHelper.shared.loadSecret(forKey: "gemini_api_key")
+        let legacyGemini = UserDefaults.standard.string(forKey: "NotchApp_GeminiApiKey")
+        if let key = keychainGemini, !key.isEmpty {
+            self.geminiApiKey = key
+        } else if let legacy = legacyGemini, !legacy.isEmpty {
+            self.geminiApiKey = legacy
+            KeychainHelper.shared.saveSecret(legacy, forKey: "gemini_api_key")
+        }
+        UserDefaults.standard.removeObject(forKey: "NotchApp_GeminiApiKey") // Erase unencrypted plist residue
+        
+        let keychainGPT = KeychainHelper.shared.loadSecret(forKey: "openai_api_key")
+        let legacyGPT = UserDefaults.standard.string(forKey: "NotchApp_OpenAIApiKey")
+        if let key = keychainGPT, !key.isEmpty {
+            self.openAIApiKey = key
+        } else if let legacy = legacyGPT, !legacy.isEmpty {
+            self.openAIApiKey = legacy
+            KeychainHelper.shared.saveSecret(legacy, forKey: "openai_api_key")
+        }
+        UserDefaults.standard.removeObject(forKey: "NotchApp_OpenAIApiKey") // Erase unencrypted plist residue
+        
+        if let email = KeychainHelper.shared.loadSecret(forKey: "google_account_email") {
+            self.connectedGoogleEmail = email
+        }
+        if let geminiMod = UserDefaults.standard.string(forKey: "NotchApp_GeminiModel") {
+            self.geminiModel = geminiMod
+        }
+        if let gptMod = UserDefaults.standard.string(forKey: "NotchApp_GPTModel") {
+            self.gptModel = gptMod
+        }
+        if let prompt = UserDefaults.standard.string(forKey: "NotchApp_AISystemPrompt") {
+            self.aiSystemPrompt = prompt
         }
         if let rawComp = UserDefaults.standard.object(forKey: "NotchApp_IsCompanionEnabled") as? Bool {
             self.isCompanionEnabled = rawComp

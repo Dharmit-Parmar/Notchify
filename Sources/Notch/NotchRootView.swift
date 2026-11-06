@@ -122,8 +122,9 @@ public struct NotchRootView: View {
         HStack(spacing: 8) {
             // Dashboard Home Tab Button (Locked at Far Left)
             let isDashboardActive = (registry.activeModuleId == nil)
+            let isDashboardPinned = registry.isDashboardPinned
             Button(action: {
-                registry.returnToHome()
+                registry.toggleDashboardPin()
             }) {
                 HStack(spacing: 5) {
                     Image(systemName: "sparkles")
@@ -133,6 +134,12 @@ public struct NotchRootView: View {
                     Text("Dashboard")
                         .font(.system(size: 11, weight: isDashboardActive ? .bold : .medium, design: .rounded))
                         .foregroundColor(isDashboardActive ? .white : DesignSystem.secondaryText)
+                    
+                    if isDashboardPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 7))
+                            .foregroundColor(DesignSystem.accentColor)
+                    }
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
@@ -142,7 +149,7 @@ public struct NotchRootView: View {
                 )
                 .overlay(
                     Capsule()
-                        .strokeBorder(isDashboardActive ? DesignSystem.accentColor.opacity(0.7) : Color.white.opacity(0.08), lineWidth: isDashboardActive ? 1.2 : 0.7)
+                        .strokeBorder(isDashboardActive ? DesignSystem.accentColor.opacity(0.7) : Color.white.opacity(0.08), lineWidth: isDashboardPinned ? 1.4 : (isDashboardActive ? 1.2 : 0.7))
                 )
             }
             .buttonStyle(.spring)

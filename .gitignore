@@ -35,6 +35,7 @@ id_dsa
 # Secret Tokens, API Keys & Cloud Credentials
 *api_key*
 *apikey*
+*.key
 *secret*
 *token*
 *credential*
@@ -46,6 +47,9 @@ key.txt
 keys.json
 secrets.yaml
 secrets.json
+
+# Whitelist core source files matching keyword patterns
+!Sources/**/KeychainHelper.swift
 
 # Apple Developer Provisioning & Certificates
 *.mobileprovision
@@ -68,6 +72,7 @@ Packages/
 Package.resolved
 NotchApp
 NotchApp.app/
+artifacts/redesign/
 
 # ------------------------------------------------------------------------------
 # 3. XCODE & DERIVED DATA

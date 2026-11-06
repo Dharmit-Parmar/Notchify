@@ -55,6 +55,9 @@ public final class ModuleRegistry: ObservableObject {
     
     // Active Module ID: nil means HOME DASHBOARD!
     public var activeModuleId: String? {
+        if pinnedModuleId == "dashboard" {
+            return nil
+        }
         if let pinned = pinnedModuleId, isModuleValidAndEnabled(pinned) {
             return pinned
         }
@@ -63,6 +66,10 @@ public final class ModuleRegistry: ObservableObject {
         }
         // Default is nil -> HOME DASHBOARD!
         return nil
+    }
+    
+    public var isDashboardPinned: Bool {
+        return pinnedModuleId == "dashboard"
     }
     
     public var activeModule: (any NotchModule)? {
@@ -86,6 +93,9 @@ public final class ModuleRegistry: ObservableObject {
             onDashboardHover()
             return
         }
+        
+        // If a module or Dashboard is pinned, hovering over other tabs must NOT switch the view
+        guard pinnedModuleId == nil else { return }
         
         if id == suppressedHoverId {
             return
@@ -157,6 +167,29 @@ public final class ModuleRegistry: ObservableObject {
     }
     
     // Click action: Toggle Pin / Return to Home
+    public func toggleDashboardPin() {
+        cancelPendingTabHover()
+        let prevId = activeModuleId
+        
+        if isDashboardPinned {
+            // Already pinned: unpin dashboard!
+            pinnedModuleId = nil
+            hoveredModuleId = nil
+            suppressedHoverId = "dashboard"
+            FeedbackManager.playPin()
+        } else {
+            // Pin the Home Dashboard!
+            pinnedModuleId = "dashboard"
+            hoveredModuleId = nil
+            suppressedHoverId = nil
+            FeedbackManager.playPin()
+        }
+        
+        if let prev = prevId {
+            modules.first(where: { $0.id == prev })?.stop()
+        }
+    }
+    
     public func togglePin(_ id: String) {
         cancelPendingTabHover()
         let prevId = activeModuleId

@@ -43,6 +43,8 @@ public struct ModularDashboardView: View {
             ClockWidgetView(span: span)
         case .mirror:
             MirrorAdaptiveWidgetView(span: span)
+        case .askAI:
+            AskAIWidgetView(span: span)
         }
     }
     
@@ -87,34 +89,12 @@ public struct ModularDashboardView: View {
     
     // MARK: - Layout Flow 2: 2×2 Bento Quad
     private func bentoQuadView(_ widgets: [DashboardWidgetType]) -> some View {
-        Group {
-            switch widgets.count {
-            case 1:
-                oneWidgetView(widgets[0])
-            case 2:
-                twoWidgetsView(widgets[0], widgets[1])
-            case 3:
-                threeWidgetsBentoView(widgets)
-            default:
-                fourWidgetsBentoView(widgets)
-            }
-        }
+        slotBasedBentoView()
     }
     
     // MARK: - Layout Flow 3: Smart Adaptive
     private func adaptiveAutoView(_ widgets: [DashboardWidgetType]) -> some View {
-        Group {
-            switch widgets.count {
-            case 1:
-                oneWidgetView(widgets[0])
-            case 2:
-                twoWidgetsView(widgets[0], widgets[1])
-            case 3:
-                threeWidgetsBentoView(widgets)
-            default:
-                fourWidgetsBentoView(widgets)
-            }
-        }
+        slotBasedBentoView()
     }
     
     // MARK: - 1 Widget (Full Stage)
@@ -123,86 +103,75 @@ public struct ModularDashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    // MARK: - 2 Widgets (Side-by-Side 50/50 Split)
-    private func twoWidgetsView(_ w1: DashboardWidgetType, _ w2: DashboardWidgetType) -> some View {
-        let span1 = store.span(for: w1)
-        let span2 = store.span(for: w2)
+    // MARK: - True Slot-Based Column Layout (Respects exact Top-Left, Top-Right, Bottom-Left, Bottom-Right placement)
+    private func slotBasedBentoView() -> some View {
+        // Slot 0 (Top-Left) & Slot 2 (Bottom-Left) form Column 0 (Left)
+        // Slot 1 (Top-Right) & Slot 3 (Bottom-Right) form Column 1 (Right)
+        let s0 = store.dashboardSlots.indices.contains(0) ? store.dashboardSlots[0] : nil
+        let s1 = store.dashboardSlots.indices.contains(1) ? store.dashboardSlots[1] : nil
+        let s2 = store.dashboardSlots.indices.contains(2) ? store.dashboardSlots[2] : nil
+        let s3 = store.dashboardSlots.indices.contains(3) ? store.dashboardSlots[3] : nil
         
-        return HStack(alignment: .top, spacing: 10) {
-            Self.renderWidget(type: w1, span: max(2, span1))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            Self.renderWidget(type: w2, span: max(2, span2))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        let leftCol = [s0, s2].compactMap { $0 }
+        let rightCol = [s1, s3].compactMap { $0 }
+        
+        if leftCol.isEmpty && rightCol.isEmpty {
+            return AnyView(emptyDashboardView)
         }
-    }
-    
-    // MARK: - 3 Widgets (Primary Major Column + 2 Stacked Tiles)
-    private func threeWidgetsBentoView(_ widgets: [DashboardWidgetType]) -> some View {
-        // Find which widget requested span 2, default to the first
-        let primaryIndex = widgets.firstIndex(where: { store.span(for: $0) == 2 }) ?? 0
-        let primaryWidget = widgets[primaryIndex]
-        var secondaryWidgets = widgets
-        secondaryWidgets.remove(at: primaryIndex)
-        let sec1 = secondaryWidgets[0]
-        let sec2 = secondaryWidgets[1]
         
-        return HStack(alignment: .top, spacing: 10) {
-            if primaryIndex == 0 {
-                // Major left widget (tall)
-                Self.renderWidget(type: primaryWidget, span: 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if leftCol.count + rightCol.count == 1 {
+            let single = leftCol.first ?? rightCol.first!
+            return AnyView(oneWidgetView(single))
+        }
+        
+        if leftCol.isEmpty {
+            return AnyView(renderSingleColumn(widgets: rightCol))
+        }
+        if rightCol.isEmpty {
+            return AnyView(renderSingleColumn(widgets: leftCol))
+        }
+        
+        return AnyView(
+            HStack(alignment: .top, spacing: 10) {
+                // Left Column (Slot 0 top, Slot 2 bottom)
+                renderColumnView(widgets: leftCol, oppositeCount: rightCol.count)
                 
-                // Stacked right widgets (2 compact tiles)
-                VStack(spacing: 8) {
-                    Self.renderWidget(type: sec1, span: 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Self.renderWidget(type: sec2, span: 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                // Stacked left widgets (2 compact tiles)
-                VStack(spacing: 8) {
-                    Self.renderWidget(type: sec1, span: 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Self.renderWidget(type: sec2, span: 1)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                // Major right widget (tall)
-                Self.renderWidget(type: primaryWidget, span: 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Right Column (Slot 1 top, Slot 3 bottom)
+                renderColumnView(widgets: rightCol, oppositeCount: leftCol.count)
             }
-        }
+        )
     }
     
-    // MARK: - 4 Widgets (2×2 Bento Grid)
-    private func fourWidgetsBentoView(_ widgets: [DashboardWidgetType]) -> some View {
-        let w0 = widgets[0]
-        let w1 = widgets[1]
-        let w2 = widgets.count > 2 ? widgets[2] : widgets[0]
-        let w3 = widgets.count > 3 ? widgets[3] : widgets[1]
-        
-        return VStack(spacing: 8) {
-            // Top Row
-            HStack(spacing: 10) {
-                Self.renderWidget(type: w0, span: 1)
+    @ViewBuilder
+    private func renderColumnView(widgets: [DashboardWidgetType], oppositeCount: Int) -> some View {
+        if widgets.count == 1 {
+            // If the opposite column has 2 stacked widgets, this widget spans full vertical height (span: 2)
+            let span = oppositeCount > 1 ? 2 : max(1, store.span(for: widgets[0]))
+            Self.renderWidget(type: widgets[0], span: span)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            // Stacked widgets in this column (e.g. Clock on top, Ask AI directly below it!)
+            VStack(spacing: 8) {
+                Self.renderWidget(type: widgets[0], span: 1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Self.renderWidget(type: w1, span: 1)
+                Self.renderWidget(type: widgets[1], span: 1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            // Bottom Row
+        }
+    }
+    
+    @ViewBuilder
+    private func renderSingleColumn(widgets: [DashboardWidgetType]) -> some View {
+        if widgets.count == 1 {
+            oneWidgetView(widgets[0])
+        } else {
             HStack(spacing: 10) {
-                Self.renderWidget(type: w2, span: 1)
+                Self.renderWidget(type: widgets[0], span: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Self.renderWidget(type: w3, span: 1)
+                Self.renderWidget(type: widgets[1], span: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     

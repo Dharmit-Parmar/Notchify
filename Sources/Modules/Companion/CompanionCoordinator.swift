@@ -139,6 +139,19 @@ public final class CompanionCoordinator: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+            
+        // 4. Observe Focus / DND
+        NotificationCenter.default.publisher(for: NSNotification.Name("com.apple.controlcenter.user-focus-changed"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                guard SettingsStore.shared.isCompanionEnabled,
+                      SettingsStore.shared.companionSleepDuringDND else { return }
+                if self.state == .inDen && !self.isSequenceRunning {
+                    self.triggerSleeping()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Passive Typing Cadence Monitor
@@ -212,7 +225,8 @@ public final class CompanionCoordinator: ObservableObject {
             .walking,
             .crawling,
             .thinking,
-            .sleeping
+            .sleeping,
+            .dangling
         ]
         
         guard let chosenState = choices.randomElement() else { return }
@@ -230,6 +244,12 @@ public final class CompanionCoordinator: ObservableObject {
             triggerThinking()
         case .sleeping:
             triggerSleeping()
+        case .dangling, .slipping, .pullingUp:
+            if SettingsStore.shared.companionAllowSlips {
+                executeSlipSequence()
+            } else {
+                scheduleNextBehavior(delay: 2.0)
+            }
         default:
             triggerPeek(side: .left)
         }
@@ -248,7 +268,7 @@ public final class CompanionCoordinator: ObservableObject {
         KinematicEngine.shared.setBehavior(peekState)
         
         actionDurationTimer?.invalidate()
-        let peekDuration = Double.random(in: 6.0...8.5)
+        let peekDuration: Double = 7.5
         actionDurationTimer = Timer.scheduledTimer(withTimeInterval: peekDuration, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.retreatToDen()
@@ -269,13 +289,18 @@ public final class CompanionCoordinator: ObservableObject {
         KinematicEngine.shared.setBehavior(.walking, startingFromRight: side == .right)
         walkStartRouteCount = KinematicEngine.shared.completedRouteCount
         actionDurationTimer?.invalidate()
+        actionDurationTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.retreatToDen()
+            }
+        }
     }
 
     public func companionRouteDidAdvance() {
         let engine = KinematicEngine.shared
         if state == .walking,
            engine.routeStage == .monkeyBarTraversal,
-           engine.behaviorTime == 0,
+           engine.behaviorTime < 0.05,
            SettingsStore.shared.companionAllowSlips,
            !hasSlippedInSession,
            Int.random(in: 0..<20) == 0 {
@@ -325,8 +350,9 @@ public final class CompanionCoordinator: ObservableObject {
     }
     
     // MARK: - Signature Slip & Dangle Comedy Sequence
-    public func executeSlipSequence() {
-        guard SettingsStore.shared.isCompanionEnabled else { return }
+    public func executeSlipSequence(force: Bool = false) {
+        guard SettingsStore.shared.isCompanionEnabled,
+              (force || SettingsStore.shared.companionAllowSlips) else { return }
         ensurePanelsCreated()
         hasSlippedInSession = true
         isSequenceRunning = true
@@ -344,8 +370,8 @@ public final class CompanionCoordinator: ObservableObject {
                 self.state = .pullingUp
                 KinematicEngine.shared.setBehavior(.pullingUp)
                 
-                // Allow pull-up and sigh to finish before retreating
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                // Allow pull-up, sigh, and vault into den to finish before retreating
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) { [weak self] in
                     self?.retreatToDen()
                 }
             }
@@ -425,7 +451,8 @@ public final class CompanionCoordinator: ObservableObject {
     // MARK: - User Direct Interaction
     public func onCursorHover(_ hovering: Bool) {
         isHovered = hovering
-        if hovering && (state == .walking || state == .inDen) {
+        // Do not interrupt active walking or hanging sequences on mouse hover!
+        if hovering && state == .sleeping {
             triggerThinking()
         }
     }

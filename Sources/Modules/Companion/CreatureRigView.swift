@@ -17,6 +17,43 @@ public struct CreatureRigView: View {
         StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
     }
     
+    private func volumetricGradient(for skin: CompanionSkin) -> Gradient {
+        switch skin {
+        case .bubu, .mochi:
+            return Gradient(stops: [
+                .init(color: .white, location: 0.0),
+                .init(color: skin.primaryColor, location: 0.35),
+                .init(color: skin.primaryColor, location: 0.65),
+                .init(color: Color(red: 0.88, green: 0.89, blue: 0.94), location: 0.90),
+                .init(color: Color(red: 0.82, green: 0.83, blue: 0.89), location: 1.0)
+            ])
+        case .kuro:
+            return Gradient(stops: [
+                .init(color: Color(white: 0.28), location: 0.0),
+                .init(color: skin.primaryColor, location: 0.40),
+                .init(color: Color(red: 0.05, green: 0.05, blue: 0.07), location: 1.0)
+            ])
+        case .boba:
+            return Gradient(stops: [
+                .init(color: Color(red: 0.65, green: 0.95, blue: 0.72), location: 0.0),
+                .init(color: skin.primaryColor, location: 0.45),
+                .init(color: Color(red: 0.28, green: 0.55, blue: 0.35), location: 1.0)
+            ])
+        case .pixel:
+            return Gradient(stops: [
+                .init(color: Color(red: 1.0, green: 0.88, blue: 0.50), location: 0.0),
+                .init(color: skin.primaryColor, location: 0.45),
+                .init(color: Color(red: 0.75, green: 0.55, blue: 0.15), location: 1.0)
+            ])
+        case .cyber:
+            return Gradient(stops: [
+                .init(color: Color(red: 0.35, green: 0.42, blue: 0.52), location: 0.0),
+                .init(color: skin.primaryColor, location: 0.45),
+                .init(color: Color(red: 0.10, green: 0.13, blue: 0.18), location: 1.0)
+            ])
+        }
+    }
+    
     public var body: some View {
         TimelineView(.animation(paused: coordinator.state == .inDen)) { timelineContext in
             Canvas { context, _ in
@@ -27,7 +64,7 @@ public struct CreatureRigView: View {
                     context: &context,
                     pose: engine.currentPose,
                     skin: skin,
-                    debugSkeleton: store.companionDebugSkeleton || engine.currentPose.debugSkeleton
+                    debugSkeleton: store.companionDebugSkeleton
                 )
             }
             .onChange(of: timelineContext.date) { previousDate, date in
@@ -64,7 +101,6 @@ public struct CreatureRigView: View {
         debugSkeleton: Bool
     ) {
         let state = coordinator.state
-        let routeStage = engine.routeStage
         
         // 1. Specialized State Renderers
         if state == .sleeping {
@@ -75,10 +111,10 @@ public struct CreatureRigView: View {
             let side: CGFloat = (state == .peekingLeft) ? -1.0 : 1.0
             renderLipPeek(context: &context, pose: pose, skin: skin, side: side)
         } else if state == .dangling || state == .slipping || state == .pullingUp ||
-                  ([.lowerToHang, .monkeyBarTraversal, .climbOntoRightLedge].contains(routeStage) && state == .walking) {
+                  (state == .walking && (engine.routeStage == .lowerToHang || engine.routeStage == .monkeyBarTraversal || engine.routeStage == .climbOntoRightLedge)) {
             // Notch Hang & Pull-Up with chubby limbs and dangling marshmallow body
             renderNotchHangAndPullUp(context: &context, pose: pose, skin: skin)
-        } else if state == .walking && ([.leftWalk, .rightWalk].contains(routeStage)) {
+        } else if state == .walking {
             // Chubby Waddle Walk matching Reference Image 2
             renderChubbyWaddleWalk(context: &context, pose: pose, skin: skin)
         } else {
@@ -112,7 +148,6 @@ public struct CreatureRigView: View {
         
         let bodyColor = skin.primaryColor
         let outlineColor = skin.outlineColor
-        let earColor = skin.darkAccentColor
         let soleColor = skin.darkAccentColor
         let blushColor = skin.accentColor
         
@@ -152,7 +187,7 @@ public struct CreatureRigView: View {
         bodyPath.addLine(to: CGPoint(x: cx + 8 * dir, y: groundY))
         bodyPath.addLine(to: CGPoint(x: cx - 26 * dir, y: groundY))
         bodyPath.closeSubpath()
-        context.fill(bodyPath, with: .color(bodyColor))
+        context.fill(bodyPath, with: .radialGradient(volumetricGradient(for: skin), center: CGPoint(x: cx, y: groundY - 10), startRadius: 1, endRadius: 24))
         context.stroke(bodyPath, with: .color(outlineColor), style: cartoonStrokeStyle)
         
         // 5. Front Paws (Reference 1)
@@ -178,17 +213,12 @@ public struct CreatureRigView: View {
         if dir < 0 { headTransform = headTransform.scaledBy(x: -1.0, y: 1.0) }
         
         // Ears on top of head
-        let earRadius: CGFloat = 5.2
-        let earLRect = CGRect(x: -headW * 0.28 - earRadius, y: -headH * 0.5 - earRadius + 2.0, width: earRadius * 2, height: earRadius * 2)
-        let earRRect = CGRect(x: headW * 0.30 - earRadius, y: -headH * 0.46 - earRadius + 2.0, width: earRadius * 2, height: earRadius * 2)
-        context.fill(Path(ellipseIn: earLRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earLRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-        context.fill(Path(ellipseIn: earRRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earRRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        drawHeadEars(context: &context, transform: headTransform, headWidth: headW, headHeight: headH, skin: skin)
         
         // Dumpling head shape
         let headShape = dumplingHeadPath(width: headW, height: headH).applying(headTransform)
-        context.fill(headShape, with: .color(bodyColor))
+        let lightCenter = CGPoint(x: headCenter.x - 3.0 * dir, y: headCenter.y - 4.0)
+        context.fill(headShape, with: .radialGradient(volumetricGradient(for: skin), center: lightCenter, startRadius: 1, endRadius: headW * 0.65))
         context.stroke(headShape, with: .color(outlineColor), style: cartoonStrokeStyle)
         
         // Giant circular rosy blush cheeks
@@ -245,93 +275,71 @@ public struct CreatureRigView: View {
     ) {
         let u = KinematicEngine.shared.walkStepPhase
         let walkY = pose.torso.root.y + 11.0
+        let dir: CGFloat = pose.facingRight ? 1.0 : -1.0
         
         let bodyColor = skin.primaryColor
         let outlineColor = skin.outlineColor
-        let earColor = skin.darkAccentColor
         let soleColor = skin.darkAccentColor
-        let backBandColor = Color(red: 0.17, green: 0.12, blue: 0.13)
-        let blushColor = skin.accentColor
         
         // Butt and Body Sway (Signature Bubu Waddle!)
-        let sway = sin(u * 2.0 * .pi) * 3.6
-        let tilt = sin(u * 2.0 * .pi) * 5.0 * (.pi / 180.0)
-        let bounce = -abs(sin(u * 2.0 * .pi)) * 2.4
+        let isLeftPlanted = KinematicEngine.shared.isLeftFootPlanted
+        let stepSide: CGFloat = isLeftPlanted ? 1.0 : -1.0
+        let sway = sin(u * .pi) * 3.5 * stepSide
+        let tilt = sin(u * .pi) * 4.0 * (.pi / 180.0) * stepSide * dir
+        let bounce = -1.2 * (1.0 - cos(2.0 * .pi * u))
         
         let cx = pose.torso.root.x
         let cy = pose.torso.root.y + bounce
         
         // 1. Soft contact shadow on ground
-        let shadowRect = CGRect(x: cx - 18, y: walkY - 2, width: 36, height: 5)
-        context.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(0.20)))
+        let shadowRect = CGRect(x: cx - 18, y: walkY - 1.5, width: 36, height: 4.5)
+        context.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(0.18)))
         
         var bodyTransform = CGAffineTransform.identity
         bodyTransform = bodyTransform.translatedBy(x: cx + sway, y: cy)
         bodyTransform = bodyTransform.rotated(by: tilt)
         
-        // 2. Stubby Legs with Alternating Dark Soles (Reference Image 2)
-        let isLeftPlanted = KinematicEngine.shared.isLeftFootPlanted
-        let legW: CGFloat = 9.0
-        let legH: CGFloat = 12.0
+        // 2. Stubby Feet with Alternating Dark Soles (NO long legs, strictly matching Reference!)
+        let footW: CGFloat = 8.5
+        let footH: CGFloat = 5.5
+        let swingLift = -2.5 * sin(u * .pi)
         
-        // Left Leg
-        let leftLegX: CGFloat = -8.0
-        var leftLegPath = Path()
-        if isLeftPlanted {
-            let r = CGRect(x: leftLegX - legW / 2.0, y: 5.0, width: legW, height: legH)
-            leftLegPath.addRoundedRect(in: r, cornerSize: CGSize(width: 4.5, height: 4.5))
-            context.fill(leftLegPath.applying(bodyTransform), with: .color(bodyColor))
-            context.stroke(leftLegPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-            let sole = CGRect(x: leftLegX - legW / 2.0, y: 5.0 + legH - 3.5, width: legW, height: 3.5)
-            context.fill(Path(ellipseIn: sole).applying(bodyTransform), with: .color(soleColor))
-        } else {
-            let swingLift = -4.0 * sin(u * .pi)
-            let r = CGRect(x: leftLegX - legW / 2.0, y: 1.0 + swingLift, width: legW, height: legH * 0.95)
-            leftLegPath.addRoundedRect(in: r, cornerSize: CGSize(width: 4.5, height: 4.5))
-            context.fill(leftLegPath.applying(bodyTransform), with: .color(bodyColor))
-            context.stroke(leftLegPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-            let sole = CGRect(x: leftLegX - 4.5, y: 1.0 + swingLift + legH * 0.45, width: 9.0, height: 6.0)
-            context.fill(Path(ellipseIn: sole).applying(bodyTransform), with: .color(soleColor))
-            context.stroke(Path(ellipseIn: sole).applying(bodyTransform), with: .color(outlineColor), lineWidth: 1.2)
-        }
+        // Left Foot
+        let leftFootX: CGFloat = -7.5
+        let leftFootY: CGFloat = 8.0 + (isLeftPlanted ? 0.0 : swingLift)
+        let leftFootRect = CGRect(x: leftFootX - footW / 2.0, y: leftFootY, width: footW, height: footH)
+        let leftFootPath = Path(ellipseIn: leftFootRect)
+        context.fill(leftFootPath.applying(bodyTransform), with: .color(bodyColor))
+        context.stroke(leftFootPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        let leftSoleRect = CGRect(x: leftFootX - footW * 0.35, y: leftFootY + footH * 0.35, width: footW * 0.7, height: footH * 0.55)
+        context.fill(Path(ellipseIn: leftSoleRect).applying(bodyTransform), with: .color(soleColor))
         
-        // Right Leg
-        let rightLegX: CGFloat = 8.0
-        var rightLegPath = Path()
-        if !isLeftPlanted {
-            let r = CGRect(x: rightLegX - legW / 2.0, y: 5.0, width: legW, height: legH)
-            rightLegPath.addRoundedRect(in: r, cornerSize: CGSize(width: 4.5, height: 4.5))
-            context.fill(rightLegPath.applying(bodyTransform), with: .color(bodyColor))
-            context.stroke(rightLegPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-            let sole = CGRect(x: rightLegX - legW / 2.0, y: 5.0 + legH - 3.5, width: legW, height: 3.5)
-            context.fill(Path(ellipseIn: sole).applying(bodyTransform), with: .color(soleColor))
-        } else {
-            let swingLift = -4.0 * sin(u * .pi)
-            let r = CGRect(x: rightLegX - legW / 2.0, y: 1.0 + swingLift, width: legW, height: legH * 0.95)
-            rightLegPath.addRoundedRect(in: r, cornerSize: CGSize(width: 4.5, height: 4.5))
-            context.fill(rightLegPath.applying(bodyTransform), with: .color(bodyColor))
-            context.stroke(rightLegPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-            let sole = CGRect(x: rightLegX - 4.5, y: 1.0 + swingLift + legH * 0.45, width: 9.0, height: 6.0)
-            context.fill(Path(ellipseIn: sole).applying(bodyTransform), with: .color(soleColor))
-            context.stroke(Path(ellipseIn: sole).applying(bodyTransform), with: .color(outlineColor), lineWidth: 1.2)
-        }
+        // Right Foot
+        let rightFootX: CGFloat = 7.5
+        let rightFootY: CGFloat = 8.0 + (!isLeftPlanted ? 0.0 : swingLift)
+        let rightFootRect = CGRect(x: rightFootX - footW / 2.0, y: rightFootY, width: footW, height: footH)
+        let rightFootPath = Path(ellipseIn: rightFootRect)
+        context.fill(rightFootPath.applying(bodyTransform), with: .color(bodyColor))
+        context.stroke(rightFootPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        let rightSoleRect = CGRect(x: rightFootX - footW * 0.35, y: rightFootY + footH * 0.35, width: footW * 0.7, height: footH * 0.55)
+        context.fill(Path(ellipseIn: rightSoleRect).applying(bodyTransform), with: .color(soleColor))
         
-        // 3. Stubby Arms dangling at sides
-        let armSwing = sin(u * 2.0 * .pi) * 4.0
-        let armLRect = CGRect(x: -18.5, y: -9.0 + armSwing, width: 7.5, height: 15.0)
-        let armLPath = Path(roundedRect: armLRect, cornerRadius: 3.75)
+        // 3. Stubby Arms dangling and swinging at sides
+        let armSwing = sin(u * 2.0 * .pi) * 3.0
+        let armLRect = CGRect(x: -16.5, y: -7.0 + armSwing, width: 6.5, height: 11.0)
+        let armLPath = Path(roundedRect: armLRect, cornerRadius: 3.2)
         context.fill(armLPath.applying(bodyTransform), with: .color(bodyColor))
         context.stroke(armLPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        let armRRect = CGRect(x: 11.0, y: -9.0 - armSwing, width: 7.5, height: 15.0)
-        let armRPath = Path(roundedRect: armRRect, cornerRadius: 3.75)
+        let armRRect = CGRect(x: 10.0, y: -7.0 - armSwing, width: 6.5, height: 11.0)
+        let armRPath = Path(roundedRect: armRRect, cornerRadius: 3.2)
         context.fill(armRPath.applying(bodyTransform), with: .color(bodyColor))
         context.stroke(armRPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        // 4. Chubby Marshmallow Torso (Pear shape)
+        // 4. Chubby Marshmallow Torso (Pear shape with 3D radial depth gradient)
         var torsoPath = Path()
         let tw: CGFloat = 28.0
-        let th: CGFloat = 25.0
+        let th: CGFloat = 24.0
         torsoPath.move(to: CGPoint(x: -tw * 0.38, y: -th * 0.5))
         torsoPath.addLine(to: CGPoint(x: tw * 0.38, y: -th * 0.5))
         torsoPath.addCurve(
@@ -349,51 +357,54 @@ public struct CreatureRigView: View {
             control2: CGPoint(x: -tw * 0.45, y: -th * 0.1)
         )
         torsoPath.closeSubpath()
-        context.fill(torsoPath.applying(bodyTransform), with: .color(bodyColor))
+        
+        context.fill(torsoPath.applying(bodyTransform), with: .radialGradient(volumetricGradient(for: skin), center: CGPoint(x: cx + sway, y: cy - 2), startRadius: 1, endRadius: 18))
         context.stroke(torsoPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        // 5. Tail: White circular puff tail on lower back/bum (Reference 2)
-        let tailCenter = CGPoint(x: 0.0, y: th * 0.18)
-        let tailRect = CGRect(x: tailCenter.x - 5.0, y: tailCenter.y - 5.0, width: 10.0, height: 10.0)
+        // 5. Tail: White circular puff tail on lower back/side
+        let tailX = -tw * 0.45 * dir
+        let tailRect = CGRect(x: tailX - 4.5, y: th * 0.12 - 4.5, width: 9.0, height: 9.0)
         context.fill(Path(ellipseIn: tailRect).applying(bodyTransform), with: .color(bodyColor))
         context.stroke(Path(ellipseIn: tailRect).applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        // 6. Black Collar Band (Key requirement from Reference Image 2!)
-        var bandPath = Path()
-        bandPath.move(to: CGPoint(x: -tw * 0.44, y: -th * 0.48))
-        bandPath.addQuadCurve(to: CGPoint(x: tw * 0.44, y: -th * 0.48), control: CGPoint(x: 0, y: -th * 0.48 + 4.2))
-        bandPath.addLine(to: CGPoint(x: tw * 0.42, y: -th * 0.48 + 4.2))
-        bandPath.addQuadCurve(to: CGPoint(x: -tw * 0.42, y: -th * 0.48 + 4.2), control: CGPoint(x: 0, y: -th * 0.48 + 8.4))
-        bandPath.closeSubpath()
-        context.fill(bandPath.applying(bodyTransform), with: .color(backBandColor))
-        context.stroke(bandPath.applying(bodyTransform), with: .color(outlineColor), lineWidth: 1.0)
-        
-        // 7. Head (Viewed from Behind)
-        let headCenter = CGPoint(x: cx + sway * 0.6, y: cy - 22)
+        // 6. Head & EXPRESSIVE FACE (Always visible, smiling in walk direction!)
+        let headCenter = CGPoint(x: cx + sway * 0.5 + 2.0 * dir, y: cy - 20)
         var headTransform = CGAffineTransform.identity
         headTransform = headTransform.translatedBy(x: headCenter.x, y: headCenter.y)
-        headTransform = headTransform.rotated(by: tilt * 0.6)
+        let isFarCorner = (engine.routeStage == .farCornerPeek)
+        let headRot = isFarCorner ? (pose.headAngle * .pi / 180.0) : (tilt * 0.5)
+        headTransform = headTransform.rotated(by: headRot)
+        if dir < 0 {
+            headTransform = headTransform.scaledBy(x: -1.0, y: 1.0)
+        }
         
-        let headW: CGFloat = 38.0
-        let headH: CGFloat = 33.0
+        let headW: CGFloat = 36.0
+        let headH: CGFloat = 30.0
         
-        // Ears on top of head
-        let earRadius: CGFloat = 5.5
-        let earLRect = CGRect(x: -headW * 0.32 - earRadius, y: -headH * 0.44 - earRadius, width: earRadius * 2, height: earRadius * 2)
-        let earRRect = CGRect(x: headW * 0.32 - earRadius, y: -headH * 0.44 - earRadius, width: earRadius * 2, height: earRadius * 2)
-        context.fill(Path(ellipseIn: earLRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earLRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-        context.fill(Path(ellipseIn: earRRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earRRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        // Ears on top of head (tailored to collectible skins)
+        drawHeadEars(context: &context, transform: headTransform, headWidth: headW, headHeight: headH, skin: skin)
         
-        // Dumpling head shape
+        // Dumpling head shape with 3D radial depth gradient
         let headShape = dumplingHeadPath(width: headW, height: headH).applying(headTransform)
-        context.fill(headShape, with: .color(bodyColor))
+        context.fill(headShape, with: .radialGradient(volumetricGradient(for: skin), center: CGPoint(x: headCenter.x - 3.0 * dir, y: headCenter.y - 4.0), startRadius: 1, endRadius: headW * 0.65))
         context.stroke(headShape, with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        // Cheek blush peeking on left profile (Reference Image 2!)
-        let cheekBlushRect = CGRect(x: -headW * 0.5 - 2.5, y: headH * 0.05, width: 6.0, height: 8.0)
-        context.fill(Path(ellipseIn: cheekBlushRect).applying(headTransform), with: .color(blushColor.opacity(0.85)))
+        // Bubu's face: wide-set dark eyes with shine, curved eyebrows, giant pink blush, smiling cat w mouth!
+        var walkFacePose = pose
+        walkFacePose.mouthShape = .smile
+        walkFacePose.leftEyeOpen = 1.0
+        walkFacePose.rightEyeOpen = 1.0
+        if !isFarCorner {
+            walkFacePose.pupilOffset = CGPoint(x: 0.35, y: 0.0)
+        }
+        drawBubuFace(
+            context: &context,
+            transform: headTransform,
+            pose: walkFacePose,
+            skin: skin,
+            headWidth: headW,
+            headHeight: headH
+        )
     }
     
     // MARK: - 3. Lip Peek (Left & Right Notch Curves)
@@ -403,68 +414,86 @@ public struct CreatureRigView: View {
         skin: CompanionSkin,
         side: CGFloat
     ) {
-        let cornerX = (side < 0) ? (engine.notchLeft - 14.0) : (engine.notchRight + 14.0)
-        let gripY = engine.ledgeY
+        guard pose.drawsHead || pose.drawsArms || pose.drawsTorso else { return }
+        
+        let gripY = engine.ledgeY + 3.0
         let bodyColor = skin.primaryColor
         let outlineColor = skin.outlineColor
-        let earColor = skin.darkAccentColor
-        
-        let p = min(1.0, max(0.0, CGFloat(engine.behaviorTime / 1.5)))
-        let rise = p * p * (3.0 - 2.0 * p)
-        let headY = gripY + 20.0 - (34.0 * rise)
-        
-        let headCenter = CGPoint(x: cornerX, y: headY)
+        let headCenter = pose.headCenter
         let headW: CGFloat = 36.0
         let headH: CGFloat = 30.0
+        let tw: CGFloat = 26.0
+        let th: CGFloat = 22.0
         
-        var headTransform = CGAffineTransform.identity
-        headTransform = headTransform.translatedBy(x: headCenter.x, y: headCenter.y)
+        // 1. Soft Contact Shadow on Menu Bar Ledge
+        let shadowRect = CGRect(x: headCenter.x - 16.0, y: gripY - 1.5, width: 32.0, height: 4.0)
+        context.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(0.20)))
         
-        // 1. Ears
-        let earRadius: CGFloat = 5.2
-        let earLRect = CGRect(x: -headW * 0.32 - earRadius, y: -headH * 0.44 - earRadius, width: earRadius * 2, height: earRadius * 2)
-        let earRRect = CGRect(x: headW * 0.32 - earRadius, y: -headH * 0.44 - earRadius, width: earRadius * 2, height: earRadius * 2)
-        context.fill(Path(ellipseIn: earLRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earLRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-        context.fill(Path(ellipseIn: earRRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earRRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        // 2. Connected Upper Torso (Seamless body below head, drawn behind head)
+        if pose.drawsTorso {
+            var torsoPath = Path()
+            let torsoRect = CGRect(x: headCenter.x - tw / 2.0, y: headCenter.y + 8.0, width: tw, height: th)
+            torsoPath.addRoundedRect(in: torsoRect, cornerSize: CGSize(width: 8.0, height: 8.0))
+            context.fill(torsoPath, with: .radialGradient(volumetricGradient(for: skin), center: CGPoint(x: headCenter.x, y: headCenter.y + 14.0), startRadius: 1, endRadius: 18))
+            
+            // Stroke sides only, seamlessly connecting into cheeks without cutting across neck
+            var torsoSides = Path()
+            torsoSides.move(to: CGPoint(x: headCenter.x - tw * 0.44, y: headCenter.y + 12.0))
+            torsoSides.addLine(to: CGPoint(x: headCenter.x - tw * 0.50, y: headCenter.y + 8.0 + th))
+            torsoSides.move(to: CGPoint(x: headCenter.x + tw * 0.44, y: headCenter.y + 12.0))
+            torsoSides.addLine(to: CGPoint(x: headCenter.x + tw * 0.50, y: headCenter.y + 8.0 + th))
+            context.stroke(torsoSides, with: .color(outlineColor), style: cartoonStrokeStyle)
+        }
         
-        // 2. Dumpling head shape
-        let headShape = dumplingHeadPath(width: headW, height: headH).applying(headTransform)
-        context.fill(headShape, with: .color(bodyColor))
-        context.stroke(headShape, with: .color(outlineColor), style: cartoonStrokeStyle)
+        // 3. Forearms connecting shoulders to paws (Drawn behind head so no limbs cross face)
+        if pose.drawsArms {
+            let armLAnchor = pose.leftArm.anchor
+            let armLJoint = pose.leftArm.joint
+            let armLEnd = pose.leftArm.end
+            let armRAnchor = pose.rightArm.anchor
+            let armRJoint = pose.rightArm.joint
+            let armREnd = pose.rightArm.end
+            
+            drawChubbyLimb(context: &context, p1: armLAnchor, p2: armLJoint, p3: armLEnd, thickness: 5.5, color: bodyColor, outlineColor: outlineColor)
+            drawChubbyLimb(context: &context, p1: armRAnchor, p2: armRJoint, p3: armREnd, thickness: 5.5, color: bodyColor, outlineColor: outlineColor)
+        }
         
-        // 3. Face features (Wide eyes, blush, cute eyebrows)
-        drawBubuFace(
-            context: &context,
-            transform: headTransform,
-            pose: pose,
-            skin: skin,
-            headWidth: headW,
-            headHeight: headH
-        )
+        // 4. Dumpling Head with 3D Depth & Face (In front of limbs so face is 100% visible)
+        if pose.drawsHead {
+            var headTransform = CGAffineTransform.identity
+            headTransform = headTransform.translatedBy(x: headCenter.x, y: headCenter.y)
+            headTransform = headTransform.rotated(by: pose.headAngle * .pi / 180.0)
+            if side > 0 {
+                headTransform = headTransform.scaledBy(x: -1.0, y: 1.0)
+            }
+            
+            // Ears on top of head
+            drawHeadEars(context: &context, transform: headTransform, headWidth: headW, headHeight: headH, skin: skin)
+            
+            // Dumpling head fill and stroke
+            let headShape = dumplingHeadPath(width: headW, height: headH).applying(headTransform)
+            let lightCenter = CGPoint(x: headCenter.x - headW * 0.20 * (side < 0 ? 1.0 : -1.0), y: headCenter.y - headH * 0.22)
+            context.fill(headShape, with: .radialGradient(volumetricGradient(for: skin), center: lightCenter, startRadius: 1, endRadius: headW * 0.65))
+            context.stroke(headShape, with: .color(outlineColor), style: cartoonStrokeStyle)
+            
+            // Face features from pose
+            drawBubuFace(
+                context: &context,
+                transform: headTransform,
+                pose: pose,
+                skin: skin,
+                headWidth: headW,
+                headHeight: headH
+            )
+        }
         
-        // 4. Two Chubby White Paws Gripping Over Notch Lip (Spaced on either side of chin)
-        let pawW: CGFloat = 9.0
-        let pawH: CGFloat = 7.0
-        let pawL = CGRect(x: cornerX - 14.0 - pawW / 2.0, y: gripY - 2.0, width: pawW, height: pawH)
-        let pawR = CGRect(x: cornerX + 14.0 - pawW / 2.0, y: gripY - 2.0, width: pawW, height: pawH)
-        
-        let pawPathL = Path(roundedRect: pawL, cornerRadius: 3.0)
-        let pawPathR = Path(roundedRect: pawR, cornerRadius: 3.0)
-        
-        context.fill(pawPathL, with: .color(bodyColor))
-        context.stroke(pawPathL, with: .color(outlineColor), style: cartoonStrokeStyle)
-        context.fill(pawPathR, with: .color(bodyColor))
-        context.stroke(pawPathR, with: .color(outlineColor), style: cartoonStrokeStyle)
-        
-        // Subtle knuckle indent lines
-        var kLines = Path()
-        kLines.move(to: CGPoint(x: cornerX - 14.0, y: gripY - 1.0))
-        kLines.addLine(to: CGPoint(x: cornerX - 14.0, y: gripY + 2.5))
-        kLines.move(to: CGPoint(x: cornerX + 14.0, y: gripY - 1.0))
-        kLines.addLine(to: CGPoint(x: cornerX + 14.0, y: gripY + 2.5))
-        context.stroke(kLines, with: .color(outlineColor), lineWidth: 1.0)
+        // 5. Chubby White Paws resting on the notch ledge lip
+        if pose.drawsArms {
+            let armLEnd = pose.leftArm.end
+            let armREnd = pose.rightArm.end
+            drawChubbyPaw(context: &context, center: armLEnd, size: 7.5, color: bodyColor, outlineColor: outlineColor, isGripping: pose.leftArm.isPlantedOrGripping)
+            drawChubbyPaw(context: &context, center: armREnd, size: 7.5, color: bodyColor, outlineColor: outlineColor, isGripping: pose.rightArm.isPlantedOrGripping)
+        }
     }
     
     // MARK: - 4. Notch Hang & Pull-Up (Under Notch)
@@ -475,108 +504,91 @@ public struct CreatureRigView: View {
     ) {
         let bodyColor = skin.primaryColor
         let outlineColor = skin.outlineColor
-        let earColor = skin.darkAccentColor
         let soleColor = skin.darkAccentColor
         
-        let handL = CGPoint(x: engine.handLWorldX, y: engine.ledgeY + 2.0)
-        let handR = CGPoint(x: engine.handRWorldX, y: engine.ledgeY + 2.0)
+        let isClimbingUp = (engine.routeStage == .climbOntoRightLedge && pose.torso.root.y < engine.ledgeY + 50.0)
+        let handY = isClimbingUp ? min(engine.ledgeY + 3.0, pose.torso.root.y + 4.0) : (engine.ledgeY + 3.0)
+        let handL = CGPoint(x: engine.handLWorldX, y: handY)
+        let handR = CGPoint(x: engine.handRWorldX, y: handY)
         let angle = engine.pendulumAngle
         let root = pose.torso.root
+        let isPullingUp = (coordinator.state == .pullingUp || engine.isPullingUpWorkout)
         
         var bodyTransform = CGAffineTransform.identity
         bodyTransform = bodyTransform.translatedBy(x: root.x, y: root.y)
-        bodyTransform = bodyTransform.rotated(by: angle * 0.5)
+        bodyTransform = bodyTransform.rotated(by: angle * 0.4)
         
-        // 1. Chubby Legs Kicking Playfully (NO thin stick bones!)
-        let legW: CGFloat = 8.5
-        let legH: CGFloat = 11.0
+        // 1. Stubby Feet Kicking Playfully (NO long legs, strictly matching Reference!)
+        let footW: CGFloat = 8.5
+        let footH: CGFloat = 5.5
         let kickTime = engine.behaviorTime
-        let kickL = sin(kickTime * 9.0) * 4.0
-        let kickR = sin(kickTime * 7.5 + 1.2) * 4.0
+        let kickL = sin(kickTime * 7.5) * 5.5
+        let kickR = sin(kickTime * 7.5 + 1.4) * 5.0
         
-        // Left Leg
-        var legLPath = Path()
-        let rL = CGRect(x: -7.0 - legW / 2.0 + kickL, y: 8.0, width: legW, height: legH)
-        legLPath.addRoundedRect(in: rL, cornerSize: CGSize(width: 4.0, height: 4.0))
-        context.fill(legLPath.applying(bodyTransform), with: .color(bodyColor))
-        context.stroke(legLPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-        // Dark sole
-        let soleL = CGRect(x: -7.0 - legW / 2.0 + kickL, y: 8.0 + legH - 3.5, width: legW, height: 3.5)
+        // Left Foot Pad
+        let footLY = 9.0 + kickL * 0.3
+        let footLRect = CGRect(x: -7.0 - footW / 2.0 + kickL, y: footLY, width: footW, height: footH)
+        let footLPath = Path(ellipseIn: footLRect)
+        context.fill(footLPath.applying(bodyTransform), with: .color(bodyColor))
+        context.stroke(footLPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        let soleL = CGRect(x: -7.0 - footW * 0.35 + kickL, y: footLY + footH * 0.35, width: footW * 0.7, height: footH * 0.55)
         context.fill(Path(ellipseIn: soleL).applying(bodyTransform), with: .color(soleColor))
         
-        // Right Leg
-        var legRPath = Path()
-        let rR = CGRect(x: 7.0 - legW / 2.0 + kickR, y: 8.0, width: legW, height: legH)
-        legRPath.addRoundedRect(in: rR, cornerSize: CGSize(width: 4.0, height: 4.0))
-        context.fill(legRPath.applying(bodyTransform), with: .color(bodyColor))
-        context.stroke(legRPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-        // Dark sole
-        let soleR = CGRect(x: 7.0 - legW / 2.0 + kickR, y: 8.0 + legH - 3.5, width: legW, height: 3.5)
+        // Right Foot Pad
+        let footRY = 9.0 + kickR * 0.3
+        let footRRect = CGRect(x: 7.0 - footW / 2.0 + kickR, y: footRY, width: footW, height: footH)
+        let footRPath = Path(ellipseIn: footRRect)
+        context.fill(footRPath.applying(bodyTransform), with: .color(bodyColor))
+        context.stroke(footRPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        let soleR = CGRect(x: 7.0 - footW * 0.35 + kickR, y: footRY + footH * 0.35, width: footW * 0.7, height: footH * 0.55)
         context.fill(Path(ellipseIn: soleR).applying(bodyTransform), with: .color(soleColor))
         
-        // 2. Chubby Marshmallow Torso
+        // 2. Chubby Marshmallow Torso (with 3D radial depth gradient)
         var torsoPath = Path()
         let tw: CGFloat = 26.0
-        let th: CGFloat = 24.0
+        let th: CGFloat = 22.0
         let torsoRect = CGRect(x: -tw / 2.0, y: -th * 0.5, width: tw, height: th)
         torsoPath.addRoundedRect(in: torsoRect, cornerSize: CGSize(width: 8.0, height: 8.0))
-        context.fill(torsoPath.applying(bodyTransform), with: .color(bodyColor))
+        context.fill(torsoPath.applying(bodyTransform), with: .radialGradient(volumetricGradient(for: skin), center: CGPoint(x: root.x, y: root.y - 2), startRadius: 1, endRadius: 18))
         context.stroke(torsoPath.applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
         
         // Tail
-        let tailRect = CGRect(x: -tw / 2.0 - 3.0, y: 0.0, width: 7.0, height: 7.0)
+        let tailRect = CGRect(x: -tw / 2.0 - 2.5, y: -2.0, width: 7.0, height: 7.0)
         context.fill(Path(ellipseIn: tailRect).applying(bodyTransform), with: .color(bodyColor))
         context.stroke(Path(ellipseIn: tailRect).applying(bodyTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        // 3. Thick Chubby Arms connecting Torso to Hand Grips (NO stick lines!)
-        let shoulderL = CGPoint(x: root.x - 9.0 * cos(angle * 0.5), y: root.y - 8.0)
-        let shoulderR = CGPoint(x: root.x + 9.0 * cos(angle * 0.5), y: root.y - 8.0)
-        
-        // Left Arm
-        var armL = Path()
-        armL.move(to: shoulderL)
-        armL.addQuadCurve(to: handL, control: CGPoint(x: (shoulderL.x + handL.x) / 2.0 - 5.0, y: (shoulderL.y + handL.y) / 2.0))
-        context.stroke(armL, with: .color(outlineColor), style: StrokeStyle(lineWidth: 8.5, lineCap: .round, lineJoin: .round))
-        context.stroke(armL, with: .color(bodyColor), style: StrokeStyle(lineWidth: 4.5, lineCap: .round, lineJoin: .round))
-        
-        // Right Arm
-        var armR = Path()
-        armR.move(to: shoulderR)
-        armR.addQuadCurve(to: handR, control: CGPoint(x: (shoulderR.x + handR.x) / 2.0 + 5.0, y: (shoulderR.y + handR.y) / 2.0))
-        context.stroke(armR, with: .color(outlineColor), style: StrokeStyle(lineWidth: 8.5, lineCap: .round, lineJoin: .round))
-        context.stroke(armR, with: .color(bodyColor), style: StrokeStyle(lineWidth: 4.5, lineCap: .round, lineJoin: .round))
-        
-        // 4. Head
-        let headCenter = CGPoint(x: root.x + CGFloat(angle) * 3.0, y: root.y - 18.0)
+        // 3. Head with 3D Depth Shading (Drawn BEFORE arms so arms stay 100% visible!)
+        let headCenter = isPullingUp ? pose.headCenter : CGPoint(x: root.x + CGFloat(angle) * 2.0, y: root.y - 17.0)
         var headTransform = CGAffineTransform.identity
         headTransform = headTransform.translatedBy(x: headCenter.x, y: headCenter.y)
-        headTransform = headTransform.rotated(by: angle * 0.3)
+        headTransform = headTransform.rotated(by: angle * 0.25)
         
         let headW: CGFloat = 34.0
         let headH: CGFloat = 28.0
         
         // Ears
-        let earRadius: CGFloat = 5.0
-        let earLRect = CGRect(x: -headW * 0.32 - earRadius, y: -headH * 0.44 - earRadius, width: earRadius * 2, height: earRadius * 2)
-        let earRRect = CGRect(x: headW * 0.32 - earRadius, y: -headH * 0.44 - earRadius, width: earRadius * 2, height: earRadius * 2)
-        context.fill(Path(ellipseIn: earLRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earLRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
-        context.fill(Path(ellipseIn: earRRect).applying(headTransform), with: .color(earColor))
-        context.stroke(Path(ellipseIn: earRRect).applying(headTransform), with: .color(outlineColor), style: cartoonStrokeStyle)
+        drawHeadEars(context: &context, transform: headTransform, headWidth: headW, headHeight: headH, skin: skin)
         
-        // Dumpling head shape
+        // Dumpling head shape with 3D radial depth gradient
         let headShape = dumplingHeadPath(width: headW, height: headH).applying(headTransform)
-        context.fill(headShape, with: .color(bodyColor))
+        let lightCenter = CGPoint(x: headCenter.x - 2.0, y: headCenter.y - 3.0)
+        context.fill(headShape, with: .radialGradient(volumetricGradient(for: skin), center: lightCenter, startRadius: 1, endRadius: headW * 0.65))
         context.stroke(headShape, with: .color(outlineColor), style: cartoonStrokeStyle)
         
-        // Face
+        // Face: beaming smile during pull-up!
         var hangPose = pose
         if coordinator.state == .slipping {
             hangPose.mouthShape = .gasp
-        } else if coordinator.state == .pullingUp {
-            hangPose.mouthShape = .sigh
+            hangPose.leftEyeOpen = 1.2
+            hangPose.rightEyeOpen = 1.2
+        } else if isPullingUp {
+            hangPose.mouthShape = .smile
+            hangPose.leftEyeOpen = 0.0 // Joyful happy crescent eyes (^ ‿ ^)
+            hangPose.rightEyeOpen = 0.0
         } else {
             hangPose.mouthShape = .smile
+            hangPose.leftEyeOpen = 1.0
+            hangPose.rightEyeOpen = 1.0
         }
         drawBubuFace(
             context: &context,
@@ -587,13 +599,27 @@ public struct CreatureRigView: View {
             headHeight: headH
         )
         
-        // 5. Chubby Paws Gripping Notch Lip
-        for hp in [handL, handR] {
-            let pawRect = CGRect(x: hp.x - 4.5, y: hp.y - 3.0, width: 9.0, height: 6.5)
-            let pawPath = Path(roundedRect: pawRect, cornerRadius: 2.5)
-            context.fill(pawPath, with: .color(bodyColor))
-            context.stroke(pawPath, with: .color(outlineColor), style: cartoonStrokeStyle)
-        }
+        // 4. Thick Chubby Arms connecting Torso to Hand Grips (Drawn in front of head with visible outward flare!)
+        let shoulderL = CGPoint(x: root.x - 10.0 * cos(angle * 0.4), y: root.y - 7.0)
+        let shoulderR = CGPoint(x: root.x + 10.0 * cos(angle * 0.4), y: root.y - 7.0)
+        
+        // Outward elbow flexion during pull-ups: flaring outward past the cheeks!
+        let elbowFlare: CGFloat = isPullingUp ? 14.0 : 6.0
+        var armL = Path()
+        armL.move(to: shoulderL)
+        armL.addQuadCurve(to: handL, control: CGPoint(x: (shoulderL.x + handL.x) / 2.0 - elbowFlare, y: (shoulderL.y + handL.y) / 2.0 + (isPullingUp ? 3.5 : 1.0)))
+        context.stroke(armL, with: .color(outlineColor), style: StrokeStyle(lineWidth: 7.0, lineCap: .round, lineJoin: .round))
+        context.stroke(armL, with: .color(bodyColor), style: StrokeStyle(lineWidth: 4.0, lineCap: .round, lineJoin: .round))
+        
+        var armR = Path()
+        armR.move(to: shoulderR)
+        armR.addQuadCurve(to: handR, control: CGPoint(x: (shoulderR.x + handR.x) / 2.0 + elbowFlare, y: (shoulderR.y + handR.y) / 2.0 + (isPullingUp ? 3.5 : 1.0)))
+        context.stroke(armR, with: .color(outlineColor), style: StrokeStyle(lineWidth: 7.0, lineCap: .round, lineJoin: .round))
+        context.stroke(armR, with: .color(bodyColor), style: StrokeStyle(lineWidth: 4.0, lineCap: .round, lineJoin: .round))
+        
+        // 5. Chubby Paws Gripping Notch Lip (Curled over lip, or resting flat when climbing)
+        drawChubbyPaw(context: &context, center: handL, size: 8.5, color: bodyColor, outlineColor: outlineColor, isGripping: !isClimbingUp)
+        drawChubbyPaw(context: &context, center: handR, size: 8.5, color: bodyColor, outlineColor: outlineColor, isGripping: !isClimbingUp)
     }
     
     // MARK: - 5. Front-Facing Chubby Mascot (Thinking, Curious, Typing, Crawling, Groove)
@@ -614,12 +640,7 @@ public struct CreatureRigView: View {
         let rElbowPt = pose.rightArm.joint
         let rHandPt = pose.rightArm.end
         
-        let lHipPt = pose.leftLeg.anchor
-        let lKneePt = pose.leftLeg.joint
         let lFootPt = pose.leftLeg.end
-        
-        let rHipPt = pose.rightLeg.anchor
-        let rKneePt = pose.rightLeg.joint
         let rFootPt = pose.rightLeg.end
         
         let bodyColor = skin.primaryColor
@@ -639,17 +660,20 @@ public struct CreatureRigView: View {
             drawTail(context: &context, root: rootPt, facingRight: pose.facingRight, skin: skin)
         }
         
-        // 3. Back Limbs (Right limbs, drawn with full cartoon thickness)
+        // 3. Back Limbs
         let backTone = bodyColor.opacity(0.88)
-        let limbThickness: CGFloat = 8.5
+        let limbThickness: CGFloat = 5.5
         
         if pose.drawsLegs {
+            let rHipPt = torso.rightHipAnchor
+            let rKneePt = pose.rightLeg.joint
             drawChubbyLimb(context: &context, p1: rHipPt, p2: rKneePt, p3: rFootPt, thickness: limbThickness, color: backTone, outlineColor: outlineColor)
-            drawChubbyFoot(context: &context, center: rFootPt, angle: 0, size: 7.5, color: backTone, soleColor: soleColor, outlineColor: outlineColor)
+            let footPos = CGPoint(x: rFootPt.x, y: min(rFootPt.y, rootPt.y + 10.0))
+            drawChubbyFoot(context: &context, center: footPos, angle: 0, size: 8.0, color: backTone, soleColor: soleColor, outlineColor: outlineColor)
         }
         
         if pose.drawsArms {
-            drawChubbyLimb(context: &context, p1: rShoulderPt, p2: rElbowPt, p3: rHandPt, thickness: limbThickness - 0.5, color: backTone, outlineColor: outlineColor)
+            drawChubbyLimb(context: &context, p1: rShoulderPt, p2: rElbowPt, p3: rHandPt, thickness: limbThickness, color: backTone, outlineColor: outlineColor)
             drawChubbyPaw(context: &context, center: rHandPt, size: 7.0, color: backTone, outlineColor: outlineColor, isGripping: pose.rightArm.isPlantedOrGripping)
         }
         
@@ -665,8 +689,11 @@ public struct CreatureRigView: View {
         
         // 6. Front Limbs (Foreground Left limbs, vibrant skin tone)
         if pose.drawsLegs {
+            let lHipPt = torso.leftHipAnchor
+            let lKneePt = pose.leftLeg.joint
             drawChubbyLimb(context: &context, p1: lHipPt, p2: lKneePt, p3: lFootPt, thickness: limbThickness, color: bodyColor, outlineColor: outlineColor)
-            drawChubbyFoot(context: &context, center: lFootPt, angle: 0, size: 7.5, color: bodyColor, soleColor: soleColor, outlineColor: outlineColor)
+            let footPos = CGPoint(x: lFootPt.x, y: min(lFootPt.y, rootPt.y + 10.0))
+            drawChubbyFoot(context: &context, center: footPos, angle: 0, size: 8.0, color: bodyColor, soleColor: soleColor, outlineColor: outlineColor)
         }
         
         if pose.drawsArms {
@@ -989,7 +1016,8 @@ public struct CreatureRigView: View {
         let localRect = CGRect(x: -torsoWidth / 2.0, y: -torsoHeight, width: torsoWidth, height: torsoHeight)
         let path = Path(roundedRect: localRect, cornerRadius: 9.0).applying(transform)
         
-        context.fill(path, with: .color(skin.primaryColor))
+        let lightCenter = CGPoint(x: root.x - torsoWidth * 0.20, y: root.y - torsoHeight * 0.6)
+        context.fill(path, with: .radialGradient(volumetricGradient(for: skin), center: lightCenter, startRadius: 1, endRadius: torsoHeight * 0.8))
         context.stroke(path, with: .color(skin.outlineColor), style: cartoonStrokeStyle)
         
         if skin == .boba {
@@ -1022,7 +1050,8 @@ public struct CreatureRigView: View {
         
         // 2. Dumpling head shape
         let shape = dumplingHeadPath(width: headW, height: headH).applying(t)
-        context.fill(shape, with: .color(skin.primaryColor))
+        let lightCenter = CGPoint(x: head.x - headW * 0.20, y: head.y - headH * 0.25)
+        context.fill(shape, with: .radialGradient(volumetricGradient(for: skin), center: lightCenter, startRadius: 1, endRadius: headW * 0.65))
         context.stroke(shape, with: .color(skin.outlineColor), style: cartoonStrokeStyle)
         
         // 3. Subtle highlight
@@ -1098,27 +1127,7 @@ public struct CreatureRigView: View {
         }
     }
     
-    private func drawMiniLaptop(context: inout GraphicsContext, position: CGPoint) {
-        let base = CGRect(x: position.x - 8, y: position.y - 1.5, width: 16, height: 3)
-        context.fill(Path(roundedRect: base, cornerRadius: 1), with: .color(Color(white: 0.3)))
-        
-        let screen = CGRect(x: position.x - 7, y: position.y - 10, width: 14, height: 9)
-        context.fill(Path(roundedRect: screen, cornerRadius: 1.5), with: .color(Color.cyan.opacity(0.85)))
-    }
-    
-    private func drawMiniHeadphones(context: inout GraphicsContext, head: CGPoint, skin: CompanionSkin) {
-        var arc = Path()
-        arc.addArc(center: head, radius: 14.0, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
-        context.stroke(arc, with: .color(skin.outlineColor), lineWidth: 2.2)
-        
-        let padL = CGRect(x: head.x - 15.5, y: head.y - 5, width: 4.0, height: 9)
-        let padR = CGRect(x: head.x + 11.5, y: head.y - 5, width: 4.0, height: 9)
-        context.fill(Path(roundedRect: padL, cornerRadius: 2.0), with: .color(skin.accentColor))
-        context.stroke(Path(roundedRect: padL, cornerRadius: 2.0), with: .color(skin.outlineColor), lineWidth: 1.2)
-        context.fill(Path(roundedRect: padR, cornerRadius: 2.0), with: .color(skin.accentColor))
-        context.stroke(Path(roundedRect: padR, cornerRadius: 2.0), with: .color(skin.outlineColor), lineWidth: 1.2)
-    }
-    
+
     // MARK: - Optional Visual Skeleton Rig Debug Overlay (For developers only)
     private func drawDebugSkeletonOverlay(
         context: inout GraphicsContext,
@@ -1147,5 +1156,102 @@ public struct CreatureRigView: View {
         p.move(to: from)
         p.addLine(to: to)
         context.stroke(p, with: .color(color), lineWidth: width)
+    }
+    
+    // MARK: - Extra Props (Typing Mimic & Music Groove)
+    private func drawMiniLaptop(
+        context: inout GraphicsContext,
+        position: CGPoint
+    ) {
+        let laptopW: CGFloat = 22.0
+        let baseH: CGFloat = 3.5
+        let screenH: CGFloat = 14.0
+        
+        // Base plate on ledge
+        let baseRect = CGRect(x: position.x - laptopW / 2.0, y: position.y - baseH, width: laptopW, height: baseH)
+        let basePath = Path(roundedRect: baseRect, cornerRadius: 1.5)
+        context.fill(basePath, with: .color(Color(red: 0.75, green: 0.77, blue: 0.82)))
+        context.stroke(basePath, with: .color(Color(red: 0.25, green: 0.27, blue: 0.32)), lineWidth: 1.2)
+        
+        // Keyboard surface lines
+        let kbRect = CGRect(x: position.x - laptopW * 0.4, y: position.y - baseH + 0.8, width: laptopW * 0.8, height: 1.6)
+        context.fill(Path(roundedRect: kbRect, cornerRadius: 0.6), with: .color(Color(red: 0.35, green: 0.37, blue: 0.42)))
+        
+        // Screen (tilted up and slightly back)
+        var screenPath = Path()
+        screenPath.move(to: CGPoint(x: position.x - laptopW / 2.0 + 1.5, y: position.y - baseH))
+        screenPath.addLine(to: CGPoint(x: position.x - laptopW / 2.0 + 3.0, y: position.y - baseH - screenH))
+        screenPath.addLine(to: CGPoint(x: position.x + laptopW / 2.0 - 3.0, y: position.y - baseH - screenH))
+        screenPath.addLine(to: CGPoint(x: position.x + laptopW / 2.0 - 1.5, y: position.y - baseH))
+        screenPath.closeSubpath()
+        
+        context.fill(screenPath, with: .color(Color(red: 0.15, green: 0.18, blue: 0.24)))
+        context.stroke(screenPath, with: .color(Color(red: 0.25, green: 0.27, blue: 0.32)), lineWidth: 1.2)
+        
+        // Screen glow display
+        let glowRect = CGRect(x: position.x - laptopW * 0.32, y: position.y - baseH - screenH + 2.0, width: laptopW * 0.64, height: screenH - 3.5)
+        context.fill(Path(roundedRect: glowRect, cornerRadius: 1.0), with: .color(Color(red: 0.40, green: 0.75, blue: 0.95).opacity(0.85)))
+        
+        // Code lines on screen
+        for i in 0..<3 {
+            let lineY = position.y - baseH - screenH + 4.5 + CGFloat(i) * 3.0
+            var codeLine = Path()
+            codeLine.move(to: CGPoint(x: position.x - laptopW * 0.25, y: lineY))
+            codeLine.addLine(to: CGPoint(x: position.x + laptopW * 0.20 - CGFloat(i) * 2.0, y: lineY))
+            context.stroke(codeLine, with: .color(Color.white.opacity(0.9)), lineWidth: 1.0)
+        }
+    }
+    
+    private func drawMiniHeadphones(
+        context: inout GraphicsContext,
+        head: CGPoint,
+        skin: CompanionSkin
+    ) {
+        let headW: CGFloat = 36.0
+        let headH: CGFloat = 30.0
+        let bandColor = Color(red: 0.20, green: 0.22, blue: 0.26)
+        let cupColor = skin == .cyber ? Color(red: 0.15, green: 0.35, blue: 0.55) : Color(red: 0.25, green: 0.22, blue: 0.28)
+        let ringColor = skin.accentColor
+        
+        // Headband arching over top of head
+        var bandPath = Path()
+        bandPath.move(to: CGPoint(x: head.x - headW * 0.45, y: head.y - headH * 0.05))
+        bandPath.addQuadCurve(
+            to: CGPoint(x: head.x + headW * 0.45, y: head.y - headH * 0.05),
+            control: CGPoint(x: head.x, y: head.y - headH * 0.65)
+        )
+        context.stroke(bandPath, with: .color(bandColor), style: StrokeStyle(lineWidth: 3.0, lineCap: .round))
+        
+        // Left ear cup
+        let cupW: CGFloat = 6.0
+        let cupH: CGFloat = 11.0
+        let cupLRect = CGRect(x: head.x - headW * 0.48 - cupW / 2.0, y: head.y - headH * 0.05 - cupH / 2.0, width: cupW, height: cupH)
+        let cupLPath = Path(roundedRect: cupLRect, cornerRadius: 3.0)
+        context.fill(cupLPath, with: .color(cupColor))
+        context.stroke(cupLPath, with: .color(skin.outlineColor), lineWidth: 1.2)
+        context.stroke(Path(ellipseIn: cupLRect.insetBy(dx: 1.2, dy: 2.0)), with: .color(ringColor), lineWidth: 1.0)
+        
+        // Right ear cup
+        let cupRRect = CGRect(x: head.x + headW * 0.48 - cupW / 2.0, y: head.y - headH * 0.05 - cupH / 2.0, width: cupW, height: cupH)
+        let cupRPath = Path(roundedRect: cupRRect, cornerRadius: 3.0)
+        context.fill(cupRPath, with: .color(cupColor))
+        context.stroke(cupRPath, with: .color(skin.outlineColor), lineWidth: 1.2)
+        context.stroke(Path(ellipseIn: cupRRect.insetBy(dx: 1.2, dy: 2.0)), with: .color(ringColor), lineWidth: 1.0)
+        
+        // Floating musical notes ♪ ♫
+        let time = KinematicEngine.shared.behaviorTime
+        let noteSymbols = ["♪", "♫", "♩"]
+        for i in 0..<3 {
+            let phase = (time * 1.5 + Double(i) * 1.1).truncatingRemainder(dividingBy: 3.0)
+            let progress = CGFloat(phase / 3.0)
+            let xSide: CGFloat = (i % 2 == 0) ? 1.0 : -1.0
+            let xOffset = xSide * (headW * 0.55 + progress * 14.0) + sin(progress * .pi * 2.0) * 3.0
+            let yOffset = -headH * 0.2 - progress * 22.0
+            let opacity = Double(sin(progress * .pi))
+            let noteText = Text(noteSymbols[i])
+                .font(.system(size: 11.0 + CGFloat(i) * 2.0, weight: .bold, design: .rounded))
+                .foregroundColor(skin.accentColor.opacity(opacity))
+            context.draw(noteText, at: CGPoint(x: head.x + xOffset, y: head.y + yOffset))
+        }
     }
 }

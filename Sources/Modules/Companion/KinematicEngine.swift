@@ -28,6 +28,7 @@ public final class KinematicEngine: ObservableObject {
     public private(set) var routeStage: ScreenRouteStage = .leftWalk
     public private(set) var completedRouteCount = 0
     public private(set) var behaviorTime: Double = 0.0
+    public private(set) var isPullingUpWorkout: Bool = false
     
     // Screen & Notch Geometry Cache
     public var screenWidth: CGFloat = 1470.0
@@ -43,17 +44,23 @@ public final class KinematicEngine: ObservableObject {
     public private(set) var walkStepPhase: Double = 0.0
     public private(set) var isLeftFootPlanted: Bool = true
     public private(set) var leftFootWorldX: CGFloat = 40.0
+    public private(set) var leftFootWorldY: CGFloat = 56.0
     public private(set) var rightFootWorldX: CGFloat = 52.0
+    public private(set) var rightFootWorldY: CGFloat = 56.0
     public private(set) var rootWorldX: CGFloat = 46.0
     public private(set) var walkStepLength: CGFloat = 12.0
     public private(set) var walkStepDuration: Double = 0.36
     public private(set) var walkDirection: CGFloat = 1.0 // +1 = right, -1 = left
+    private var hangStartX: CGFloat = 0.0
+    private var hangStartY: CGFloat = 0.0
+    private var targetHangX: CGFloat = 0.0
     private var climbStartX: CGFloat = 0.0
     private var climbStartY: CGFloat = 0.0
     private var approachStartX: CGFloat = 0.0
     private var approachStartY: CGFloat = 0.0
     private var approachStartHeadY: CGFloat = 0.0
     private var pullUpStartY: CGFloat = 0.0
+    private var turnStartX: CGFloat = 0.0
     private var turnStartY: CGFloat = 0.0
     private var crawlStepPhase: Double = 0.0
     private var crawlSupportPhase = false
@@ -109,8 +116,9 @@ public final class KinematicEngine: ObservableObject {
         }
     }
 
-    private func visibleRouteHead(at point: CGPoint) -> CGPoint {
+    private func visibleRouteHead(at point: CGPoint, allowPullUp: Bool = false) -> CGPoint {
         guard hasPhysicalNotch, point.x + 16 > notchLeft, point.x - 16 < notchRight else { return point }
+        if allowPullUp { return point }
         return CGPoint(x: point.x, y: max(point.y, ledgeY + 12.0))
     }
 
@@ -126,17 +134,13 @@ public final class KinematicEngine: ObservableObject {
             && [.lowerToHang, .monkeyBarTraversal, .climbOntoRightLedge].contains(routeStage)
         currentBehavior = behavior
         behaviorTime = 0.0
-        if behavior == .walking {
-            mirroredRoute = startingFromRight
-        } else if !preserveGrip {
-            mirroredRoute = false
-        }
+        mirroredRoute = false
         
         switch behavior {
         case .inDen:
             resetToDen()
         case .walking:
-            setupFullRouteWalk()
+            setupFullRouteWalk(startingFromRight: startingFromRight)
         case .dangling, .slipping:
             setupHanging(preservingGrip: preserveGrip)
         case .peekingLeft:
@@ -182,14 +186,28 @@ public final class KinematicEngine: ObservableObject {
         currentPose = pose
     }
     
-    private func setupFullRouteWalk() {
-        routeStage = .leftWalk
-        walkDirection = 1.0
-        rootWorldX = 35.0
-        isLeftFootPlanted = true
-        leftFootWorldX = rootWorldX
-        rightFootWorldX = rootWorldX - walkStepLength
+    private func setupFullRouteWalk(startingFromRight: Bool = false) {
+        if startingFromRight {
+            walkDirection = -1.0
+            rootWorldX = screenWidth - 45.0
+            isLeftFootPlanted = true
+            leftFootWorldX = rootWorldX
+            leftFootWorldY = walkLedgeY
+            rightFootWorldX = rootWorldX + walkStepLength
+            rightFootWorldY = walkLedgeY
+            routeStage = .rightWalk
+        } else {
+            walkDirection = 1.0
+            rootWorldX = 35.0
+            isLeftFootPlanted = true
+            leftFootWorldX = rootWorldX
+            leftFootWorldY = walkLedgeY
+            rightFootWorldX = rootWorldX - walkStepLength
+            rightFootWorldY = walkLedgeY
+            routeStage = .leftWalk
+        }
         walkStepPhase = 0.0
+        isPullingUpWorkout = false
     }
     
     private func setupHanging(preservingGrip: Bool = false) {
@@ -197,8 +215,8 @@ public final class KinematicEngine: ObservableObject {
             routeStage = .lowerToHang
             let midX = (notchLeft + notchRight) / 2.0
             rootWorldX = midX
-            handLWorldX = midX - 8.0
-            handRWorldX = midX + 8.0
+            handLWorldX = midX - 14.0
+            handRWorldX = midX + 14.0
         } else {
             rootWorldX = (handLWorldX + handRWorldX) / 2.0
         }
@@ -385,136 +403,85 @@ public final class KinematicEngine: ObservableObject {
     private func evaluateContinuousRoute(dt: Double) -> SkeletonPose {
         switch routeStage {
         case .leftWalk:
-            // Walk from left toward notch
-            walkDirection = 1.0
-            let targetStop = notchLeft - 32.0
-            if rootWorldX >= targetStop {
-                if hasPhysicalNotch {
-                    routeStage = .approachNotch
+            if walkDirection > 0 {
+                // Walking right from screen left toward the notch
+                if hasPhysicalNotch && rootWorldX >= notchLeft - 16.0 {
+                    routeStage = .lowerToHang
                     behaviorTime = 0.0
-                } else {
-                    // No notch mac: continue walking across!
-                    routeStage = .rightWalk
+                    hangStartX = currentPose.root.x
+                    hangStartY = currentPose.root.y
+                    targetHangX = notchLeft + 14.0
+                    handLWorldX = notchLeft + 2.0
+                    handRWorldX = notchLeft + 26.0
+                    rootWorldX = targetHangX
+                    return evaluateLowerToHang(dt: dt)
+                } else if !hasPhysicalNotch && rootWorldX >= screenWidth - 45.0 {
+                    routeStage = .farCornerPeek
+                    behaviorTime = 0.0
+                    turnStartX = currentPose.root.x
+                    turnStartY = currentPose.root.y
+                    return evaluateFarCornerTurn(dt: dt)
                 }
-            }
-            let pose = computeWalkPose(dt: dt, walkY: walkLedgeY)
-            if routeStage == .approachNotch {
-                approachStartX = pose.root.x
-                approachStartY = pose.root.y
-                approachStartHeadY = pose.headCenter.y
-            }
-            return pose
-            
-        case .approachNotch:
-            // Stop at left edge, reach hands over to notch lip
-            var pose = SkeletonPose()
-            pose.timestamp = behaviorTime
-            pose.facingRight = true
-            let stopProgress = min(1.0, CGFloat(behaviorTime / 0.8))
-            let headProgress = min(1.0, stopProgress / 0.6)
-            let travelProgress = min(1.0, max(0.0, (stopProgress - 0.6) / 0.4))
-            let easedTravel = travelProgress * travelProgress * (3.0 - 2.0 * travelProgress)
-
-            pose.torso.root = CGPoint(
-                x: approachStartX + (notchLeft - 22.0 - approachStartX) * easedTravel,
-                y: approachStartY + (walkLedgeY - approachStartY) * stopProgress
-            )
-            pose.torso.spineAngle = -.pi / 2.0 + 0.15
-            pose.headCenter = visibleRouteHead(at: CGPoint(
-                x: pose.torso.neck.x + 4.0,
-                y: approachStartHeadY + (ledgeY + 17.0 - approachStartHeadY) * headProgress
-            ))
-            pose.headAngle = 12.0
-            
-            // Feet planted on ledge
-            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: notchLeft - 22.0, y: walkLedgeY), bendPositive: false)
-            pose.leftLeg.isPlantedOrGripping = true
-            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: notchLeft - 12.0, y: walkLedgeY), bendPositive: true)
-            pose.rightLeg.isPlantedOrGripping = true
-            
-            // Hands reach over notch bottom-left corner
-            let handTargetY = ledgeY + 8.0 - (5.0 * stopProgress)
-            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: notchLeft - 4.0, y: handTargetY), bendPositive: false)
-            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: notchLeft + 6.0, y: handTargetY), bendPositive: true)
-            
-            if behaviorTime >= 1.0 {
-                routeStage = .lowerToHang
-                behaviorTime = 0.0
-                handLWorldX = notchLeft + 4.0
-                handRWorldX = notchLeft + 18.0
-                pendulumAngle = 0.2
-                pendulumVelocity = 0.7
-            }
-            return pose
-            
-        case .lowerToHang:
-            // Hands grip bottom lip of notch, body lowers under notch
-            var pose = SkeletonPose()
-            pose.timestamp = behaviorTime
-            pose.facingRight = true
-            let lowerProgress = min(1.0, CGFloat(behaviorTime / 0.9))
-            
-            // Hands strictly pinned to notch bottom edge!
-            let gripY = ledgeY + 3.0
-            let easedLower = lowerProgress * lowerProgress * (3.0 - 2.0 * lowerProgress)
-            let rootY = ledgeY + 24.0 + (gripY + 60.0 - (ledgeY + 24.0)) * easedLower
-            let midX = (handLWorldX + handRWorldX) / 2.0
-            let startX = notchLeft - 22.0
-            let rootX = startX + (midX - startX) * easedLower
-            
-            pose.torso.root = CGPoint(x: rootX, y: rootY)
-            pose.torso.spineAngle = -.pi / 2.0
-            pose.headCenter = visibleRouteHead(at: CGPoint(x: midX, y: max(rootY - 18.0, gripY + 16.0)))
-            pose.leftArm.length1 = 26.0
-            pose.leftArm.length2 = 26.0
-            pose.rightArm.length1 = 26.0
-            pose.rightArm.length2 = 26.0
-            
-            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
-            pose.leftArm.isPlantedOrGripping = true
-            let reachStart = CGPoint(x: pose.torso.rightShoulderAnchor.x, y: pose.torso.rightShoulderAnchor.y + 10.0)
-            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(
-                x: reachStart.x + (handRWorldX - reachStart.x) * easedLower,
-                y: reachStart.y + (gripY - reachStart.y) * easedLower
-            ), bendPositive: true)
-            pose.rightArm.isPlantedOrGripping = lowerProgress >= 1.0
-            
-            // Legs dangle and swing smoothly
-            let kick = CGFloat(sin(behaviorTime * 5.0)) * 4.5
-            let kickLift = CGFloat(abs(sin(behaviorTime * 5.0))) * 2.5
-            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: pose.torso.root.x - 6.0 + kick, y: rootY + 16.0 + kickLift), bendPositive: false)
-            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: pose.torso.root.x + 6.0 - kick, y: rootY + 16.0 + (2.5 - kickLift)), bendPositive: true)
-            
-            if behaviorTime >= 1.0 {
-                routeStage = .monkeyBarTraversal
-                behaviorTime = 0.0
-                monkeyBarStepPhase = 0.0
-                activeGrippingHand = 0
-                monkeyBarReachStartX = handRWorldX
-            }
-            return pose
-            
-        case .monkeyBarTraversal:
-            // Hand over hand along bottom edge of notch from notchLeft to notchRight
-            return evaluateMonkeyBarTraversal(dt: dt)
-            
-        case .climbOntoRightLedge:
-            // Reaches up right corner, leg hooks over, rolls onto ledge
-            return evaluateClimbOntoRightLedge(dt: dt)
-            
-        case .rightWalk:
-            // Walk from notchRight to right screen corner
-            walkDirection = 1.0
-            let targetStop = screenWidth - 30.0
-            if rootWorldX >= targetStop {
-                routeStage = .farCornerPeek
-                behaviorTime = 0.0
-                turnStartY = currentPose.root.y
+            } else {
+                // Walking left from notch toward screen left edge
+                if rootWorldX <= 45.0 {
+                    routeStage = .farCornerPeek
+                    behaviorTime = 0.0
+                    turnStartX = currentPose.root.x
+                    turnStartY = currentPose.root.y
+                    return evaluateFarCornerTurn(dt: dt)
+                }
             }
             return computeWalkPose(dt: dt, walkY: walkLedgeY)
             
+        case .rightWalk:
+            if walkDirection > 0 {
+                // Walking right from notch toward screen right edge
+                if rootWorldX >= screenWidth - 45.0 {
+                    routeStage = .farCornerPeek
+                    behaviorTime = 0.0
+                    turnStartX = currentPose.root.x
+                    turnStartY = currentPose.root.y
+                    return evaluateFarCornerTurn(dt: dt)
+                }
+            } else {
+                // Walking left from screen right toward the notch
+                if hasPhysicalNotch && rootWorldX <= notchRight + 16.0 {
+                    routeStage = .lowerToHang
+                    behaviorTime = 0.0
+                    hangStartX = currentPose.root.x
+                    hangStartY = currentPose.root.y
+                    targetHangX = notchRight - 14.0
+                    handLWorldX = notchRight - 26.0
+                    handRWorldX = notchRight - 2.0
+                    rootWorldX = targetHangX
+                    return evaluateLowerToHang(dt: dt)
+                } else if !hasPhysicalNotch && rootWorldX <= 45.0 {
+                    routeStage = .farCornerPeek
+                    behaviorTime = 0.0
+                    turnStartX = currentPose.root.x
+                    turnStartY = currentPose.root.y
+                    return evaluateFarCornerTurn(dt: dt)
+                }
+            }
+            return computeWalkPose(dt: dt, walkY: walkLedgeY)
+            
+        case .approachNotch, .lowerToHang:
+            return evaluateLowerToHang(dt: dt)
+            
+        case .monkeyBarTraversal:
+            if behaviorTime >= 3.6 {
+                routeStage = .climbOntoRightLedge
+                behaviorTime = 0.0
+                climbStartX = currentPose.root.x
+                climbStartY = currentPose.root.y
+            }
+            return evaluateHangingWorkout(dt: dt)
+            
+        case .climbOntoRightLedge:
+            return evaluateClimbOntoLedge(dt: dt)
+            
         case .farCornerPeek:
-            // Peek at far corner, pivot feet, turn around
             return evaluateFarCornerTurn(dt: dt)
             
         case .routeComplete:
@@ -524,197 +491,280 @@ public final class KinematicEngine: ObservableObject {
         }
     }
     
-    // MARK: - Monkey-Bar Traversal (Strict Grip Pinning Invariant)
-    private func evaluateMonkeyBarTraversal(dt: Double) -> SkeletonPose {
+    // MARK: - Lower Gracefully Into Notch Lip Hang
+    private func evaluateLowerToHang(dt: Double) -> SkeletonPose {
         var pose = SkeletonPose()
         pose.timestamp = behaviorTime
-        pose.facingRight = true
+        pose.facingRight = (walkDirection > 0)
         let gripY = ledgeY + 3.0
         
-        let stepDuration: Double = 0.42
-        monkeyBarStepPhase += dt / stepDuration
+        let duration: Double = 1.4
+        let halfDuration: Double = 0.7
+        let targetY = gripY + 58.0 // 93.0 pt
         
-        if monkeyBarStepPhase >= 1.0 {
-            monkeyBarStepPhase = 0.0
-            activeGrippingHand = (activeGrippingHand == 0) ? 1 : 0
-            monkeyBarReachStartX = activeGrippingHand == 0 ? handRWorldX : handLWorldX
+        let rootX: CGFloat
+        let rootY: CGFloat
+        
+        if behaviorTime < halfDuration {
+            // Phase 1: Lower down vertically outside notch housing until safely below notch line
+            let p = CGFloat(behaviorTime / halfDuration)
+            let ease = p * p * (3.0 - 2.0 * p)
+            rootX = hangStartX
+            rootY = hangStartY + (targetY - hangStartY) * ease
+            pose.mouthShape = .openW
+        } else {
+            // Phase 2: Now safely below notch depth, swing under the notch lip to target grip position
+            let p = min(1.0, CGFloat((behaviorTime - halfDuration) / (duration - halfDuration)))
+            let ease = p * p * (3.0 - 2.0 * p)
+            rootX = hangStartX + (targetHangX - hangStartX) * ease
+            rootY = targetY
+            pose.mouthShape = .smile
         }
         
-        let u = CGFloat(monkeyBarStepPhase)
+        pose.torso.root = CGPoint(x: rootX, y: rootY)
+        pose.torso.spineLength = 24.0
+        pose.torso.spineAngle = -.pi / 2.0
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: rootX, y: max(rootY - 18.0, ledgeY + 16.0)))
         
-        // Physics: Body swings forward suspended under the gripping hand
-        let swingBodyX = (handLWorldX + handRWorldX) / 2.0 + sin(u * .pi) * 2.0
-        let bodyY = gripY + 60.0 + (1.0 - CGFloat(cos(Double(u) * .pi * 2.0))) * 2.0
-        
-        pose.torso.root = CGPoint(x: swingBodyX, y: bodyY)
-        pose.torso.spineAngle = -.pi / 2.0 + (activeGrippingHand == 0 ? -0.12 : 0.12)
-        pose.headCenter = visibleRouteHead(at: CGPoint(x: swingBodyX, y: max(bodyY - 18.0, gripY + 16.0)))
         pose.leftArm.length1 = 26.0
         pose.leftArm.length2 = 26.0
         pose.rightArm.length1 = 26.0
         pose.rightArm.length2 = 26.0
         
-        // Gripping hand stays 100% LOCKED (grip test invariant: Delta X = 0)
-        if activeGrippingHand == 0 {
-            // Left hand is gripping
-            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
-            pose.leftArm.isPlantedOrGripping = true
-            
-            // Right hand reaches forward along notch edge
-            let smoothU = u * u * (3.0 - 2.0 * u)
-            let reachX = monkeyBarReachStartX + monkeyBarReach * smoothU
-            let reachLift = 4.0 * sin(u * .pi)
-            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: reachX, y: gripY + reachLift), bendPositive: true)
-            pose.rightArm.isPlantedOrGripping = false
-            handRWorldX = reachX
-            
-        } else {
-            // Right hand is gripping
-            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: gripY), bendPositive: true)
-            pose.rightArm.isPlantedOrGripping = true
-            
-            // Left hand reaches forward
-            let smoothU = u * u * (3.0 - 2.0 * u)
-            let reachX = monkeyBarReachStartX + monkeyBarReach * smoothU
-            let reachLift = 4.0 * sin(u * .pi)
-            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: reachX, y: gripY + reachLift), bendPositive: false)
-            pose.leftArm.isPlantedOrGripping = false
-            handLWorldX = reachX
-        }
+        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
+        pose.leftArm.isPlantedOrGripping = true
+        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: gripY), bendPositive: true)
+        pose.rightArm.isPlantedOrGripping = true
         
-        // Legs kick rhythmically with swing
-        let kickPhase = behaviorTime * 7.0
-        let kickL = CGFloat(sin(kickPhase)) * 8.0
-        let kickR = CGFloat(-sin(kickPhase)) * 8.0
-        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: swingBodyX - 5.0 + kickL, y: bodyY + 16.0), bendPositive: false)
-        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: swingBodyX + 5.0 + kickR, y: bodyY + 16.0), bendPositive: true)
+        let kickPhase = behaviorTime * 6.0
+        let kickL = CGFloat(sin(kickPhase)) * 4.0
+        let kickR = CGFloat(-sin(kickPhase)) * 4.0
+        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: rootX - 5.0 + kickL, y: rootY + 16.0), bendPositive: false)
+        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rootX + 5.0 + kickR, y: rootY + 16.0), bendPositive: true)
         
-        // Check if we reached the right edge of the notch!
-        let currentMaxHand = max(handLWorldX, handRWorldX)
-        if currentMaxHand >= notchRight + 4.0 {
-            climbStartX = swingBodyX
-            climbStartY = bodyY
-            routeStage = .climbOntoRightLedge
+        if behaviorTime >= duration {
+            routeStage = .monkeyBarTraversal
             behaviorTime = 0.0
         }
         
         return pose
     }
     
-    // MARK: - Climb Onto Right Ledge
-    private func evaluateClimbOntoRightLedge(dt: Double) -> SkeletonPose {
+    // MARK: - Notch Lip Hang & Athletic Pull-Up Workout
+    private func evaluateHangingWorkout(dt: Double) -> SkeletonPose {
         var pose = SkeletonPose()
         pose.timestamp = behaviorTime
-        pose.facingRight = true
+        pose.facingRight = (walkDirection > 0)
         let gripY = ledgeY + 3.0
-        let cornerX = notchRight
+        let midX = (handLWorldX + handRWorldX) / 2.0
         
-        if behaviorTime < 1.4 {
-            // Clear the physical camera housing before lifting the face above its lower edge.
-            let clear = min(1.0, CGFloat(behaviorTime / 0.7))
-            let clearEase = clear * clear * (3.0 - 2.0 * clear)
-            let lift = min(1.0, max(0.0, CGFloat((behaviorTime - 0.7) / 0.7)))
-            let liftEase = lift * lift * (3.0 - 2.0 * lift)
-            let rootX = climbStartX + (cornerX + 18.0 - climbStartX) * clearEase
-            let rootY = climbStartY + (ledgeY + 24.0 - climbStartY) * liftEase
-            let liftProgress = max(clearEase, liftEase)
-            let loadedArmLength = 26.0 + 5.0 * clearEase
+        pose.leftArm.length1 = 26.0
+        pose.leftArm.length2 = 26.0
+        pose.rightArm.length1 = 26.0
+        pose.rightArm.length2 = 26.0
+        
+        let hangStartY = gripY + 58.0 // 93.0 pt
+        let topPullUpY = gripY + 26.0 // 61.0 pt
+        
+        let t = behaviorTime
+        let curRootY: CGFloat
+        let chinRise: CGFloat
+        
+        if t < 0.8 {
+            isPullingUpWorkout = false
+            curRootY = hangStartY
+            chinRise = 0.0
+            pose.mouthShape = .smile
+            pose.leftEyeOpen = 1.0
+            pose.rightEyeOpen = 1.0
+        } else if t < 2.0 {
+            // Athletic pull-up lifting chin to notch lip
+            isPullingUpWorkout = true
+            let p = CGFloat((t - 0.8) / 1.2)
+            let ease = p * p * (3.0 - 2.0 * p)
+            curRootY = hangStartY - (hangStartY - topPullUpY) * ease
+            chinRise = ease
+            pose.mouthShape = .smile
+            pose.leftEyeOpen = 0.0 // Joyful crescent eyes (^ ‿ ^)
+            pose.rightEyeOpen = 0.0
+        } else if t < 2.6 {
+            // Holding top of pull-up with proud smile
+            isPullingUpWorkout = true
+            curRootY = topPullUpY
+            chinRise = 1.0
+            pose.mouthShape = .smile
+            pose.leftEyeOpen = 0.0
+            pose.rightEyeOpen = 0.0
+        } else {
+            // Sinking back down smoothly with happy sigh
+            isPullingUpWorkout = false
+            let p = min(1.0, CGFloat((t - 2.6) / 1.0))
+            let ease = p * p * (3.0 - 2.0 * p)
+            curRootY = topPullUpY + (hangStartY - topPullUpY) * ease
+            chinRise = 1.0 - ease
+            pose.mouthShape = .sigh
+            pose.leftEyeOpen = 1.0
+            pose.rightEyeOpen = 1.0
+        }
+        
+        let sway = CGFloat(sin(t * 3.5)) * (isPullingUpWorkout ? 1.0 : 3.0)
+        pose.torso.root = CGPoint(x: midX + sway, y: curRootY)
+        pose.torso.spineLength = 24.0
+        pose.torso.spineAngle = -.pi / 2.0 + Double(sway) * 0.02
+        
+        let chinTargetY = gripY - 4.0
+        let chinY = pose.torso.neck.y - 10.0 + (chinTargetY - (pose.torso.neck.y - 10.0)) * chinRise
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: min(pose.torso.neck.y - 4.0, chinY)), allowPullUp: isPullingUpWorkout)
+        
+        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
+        pose.leftArm.isPlantedOrGripping = true
+        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: gripY), bendPositive: true)
+        pose.rightArm.isPlantedOrGripping = true
+        
+        let kickPhase = t * 7.5
+        let kickL = CGFloat(sin(kickPhase)) * (isPullingUpWorkout ? 3.5 : 6.0)
+        let kickR = CGFloat(sin(kickPhase + 1.4)) * (isPullingUpWorkout ? 3.5 : 5.0)
+        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: pose.torso.root.x - 6.0 + kickL, y: curRootY + 16.0), bendPositive: false)
+        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: pose.torso.root.x + 7.0 + kickR, y: curRootY + 18.0), bendPositive: true)
+        
+        return pose
+    }
+    
+    // MARK: - Traverse Notch & Climb Onto Ledge
+    private func evaluateClimbOntoLedge(dt: Double) -> SkeletonPose {
+        var pose = SkeletonPose()
+        pose.timestamp = behaviorTime
+        pose.facingRight = (walkDirection > 0)
+        let gripY = ledgeY + 3.0
+        
+        let targetLedgeX = (walkDirection > 0) ? (notchRight + 24.0) : (notchLeft - 24.0)
+        let clearCornerX = (walkDirection > 0) ? (notchRight + 16.0) : (notchLeft - 16.0)
+        
+        let traverseDuration: Double = 3.6
+        let liftDuration: Double = 0.9
+        let totalDuration = traverseDuration + liftDuration
+        
+        let rootX: CGFloat
+        let rootY: CGFloat
+        
+        if behaviorTime < traverseDuration {
+            // Phase 1: Graceful swinging traversal under the notch lip from one corner to the other
+            let p = CGFloat(behaviorTime / traverseDuration)
+            let ease = p * p * (3.0 - 2.0 * p)
+            rootX = climbStartX + (clearCornerX - climbStartX) * ease
+            rootY = climbStartY // Stay suspended safely below notch lip
             
-            pose.torso.root = CGPoint(x: rootX, y: rootY)
-            pose.torso.spineAngle = -.pi / 2.0 + (0.2 * Double(liftProgress))
-            pose.headCenter = visibleRouteHead(at: CGPoint(x: rootX + 2.0, y: max(rootY - 18.0, gripY + 16.0)))
-            pose.leftArm.length1 = loadedArmLength
-            pose.leftArm.length2 = loadedArmLength
-            pose.rightArm.length1 = loadedArmLength
-            pose.rightArm.length2 = loadedArmLength
-            
-            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: gripY), bendPositive: false)
-            pose.leftArm.isPlantedOrGripping = true
-            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: gripY), bendPositive: true)
-            pose.rightArm.isPlantedOrGripping = true
-            
-            // Leg hooks onto ledge
-            let hookProgress = min(1.0, liftProgress * 1.3)
-            let hookY = gripY + 16.0 - (16.0 * hookProgress)
-            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: cornerX + 12.0, y: hookY), bendPositive: true)
-            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: rootX - 6.0, y: rootY + 16.0), bendPositive: false)
+            // Hands track along the notch lip
+            handLWorldX = rootX - 6.0
+            handRWorldX = rootX + 6.0
             
             pose.mouthShape = .openW
-            return pose
             
-        } else if behaviorTime < 2.2 {
-            // Roll onto ledge
-            let rollProgress = CGFloat((behaviorTime - 1.4) / 0.8)
-            let startX = cornerX + 18.0
-            let rootX = startX + (22.0 * rollProgress)
-            let standProgress = min(1.0, max(0.0, rollProgress))
-            let rootY = ledgeY + 24.0 + ((walkLedgeY - 11.0) - (ledgeY + 24.0)) * standProgress
-            
-            pose.torso.root = CGPoint(x: rootX, y: rootY)
-            pose.torso.spineAngle = -.pi / 2.0
-            pose.headCenter = visibleRouteHead(at: CGPoint(x: rootX + 4.0, y: rootY >= ledgeY + 24.0 ? max(rootY - 18.0, gripY + 16.0) : rootY - 18.0))
-            
-            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: cornerX + 16.0, y: gripY), bendPositive: true)
-            pose.rightLeg.isPlantedOrGripping = true
-            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: cornerX + 6.0, y: gripY), bendPositive: false)
-            pose.leftLeg.isPlantedOrGripping = true
-            
-            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: rootX - 6.0, y: rootY + 6.0), bendPositive: false)
-            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: rootX + 6.0, y: rootY + 6.0), bendPositive: true)
-            
-            pose.mouthShape = .sigh
-            return pose
-            
+            // Midpoint pull-up moment during traversal!
+            let midProgress = sin(p * .pi)
+            if midProgress > 0.6 {
+                pose.leftEyeOpen = 0.0 // (^ ‿ ^)
+                pose.rightEyeOpen = 0.0
+                pose.mouthShape = .smile
+            }
         } else {
-            // Stood up cleanly on right ledge!
-            routeStage = .rightWalk
+            // Phase 2: Now safely cleared outside notch bezel, lift up onto the menu bar shelf
+            let p = min(1.0, CGFloat((behaviorTime - traverseDuration) / liftDuration))
+            let ease = p * p * (3.0 - 2.0 * p)
+            rootX = clearCornerX + (targetLedgeX - clearCornerX) * ease
+            rootY = climbStartY + (walkLedgeY - 11.0 - climbStartY) * ease
+            pose.mouthShape = p >= 0.8 ? .sigh : .openW
+            
+            handLWorldX = rootX - 6.0
+            handRWorldX = rootX + 6.0
+        }
+        
+        pose.torso.root = CGPoint(x: rootX, y: rootY)
+        pose.torso.spineLength = 24.0
+        pose.torso.spineAngle = -.pi / 2.0
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: rootX + (walkDirection * 2.0), y: rootY - 18.0))
+        
+        pose.leftArm.length1 = 26.0
+        pose.leftArm.length2 = 26.0
+        pose.rightArm.length1 = 26.0
+        pose.rightArm.length2 = 26.0
+        
+        let handTargetY = min(gripY, rootY + 6.0)
+        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX, y: handTargetY), bendPositive: false)
+        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX, y: handTargetY), bendPositive: true)
+        pose.leftArm.isPlantedOrGripping = false
+        pose.rightArm.isPlantedOrGripping = false
+        
+        let kickPhase = behaviorTime * 7.0
+        let kickL = CGFloat(sin(kickPhase)) * 4.0
+        let kickR = CGFloat(-sin(kickPhase)) * 4.0
+        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: rootX - 5.0 + kickL, y: rootY + 14.0), bendPositive: false)
+        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rootX + 5.0 + kickR, y: rootY + 14.0), bendPositive: true)
+        pose.leftLeg.isPlantedOrGripping = true
+        pose.rightLeg.isPlantedOrGripping = true
+        
+        if behaviorTime >= totalDuration {
+            // Stood up cleanly on ledge! Transition to walking across opposite side.
+            if walkDirection > 0 {
+                routeStage = .rightWalk
+            } else {
+                routeStage = .leftWalk
+            }
             behaviorTime = 0.0
-            rootWorldX = cornerX + 40.0
+            rootWorldX = targetLedgeX
             isLeftFootPlanted = true
             leftFootWorldX = rootWorldX
-            rightFootWorldX = rootWorldX - walkStepLength
+            leftFootWorldY = walkLedgeY
+            rightFootWorldX = rootWorldX - walkStepLength * walkDirection
+            rightFootWorldY = walkLedgeY
             walkStepPhase = 0.5
-            return computeWalkPose(dt: dt, walkY: walkLedgeY)
         }
+        
+        return pose
     }
     
     // MARK: - Far Corner Turn & Pivot
     private func evaluateFarCornerTurn(dt: Double) -> SkeletonPose {
         var pose = SkeletonPose()
         pose.timestamp = behaviorTime
-        let cornerX = screenWidth - 30.0
+        let targetX = (walkDirection > 0) ? (screenWidth - 30.0) : 30.0
         
         let settle = min(1.0, CGFloat(behaviorTime / 0.25))
         let settleEase = settle * settle * (3.0 - 2.0 * settle)
+        let curX = turnStartX + (targetX - turnStartX) * settleEase
         let rootY = turnStartY + (walkLedgeY - 11.0 - turnStartY) * settleEase
-        pose.torso.root = CGPoint(x: cornerX, y: rootY)
+        pose.torso.root = CGPoint(x: curX, y: rootY)
         pose.torso.spineAngle = -.pi / 2.0
-        pose.headCenter = visibleRouteHead(at: CGPoint(x: cornerX, y: walkLedgeY - 32.0))
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: curX, y: walkLedgeY - 32.0))
         
-        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: cornerX - 5.0, y: walkLedgeY), bendPositive: false)
+        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: curX - 5.0, y: walkLedgeY), bendPositive: false)
         pose.leftLeg.isPlantedOrGripping = true
         let pivotProgress = CGFloat(min(1.0, max(0.0, (behaviorTime - 0.8) / 0.8)))
         let pivotEase = pivotProgress * pivotProgress * (3.0 - 2.0 * pivotProgress)
-        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: cornerX + 5.0 - 10.0 * pivotEase, y: walkLedgeY), bendPositive: true)
+        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: curX + 5.0 - 10.0 * pivotEase, y: walkLedgeY), bendPositive: true)
         pose.rightLeg.isPlantedOrGripping = behaviorTime < 0.8
         
-        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: cornerX - 8.0, y: walkLedgeY - 6.0), bendPositive: false)
-        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: cornerX + 8.0, y: walkLedgeY - 6.0), bendPositive: true)
+        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: curX - 8.0, y: walkLedgeY - 6.0), bendPositive: false)
+        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: curX + 8.0, y: walkLedgeY - 6.0), bendPositive: true)
         
         if behaviorTime < 0.8 {
             // Peek over screen edge
-            pose.headAngle = 18.0
-            pose.pupilOffset = CGPoint(x: 0.7, y: 0.5)
-            pose.facingRight = true
+            pose.headAngle = 18.0 * (walkDirection > 0 ? 1.0 : -1.0)
+            pose.pupilOffset = CGPoint(x: (walkDirection > 0 ? 0.7 : -0.7), y: 0.5)
+            pose.facingRight = (walkDirection > 0)
         } else if behaviorTime < 1.6 {
             // Pivot feet
-            pose.headAngle = -10.0
-            pose.facingRight = false
+            pose.headAngle = -10.0 * (walkDirection > 0 ? 1.0 : -1.0)
+            pose.facingRight = !(walkDirection > 0)
         } else {
             // End at the far corner; the coordinator retreats to the den.
             routeStage = .routeComplete
             behaviorTime = 0.0
             completedRouteCount += 1
+            pose.drawsTorso = false
+            pose.drawsHead = false
+            pose.drawsArms = false
+            pose.drawsLegs = false
         }
         
         return pose
@@ -736,8 +786,10 @@ public final class KinematicEngine: ObservableObject {
             isLeftFootPlanted.toggle()
             if isLeftFootPlanted {
                 leftFootWorldX = rootWorldX + (walkStepLength / 2.0) * walkDirection
+                leftFootWorldY = walkY
             } else {
                 rightFootWorldX = rootWorldX + (walkStepLength / 2.0) * walkDirection
+                rightFootWorldY = walkY
             }
         }
         
@@ -754,21 +806,21 @@ public final class KinematicEngine: ObservableObject {
         let rootBob = -1.6 * CGFloat(sin(Double.pi * Double(u)))
         let rootY = walkY - 11.0 + rootBob
         
-        pose.torso.root = CGPoint(x: rootWorldX, y: rootY)
+        pose.torso.root = visibleBodyRoot(at: CGPoint(x: rootWorldX, y: rootY))
         pose.torso.spineAngle = -.pi / 2.0 + Double(walkDirection) * 0.04 + bodyRoll
         
         // Head bobs gently with step rhythm and counter-tilts with waddle
         let headBobY = -1.2 * sin(Double.pi * Double(u))
         let headCounterTilt = -bodyRoll * (180.0 / .pi) * 0.5
         let headNod = sin(Double.pi * Double(u)) * 2.0
-        pose.headCenter = CGPoint(x: pose.torso.neck.x + walkDirection * 1.5, y: pose.torso.neck.y - 7.5 + headBobY)
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x + walkDirection * 1.5, y: pose.torso.neck.y - 7.5 + headBobY))
         pose.headAngle = headCounterTilt + headNod
         
         // Solve Planted & Swing Legs with soft foot lift (~2.8pt)
         let swingLift = -2.8 * 4.0 * u * (1.0 - u)
         
         if isLeftFootPlanted {
-            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: leftFootWorldX, y: walkY), bendPositive: false)
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: leftFootWorldX, y: leftFootWorldY), bendPositive: false)
             pose.leftLeg.isPlantedOrGripping = true
             
             let swingStart = leftFootWorldX - walkStepLength * walkDirection
@@ -778,9 +830,10 @@ public final class KinematicEngine: ObservableObject {
             pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: swingX, y: walkY + swingLift), bendPositive: true)
             pose.rightLeg.isPlantedOrGripping = false
             rightFootWorldX = swingX
+            rightFootWorldY = walkY
             
         } else {
-            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rightFootWorldX, y: walkY), bendPositive: true)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rightFootWorldX, y: rightFootWorldY), bendPositive: true)
             pose.rightLeg.isPlantedOrGripping = true
             
             let swingStart = rightFootWorldX - walkStepLength * walkDirection
@@ -790,6 +843,7 @@ public final class KinematicEngine: ObservableObject {
             pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: swingX, y: walkY + swingLift), bendPositive: false)
             pose.leftLeg.isPlantedOrGripping = false
             leftFootWorldX = swingX
+            leftFootWorldY = walkY
         }
         
         // Paws stay close to the chubby body (gentle paddle waddle rather than wild flailing)
@@ -871,18 +925,56 @@ public final class KinematicEngine: ObservableObject {
         pose.facingRight = true
 
         let gripY = ledgeY + 3.0
+        let rootX = (handLWorldX + handRWorldX) / 2.0
+
+        if behaviorTime > 2.5 {
+            // Leap / vault up into the notch den rather than vanishing mid-air
+            let vaultProgress = min(1.0, CGFloat((behaviorTime - 2.5) / 0.65))
+            let vaultEase = vaultProgress * vaultProgress * (3.0 - 2.0 * vaultProgress)
+            let topY = ledgeY + 28.0
+            let denY: CGFloat = -45.0
+            let vaultedRootY = topY + (denY - topY) * vaultEase
+            pose.torso.root = CGPoint(x: rootX, y: vaultedRootY)
+            pose.torso.spineAngle = -.pi / 2.0
+            pose.headCenter = CGPoint(x: pose.torso.neck.x, y: pose.torso.neck.y - 8.0)
+            
+            pose.leftArm.length1 = 14.0
+            pose.leftArm.length2 = 14.0
+            pose.rightArm.length1 = 14.0
+            pose.rightArm.length2 = 14.0
+            let armPushY = min(gripY + 8.0, vaultedRootY + 6.0)
+            pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: handLWorldX + 6.0 * vaultEase, y: armPushY), bendPositive: false)
+            pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: handRWorldX - 6.0 * vaultEase, y: armPushY), bendPositive: true)
+            pose.leftArm.isPlantedOrGripping = vaultProgress < 0.2
+            pose.rightArm.isPlantedOrGripping = vaultProgress < 0.2
+            
+            pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: rootX - 5.0, y: vaultedRootY + 12.0), bendPositive: false)
+            pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: rootX + 5.0, y: vaultedRootY + 12.0), bendPositive: true)
+            
+            pose.mouthShape = .openW
+            pose.leftEyeOpen = 1.0
+            pose.rightEyeOpen = 1.0
+            
+            if vaultProgress >= 0.95 {
+                pose.drawsTorso = false
+                pose.drawsHead = false
+                pose.drawsArms = false
+                pose.drawsLegs = false
+            }
+            return pose
+        }
+
         let liftProgress = min(1.0, CGFloat(behaviorTime / 1.6))
         let easedLift = liftProgress * liftProgress * (3.0 - 2.0 * liftProgress)
-        let rootY = pullUpStartY + (ledgeY + 32.0 - pullUpStartY) * easedLift
-        let rootX = (handLWorldX + handRWorldX) / 2.0
+        let rootY = pullUpStartY + (ledgeY + 28.0 - pullUpStartY) * easedLift
 
         pose.torso.root = CGPoint(x: rootX, y: rootY)
         pose.torso.spineAngle = -.pi / 2.0 + sin(Double(liftProgress) * .pi) * 0.12
         
-        // Chin lifts smoothly up toward notch edge level (gripY - 4.0), protected by visibleRouteHead from notch clipping
+        // Chin lifts smoothly up toward notch edge level (gripY - 4.0), clearing the ledge
         let chinTargetY = gripY - 4.0
         let chinRiseY = pose.torso.neck.y - 10.0 + (chinTargetY - (pose.torso.neck.y - 10.0)) * easedLift
-        pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: min(pose.torso.neck.y - 4.0, chinRiseY)))
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: min(pose.torso.neck.y - 4.0, chinRiseY)), allowPullUp: true)
         
         // Arms flare naturally out (bendPositive: false on left arm, true on right arm)
         pose.leftArm.length1 = 26.0
@@ -1172,14 +1264,16 @@ public final class KinematicEngine: ObservableObject {
         pose.timestamp = behaviorTime
         let walkY = walkLedgeY
         let p = min(1.0, behaviorTime / 0.8)
-        let jumpY = CGFloat(sin(p * .pi)) * 12.0
+        let jumpY = CGFloat(sin(p * .pi)) * 14.0
         pose.torso.root = visibleBodyRoot(at: CGPoint(x: rootWorldX, y: walkY - 14.0 - jumpY))
-        pose.headCenter = visibleRouteHead(at: CGPoint(x: rootWorldX, y: max(pose.torso.neck.y - 8.0, ledgeY + 17.0)))
-        pose.headAngle = p * 360.0
+        pose.torso.spineAngle = -.pi / 2.0
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: pose.torso.neck.y - 8.0))
+        pose.headAngle = sin(p * .pi) * 8.0
         pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: pose.torso.root.x - 5.0, y: pose.torso.root.y + 6.0), bendPositive: false)
         pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: pose.torso.root.x + 5.0, y: pose.torso.root.y + 6.0), bendPositive: true)
-        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x - 10.0, y: pose.torso.neck.y - 4.0), bendPositive: false)
-        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x + 10.0, y: pose.torso.neck.y - 4.0), bendPositive: true)
+        let armLift = CGFloat(sin(p * .pi)) * 8.0
+        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x - 10.0, y: pose.torso.neck.y - 4.0 - armLift), bendPositive: false)
+        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x + 10.0, y: pose.torso.neck.y - 4.0 - armLift), bendPositive: true)
         pose.mouthShape = .smile
         return pose
     }

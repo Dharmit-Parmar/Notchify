@@ -108,9 +108,6 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.state = .collapsed
             }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
-            if ThockModule.shared.isRunning {
-                ThockModule.shared.stopEngine()
-            }
         }
         appearancePreviewWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: item)
@@ -306,9 +303,6 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.stopAll()
-            if ThockModule.shared.isRunning {
-                ThockModule.shared.stopEngine()
-            }
         }
         collapseWorkItem = item
         let collapseDelay = AppDelegate.isSettingsOpen ? 0.30 : SettingsStore.shared.autoCollapseDelay
@@ -337,9 +331,6 @@ public final class NotchShellCoordinator: ObservableObject {
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
         ModuleRegistry.shared.stopAll()
         NoteStorageManager.shared.saveImmediately()
-        if ThockModule.shared.isRunning {
-            ThockModule.shared.stopEngine()
-        }
     }
     
     public func toggleLock() {

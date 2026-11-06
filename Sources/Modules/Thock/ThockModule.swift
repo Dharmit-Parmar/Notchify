@@ -150,8 +150,10 @@ public final class ThockModule: NotchModule {
     @Published public var terminalLogs: [String] = []
     @Published public var cliCommandInput: String = ""
     
-    // Process Piping
+    // Process Piping & Ownership Tracking (Strictly tracks ONLY child process spawned by Notch)
     private var process: Process?
+    public private(set) nonisolated(unsafe) var spawnedProcess: Process?
+    public private(set) var spawnedPID: pid_t?
     private var inPipe: Pipe?
     private var outPipe: Pipe?
     private var activeHeartbeatTimer: AnyCancellable?
@@ -165,6 +167,23 @@ public final class ThockModule: NotchModule {
         
         // Zero-overhead check for running process
         checkProcessStateZeroOverhead()
+        
+        // Listen for application termination to guarantee cleanup of spawned child process
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                ThockModule.shared.terminateProcess()
+            }
+        }
+    }
+    
+    deinit {
+        if let proc = spawnedProcess, proc.isRunning {
+            proc.terminate()
+        }
     }
     
     // MARK: - NotchModule Protocol Lifecycle
@@ -184,8 +203,51 @@ public final class ThockModule: NotchModule {
     }
     
     public func terminateProcess() {
-        stopEngine()
         stopLightweightMonitor()
+        
+        // CRITICAL INVARIANT: Terminate ONLY the child process spawned by this instance of Notch!
+        // Never touch or kill external instances of thock-cli running in user terminals.
+        guard let proc = self.spawnedProcess, proc.isRunning else {
+            self.spawnedProcess = nil
+            self.spawnedPID = nil
+            self.process = nil
+            self.processPID = nil
+            self.isRunning = false
+            return
+        }
+        
+        // Try gentle exit command first
+        if let inPipe = self.inPipe {
+            if let data = "exit\n".data(using: .utf8) {
+                try? inPipe.fileHandleForWriting.write(contentsOf: data)
+            }
+        }
+        
+        // Terminate the spawned child process instance directly
+        proc.terminate()
+        
+        // Give up to 150ms for clean termination
+        let deadline = Date().addingTimeInterval(0.15)
+        while proc.isRunning && Date() < deadline {
+            usleep(5_000)
+        }
+        
+        // If still running after deadline, force terminate via SIGKILL strictly to the spawned PID
+        if proc.isRunning {
+            if let pid = self.spawnedPID {
+                kill(pid, SIGKILL)
+            }
+        }
+        
+        self.outPipe?.fileHandleForReading.readabilityHandler = nil
+        self.inPipe = nil
+        self.outPipe = nil
+        self.process = nil
+        self.spawnedProcess = nil
+        self.spawnedPID = nil
+        self.processPID = nil
+        self.isRunning = false
+        self.statusSubtitle = "Engine Stopped"
     }
     
     // MARK: - Thermal-Optimized Zero-Overhead Monitor (No fork/exec pgrep loops!)
@@ -206,7 +268,7 @@ public final class ThockModule: NotchModule {
     }
     
     public func checkProcessStateZeroOverhead() {
-        if let pid = self.processPID {
+        if let pid = self.spawnedPID {
             // kill(pid, 0) is a 5-nanosecond POSIX syscall: returns 0 if alive, -1 if exited.
             if kill(pid, 0) == 0 {
                 if !self.isRunning {
@@ -218,14 +280,17 @@ public final class ThockModule: NotchModule {
                 // Process terminated externally
                 self.isRunning = false
                 self.processPID = nil
+                self.spawnedProcess = nil
+                self.spawnedPID = nil
                 self.statusSubtitle = "Engine Offline"
                 return
             }
         }
         
-        if let proc = self.process, proc.isRunning {
+        if let proc = self.spawnedProcess, proc.isRunning {
             self.isRunning = true
             self.processPID = proc.processIdentifier
+            self.spawnedPID = proc.processIdentifier
             self.statusSubtitle = "Active · PID \(proc.processIdentifier)"
             return
         }
@@ -541,6 +606,7 @@ public final class ThockModule: NotchModule {
         self.inPipe = inP
         self.outPipe = outP
         self.process = proc
+        self.spawnedProcess = proc
         
         outP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
@@ -570,6 +636,8 @@ public final class ThockModule: NotchModule {
                 self?.inPipe = nil
                 self?.outPipe = nil
                 self?.process = nil
+                self?.spawnedProcess = nil
+                self?.spawnedPID = nil
                 self?.isRunning = false
                 self?.processPID = nil
                 self?.statusSubtitle = "Engine Stopped"
@@ -580,6 +648,7 @@ public final class ThockModule: NotchModule {
         do {
             try proc.run()
             self.isRunning = true
+            self.spawnedPID = proc.processIdentifier
             self.processPID = proc.processIdentifier
             self.statusSubtitle = "Active · PID \(proc.processIdentifier)"
             FeedbackManager.playSuccess()
@@ -597,6 +666,8 @@ public final class ThockModule: NotchModule {
             startLightweightMonitor()
         } catch {
             self.isRunning = false
+            self.spawnedProcess = nil
+            self.spawnedPID = nil
             self.processPID = nil
             appendLog("❌ Failed to launch thock-cli: \(error.localizedDescription)")
         }
@@ -604,30 +675,32 @@ public final class ThockModule: NotchModule {
     
     public func stopEngine() {
         FeedbackManager.playClick()
-        guard isRunning else {
-            if let pid = processPID {
-                kill(pid, SIGTERM)
-                self.processPID = nil
-                self.isRunning = false
-            }
+        guard isRunning || spawnedProcess?.isRunning == true else {
             outPipe?.fileHandleForReading.readabilityHandler = nil
             inPipe = nil
             outPipe = nil
             process = nil
+            spawnedProcess = nil
+            spawnedPID = nil
+            processPID = nil
+            isRunning = false
+            statusSubtitle = "Engine Stopped"
             return
         }
         
         sendCommand("exit", echo: false)
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self = self else { return }
-            if self.process?.isRunning == true {
-                self.process?.terminate()
+            if let proc = self.spawnedProcess, proc.isRunning {
+                proc.terminate()
             }
             self.outPipe?.fileHandleForReading.readabilityHandler = nil
             self.inPipe = nil
             self.outPipe = nil
             self.process = nil
+            self.spawnedProcess = nil
+            self.spawnedPID = nil
             self.isRunning = false
             self.processPID = nil
             self.statusSubtitle = "Engine Stopped"

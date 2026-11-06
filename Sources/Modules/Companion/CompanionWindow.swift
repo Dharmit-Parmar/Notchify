@@ -138,10 +138,10 @@ public final class CompanionClickPanel: NSPanel {
             return
         }
         
-        let root = pose.root
+        let centerPoint = pose.drawsHead ? pose.headCenter : pose.root
         // In screen coordinates: Y is measured from screen bottom
-        let screenX = screen.frame.origin.x + root.x - 24.0
-        let screenY = screen.frame.maxY - root.y - 24.0
+        let screenX = screen.frame.origin.x + centerPoint.x - 24.0
+        let screenY = screen.frame.maxY - centerPoint.y - 24.0
         let targetOrigin = NSPoint(x: screenX, y: screenY)
         guard abs(frame.origin.x - targetOrigin.x) > 0.5 || abs(frame.origin.y - targetOrigin.y) > 0.5 else { return }
         self.setFrameOrigin(targetOrigin)

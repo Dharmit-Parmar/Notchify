@@ -193,14 +193,169 @@ public struct DashboardSettingsView: View {
                         store.setSpan(1, for: .nowPlaying)
                         store.applyPresetDashboard(slots: [.notes, .clock, .calendar, .nowPlaying])
                     }
+                    
+                    PresetButton(title: "AI & Notes Studio", subtitle: "Ask AI (2-Sp) + Notes (2-Sp)") {
+                        store.dashboardLayoutFlow = .adaptiveAuto
+                        store.setSpan(2, for: .askAI)
+                        store.setSpan(2, for: .notes)
+                        store.applyPresetDashboard(slots: [.askAI, .notes, nil, nil])
+                    }
                 }
             }
             
             Divider().background(Color.white.opacity(0.12))
             
+            // Notes Widget Customization Section
+            notesCustomizationSection
+            
+            Divider().background(Color.white.opacity(0.12))
+            
             // Clock Customization Section
             clockCustomizationSection
+            
+            Divider().background(Color.white.opacity(0.12))
+            
+            // AI Assistant Customization Section
+            aiAssistantCustomizationSection
         }
+    }
+    
+    // MARK: - Notes Widget Customization Section
+    private var notesCustomizationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.98, green: 0.72, blue: 0.20).opacity(0.2))
+                        .frame(width: 26, height: 26)
+                    Image(systemName: "note.text")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(red: 0.98, green: 0.72, blue: 0.20))
+                }
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("QUICK NOTES WIDGET CUSTOMIZATION")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Manage scratchpad options and unified AI copilot integration")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Spacer()
+            }
+            
+            // Toggle for Notes AI
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Enable AI Assistant in Notes")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("Summarize notes, extract action items, and polish text directly within the note editor.")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Spacer()
+                
+                Toggle("", isOn: $store.isNotesAIEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+            
+            // If Notes AI is enabled: Show Unified Login Status or Prompt to Login
+            if store.isNotesAIEnabled {
+                if AskAIService.shared.hasAnyCloudLogin {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.green)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Unified AI Login Active")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Logged in via \(AskAIService.shared.currentLoginBadgeText). Active across both Notes and Ask AI.")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                        Text("Ready ✓")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.green.opacity(0.15)))
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.06)))
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.orange)
+                            Text("AI Login Required for Notes & Ask AI")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        Text("To use AI in Notes and Ask AI, sign in with your Google account or configure an API key. Once logged in, your session is automatically shared between Notes and Ask AI.")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(DesignSystem.secondaryText)
+                        
+                        HStack(spacing: 8) {
+                            Button {
+                                AskAIService.shared.connectGoogleAccount()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "person.crop.circle.badge.checkmark")
+                                    Text("Sign in with Google")
+                                }
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(AIProvider.gemini.tintColor))
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button {
+                                withAnimation {
+                                    AskAIService.shared.switchProvider(to: .gpt)
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "key.fill")
+                                    Text("Configure API Key Below")
+                                }
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.white.opacity(0.12)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.08)))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.orange.opacity(0.25), lineWidth: 0.8)
+                    )
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                )
+        )
     }
     
     // MARK: - Layout Mode Selection Section
@@ -446,6 +601,290 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 11, weight: .medium))
                         .toggleStyle(.switch)
                         .lineLimit(1)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                )
+        )
+    }
+    
+    // MARK: - AI Assistant Customization Section
+    private var aiAssistantCustomizationSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.68, green: 0.42, blue: 0.98).opacity(0.2))
+                        .frame(width: 26, height: 26)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(red: 0.68, green: 0.42, blue: 0.98))
+                }
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("AI ASSISTANT (SIRI, GEMINI, CHATGPT)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Configure intelligence engine, native Siri bridge, and cloud API keys")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Spacer()
+            }
+            
+            // Engine Selector Pills
+            VStack(alignment: .leading, spacing: 6) {
+                Text("DEFAULT PROVIDER")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundColor(DesignSystem.secondaryText)
+                
+                HStack(spacing: 8) {
+                    ForEach(AIProvider.allCases) { provider in
+                        let isSelected = store.aiDefaultProvider == provider
+                        Button {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                                AskAIService.shared.switchProvider(to: provider)
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: provider.icon)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(isSelected ? .white : provider.tintColor)
+                                Text(provider.displayName)
+                                    .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(isSelected ? provider.tintColor.opacity(0.85) : Color.white.opacity(0.05))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .strokeBorder(isSelected ? Color.white.opacity(0.25) : Color.white.opacity(0.08), lineWidth: 0.8)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            
+            // Provider Specific Configuration
+            if store.aiDefaultProvider == .siri {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(AIProvider.siri.tintColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Native macOS Siri Integration")
+                            .font(.system(size: 11.5, weight: .bold))
+                            .foregroundColor(.white)
+                        Text("Zero configuration required. Interacts directly with macOS built-in Siri assistant with 0 MB background RAM overhead.")
+                            .font(.system(size: 10))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
+                    Spacer()
+                    Button("Test Siri") {
+                        AskAIService.shared.triggerSiri()
+                    }
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(AIProvider.siri.tintColor))
+                    .buttonStyle(.plain)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+            } else if store.aiDefaultProvider == .gemini {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !store.connectedGoogleEmail.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.green)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Google Account Connected")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text(store.connectedGoogleEmail)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Button("Disconnect") {
+                                AskAIService.shared.disconnectGoogleAccount()
+                            }
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(.red.opacity(0.8))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                            .buttonStyle(.plain)
+                        }
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.08)))
+                    }
+                    
+                    HStack {
+                        Button {
+                            AskAIService.shared.connectGoogleAccount()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "person.crop.circle.badge.checkmark")
+                                Text(store.connectedGoogleEmail.isEmpty ? "Sign in with Google (Instant Zero-Key Login)" : "Open Gemini Web Workspace")
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(AIProvider.gemini.tintColor))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Spacer()
+                        
+                        Text(store.connectedGoogleEmail.isEmpty ? "Uses Google session without requiring API key" : "gemini.google.com")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(DesignSystem.tertiaryText)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(store.connectedGoogleEmail.isEmpty ? "GOOGLE GEMINI API KEY" : "CUSTOM GEMINI API KEY OVERRIDE (OPTIONAL)")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.green)
+                                Text("Hardware AES-256 Vault")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        if !store.connectedGoogleEmail.isEmpty {
+                            Text("Google Account (\(store.connectedGoogleEmail)) is active. A manual API key is completely optional.")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        SecureField("AIzaSy... (optional override)", text: $store.geminiApiKey)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                    }
+                    
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("MODEL")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            TextField("gemini-1.5-flash", text: $store.geminiModel)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("RAM FOOTPRINT")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            Text("< 50 KB (Pure URLSession REST)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.green)
+                                .padding(.vertical, 5)
+                        }
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Button {
+                            AskAIService.shared.openOpenAIKeyPage()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "key.fill")
+                                Text("Get OpenAI API Key")
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(AIProvider.gpt.tintColor))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Spacer()
+                        
+                        Text("Opens platform.openai.com/api-keys")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(DesignSystem.tertiaryText)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("OPENAI API KEY")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.green)
+                                Text("macOS Keychain AES-256")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        SecureField("sk-...", text: $store.openAIApiKey)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                    }
+                    
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("MODEL")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            TextField("gpt-4o-mini", text: $store.gptModel)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("RAM FOOTPRINT")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundColor(DesignSystem.secondaryText)
+                            Text("< 50 KB (Pure URLSession REST)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.green)
+                                .padding(.vertical, 5)
+                        }
+                    }
                 }
             }
         }

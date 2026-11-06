@@ -100,8 +100,8 @@ public struct PermissionsHelper {
             dir = dir.deletingLastPathComponent()
         }
         
-        // Standard fallback to known workspace
-        return URL(fileURLWithPath: "/Users/dharmitparmar/Doc/Notch")
+        // Dynamic fallback to current working directory or bundle container
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
     }
 
     public static var executableURL: URL {
