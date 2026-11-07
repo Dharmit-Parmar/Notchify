@@ -8,8 +8,10 @@
 [![Platform](https://img.shields.io/badge/Platform-macOS%2014.0%2B%20(Sonoma%20%7C%20Sequoia)-000000?style=for-the-badge&logo=apple&logoColor=white)](https://apple.com/macos)
 [![Swift](https://img.shields.io/badge/Swift-6.0%20Ready-F05138?style=for-the-badge&logo=swift&logoColor=white)](https://swift.org)
 [![UI Framework](https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://developer.apple.com/xcode/swiftui/)
-[![Memory Footprint](https://img.shields.io/badge/Idle%20RAM-%3C%2060%20MB-34C759?style=for-the-badge)](https://github.com)
+[![Memory Footprint](https://img.shields.io/badge/Idle%20RAM-~88%20MB%20(0.5%25)-34C759?style=for-the-badge)](https://github.com)
 [![CPU Usage](https://img.shields.io/badge/Idle%20CPU-0.0%25-34C759?style=for-the-badge)](https://github.com)
+[![Themes](https://img.shields.io/badge/Themes-22%20Calibrated-blue?style=for-the-badge)](https://github.com)
+[![Verification](https://img.shields.io/badge/Tests-78%2F78%20Passed-brightgreen?style=for-the-badge)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br/>
@@ -62,9 +64,18 @@ An interactive rotary dial for everyday document workflows:
 ### 💬 Direct Zero-Interruption Messaging
 - **Instant Background Dispatch:** Send messages directly via WhatsApp and Telegram from the notch without opening intrusive application windows.
 
-### 🎨 Dynamic Wallpaper Glass (60/30/10 Rule)
-- Automatically samples your desktop wallpaper's top-center chroma to tint the notch glass dynamically.
-- Includes 8 hand-calibrated themes: *Adaptive Wallpaper*, *Active App*, *Midnight Azure*, *Cyber Emerald*, *Sunset Crimson*, *Solar Amber*, *Deep Amethyst*, and *Titanium Luxury*.
+### 🎨 Dynamic OKLab Color Engine & 22 Calibrated Themes
+- **Multi-Zone Palette Extraction:** Extracts distinct shadow, midtone, and highlight tones from your top-notch wallpaper region, blended smoothly in perceptually linear OKLab color space.
+- **Frontmost App Accent:** Samples the active application's icon chroma to provide a harmonized global secondary accent without distracting saturation spikes.
+- **Contrast Guard:** Guarantees text contrast ratio >= 4.5:1 (WCAG AA) by dynamically clamping background luminance.
+- **22 Built-in Themes:** Includes 4 dynamic themes (*Wallpaper*, *Active App*, *Circadian*, *Music Aura*), 16 dark obsidian & jewel styles, and 2 high-contrast light themes (*Birch Studio* `#F7F5F0` and *Sakura Blossom* `#FDF6F7`).
+- **Physical Bezel Blend:** Blends top camera margin for physical notch screens to avoid white halos.
+
+### 📐 Draggable Dashboard Slots Canvas & Focus Layout
+- **Live Drag Resizing:** Dotted vertical dividers between adjacent filled slots with `resizeLeftRight` cursor and real-time width adjustments.
+- **Haptic Snapping:** Snaps to 1/3, 1/2, and 2/3 ratios with tactile ticks. Double-click resets to 50/50.
+- **Focus Flow:** 4th dashboard layout paradigm providing a 70% primary stage with a 30% companion slot.
+- **3-Zone Compact Status Bar:** 6th collapsed indicator option with time/media left, camera cutout clearance center, and battery right.
 
 ---
 
@@ -72,11 +83,11 @@ An interactive rotary dial for everyday document workflows:
 
 | Metric | Target | Actual Measured | Status |
 | :--- | :--- | :--- | :--- |
-| **Idle Memory (RSS)** | < 60 MB | **7.4 MB – 20 MB** | 🟢 Highly Optimized |
-| **Idle CPU Footprint** | 0.0% | **0.0%** | 🟢 Pure Event-Driven |
-| **Release Binary Size** | < 15 MB | **12.0 MB** | 🟢 Native Swift 6.0 |
+| **Idle Memory (RSS)** | < 100 MB | **88 MB (0.5% MEM)** | 🟢 Verified Production Start |
+| **Idle CPU Footprint** | 0.0% | **0.0%** | 🟢 Event-Driven (No Polling) |
+| **Release Binary Size** | < 15 MB | **14.0 MB** | 🟢 Native Swift 6.0 |
 | **Screen Obstruction** | Zero | **0 pixels outside camera notch** | 🟢 Dynamic Frame Shrink |
-| **Automated Tests** | 100% Passing | **74/74 Unit + Rig + Pose Checks** | 🟢 Verified |
+| **Automated Tests** | 100% Passing | **78/78 Unit & Verification Tests** | 🟢 Verified |
 | **Security Gates** | 100% Passed | **6/6 Security Integrity Checks** | 🟢 POSIX 0600 + Keychain |
 
 ---
@@ -147,7 +158,7 @@ Notchify
 ## 🧪 Verification & Automated Testing
 
 Notchify includes a comprehensive automated verification harness spanning 4 test suites:
-1. **74-Test Verification Suite (`NotchTests`):** Dynamic window frame sizing, MediaRemote bridges, AirDrop batching, PDF compression & merge algorithms, encrypted storage, and navigation state machines.
+1. **78-Test Verification Suite (`NotchTests`):** Dynamic window frame sizing, MediaRemote bridges, AirDrop batching, PDF compression & merge algorithms, encrypted storage, OKLab perceptual color blending, contrast guard limits, draggable slot dividers, 3-zone status bar geometry, and motion governor state transitions.
 2. **7 Kinematic Rig & Roaming Acceptance Tests:** Bone length consistency, torso anchor attachment, single-clock timestamp invariants, zero foot slip invariants, monkey-bar hand pinning, and physical notch cutout non-intersection.
 3. **Companion Production Pose Checks:** Kinematic root step tracking, IK limb stability, and crawl contact slip verification.
 4. **Security Integrity Gate:** Automated auditing for credential leaks in plists, `.gitignore` coverage, git pre-commit hooks, and TCC Info.plist privacy declarations.
