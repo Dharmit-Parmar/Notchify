@@ -124,47 +124,16 @@ public final class AskAIService: ObservableObject {
         }
     }
     
-    // MARK: - Google / Antigravity Account Detection & Management
+    // MARK: - Google Account Management (Standard User-Opt-In)
     
-    /// Auto-detects local Google Antigravity account from ~/.gemini/jetski-standalone-oauth-token
-    /// or ~/.gemini/google_accounts.json without requiring manual credential entry.
     public func detectLocalGoogleAccount() -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        
-        // 1. Check jetski-standalone-oauth-token
-        let jetskiURL = home.appendingPathComponent(".gemini/jetski-standalone-oauth-token")
-        if let data = try? Data(contentsOf: jetskiURL),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let email = json["id_token_email"] as? String, !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if let tokenDict = json["token"] as? [String: Any],
-               let accessToken = tokenDict["access_token"] as? String, !accessToken.isEmpty {
-                KeychainHelper.shared.saveSecret(accessToken, forKey: "google_oauth_token")
-            }
-            return email.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        
-        // 2. Check google_accounts.json
-        let accountsURL = home.appendingPathComponent(".gemini/google_accounts.json")
-        if let data = try? Data(contentsOf: accountsURL),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let active = json["active"] as? String, !active.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return active.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            if let old = json["old"] as? [String], let first = old.first, !first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return first.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-        
+        // Zero automatic dotfile harvesting: respect cross-application boundaries
         return nil
     }
     
-    /// 1-Click Connect with Google / Antigravity Account
+    /// Open Google AI Studio to retrieve official user API Key
     public func connectGoogleAccount() {
         FeedbackManager.playClick()
-        if let detectedEmail = detectLocalGoogleAccount() {
-            SettingsStore.shared.connectedGoogleEmail = detectedEmail
-        }
-        // Direct to Google AI Studio key generator where the Google session is already authenticated
         if let url = URL(string: "https://aistudio.google.com/app/apikey") {
             NSWorkspace.shared.open(url)
         }
@@ -173,8 +142,8 @@ public final class AskAIService: ObservableObject {
     public func disconnectGoogleAccount() {
         FeedbackManager.playClick()
         SettingsStore.shared.connectedGoogleEmail = ""
-        KeychainHelper.shared.deleteSecret(forKey: "google_account_email")
         KeychainHelper.shared.deleteSecret(forKey: "google_oauth_token")
+        KeychainHelper.shared.deleteSecret(forKey: "google_account_email")
     }
     
     public func openGoogleAccountLogin() {
@@ -225,8 +194,8 @@ public final class AskAIService: ObservableObject {
         case .siri:
             responseText = triggerSiri(query: trimmed, context: context)
         case .gemini:
+            let key = SettingsStore.shared.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             do {
-                let key = SettingsStore.shared.geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 let googleEmail = SettingsStore.shared.connectedGoogleEmail.trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 if key.isEmpty && googleEmail.isEmpty {
@@ -239,7 +208,10 @@ public final class AskAIService: ObservableObject {
                     responseText = try await queryGeminiViaGoogleAccount(prompt: trimmed, context: context, googleEmail: googleEmail, model: SettingsStore.shared.geminiModel)
                 }
             } catch {
-                if let ctx = context, !ctx.isEmpty, isNoteAction(prompt: trimmed) {
+                if !key.isEmpty {
+                    responseText = "❌ Gemini request failed: \(error.localizedDescription)"
+                    self.errorMessage = error.localizedDescription
+                } else if let ctx = context, !ctx.isEmpty, isNoteAction(prompt: trimmed) {
                     responseText = runLocalNoteAction(actionPrompt: trimmed, noteText: ctx) + "\n\n*(Connected via Google: \(SettingsStore.shared.connectedGoogleEmail))*"
                 } else {
                     responseText = runIntelligentAssistantQuery(prompt: trimmed, context: context, providerName: "Google Gemini", accountEmail: SettingsStore.shared.connectedGoogleEmail)
@@ -315,18 +287,9 @@ public final class AskAIService: ObservableObject {
         }
     }
     
-    // MARK: - Query Gemini via Google Account Login (Zero API Key Requirement)
+    // MARK: - Query Gemini via Google Account Login (Zero External File Snooping)
     public func queryGeminiViaGoogleAccount(prompt: String, context: String?, googleEmail: String, model: String) async throws -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let tokenFileURL = home.appendingPathComponent(".gemini/jetski-standalone-oauth-token")
-        
-        if FileManager.default.fileExists(atPath: tokenFileURL.path),
-           let tokenData = try? Data(contentsOf: tokenFileURL),
-           let tokenJson = try? JSONSerialization.jsonObject(with: tokenData) as? [String: Any],
-           let tokDict = tokenJson["token"] as? [String: Any],
-           let accessToken = tokDict["access_token"] as? String,
-           !accessToken.isEmpty {
-            
+        if let accessToken = KeychainHelper.shared.loadSecret(forKey: "google_oauth_token"), !accessToken.isEmpty {
             let cleanModel = model.isEmpty ? "gemini-1.5-flash" : model
             let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(cleanModel):generateContent"
             if let url = URL(string: urlString) {

@@ -30,10 +30,10 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
     public var tintColor: Color {
         switch self {
         case .dashboard: return Color(red: 0.20, green: 0.60, blue: 1.00) // Electric Blue
-        case .appearance: return Color(red: 0.76, green: 0.44, blue: 0.98) // Royal Purple
+        case .appearance: return Color(red: 0.22, green: 0.52, blue: 0.94) // Deep Azure
         case .geometry: return Color(red: 0.22, green: 0.74, blue: 0.98) // Electric Cyan
         case .motion: return Color(red: 0.98, green: 0.62, blue: 0.22) // Solar Amber
-        case .modules: return Color(red: 0.48, green: 0.52, blue: 0.98) // Indigo
+        case .modules: return Color(red: 0.32, green: 0.55, blue: 0.90) // Cobalt Blue
         case .feedback: return Color(red: 0.22, green: 0.84, blue: 0.65) // Emerald Teal
         case .companion: return Color(red: 1.00, green: 0.58, blue: 0.20) // Warm Amber
         case .permissions: return Color(red: 0.98, green: 0.42, blue: 0.42) // Sunset Coral

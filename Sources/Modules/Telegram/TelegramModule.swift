@@ -397,7 +397,9 @@ public final class TelegramModule: NotchModule {
             testBotStatus = "Invalid URL"
             return
         }
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, err in
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8.0
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, err in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.isTestingBot = false
@@ -419,12 +421,30 @@ public final class TelegramModule: NotchModule {
         }.resume()
     }
     
+    private var contactsFileURL: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = appSupport.appendingPathComponent("NotchApp", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        return dir.appendingPathComponent("contacts.json")
+    }
+    
     private func loadSavedContacts() {
-        if let data = UserDefaults.standard.data(forKey: contactsStorageKey),
+        let file = contactsFileURL
+        if FileManager.default.fileExists(atPath: file.path),
+           let data = try? Data(contentsOf: file),
            let saved = try? JSONDecoder().decode([ChatContact].self, from: data),
            !saved.isEmpty {
             self.contacts = saved
             self.selectedContactId = saved.first?.id
+        } else if let legacyData = UserDefaults.standard.data(forKey: contactsStorageKey),
+                  let saved = try? JSONDecoder().decode([ChatContact].self, from: legacyData),
+                  !saved.isEmpty {
+            self.contacts = saved
+            self.selectedContactId = saved.first?.id
+            persistContacts()
+            UserDefaults.standard.removeObject(forKey: contactsStorageKey)
         } else {
             let welcome = ChatContact(
                 name: "Add Contact (+)",
@@ -446,8 +466,11 @@ public final class TelegramModule: NotchModule {
     
     private func persistContacts() {
         if let encoded = try? JSONEncoder().encode(contacts) {
-            UserDefaults.standard.set(encoded, forKey: contactsStorageKey)
+            let target = contactsFileURL
+            try? encoded.write(to: target, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
         }
+        UserDefaults.standard.removeObject(forKey: contactsStorageKey)
     }
     
     public var selectedContact: ChatContact? {

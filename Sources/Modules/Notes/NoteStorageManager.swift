@@ -3,7 +3,7 @@ import Combine
 import AppKit
 
 /// Zero-overhead, debounced notes storage manager.
-/// Completely eliminates full Notch UI invalidations and disk I/O thrashing during typing.
+/// Saves notes securely to ~/Library/Application Support/NotchApp/notes.txt (POSIX 0600).
 @MainActor
 public final class NoteStorageManager: ObservableObject {
     public static let shared = NoteStorageManager()
@@ -19,14 +19,34 @@ public final class NoteStorageManager: ObservableObject {
     
     private var saveTask: Task<Void, Never>?
     private var isDirty: Bool = false
+    private var observerTokens: [NSObjectProtocol] = []
+    
+    private var storageURL: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = appSupport.appendingPathComponent("NotchApp", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        return dir.appendingPathComponent("notes.txt")
+    }
     
     private init() {
-        self.text = UserDefaults.standard.string(forKey: Self.userDefaultsKey) ?? ""
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let fileURL = appSupport.appendingPathComponent("NotchApp/notes.txt")
+        if FileManager.default.fileExists(atPath: fileURL.path),
+           let saved = try? String(contentsOf: fileURL, encoding: .utf8) {
+            self.text = saved
+        } else if let legacy = UserDefaults.standard.string(forKey: Self.userDefaultsKey) {
+            self.text = legacy
+            UserDefaults.standard.removeObject(forKey: Self.userDefaultsKey)
+        } else {
+            self.text = ""
+        }
         setupLifecycleObservers()
     }
     
     private func setupLifecycleObservers() {
-        NotificationCenter.default.addObserver(
+        let t1 = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil,
             queue: .main
@@ -35,8 +55,9 @@ public final class NoteStorageManager: ObservableObject {
                 self?.saveImmediately()
             }
         }
+        observerTokens.append(t1)
         
-        NotificationCenter.default.addObserver(
+        let t2 = NotificationCenter.default.addObserver(
             forName: NSApplication.willResignActiveNotification,
             object: nil,
             queue: .main
@@ -45,6 +66,7 @@ public final class NoteStorageManager: ObservableObject {
                 self?.saveImmediately()
             }
         }
+        observerTokens.append(t2)
     }
     
     private func scheduleDebouncedSave() {
@@ -66,7 +88,12 @@ public final class NoteStorageManager: ObservableObject {
     }
     
     private func commitToDisk() {
-        UserDefaults.standard.set(text, forKey: Self.userDefaultsKey)
+        let target = storageURL
+        if let data = text.data(using: .utf8) {
+            try? data.write(to: target, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        }
+        UserDefaults.standard.removeObject(forKey: Self.userDefaultsKey)
         isDirty = false
     }
     

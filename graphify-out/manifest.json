@@ -6,10 +6,10 @@
     "semantic_hash": "7c62cb20d26d0676dcc5b546d498cd42"
   },
   "Sources/App/AppDelegate.swift": {
-    "mtime": 1793540739.7251189,
-    "seen": 1793552311.284112,
-    "ast_hash": "251de1fbfd5b9a273bafe53566e19c2b",
-    "semantic_hash": ""
+    "mtime": 1793560061.3768492,
+    "seen": 1793987242.146095,
+    "ast_hash": "3e483760652f53c612f1f4f6e166da8d",
+    "semantic_hash": "3e483760652f53c612f1f4f6e166da8d"
   },
   "Sources/App/Main.swift": {
     "mtime": 1793454897.4628623,
@@ -18,16 +18,16 @@
     "semantic_hash": "08f3225fa571111c91fd7b52f3051faa"
   },
   "Sources/Core/ModuleRegistry.swift": {
-    "mtime": 1793534284.140948,
-    "seen": 1793540059.448287,
-    "ast_hash": "afc44bd0d68924a1fa3d91d4c8ece108",
-    "semantic_hash": "afc44bd0d68924a1fa3d91d4c8ece108"
+    "mtime": 1793821083.6749809,
+    "seen": 1793987242.1460989,
+    "ast_hash": "9864f3179c5880e8713430889fd7f1cc",
+    "semantic_hash": "9864f3179c5880e8713430889fd7f1cc"
   },
   "Sources/Core/NotchModule.swift": {
-    "mtime": 1793542834.926723,
-    "seen": 1793552311.2841148,
-    "ast_hash": "d30dc2af89972221fe805e09a1c80ebb",
-    "semantic_hash": ""
+    "mtime": 1793818674.483665,
+    "seen": 1793987242.1460989,
+    "ast_hash": "cade0c5c085d01c104347c730fa4047e",
+    "semantic_hash": "cade0c5c085d01c104347c730fa4047e"
   },
   "Sources/Modules/Battery/BatteryModule.swift": {
     "mtime": 1793535794.5019562,
@@ -72,10 +72,10 @@
     "semantic_hash": "7f710767978501a5180ac500da201e27"
   },
   "Sources/Modules/Telegram/TelegramModule.swift": {
-    "mtime": 1793539054.6647756,
-    "seen": 1793540059.4482932,
-    "ast_hash": "3440b3c39f9d8ab976f2046d3649713a",
-    "semantic_hash": "3440b3c39f9d8ab976f2046d3649713a"
+    "mtime": 1793816542.2467928,
+    "seen": 1793987242.1461089,
+    "ast_hash": "34298a69d43a62f3c019ad9746d46957",
+    "semantic_hash": "34298a69d43a62f3c019ad9746d46957"
   },
   "Sources/Notch/NotchGeometry.swift": {
     "mtime": 1793454897.4650185,
@@ -84,16 +84,16 @@
     "semantic_hash": "1e2a4f4865b00363b1e232643242a98a"
   },
   "Sources/Notch/NotchRootView.swift": {
-    "mtime": 1793535751.4906106,
-    "seen": 1793540059.4482949,
-    "ast_hash": "79e4c5d60e4c71bce5f3ed95dae94ba2",
-    "semantic_hash": "79e4c5d60e4c71bce5f3ed95dae94ba2"
+    "mtime": 1793821098.9299192,
+    "seen": 1793987242.14611,
+    "ast_hash": "2ee6c1cdc51bec0925422f6543827fa5",
+    "semantic_hash": "2ee6c1cdc51bec0925422f6543827fa5"
   },
   "Sources/Notch/NotchShellCoordinator.swift": {
-    "mtime": 1793535918.124081,
-    "seen": 1793540059.4482949,
-    "ast_hash": "42905bfa5fa41147c40ba07d202c3ff5",
-    "semantic_hash": "42905bfa5fa41147c40ba07d202c3ff5"
+    "mtime": 1793811892.9545598,
+    "seen": 1793987242.146111,
+    "ast_hash": "e49628b42f8a8bb647654ebd195e2d4c",
+    "semantic_hash": "e49628b42f8a8bb647654ebd195e2d4c"
   },
   "Sources/Notch/NotchWindow.swift": {
     "mtime": 1793534362.1420257,
@@ -102,10 +102,10 @@
     "semantic_hash": "6d5261e36c294f57d796125ee1120da8"
   },
   "Sources/Settings/SettingsView.swift": {
-    "mtime": 1793542850.0979114,
-    "seen": 1793552311.28413,
-    "ast_hash": "22b1a9e5430f51b1aef72f04166d676d",
-    "semantic_hash": ""
+    "mtime": 1793816704.8977156,
+    "seen": 1793987242.146112,
+    "ast_hash": "f7464dac9ed9516061229e120f610d7e",
+    "semantic_hash": "f7464dac9ed9516061229e120f610d7e"
   },
   "Sources/UI/DesignSystem.swift": {
     "mtime": 1793522932.376019,
@@ -114,10 +114,10 @@
     "semantic_hash": "f58f1a6c816d6253f566a2ff83ad9f9c"
   },
   "Tests/VerificationTests.swift": {
-    "mtime": 1793542191.7982807,
-    "seen": 1793552311.284131,
-    "ast_hash": "b9922f6196391b44cff4fb7ec806fc8c",
-    "semantic_hash": ""
+    "mtime": 1793986033.495783,
+    "seen": 1793987242.146115,
+    "ast_hash": "2f397b361efd1eb29da6e574952e7dbb",
+    "semantic_hash": "2f397b361efd1eb29da6e574952e7dbb"
   },
   "run_notch.sh": {
     "mtime": 1793478803.830388,
@@ -144,16 +144,16 @@
     "semantic_hash": "54ad3ff40e34ea4ca50d01a304162864"
   },
   "Sources/Core/PermissionsHelper.swift": {
-    "mtime": 1793535485.810889,
-    "seen": 1793540059.448288,
-    "ast_hash": "db718e8e77d6ce9916258280fee782d8",
-    "semantic_hash": "db718e8e77d6ce9916258280fee782d8"
+    "mtime": 1793960798.7767901,
+    "seen": 1793987242.1461,
+    "ast_hash": "5a163db27a75d4efa47a4546a43fcb23",
+    "semantic_hash": "5a163db27a75d4efa47a4546a43fcb23"
   },
   "Sources/Modules/Thock/ThockModule.swift": {
-    "mtime": 1793535762.3981574,
-    "seen": 1793540059.448294,
-    "ast_hash": "a431890f1fa0fc3bfa621f63315e67be",
-    "semantic_hash": "a431890f1fa0fc3bfa621f63315e67be"
+    "mtime": 1793806630.3953722,
+    "seen": 1793987242.1461089,
+    "ast_hash": "9fa311d1e7574eccbe45393c11e273e9",
+    "semantic_hash": "9fa311d1e7574eccbe45393c11e273e9"
   },
   "Sources/Modules/Clock/ClockWidgetView.swift": {
     "mtime": 1793535469.0652707,
@@ -168,22 +168,22 @@
     "semantic_hash": "3e613e3c9447c9b4b6fc01c7218d0916"
   },
   "Sources/Modules/Notes/NotesWidgetView.swift": {
-    "mtime": 1793539066.388706,
-    "seen": 1793540059.448291,
-    "ast_hash": "dd963cb0cf39ef05b29f7f104b871f71",
-    "semantic_hash": "dd963cb0cf39ef05b29f7f104b871f71"
+    "mtime": 1793821343.4308064,
+    "seen": 1793987242.146107,
+    "ast_hash": "b4225b2c6cd96d45b5891a4f000fd48c",
+    "semantic_hash": "b4225b2c6cd96d45b5891a4f000fd48c"
   },
   "Sources/Notch/ModularDashboardView.swift": {
-    "mtime": 1793530113.2048814,
-    "seen": 1793540059.448294,
-    "ast_hash": "ccd21ac27c3d76fd8fe53c429db6de0c",
-    "semantic_hash": "ccd21ac27c3d76fd8fe53c429db6de0c"
+    "mtime": 1793821324.5139945,
+    "seen": 1793987242.14611,
+    "ast_hash": "8662fafc0edefe3f3c79b9835a04b01b",
+    "semantic_hash": "8662fafc0edefe3f3c79b9835a04b01b"
   },
   "Sources/Settings/DashboardSettingsView.swift": {
-    "mtime": 1793534380.004595,
-    "seen": 1793540059.4482958,
-    "ast_hash": "43caa4d99c7156ca195706818b775595",
-    "semantic_hash": "43caa4d99c7156ca195706818b775595"
+    "mtime": 1793821381.5671375,
+    "seen": 1793987242.146112,
+    "ast_hash": "b68ceb363e4bea115b1f36c9e4796a56",
+    "semantic_hash": "b68ceb363e4bea115b1f36c9e4796a56"
   },
   "NOTCH_CREATURE_MVP.md": {
     "mtime": 1793539580.1536996,
@@ -192,51 +192,195 @@
     "semantic_hash": "b82cdd2f886439d08aec57e817127f26"
   },
   "Sources/Modules/Companion/CompanionCoordinator.swift": {
-    "mtime": 1793543114.9172885,
-    "seen": 1793552311.284118,
-    "ast_hash": "24306148f7f85f24333e525881fd9f25",
-    "semantic_hash": ""
+    "mtime": 1793748779.630865,
+    "seen": 1793987242.146104,
+    "ast_hash": "edebf950bdca296e601e159ed2cb7f59",
+    "semantic_hash": "edebf950bdca296e601e159ed2cb7f59"
   },
   "Sources/Modules/Companion/CompanionTypes.swift": {
-    "mtime": 1793541963.0053945,
-    "seen": 1793552311.2841191,
-    "ast_hash": "b1adab3564bcdf8f0cbd23364f4b5a87",
-    "semantic_hash": ""
+    "mtime": 1793560651.9535728,
+    "seen": 1793987242.146104,
+    "ast_hash": "e8e80b93eed7251e14c32aea6c422102",
+    "semantic_hash": "e8e80b93eed7251e14c32aea6c422102"
   },
   "Sources/Modules/Companion/CompanionWindow.swift": {
-    "mtime": 1793543047.282728,
-    "seen": 1793552311.2841191,
-    "ast_hash": "1e9d500c45d72bf6f85a4be1e80f062b",
-    "semantic_hash": ""
+    "mtime": 1793746451.2578993,
+    "seen": 1793987242.146104,
+    "ast_hash": "b8289116a74ecf4ca5f17676a953c542",
+    "semantic_hash": "b8289116a74ecf4ca5f17676a953c542"
   },
   "Sources/Modules/Companion/CreatureRigView.swift": {
-    "mtime": 1793543169.158253,
-    "seen": 1793552311.28412,
-    "ast_hash": "a1ae20d43b1760f42fb91b4127109fff",
-    "semantic_hash": ""
+    "mtime": 1793748884.1865368,
+    "seen": 1793987242.146105,
+    "ast_hash": "160f028db4c3f7480eadd13759ade513",
+    "semantic_hash": "160f028db4c3f7480eadd13759ade513"
   },
   "Sources/Modules/Companion/KinematicEngine.swift": {
-    "mtime": 1793542744.4965987,
-    "seen": 1793552311.28412,
-    "ast_hash": "60b198868de3753df74bcf07cf8adc21",
-    "semantic_hash": ""
+    "mtime": 1793748867.246036,
+    "seen": 1793987242.146105,
+    "ast_hash": "4afc70fdcb745a9b0cae0d4626736df5",
+    "semantic_hash": "4afc70fdcb745a9b0cae0d4626736df5"
   },
   "Sources/Modules/Companion/KinematicSkeleton.swift": {
-    "mtime": 1793542668.4441772,
-    "seen": 1793552311.284121,
-    "ast_hash": "5a1aa23568db752cbaf634a355c3f5ee",
-    "semantic_hash": ""
+    "mtime": 1793557417.8456788,
+    "seen": 1793987242.146106,
+    "ast_hash": "dc0681efa0bcad30d04d3fa1fa435ff1",
+    "semantic_hash": "dc0681efa0bcad30d04d3fa1fa435ff1"
   },
   "Tests/KinematicAcceptanceTests.swift": {
     "mtime": 1793543270.1386805,
-    "seen": 1793552311.284131,
+    "seen": 1793987242.146114,
     "ast_hash": "e1d181d6f36d5af86969e3897dd35e82",
-    "semantic_hash": ""
+    "semantic_hash": "e1d181d6f36d5af86969e3897dd35e82"
   },
   "NOTCH_CARTOON_FEATURE.md": {
     "mtime": 1793552239.8336701,
-    "seen": 1793552311.2841332,
+    "seen": 1793987242.146118,
     "ast_hash": "3315a148ef18a53b482011a786ad2308",
-    "semantic_hash": ""
+    "semantic_hash": "3315a148ef18a53b482011a786ad2308"
+  },
+  "Sources/Core/KeychainHelper.swift": {
+    "mtime": 1793985943.6863267,
+    "seen": 1793987242.146098,
+    "ast_hash": "5f48b59bd9d4b0fbbef03e571af7fcdb",
+    "semantic_hash": "5f48b59bd9d4b0fbbef03e571af7fcdb"
+  },
+  "Sources/Modules/AI/AskAIService.swift": {
+    "mtime": 1793821251.8105838,
+    "seen": 1793987242.1461,
+    "ast_hash": "949dfd69cfffeea2e9fcc1f4a09f13b7",
+    "semantic_hash": "949dfd69cfffeea2e9fcc1f4a09f13b7"
+  },
+  "Sources/Modules/AI/AskAIWidgetView.swift": {
+    "mtime": 1793821262.1614788,
+    "seen": 1793987242.146101,
+    "ast_hash": "b18fa16588d9b467ce3b1b60deec8ae2",
+    "semantic_hash": "b18fa16588d9b467ce3b1b60deec8ae2"
+  },
+  "Tests/CompanionFrameStripGenerator.swift": {
+    "mtime": 1793561070.1238923,
+    "seen": 1793987242.146113,
+    "ast_hash": "493fd5712fef3d1da8b9e8f7ebd4752f",
+    "semantic_hash": "493fd5712fef3d1da8b9e8f7ebd4752f"
+  },
+  "Tests/CompanionFrameStripStubs.swift": {
+    "mtime": 1793558940.7469404,
+    "seen": 1793987242.146113,
+    "ast_hash": "bf737cfdfda6803fd4ddd5cc08acd009",
+    "semantic_hash": "bf737cfdfda6803fd4ddd5cc08acd009"
+  },
+  "Tests/CompanionProductionPoseChecks.swift": {
+    "mtime": 1793746344.6020892,
+    "seen": 1793987242.146114,
+    "ast_hash": "460b5fcfe580b186f906098aa014ba72",
+    "semantic_hash": "460b5fcfe580b186f906098aa014ba72"
+  },
+  "scripts/security-audit.sh": {
+    "mtime": 1793816650.6769917,
+    "seen": 1793987242.146116,
+    "ast_hash": "23f55bcebc0e8abe16f276137e324e83",
+    "semantic_hash": "23f55bcebc0e8abe16f276137e324e83"
+  },
+  "CODEBASE_ANALYSIS_REPORT.md": {
+    "mtime": 1793960988.5832102,
+    "seen": 1793987242.146116,
+    "ast_hash": "7b7c3e57d47e5c990fa1077779d682b4",
+    "semantic_hash": "7b7c3e57d47e5c990fa1077779d682b4"
+  },
+  "CREATURE_ANALYSIS.md": {
+    "mtime": 1793735532.6275208,
+    "seen": 1793987242.1461172,
+    "ast_hash": "843a7c0609abff30d05eb3a8e730378a",
+    "semantic_hash": "843a7c0609abff30d05eb3a8e730378a"
+  },
+  "CREATURE_ANALYSIS_PART2_FIXES.md": {
+    "mtime": 1793737397.5284815,
+    "seen": 1793987242.1461172,
+    "ast_hash": "a1fb7a8cd05a9aa5713121412fd27b34",
+    "semantic_hash": "a1fb7a8cd05a9aa5713121412fd27b34"
+  },
+  "CREATURE_RIGIDITY_AND_SETTINGS_ANALYSIS.md": {
+    "mtime": 1793744401.1766124,
+    "seen": 1793987242.1461172,
+    "ast_hash": "327b3550bff51464052b877d2e1eb2e8",
+    "semantic_hash": "327b3550bff51464052b877d2e1eb2e8"
+  },
+  "GITHUB_SECURITY_AND_SENSITIVE_DATA_AUDIT.md": {
+    "mtime": 1793961018.6739728,
+    "seen": 1793987242.146118,
+    "ast_hash": "ecdeb4c8f1bb3c89709d8f956794b96d",
+    "semantic_hash": "ecdeb4c8f1bb3c89709d8f956794b96d"
+  },
+  "artifacts/companion-frame-strips/climb-over.png": {
+    "mtime": 1793747598.7061903,
+    "seen": 1793987242.1461189,
+    "ast_hash": "49c57465a395e17a8d0e7c5e494ce3a1",
+    "semantic_hash": "49c57465a395e17a8d0e7c5e494ce3a1"
+  },
+  "artifacts/companion-frame-strips/crawl.png": {
+    "mtime": 1793747598.6470194,
+    "seen": 1793987242.1461198,
+    "ast_hash": "24999cb2fbca993c38cc6e4095bba262",
+    "semantic_hash": "24999cb2fbca993c38cc6e4095bba262"
+  },
+  "artifacts/companion-frame-strips/hang-clean.png": {
+    "mtime": 1793747598.7456934,
+    "seen": 1793987242.1461198,
+    "ast_hash": "3949d2c94d082c82bd1e5ce51ef664ea",
+    "semantic_hash": "3949d2c94d082c82bd1e5ce51ef664ea"
+  },
+  "artifacts/companion-frame-strips/hang.png": {
+    "mtime": 1793747598.6614597,
+    "seen": 1793987242.1461198,
+    "ast_hash": "dea4cbf774ea5cebbb66599d478c6a11",
+    "semantic_hash": "dea4cbf774ea5cebbb66599d478c6a11"
+  },
+  "artifacts/companion-frame-strips/monkey-bar.png": {
+    "mtime": 1793747598.6897843,
+    "seen": 1793987242.146121,
+    "ast_hash": "3b7ced8ca0df05e90fd3585dc2d816de",
+    "semantic_hash": "3b7ced8ca0df05e90fd3585dc2d816de"
+  },
+  "artifacts/companion-frame-strips/peek-left-clean.png": {
+    "mtime": 1793747598.7575002,
+    "seen": 1793987242.146121,
+    "ast_hash": "c5a1f35bdd7f05752250ed2254009a22",
+    "semantic_hash": "c5a1f35bdd7f05752250ed2254009a22"
+  },
+  "artifacts/companion-frame-strips/peek-left.png": {
+    "mtime": 1793747598.721107,
+    "seen": 1793987242.146122,
+    "ast_hash": "126d2b99f45dd279c17b6639829d19c0",
+    "semantic_hash": "126d2b99f45dd279c17b6639829d19c0"
+  },
+  "artifacts/companion-frame-strips/pull-up.png": {
+    "mtime": 1793747598.672212,
+    "seen": 1793987242.146122,
+    "ast_hash": "e0a07dc6255985d41a4898f7bf1f238d",
+    "semantic_hash": "e0a07dc6255985d41a4898f7bf1f238d"
+  },
+  "artifacts/companion-frame-strips/sleep-clean.png": {
+    "mtime": 1793747598.7727664,
+    "seen": 1793987242.146122,
+    "ast_hash": "c173b090d43a2e401a831051d4d5ed3b",
+    "semantic_hash": "c173b090d43a2e401a831051d4d5ed3b"
+  },
+  "artifacts/companion-frame-strips/walk-right-clean.png": {
+    "mtime": 1793747598.7325928,
+    "seen": 1793987242.146123,
+    "ast_hash": "874c04df64d1107404ff738a7da36842",
+    "semantic_hash": "874c04df64d1107404ff738a7da36842"
+  },
+  "artifacts/companion-frame-strips/walk-right.png": {
+    "mtime": 1793747598.6328068,
+    "seen": 1793987242.146123,
+    "ast_hash": "0d04eb8881a66fd2af16bdce6316abbf",
+    "semantic_hash": "0d04eb8881a66fd2af16bdce6316abbf"
+  },
+  "artifacts/companion-frame-strips/walk.png": {
+    "mtime": 1793747598.6196802,
+    "seen": 1793987242.1461241,
+    "ast_hash": "d1517fb48c047d4e75c282c951a5442c",
+    "semantic_hash": "d1517fb48c047d4e75c282c951a5442c"
   }
 }

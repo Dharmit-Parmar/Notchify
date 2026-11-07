@@ -54,6 +54,8 @@ public struct NotesWidgetView: View {
             self.uiState.isThockRunning = running
         }
         .onDisappear {
+            uiState.undoTimer?.invalidate()
+            uiState.undoTimer = nil
             // Immediate save when collapsing or navigating away
             noteStorage.saveImmediately()
             // Note: Mechanical key sounds persist while Notch is running so users can type anywhere in macOS
@@ -476,7 +478,7 @@ public struct NotesWidgetView: View {
                 if uiState.showAIPanel && store.isNotesAIEnabled {
                     notesAIPanelView(compact: false)
                 } else {
-                    editorWithPlaceholder(placeholder: "Write anything... thoughts, code snippets, temporary credentials, or to-dos.")
+                    editorWithPlaceholder(placeholder: "Write anything... thoughts, code snippets, quick reminders, or to-dos.")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

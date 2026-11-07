@@ -9,6 +9,11 @@ import CryptoKit
 import IOKit
 import Security
 
+final class TestOutputAccumulator: @unchecked Sendable {
+    var text = ""
+}
+
+@MainActor
 func runAllVerificationTests() {
     print("=====================================================")
     print("  RUNNING COMPREHENSIVE NOTCH APP VERIFICATION TESTS ")
@@ -508,11 +513,11 @@ func runAllVerificationTests() {
     proc.standardOutput = outP
     proc.standardError = outP
     
-    var outputCaptured = ""
+    let outputBox = TestOutputAccumulator()
     outP.fileHandleForReading.readabilityHandler = { handle in
         let data = handle.availableData
         guard !data.isEmpty, let str = String(data: data, encoding: .utf8) else { return }
-        outputCaptured += str
+        outputBox.text += str
     }
     
     try? proc.run()
@@ -527,7 +532,7 @@ func runAllVerificationTests() {
     proc.waitUntilExit()
     assert(!proc.isRunning, "thock-cli must exit cleanly on 'exit'")
     assert(proc.terminationStatus == 0, "Exit status must be 0")
-    print("  Captured \(outputCaptured.count) characters of CLI telemetry")
+    print("  Captured \(outputBox.text.count) characters of CLI telemetry")
     print("  ✓ Thock CLI process connectivity & pipeline verified.")
     
     // Test 24: Thock Dual Volume Control, ASMR Mixing & Sound Sample Audition Pipeline
@@ -553,11 +558,11 @@ func runAllVerificationTests() {
     dualProc.standardOutput = dualOut
     dualProc.standardError = dualOut
     
-    var dualOutput = ""
+    let dualOutputBox = TestOutputAccumulator()
     dualOut.fileHandleForReading.readabilityHandler = { handle in
         let data = handle.availableData
         guard !data.isEmpty, let str = String(data: data, encoding: .utf8) else { return }
-        dualOutput += str
+        dualOutputBox.text += str
     }
     
     try? dualProc.run()
@@ -570,8 +575,8 @@ func runAllVerificationTests() {
     
     dualProc.waitUntilExit()
     assert(dualProc.terminationStatus == 0, "Dual process exited cleanly")
-    assert(dualOutput.contains("Volume: 85%"), "Output must confirm Key Volume 85%")
-    assert(dualOutput.contains("vol → 45%"), "Output must confirm ASMR Volume 45%")
+    assert(dualOutputBox.text.contains("Volume: 85%"), "Output must confirm Key Volume 85%")
+    assert(dualOutputBox.text.contains("vol → 45%"), "Output must confirm ASMR Volume 45%")
     print("  ✓ Dual Volume (Key Vol: 85% / ASMR Vol: 45%) & ASMR layer switching verified.")
     
     // Test 25: File Studio Manual File Upload via NSOpenPanel
@@ -663,16 +668,17 @@ func runAllVerificationTests() {
     assert(testSettingsWindow.styleMask.contains(.titled), "Window must have titled styleMask")
     
     // WillClose Notification Observer Lifecycle
-    var willCloseReceived = false
+    final class CloseFlag: @unchecked Sendable { var received = false }
+    let closeFlag = CloseFlag()
     let closeObserver = NotificationCenter.default.addObserver(
         forName: NSWindow.willCloseNotification,
         object: testSettingsWindow,
         queue: .main
     ) { _ in
-        willCloseReceived = true
+        closeFlag.received = true
     }
     NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: testSettingsWindow)
-    assert(willCloseReceived, "willCloseNotification must fire when settings window is dismissed")
+    assert(closeFlag.received, "willCloseNotification must fire when settings window is dismissed")
     NotificationCenter.default.removeObserver(closeObserver)
     print("  ✓ Settings window geometry (540x620), styleMask (.closable, .miniaturizable) & willClose lifecycle verified.")
     
@@ -1662,14 +1668,29 @@ func runAllVerificationTests() {
     let decryptedString = String(data: decryptedData, encoding: .utf8)
     assert(decryptedString == testSecret, "Decrypted text must match original secret exactly")
     
-    // 3. Zero-Keychain-Prompt Invariant: Secrets are isolated in vault.enc with 0600 permissions
-    let appSupportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    let vaultPath = appSupportDir.appendingPathComponent("NotchApp/vault.enc").path
-    if FileManager.default.fileExists(atPath: vaultPath) {
-        let attrs = try! FileManager.default.attributesOfItem(atPath: vaultPath)
-        let perms = attrs[.posixPermissions] as? NSNumber
-        assert(perms?.intValue == 0o600, "Encrypted vault file must have POSIX 0600 owner-only permissions")
+    // 3. Native Apple Keychain Invariant: Secrets stored in Security.framework
+    let testKeychainSecret = "test_keychain_secret_value_123"
+    let testAccount = "test_verification_account"
+    let testService = "com.notch.NotchApp.test"
+    let baseQuery: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: testService,
+        kSecAttrAccount as String: testAccount
+    ]
+    SecItemDelete(baseQuery as CFDictionary)
+    var addQuery = baseQuery
+    addQuery[kSecValueData as String] = Data(testKeychainSecret.utf8)
+    addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    assert(SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess, "Native keychain save must succeed")
+    var readQuery = baseQuery
+    readQuery[kSecReturnData as String] = true
+    readQuery[kSecMatchLimit as String] = kSecMatchLimitOne
+    var readItem: CFTypeRef?
+    assert(SecItemCopyMatching(readQuery as CFDictionary, &readItem) == errSecSuccess, "Native keychain load must succeed")
+    if let data = readItem as? Data, let readStr = String(data: data, encoding: .utf8) {
+        assert(readStr == testKeychainSecret, "Native keychain loaded data must match exactly")
     }
+    assert(SecItemDelete(baseQuery as CFDictionary) == errSecSuccess, "Native keychain delete must succeed")
     
     // 4. Security Invariant: UserDefaults must NOT store plain text keys
     assert(UserDefaults.standard.string(forKey: "NotchApp_GeminiApiKey") == nil, "Security Breach Prevention: Gemini API key must NEVER be in UserDefaults plist")

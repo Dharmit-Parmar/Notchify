@@ -18,6 +18,7 @@ public final class NowPlayingModule: ObservableObject {
     
     private var storedProgress: Double = 0.0
     private var lastProgressUpdate = Date()
+    private var observerTokens: [NSObjectProtocol] = []
 
     public var progress: Double {
         guard duration > 0 else { return 0 }
@@ -37,7 +38,7 @@ public final class NowPlayingModule: ObservableObject {
             "MRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification"
         ]
         for name in notifNames {
-            NotificationCenter.default.addObserver(
+            let token = NotificationCenter.default.addObserver(
                 forName: NSNotification.Name(name),
                 object: nil,
                 queue: .main
@@ -46,9 +47,10 @@ public final class NowPlayingModule: ObservableObject {
                     self?.refreshMediaState()
                 }
             }
+            observerTokens.append(token)
         }
         
-        NSWorkspace.shared.notificationCenter.addObserver(
+        let wsToken = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
@@ -57,6 +59,17 @@ public final class NowPlayingModule: ObservableObject {
                 self?.refreshMediaState()
             }
         }
+        observerTokens.append(wsToken)
+    }
+
+    public func teardown() {
+        for token in observerTokens {
+            NotificationCenter.default.removeObserver(token)
+            NSWorkspace.shared.notificationCenter.removeObserver(token)
+        }
+        observerTokens.removeAll()
+        pendingRefreshWorkItem?.cancel()
+        pendingRefreshWorkItem = nil
     }
     
     private var pendingRefreshWorkItem: DispatchWorkItem?

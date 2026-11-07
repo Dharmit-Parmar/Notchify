@@ -48,6 +48,8 @@ public final class ThockModule: NotchModule {
     public let iconName = "keyboard"
     @Published public var isEnabled: Bool = true
     
+    nonisolated public static let pinnedKeySoundCommit = "264ef80f73c38b1d45a6c3e69fa127775b7a5e49"
+    
     // Dynamic Portable Paths
     public static func resolveKeySoundDirectory() -> URL {
         let fm = FileManager.default
@@ -507,17 +509,24 @@ public final class ThockModule: NotchModule {
                 try? FileManager.default.createSymbolicLink(at: targetDir, withDestinationURL: devSource)
             }
             
-            // Step 2: If repo still not present, git clone from GitHub
+            // Step 2: If repo still not present, git clone from GitHub and checkout verified pinned commit SHA
             if !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("Cargo.toml").path) {
                 Task { @MainActor [weak self] in
                     self?.installProgressMessage = "Cloning KeySound from GitHub..."
                 }
                 let cloneProc = Process()
                 cloneProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-                cloneProc.arguments = ["clone", "--depth", "1", "https://github.com/Dharmit-Parmar/KeySound.git", targetDir.path]
+                cloneProc.arguments = ["clone", "https://github.com/Dharmit-Parmar/KeySound.git", targetDir.path]
                 do {
                     try cloneProc.run()
                     cloneProc.waitUntilExit()
+                    
+                    let checkoutProc = Process()
+                    checkoutProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                    checkoutProc.arguments = ["checkout", Self.pinnedKeySoundCommit]
+                    checkoutProc.currentDirectoryURL = targetDir
+                    try checkoutProc.run()
+                    checkoutProc.waitUntilExit()
                 } catch {
                     Task { @MainActor [weak self] in
                         self?.isInstalling = false

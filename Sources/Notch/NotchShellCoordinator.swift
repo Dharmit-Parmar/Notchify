@@ -33,9 +33,10 @@ public final class NotchShellCoordinator: ObservableObject {
     private var collapseWorkItem: DispatchWorkItem?
     private var expandedWatchdog: Timer?
     private var cachedExpandedRect: NSRect = .zero
+    private var screenObserver: NSObjectProtocol?
     
     private init() {
-        NotificationCenter.default.addObserver(
+        screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main

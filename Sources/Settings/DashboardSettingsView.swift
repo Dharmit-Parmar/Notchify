@@ -453,7 +453,7 @@ public struct DashboardSettingsView: View {
                         } else {
                             VStack(spacing: 2) {
                                 HStack(spacing: 2) {
-                                    RoundedRectangle(cornerRadius: 2).fill(Color.purple.opacity(0.6))
+                                    RoundedRectangle(cornerRadius: 2).fill(DesignSystem.accentColor.opacity(0.7))
                                     RoundedRectangle(cornerRadius: 2).fill(Color.blue.opacity(0.6))
                                 }
                                 HStack(spacing: 2) {
@@ -530,10 +530,10 @@ public struct DashboardSettingsView: View {
     
     private func colorForSlot(_ index: Int) -> Color {
         switch index % 4 {
-        case 0: return Color.purple
-        case 1: return Color.blue
-        case 2: return Color.orange
-        default: return Color.green
+        case 0: return DesignSystem.accentColor
+        case 1: return Color(red: 0.20, green: 0.50, blue: 0.98) // macOS System Blue
+        case 2: return Color(red: 0.90, green: 0.62, blue: 0.30) // Warm Amber
+        default: return Color(red: 0.30, green: 0.72, blue: 0.55) // Refined Sage
         }
     }
     

@@ -61,7 +61,35 @@ public struct AskAIWidgetView: View {
             
             // Content Stage
             ZStack(alignment: .topLeading) {
-                if aiService.isGenerating {
+                if let err = aiService.errorMessage, !aiService.isGenerating {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.orange)
+                            Text("Notice")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Button {
+                                aiService.errorMessage = nil
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Text(err)
+                            .font(.system(size: 9.5))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(3)
+                        Spacer()
+                    }
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(0.14)))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else if aiService.isGenerating {
                     VStack(spacing: 6) {
                         Spacer()
                         ProgressView()
@@ -309,7 +337,44 @@ public struct AskAIWidgetView: View {
             
             // Middle Response Area
             ZStack(alignment: .topLeading) {
-                if aiService.isGenerating {
+                if let err = aiService.errorMessage, !aiService.isGenerating {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.orange)
+                            Text("Notice")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Button {
+                                aiService.errorMessage = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Text(err)
+                            .font(.system(size: 10.5))
+                            .foregroundColor(.white.opacity(0.9))
+                            .lineSpacing(2)
+                        
+                        if !aiService.lastResponse.isEmpty {
+                            Divider().background(Color.white.opacity(0.1))
+                            ScrollView(.vertical, showsIndicators: false) {
+                                Text(aiService.lastResponse)
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(.white.opacity(0.75))
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.red.opacity(0.12)))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else if aiService.isGenerating {
                     VStack(spacing: 8) {
                         Spacer()
                         ProgressView()
@@ -673,6 +738,37 @@ public struct AskAIWidgetView: View {
             
             // Right Chat Dialogue
             VStack(spacing: 8) {
+                if let err = aiService.errorMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                        Text(err)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                            .lineLimit(2)
+                        Spacer()
+                        Button {
+                            aiService.errorMessage = nil
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.red.opacity(0.18))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(Color.red.opacity(0.35), lineWidth: 0.8)
+                            )
+                    )
+                }
+                
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
                         LazyVStack(spacing: 10) {

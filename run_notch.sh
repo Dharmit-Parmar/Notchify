@@ -23,32 +23,14 @@ echo "Visible symlink ready at $DIR/NotchApp"
 APP_BUNDLE="$DIR/NotchApp.app"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
-ln -sfn "$APP_BIN" "$APP_BUNDLE/Contents/MacOS/NotchApp"
+cp -f "$APP_BIN" "$APP_BUNDLE/Contents/MacOS/NotchApp"
 
-cat << 'EOF' > "$APP_BUNDLE/Contents/Info.plist"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>NotchApp</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.notch.NotchApp</string>
-    <key>CFBundleName</key>
-    <string>NotchApp</string>
-    <key>CFBundleDisplayName</key>
-    <string>NotchApp</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSUIElement</key>
-    <true/>
-</dict>
-</plist>
-EOF
+# Copy validated source Info.plist with all privacy entitlements
+cp -f "$DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+
+# Ad-hoc sign the bundle so macOS TCC privacy permissions are properly associated
+codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
+echo "Application bundle signed with ad-hoc signature."
 
 # 3. Create user Applications shortcut (~/Applications/NotchApp.app)
 mkdir -p "$HOME/Applications"

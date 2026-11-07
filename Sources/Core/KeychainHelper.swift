@@ -1,68 +1,74 @@
 import Foundation
+import Security
 import CryptoKit
-import IOKit
 
-// MARK: - KeychainHelper: Hardware-Bound AES-256-GCM Secure Secret Vault
-/// Provides military-grade AES-256-GCM authenticated encryption for sensitive credentials
-/// (API keys, OAuth tokens) with zero macOS keychain password prompt interruptions.
-///
-/// Features:
-/// 1. Hardware Binding: Key is derived from physical `IOPlatformUUID` + `NSUserName()`,
-///    making the ciphertext strictly decryptable only on this physical Mac.
-/// 2. POSIX 0600 Isolation: Vault is saved in `~/Library/Application Support/NotchApp/vault.enc`
-///    with `0600` permissions (read/write by owner only; inaccessible to other system users).
-/// 3. Zero Keychain Prompt Interruptions: Completely bypasses Apple's `login.keychain-db` and `SecItem*`
-///    APIs, eliminating OS password prompts during debug and SPM re-compilations.
-/// 4. Zero Plaintext Leakage: Credentials are never written to `UserDefaults` plists or git.
+// MARK: - KeychainHelper: Native Apple Keychain Secure Secret Vault
+/// Provides native macOS Keychain Services (`kSecClassGenericPassword`) for secure storage
+/// of credentials (API keys, bot tokens) protected by macOS Secure Enclave and login keychain.
 public final class KeychainHelper: @unchecked Sendable {
     public static let shared = KeychainHelper()
     
     public let serviceName: String
     private let lock = NSLock()
-    private let vaultURL: URL
     
-    public init(serviceName: String = "com.notch.NotchApp.secrets") {
+    public init(serviceName: String = "com.notch.NotchApp") {
         self.serviceName = serviceName
-        
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dirURL = appSupport.appendingPathComponent("NotchApp", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: dirURL.path) {
-            try? FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true, attributes: [
-                .posixPermissions: 0o700
-            ])
-        }
-        self.vaultURL = dirURL.appendingPathComponent("vault.enc")
+        migrateLegacyVaultIfNeeded()
     }
     
     // MARK: - Public Secret Storage API
     
-    /// Securely saves a secret using hardware-bound AES-256-GCM authenticated encryption.
+    /// Securely saves a secret using native macOS Keychain Services.
     @discardableResult
     public func saveSecret(_ secret: String, forKey account: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        
+        return saveSecretLocked(secret, forKey: account)
+    }
+    
+    private func saveSecretLocked(_ secret: String, forKey account: String) -> Bool {
         let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
             return deleteSecretLocked(forKey: account)
         }
         
-        var dict = readVaultDictionary()
-        dict[account] = trimmed
-        return writeVaultDictionary(dict)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+        
+        var newQuery = query
+        newQuery[kSecValueData as String] = Data(trimmed.utf8)
+        newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        
+        let status = SecItemAdd(newQuery as CFDictionary, nil)
+        return status == errSecSuccess
     }
     
-    /// Securely retrieves and decrypts a secret using the Mac's hardware key.
+    /// Securely retrieves and decrypts a secret from the native macOS Keychain.
     public func loadSecret(forKey account: String) -> String? {
         lock.lock()
         defer { lock.unlock() }
         
-        let dict = readVaultDictionary()
-        guard let secret = dict[account], !secret.isEmpty else { return nil }
-        return secret
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data {
+            return String(data: data, encoding: .utf8)
+        }
+        return nil
     }
     
-    /// Securely deletes a secret from the encrypted vault.
+    /// Securely deletes a secret from the native macOS Keychain.
     @discardableResult
     public func deleteSecret(forKey account: String) -> Bool {
         lock.lock()
@@ -71,10 +77,13 @@ public final class KeychainHelper: @unchecked Sendable {
     }
     
     private func deleteSecretLocked(forKey account: String) -> Bool {
-        var dict = readVaultDictionary()
-        guard dict[account] != nil else { return true }
-        dict.removeValue(forKey: account)
-        return writeVaultDictionary(dict)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: account
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
     
     /// Returns a masked display version of a key (e.g., "AIzaSy••••••••1823") to prevent shoulder surfing.
@@ -88,61 +97,33 @@ public final class KeychainHelper: @unchecked Sendable {
         return "\(prefix)••••••••\(suffix)"
     }
     
-    // MARK: - Internal Hardware-Bound Cryptographic Vault
+    // MARK: - Legacy Vault Migration
     
-    private func deriveHardwareKey() -> SymmetricKey {
-        let hardwareUUID = getHardwareUUID()
-        let username = NSUserName()
-        let salt = "com.notch.NotchApp.vault.salt.v2.\(serviceName)"
-        let seed = "\(hardwareUUID):\(username):\(salt)"
-        let digest = SHA256.hash(data: Data(seed.utf8))
-        return SymmetricKey(data: digest)
-    }
-    
-    private func getHardwareUUID() -> String {
-        let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
-        guard platformExpert != 0 else { return "NOTCH_FALLBACK_UUID_LOCAL" }
-        defer { IOObjectRelease(platformExpert) }
-        
-        if let prop = IORegistryEntryCreateCFProperty(platformExpert, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0) {
-            return (prop.takeRetainedValue() as? String) ?? "NOTCH_FALLBACK_UUID_LOCAL"
-        }
-        return "NOTCH_FALLBACK_UUID_LOCAL"
-    }
-    
-    private func readVaultDictionary() -> [String: String] {
+    private func migrateLegacyVaultIfNeeded() {
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        let vaultURL = appSupport.appendingPathComponent("NotchApp/vault.enc")
         guard FileManager.default.fileExists(atPath: vaultURL.path),
-              let encryptedData = try? Data(contentsOf: vaultURL),
-              !encryptedData.isEmpty else {
-            return [:]
-        }
+              let encryptedData = try? Data(contentsOf: vaultURL), !encryptedData.isEmpty else { return }
         
-        do {
-            let key = deriveHardwareKey()
-            let sealedBox = try AES.GCM.SealedBox(combined: encryptedData)
-            let decryptedData = try AES.GCM.open(sealedBox, using: key)
-            if let dict = try? JSONDecoder().decode([String: String].self, from: decryptedData) {
-                return dict
+        let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        let uuid: String = {
+            guard platformExpert != 0 else { return "NOTCH_FALLBACK_UUID_LOCAL" }
+            defer { IOObjectRelease(platformExpert) }
+            if let prop = IORegistryEntryCreateCFProperty(platformExpert, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0) {
+                return (prop.takeRetainedValue() as? String) ?? "NOTCH_FALLBACK_UUID_LOCAL"
             }
-        } catch {
-            // Fail safely if data is corrupt or cannot be opened
-            return [:]
+            return "NOTCH_FALLBACK_UUID_LOCAL"
+        }()
+        let seed = "\(uuid):\(NSUserName()):com.notch.NotchApp.vault.salt.v2.com.notch.NotchApp.secrets"
+        let legacyKey = SymmetricKey(data: SHA256.hash(data: Data(seed.utf8)))
+        
+        if let box = try? AES.GCM.SealedBox(combined: encryptedData),
+           let decrypted = try? AES.GCM.open(box, using: legacyKey),
+           let dict = try? JSONDecoder().decode([String: String].self, from: decrypted) {
+            for (acc, secret) in dict {
+                _ = saveSecretLocked(secret, forKey: acc)
+            }
         }
-        return [:]
-    }
-    
-    private func writeVaultDictionary(_ dict: [String: String]) -> Bool {
-        do {
-            let key = deriveHardwareKey()
-            let jsonData = try JSONEncoder().encode(dict)
-            let sealedBox = try AES.GCM.seal(jsonData, using: key)
-            guard let combined = sealedBox.combined else { return false }
-            
-            try combined.write(to: vaultURL, options: .atomic)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: vaultURL.path)
-            return true
-        } catch {
-            return false
-        }
+        try? FileManager.default.removeItem(at: vaultURL)
     }
 }

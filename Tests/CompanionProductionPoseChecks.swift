@@ -265,7 +265,8 @@ struct CompanionProductionPoseChecks {
         let beforeSlipLeftGrip = engine.handLWorldX
         let beforeSlipRightGrip = engine.handRWorldX
         engine.setBehavior(.slipping)
-        assert(engine.handLWorldX == beforeSlipLeftGrip && engine.handRWorldX == beforeSlipRightGrip)
+        assert(engine.handLWorldX == beforeSlipLeftGrip)
+        assert(engine.handRWorldX == beforeSlipRightGrip)
         engine.update(deltaTime: dt, cursorScreenPos: .zero)
         let slipPose = engine.currentPose
         assert(slipPose.root.distance(to: beforeSlipRoot) < 16.0, "Slip recovery teleported the body away from its grips")
