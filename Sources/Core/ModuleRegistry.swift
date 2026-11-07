@@ -341,10 +341,13 @@ public final class ModuleRegistry: ObservableObject {
     }
     
     public func unloadInactiveModules() {
+        let isCollapsed = NotchShellCoordinator.shared.state == .collapsed
         let activeId = activeModuleId
         for m in modules {
-            if let lazy = m as? LazyNotchModule, lazy.id != activeId {
-                lazy.unload()
+            if let lazy = m as? LazyNotchModule {
+                if isCollapsed || lazy.id != activeId {
+                    lazy.unload()
+                }
             }
         }
     }

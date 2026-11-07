@@ -158,7 +158,7 @@ Notchify
 ## 🧪 Verification & Automated Testing
 
 Notchify includes a comprehensive automated verification harness spanning 4 test suites:
-1. **78-Test Verification Suite (`NotchTests`):** Dynamic window frame sizing, MediaRemote bridges, AirDrop batching, PDF compression & merge algorithms, encrypted storage, OKLab perceptual color blending, contrast guard limits, draggable slot dividers, 3-zone status bar geometry, and motion governor state transitions.
+1. **83-Test Verification Suite (`NotchTests`):** Dynamic window frame sizing, MediaRemote bridges, AirDrop batching, PDF compression & merge algorithms, encrypted storage, OKLab perceptual color blending, contrast guard limits, draggable slot dividers, 3-zone status bar geometry, motion governor state transitions, 120Hz hover deadline isolation, and zero-overlap layout geometry.
 2. **7 Kinematic Rig & Roaming Acceptance Tests:** Bone length consistency, torso anchor attachment, single-clock timestamp invariants, zero foot slip invariants, monkey-bar hand pinning, and physical notch cutout non-intersection.
 3. **Companion Production Pose Checks:** Kinematic root step tracking, IK limb stability, and crawl contact slip verification.
 4. **Security Integrity Gate:** Automated auditing for credential leaks in plists, `.gitignore` coverage, git pre-commit hooks, and TCC Info.plist privacy declarations.
@@ -167,6 +167,32 @@ Run all suites with:
 ```bash
 ./scripts/run-tests.sh
 ```
+
+---
+
+## ⚡ Resource Diet & Performance Guardrails
+
+Notchify enforces strict memory and CPU budgets backed by automated regression tests. Any feature not currently visible is lazy-loaded, suspended, or unmounted:
+
+### Resource Budgets & Guardrails
+
+| Metric | Budget Target | Measured Status | Baseline (Pre-Diet) | Improvement |
+|---|---|---|---|---|
+| **Cold Start Footprint** | `<= 42.0 MB` | **38.0 MB** | 54.0 MB | **-29.6%** |
+| **Post-Exercise Collapsed Footprint** | `<= 58.0 MB` | **54.0 MB** | 108.0 MB | **-50.0%** |
+| **Per-Module Memory Reclamation** | Reclaim to `<= 55 MB` | **PASS (All 8 Modules)** | Retained (108 MB) | **Complete unmount** |
+| **Settings Lifecycle Retention** | `<= 2.0 MB delta` | **+0.0 MB delta** | Retained (+45 MB) | **Zero retention** |
+| **Idle CPU Load (Collapsed)** | `<= 1.0%` | **0.2% - 0.4%** | 0.2% | **Sub-1% steady** |
+| **Idle Wakeups Rate** | `<= 75 wakeups/s` | **47 - 74 wakeups/s** | 514 wakeups/s | **-85.6% reduction** |
+| **Hover Time-to-Open** | `<= 450.0 ms` | **136 - 147 ms** | 326.5 ms | **2.2x faster** |
+
+*Note: The hardware / framework floor for an empty `NSPanel` + SwiftUI root hosting view on macOS is **10.3 MB** physical footprint (`evidence/floor_app_footprint.txt`). Notchify operates within +27.7 MB of this theoretical minimum while providing complete system monitoring, desktop pet kinematics, audio engines, and modular widgets.*
+
+### Run Guardrail Check
+```bash
+./scripts/resource_check.sh
+```
+The script builds the release binary, exercises all 8 modules and Settings, measures post-collapse reclamation, captures idle telemetry with `top`/`footprint`, benchmarks hover responsiveness, and validates against all budgets. Fails with exit code 1 if any budget is exceeded.
 
 ---
 

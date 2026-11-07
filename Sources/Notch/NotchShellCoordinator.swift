@@ -364,6 +364,9 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.stopAll()
+            ModuleRegistry.shared.unloadInactiveModules()
+            NowPlayingModule.shared.evictArtworkOnCollapse()
+            NoteStorageManager.shared.saveImmediately()
         }
         collapseWorkItem = item
         let collapseDelay = AppDelegate.isSettingsOpen ? 0.30 : SettingsStore.shared.autoCollapseDelay

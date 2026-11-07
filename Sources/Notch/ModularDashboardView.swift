@@ -153,11 +153,14 @@ public final class FocusCompanionRotationManager: ObservableObject {
     
     public func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: 30.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.evaluateRotation()
             }
         }
+        t.tolerance = 5.0
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
     
     public func evaluateRotation() {
