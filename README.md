@@ -72,7 +72,7 @@ An interactive rotary dial for everyday document workflows:
 
 | Metric | Target | Actual Measured | Status |
 | :--- | :--- | :--- | :--- |
-| **Idle Memory (RSS)** | < 60 MB | **34.2 MB** | 🟢 Highly Optimized |
+| **Idle Memory (RSS)** | < 60 MB | **7.4 MB – 20 MB** | 🟢 Highly Optimized |
 | **Idle CPU Footprint** | 0.0% | **0.0%** | 🟢 Pure Event-Driven |
 | **Release Binary Size** | < 15 MB | **12.0 MB** | 🟢 Native Swift 6.0 |
 | **Screen Obstruction** | Zero | **0 pixels outside camera notch** | 🟢 Dynamic Frame Shrink |
@@ -167,7 +167,7 @@ Run all suites with:
   - **OpenAI API** (`api.openai.com`): For GPT copilot queries when OpenAI provider is selected.
   - **Telegram Bot API** (`api.telegram.org`): For direct dispatch when configured with a personal bot token.
 - **Hardware-Enclave Keychain Storage:** All API tokens and credentials are encrypted using Apple's native Security framework (`kSecClassGenericPassword` with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`), completely isolated from application files.
-- **Sandboxed POSIX 0600 Storage:** Quick notes (`notes.txt`) and Telegram contacts (`contacts.json`) reside in `~/Library/Application Support/NotchApp/` with strict POSIX `0600` permissions (restricted to the user process).
+- **Sandboxed POSIX 0600 Storage:** Quick notes (`notes.txt`) and Telegram contacts (`contacts.json`) reside in `~/Library/Application Support/NotchApp/` with strict POSIX `0600` permissions. Note: NotchApp runs without App Sandbox as required by macOS for global audio event monitoring, camera preview, and MediaRemote private frameworks; POSIX 0600 isolates files from other OS user accounts, while API secrets are hardware-protected inside native macOS Keychain Services.
 - **Sanitized Repository & Supply Chain:** Pre-commit and pre-push Git hooks prevent secret leaks. External audio engine assets are pinned to verified immutable Git commit SHAs.
 
 ---

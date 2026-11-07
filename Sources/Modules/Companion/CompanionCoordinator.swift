@@ -171,7 +171,9 @@ public final class CompanionCoordinator: ObservableObject {
         }
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            // Lightweight non-allocating dispatch directly on main queue
+            DispatchQueue.main.async { [weak self] in
                 self?.registerTypingCadence()
             }
         }
@@ -194,18 +196,21 @@ public final class CompanionCoordinator: ObservableObject {
         
         recentKeystrokes += 1
         
-        typingDecayTimer?.invalidate()
-        typingDecayTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.recentKeystrokes = 0
-                if self.state == .typingMimic {
-                    self.retreatToDen()
+        // Single decay timer avoids allocating and destroying timers on every single keystroke
+        if typingDecayTimer == nil {
+            typingDecayTimer = Timer.scheduledTimer(withTimeInterval: 1.8, repeats: false) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
+                    self.recentKeystrokes = 0
+                    self.typingDecayTimer = nil
+                    if self.state == .typingMimic {
+                        self.retreatToDen()
+                    }
                 }
             }
         }
         
-        if recentKeystrokes >= 4 && (state == .inDen || state == .sleeping) && !isSequenceRunning {
+        if recentKeystrokes >= 5 && (state == .inDen || state == .sleeping) && !isSequenceRunning {
             triggerTypingMimic()
         }
     }
@@ -460,15 +465,34 @@ public final class CompanionCoordinator: ObservableObject {
         actionDurationTimer?.invalidate()
         actionDurationTimer = nil
         
-        state = .inDen
-        KinematicEngine.shared.setBehavior(.inDen)
-        panel?.orderOut(nil)
-        clickPanel?.orderOut(nil)
-        isSequenceRunning = false
-        
-        if !immediate {
-            scheduleNextBehavior()
+        if immediate {
+            state = .inDen
+            KinematicEngine.shared.setBehavior(.inDen)
+            panel?.orderOut(nil)
+            clickPanel?.orderOut(nil)
+            isSequenceRunning = false
+            return
         }
+        
+        isSequenceRunning = false
+        // Smoothly fade out over 0.28s so creature never vanishes abruptly mid-flight
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.28
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel?.animator().alphaValue = 0.0
+            clickPanel?.animator().alphaValue = 0.0
+        }, completionHandler: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.state = .inDen
+                KinematicEngine.shared.setBehavior(.inDen)
+                self.panel?.orderOut(nil)
+                self.clickPanel?.orderOut(nil)
+                self.panel?.alphaValue = 1.0
+                self.clickPanel?.alphaValue = 1.0
+                self.scheduleNextBehavior()
+            }
+        })
     }
     
     // MARK: - User Direct Interaction

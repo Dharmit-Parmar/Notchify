@@ -25,8 +25,7 @@ public struct CalendarEventItem: Identifiable, Sendable {
     
     public var color: Color {
         switch colorName {
-        case "blue": return .blue
-        case "indigo", "purple": return .indigo
+        case "blue": return Color(red: 0.0, green: 0.48, blue: 1.0)
         case "green": return .green
         default: return .orange
         }
@@ -125,7 +124,7 @@ public final class CalendarModule: ObservableObject {
             title: "Design Review",
             timeString: "2:30 PM",
             date: today,
-            colorName: "indigo"
+            colorName: "blue"
         )
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let event3 = CalendarEventItem(

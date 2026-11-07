@@ -236,7 +236,7 @@ public final class NotchShellCoordinator: ObservableObject {
         guard state != .expanded else { return }
         hoverWorkItem?.cancel()
         
-        let delay = max(0.02, min(0.08, SettingsStore.shared.hoverDelay))
+        let delay = max(0.06, min(0.50, SettingsStore.shared.hoverDelay))
         let item = DispatchWorkItem { [weak self] in
             guard let self = self, self.isHovered else { return }
             self.hoverWorkItem = nil

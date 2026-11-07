@@ -1018,7 +1018,18 @@ public struct CreatureRigView: View {
         
         let lightCenter = CGPoint(x: root.x - torsoWidth * 0.20, y: root.y - torsoHeight * 0.6)
         context.fill(path, with: .radialGradient(volumetricGradient(for: skin), center: lightCenter, startRadius: 1, endRadius: torsoHeight * 0.8))
-        context.stroke(path, with: .color(skin.outlineColor), style: cartoonStrokeStyle)
+        
+        // Stroke sides and bottom only — seamless neck connection, eliminating dividing neck stroke
+        var torsoOutline = Path()
+        let r: CGFloat = 9.0
+        let hw = torsoWidth / 2.0
+        torsoOutline.move(to: CGPoint(x: -hw, y: -torsoHeight + r))
+        torsoOutline.addLine(to: CGPoint(x: -hw, y: -r))
+        torsoOutline.addQuadCurve(to: CGPoint(x: -hw + r, y: 0), control: CGPoint(x: -hw, y: 0))
+        torsoOutline.addLine(to: CGPoint(x: hw - r, y: 0))
+        torsoOutline.addQuadCurve(to: CGPoint(x: hw, y: -r), control: CGPoint(x: hw, y: 0))
+        torsoOutline.addLine(to: CGPoint(x: hw, y: -torsoHeight + r))
+        context.stroke(torsoOutline.applying(transform), with: .color(skin.outlineColor), style: cartoonStrokeStyle)
         
         if skin == .boba {
             let belly = CGRect(x: -6.0, y: -torsoHeight * 0.65, width: 12.0, height: 14.0)

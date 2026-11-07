@@ -265,7 +265,7 @@ public struct NotesWidgetView: View {
                 } label: {
                     Image(systemName: "sparkles")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(uiState.showAIPanel ? Color(red: 0.76, green: 0.44, blue: 0.98) : DesignSystem.secondaryText)
+                        .foregroundColor(uiState.showAIPanel ? Color(red: 0.0, green: 0.48, blue: 1.0) : DesignSystem.secondaryText)
                         .frame(width: 22, height: 22)
                         .background(Circle().fill(Color.white.opacity(uiState.showAIPanel ? 0.2 : 0.08)))
                 }

@@ -36,9 +36,9 @@
     "semantic_hash": "b07f2364080c403c2f83af30809b63cd"
   },
   "Sources/Modules/Calendar/CalendarModule.swift": {
-    "mtime": 1794028961.9865992,
-    "seen": 1794029151.456759,
-    "ast_hash": "20933b104bf56dcabd07c3c19de3e83e",
+    "mtime": 1794031391.7347426,
+    "seen": 1794031717.427077,
+    "ast_hash": "74eab2b2eb24088621e5c4876f80df8e",
     "semantic_hash": ""
   },
   "Sources/Modules/Mirror/MirrorModule.swift": {
@@ -90,9 +90,9 @@
     "semantic_hash": ""
   },
   "Sources/Notch/NotchShellCoordinator.swift": {
-    "mtime": 1794029290.5281084,
-    "seen": 1794029368.994546,
-    "ast_hash": "75f1febf78df0353b61a3f4015833ba1",
+    "mtime": 1794031363.8389452,
+    "seen": 1794031717.427086,
+    "ast_hash": "4c5cd6cdc9c31d07d7eddacede794fc7",
     "semantic_hash": ""
   },
   "Sources/Notch/NotchWindow.swift": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "Sources/Modules/Notes/NotesWidgetView.swift": {
-    "mtime": 1794028665.3476546,
-    "seen": 1794029151.456764,
-    "ast_hash": "ecc0a82856c33f8deaf558f12cf1e628",
+    "mtime": 1794031418.814138,
+    "seen": 1794031717.427082,
+    "ast_hash": "a9d735484b981003f9cee7cf3c9ef096",
     "semantic_hash": ""
   },
   "Sources/Notch/ModularDashboardView.swift": {
@@ -192,9 +192,9 @@
     "semantic_hash": "b82cdd2f886439d08aec57e817127f26"
   },
   "Sources/Modules/Companion/CompanionCoordinator.swift": {
-    "mtime": 1794028793.1775625,
-    "seen": 1794029151.4567602,
-    "ast_hash": "fefa482daa9a9cbaa9531e8dd5ffb40b",
+    "mtime": 1794031351.819989,
+    "seen": 1794031717.4270778,
+    "ast_hash": "fe556ffb33c8e331e843c99438c5b22d",
     "semantic_hash": ""
   },
   "Sources/Modules/Companion/CompanionTypes.swift": {
@@ -210,15 +210,15 @@
     "semantic_hash": "b8289116a74ecf4ca5f17676a953c542"
   },
   "Sources/Modules/Companion/CreatureRigView.swift": {
-    "mtime": 1793748884.1865368,
-    "seen": 1793987242.146105,
-    "ast_hash": "160f028db4c3f7480eadd13759ade513",
-    "semantic_hash": "160f028db4c3f7480eadd13759ade513"
+    "mtime": 1794031318.5114992,
+    "seen": 1794031717.42708,
+    "ast_hash": "179b7eff2dd423e958b279210ffcb9bd",
+    "semantic_hash": ""
   },
   "Sources/Modules/Companion/KinematicEngine.swift": {
-    "mtime": 1794030044.10092,
-    "seen": 1794030342.747741,
-    "ast_hash": "82c04457cf944422be5c1f8bb91bd8c7",
+    "mtime": 1794031304.9998646,
+    "seen": 1794031717.42708,
+    "ast_hash": "53d50dab26a82a21cc6049c7e4170b8a",
     "semantic_hash": ""
   },
   "Sources/Modules/Companion/KinematicSkeleton.swift": {
@@ -276,9 +276,9 @@
     "semantic_hash": ""
   },
   "scripts/security-audit.sh": {
-    "mtime": 1793987430.7264194,
-    "seen": 1794028366.8226361,
-    "ast_hash": "b44f19195bef7eb0d11b05b4329b4efa",
+    "mtime": 1794031395.8786235,
+    "seen": 1794031717.427093,
+    "ast_hash": "6d5321efcb85f46fc1c486b05ae28d6e",
     "semantic_hash": ""
   },
   "CODEBASE_ANALYSIS_REPORT.md": {
@@ -390,9 +390,45 @@
     "semantic_hash": ""
   },
   "REPORT.md": {
-    "mtime": 1794029383.6674445,
-    "seen": 1794030342.7477582,
-    "ast_hash": "89603fec893d7c8f6c1242591be5afd5",
+    "mtime": 1794030389.2611935,
+    "seen": 1794031717.427098,
+    "ast_hash": "854ef2131f01df66df5b5cc368aac211",
+    "semantic_hash": ""
+  },
+  "scripts/measure_telemetry.py": {
+    "mtime": 1794031615.1282642,
+    "seen": 1794031717.427092,
+    "ast_hash": "30010c024ba04e9dc510e064a493472e",
+    "semantic_hash": ""
+  },
+  "measurements/TELEMETRY_SUMMARY.txt": {
+    "mtime": 1794031685.492321,
+    "seen": 1794031717.427098,
+    "ast_hash": "68ea1e7d65f90a2b93b168287218acab",
+    "semantic_hash": ""
+  },
+  "measurements/raw_baseline_collapsed_idle.txt": {
+    "mtime": 1794031635.1621487,
+    "seen": 1794031717.427099,
+    "ast_hash": "b8f6729d2cb0a175296a44373083023e",
+    "semantic_hash": ""
+  },
+  "measurements/raw_baseline_companion_enabled.txt": {
+    "mtime": 1794031668.040372,
+    "seen": 1794031717.427099,
+    "ast_hash": "0018f4fc68ed190be6b882480034c6d5",
+    "semantic_hash": ""
+  },
+  "measurements/raw_current_collapsed_idle.txt": {
+    "mtime": 1794031651.5966089,
+    "seen": 1794031717.4271,
+    "ast_hash": "1e9d373924c7a457371024a46a04b94c",
+    "semantic_hash": ""
+  },
+  "measurements/raw_current_companion_enabled.txt": {
+    "mtime": 1794031684.4715512,
+    "seen": 1794031717.4271,
+    "ast_hash": "1bb1b79e740e4209b35e186e68a39014",
     "semantic_hash": ""
   }
 }

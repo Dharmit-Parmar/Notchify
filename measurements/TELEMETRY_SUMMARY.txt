@@ -1,0 +1,18 @@
+==================================================
+      MEASURED HEADLESS TELEMETRY RESULTS         
+==================================================
+Tool: top -l 3 -pid <PID> -stats pid,command,cpu,mem (sample 3)
+
+1. Collapsed Idle:
+   Baseline (main):             20299  NotchApp 0.0  20M
+   Current (fix/notchify-deep): 20318  NotchApp 0.0  7377K
+
+2. Companion Enabled:
+   Baseline (main):             20332  NotchApp 1.6  24M
+   Current (fix/notchify-deep): 20360  NotchApp 0.0  7345K
+
+3. Interactive Scenarios (Not measured headlessly):
+   - Expanded Idle: NOT MEASURED (requires interactive hover/lock state)
+   - Music Playing Collapsed: NOT MEASURED (requires host system audio playback session)
+   - Camera Mirror: NOT MEASURED (requires interactive tab selection and camera video stream)
+   - AirDrop Drag Stage: NOT MEASURED (requires active window dragging session)

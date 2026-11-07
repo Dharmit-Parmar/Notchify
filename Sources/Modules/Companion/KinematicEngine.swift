@@ -612,7 +612,7 @@ public final class KinematicEngine: ObservableObject {
         pose.torso.spineLength = 24.0
         pose.torso.spineAngle = -.pi / 2.0 + Double(sway) * 0.02
         
-        let chinTargetY = gripY - 4.0
+        let chinTargetY = ledgeY + 1.0 // Clears ledge lip while staying outside physical notch cutout [0, 32.0]
         let chinY = pose.torso.neck.y - 10.0 + (chinTargetY - (pose.torso.neck.y - 10.0)) * chinRise
         pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: min(pose.torso.neck.y - 4.0, chinY)), allowPullUp: isPullingUpWorkout)
         
@@ -971,8 +971,8 @@ public final class KinematicEngine: ObservableObject {
         pose.torso.root = CGPoint(x: rootX, y: rootY)
         pose.torso.spineAngle = -.pi / 2.0 + sin(Double(liftProgress) * .pi) * 0.12
         
-        // Chin lifts smoothly up toward notch edge level (gripY - 4.0), clearing the ledge
-        let chinTargetY = gripY - 4.0
+        // Chin lifts smoothly up toward notch edge level (ledgeY + 1.0), clearing the ledge
+        let chinTargetY = ledgeY + 1.0
         let chinRiseY = pose.torso.neck.y - 10.0 + (chinTargetY - (pose.torso.neck.y - 10.0)) * easedLift
         pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: min(pose.torso.neck.y - 4.0, chinRiseY)), allowPullUp: true)
         
@@ -1273,8 +1273,9 @@ public final class KinematicEngine: ObservableObject {
         pose.torso.spineAngle = -.pi / 2.0 - flipAngle
         
         let neckPoint = pose.torso.neck
-        pose.headCenter = visibleRouteHead(at: CGPoint(x: neckPoint.x, y: neckPoint.y - 6.0 * cos(flipAngle)))
-        pose.headAngle = -sin(Double(p) * .pi) * 15.0
+        // Head is rigidly aligned along spine vector through full 360-degree backflip (zero double-rotation)
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: neckPoint.x + 8.0 * cos(pose.torso.spineAngle), y: neckPoint.y + 8.0 * sin(pose.torso.spineAngle)))
+        pose.headAngle = (pose.torso.spineAngle + .pi / 2.0) * 180.0 / .pi
         
         // Tucked limbs during flip rotation, extending gracefully on landing
         let tuck: CGFloat = CGFloat(sin(p * .pi)) * 4.0

@@ -88,7 +88,7 @@ fi
 echo "=========================================================="
 if [ "$FAILED" -eq 0 ]; then
     if [ "$WARNINGS" -eq 0 ]; then
-        echo -e "${GREEN}${BOLD}✓ ALL SECURITY INTEGRITY GATES PASSED (100% SECURE)${NC}"
+        echo -e "${GREEN}${BOLD}✓ ALL SECURITY INTEGRITY GATES PASSED (Zero plaintext leaks detected)${NC}"
     else
         echo -e "${YELLOW}${BOLD}✓ PASS WITH WARNINGS ($WARNINGS item(s) to verify)${NC}"
     fi
