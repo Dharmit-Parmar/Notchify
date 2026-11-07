@@ -421,7 +421,7 @@ public struct SettingsView: View {
             // Header
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Theme Palette (20 Themes)")
+                    Text("Theme Palette (22 Themes)")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                     if store.currentTheme.isDynamic {
@@ -531,7 +531,7 @@ public struct SettingsView: View {
                     Image(systemName: "paintpalette.fill")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(SettingsCategory.appearance.tintColor)
-                    Text("Studio Color Presets (16 Styles)")
+                    Text("Studio Color Presets (18 Styles)")
                         .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(.white)
                     Spacer()
@@ -691,6 +691,51 @@ public struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Per-Module vs Global Accent Color Switch
+            Button {
+                store.usePerModuleAccent.toggle()
+                NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Per-Module Accent Colors")
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundColor(.white)
+                            Text(store.usePerModuleAccent ? "Per-Module" : "Global Accent")
+                                .font(.system(size: 8.5))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(store.usePerModuleAccent ? DesignSystem.accentColor.opacity(0.25) : Color.white.opacity(0.08)))
+                                .foregroundColor(store.usePerModuleAccent ? DesignSystem.accentColor : DesignSystem.secondaryText)
+                        }
+                        Text("Use distinct signature colors for each module (e.g. green for Battery, blue for AirDrop) instead of the unified theme accent.")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { store.usePerModuleAccent },
+                        set: { newVal in
+                            store.usePerModuleAccent = newVal
+                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                        }
+                    ))
+                    .labelsHidden()
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointerHoverCursor()
+            .focusable()
+            .accessibilityLabel("Per-Module Accent Colors")
+            .accessibilityHint("Toggles between individual module colors and unified theme accent.")
             
             Divider()
                 .padding(.vertical, 4)
@@ -1197,7 +1242,7 @@ public struct SettingsView: View {
                         .foregroundColor(.white)
                 }
                 
-                HStack(spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
                     ForEach(CompactIndicatorStyle.allCases) { style in
                         let isSelected = store.compactIndicatorStyle == style
                         Button {
@@ -1214,6 +1259,7 @@ public struct SettingsView: View {
                                 Text(style.rawValue)
                                     .font(.system(size: 10.5, weight: isSelected ? .bold : .medium, design: .rounded))
                             }
+                            .frame(maxWidth: .infinity)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 6)
                             .background(

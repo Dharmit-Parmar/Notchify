@@ -1,12 +1,17 @@
 import SwiftUI
 
 // MARK: - Dotted Vertical Divider for Live Drag-Resizing
+@MainActor
+private final class DividerUIState: ObservableObject {
+    @Published var isHovered: Bool = false
+    @Published var isDragging: Bool = false
+    @Published var lastHapticSnap: CGFloat? = nil
+}
+
 public struct DottedDividerView: View {
     @ObservedObject private var store = SettingsStore.shared
+    @StateObject private var uiState = DividerUIState()
     let totalWidth: CGFloat
-    @State private var isHovered: Bool = false
-    @State private var isDragging: Bool = false
-    @State private var lastHapticSnap: CGFloat? = nil
     
     public init(totalWidth: CGFloat) {
         self.totalWidth = totalWidth
@@ -23,15 +28,15 @@ public struct DottedDividerView: View {
             // Dotted vertical line
             LineShape()
                 .stroke(
-                    isDragging ? DesignSystem.accentColor : (isHovered ? Color.white.opacity(0.65) : Color.white.opacity(0.25)),
-                    style: StrokeStyle(lineWidth: isDragging ? 1.5 : 1.0, lineCap: .round, dash: [3, 4])
+                    uiState.isDragging ? DesignSystem.accentColor : (uiState.isHovered ? Color.white.opacity(0.65) : Color.white.opacity(0.25)),
+                    style: StrokeStyle(lineWidth: uiState.isDragging ? 1.5 : 1.0, lineCap: .round, dash: [3, 4])
                 )
                 .frame(width: 2)
             
             // Small grab handle pill on hover/drag
-            if isHovered || isDragging {
+            if uiState.isHovered || uiState.isDragging {
                 Capsule()
-                    .fill(isDragging ? DesignSystem.accentColor : Color.white.opacity(0.85))
+                    .fill(uiState.isDragging ? DesignSystem.accentColor : Color.white.opacity(0.85))
                     .frame(width: 4, height: 26)
                     .shadow(color: Color.black.opacity(0.4), radius: 2)
                     .transition(.opacity)
@@ -41,7 +46,7 @@ public struct DottedDividerView: View {
         .frame(maxHeight: .infinity)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
-                isHovered = hovering
+                uiState.isHovered = hovering
             }
             if hovering {
                 NSCursor.resizeLeftRight.push()
@@ -52,7 +57,7 @@ public struct DottedDividerView: View {
         .gesture(
             DragGesture(coordinateSpace: .named("DashboardContainer"))
                 .onChanged { value in
-                    isDragging = true
+                    uiState.isDragging = true
                     let x = value.location.x
                     guard totalWidth > 0 else { return }
                     var rawRatio = x / totalWidth
@@ -70,22 +75,22 @@ public struct DottedDividerView: View {
                     for target in snapTargets {
                         if abs(rawRatio - target) <= thresholdRatio {
                             snappedRatio = target
-                            if lastHapticSnap != target {
+                            if uiState.lastHapticSnap != target {
                                 FeedbackManager.playPin()
-                                lastHapticSnap = target
+                                uiState.lastHapticSnap = target
                             }
                             break
                         }
                     }
                     if snapTargets.allSatisfy({ abs(rawRatio - $0) > thresholdRatio }) {
-                        lastHapticSnap = nil
+                        uiState.lastHapticSnap = nil
                     }
                     
                     store.dashboardSplitRatio = snappedRatio
                 }
                 .onEnded { _ in
-                    isDragging = false
-                    lastHapticSnap = nil
+                    uiState.isDragging = false
+                    uiState.lastHapticSnap = nil
                 }
         )
         .simultaneousGesture(

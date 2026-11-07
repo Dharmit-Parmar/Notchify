@@ -211,8 +211,27 @@ public struct NotchRootView: View {
                                 .id(module.id)
                             }
                         }
-                        .padding(.horizontal, 2)
+                        .padding(.horizontal, 6)
                     }
+                    .mask(
+                        HStack(spacing: 0) {
+                            LinearGradient(
+                                colors: [Color.clear, Color.black],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: 10)
+                            
+                            Rectangle().fill(Color.black)
+                            
+                            LinearGradient(
+                                colors: [Color.black, Color.clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: 10)
+                        }
+                    )
                     
                     // Scroll Right Edge Arrow
                     Button {
@@ -229,6 +248,18 @@ public struct NotchRootView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Scroll tabs right")
+                }
+                .onChange(of: registry.activeModuleId) { _, newId in
+                    if let newId = newId {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            scrollProxy.scrollTo(newId, anchor: .center)
+                        }
+                    }
+                }
+                .onAppear {
+                    if let activeId = registry.activeModuleId {
+                        scrollProxy.scrollTo(activeId, anchor: .center)
+                    }
                 }
             }
             
@@ -464,7 +495,34 @@ public struct DraggableTabChip: View {
     }
 }
 
-// Universal Drop Delegate: Handles Tab Reordering & File Drag-Hover Switching
+// MARK: - Spring-Loaded Interaction Manager for Tab Switching during File Drag
+@MainActor
+public final class SpringLoadManager {
+    public static let shared = SpringLoadManager()
+    private var workItem: DispatchWorkItem?
+    private var currentTarget: String?
+    
+    public func schedule(for moduleId: String, execute: @escaping @MainActor () -> Void) {
+        cancel()
+        currentTarget = moduleId
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard self?.currentTarget == moduleId else { return }
+                execute()
+            }
+        }
+        workItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.40, execute: item)
+    }
+    
+    public func cancel() {
+        workItem?.cancel()
+        workItem = nil
+        currentTarget = nil
+    }
+}
+
+// Universal Drop Delegate: Handles Tab Reordering & Spring-Loaded File Drag Switching
 public struct UniversalTabDropDelegate: DropDelegate {
     let moduleId: String
     let registry: ModuleRegistry
@@ -488,6 +546,7 @@ public struct UniversalTabDropDelegate: DropDelegate {
     
     public func performDrop(info: DropInfo) -> Bool {
         isTargeted = false
+        SpringLoadManager.shared.cancel()
         let targetId = moduleId
         
         let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
@@ -561,10 +620,11 @@ public struct UniversalTabDropDelegate: DropDelegate {
             return
         }
         
-        // 2. EXTERNAL FILE DRAG HOVER: Immediate tab activation and tactile haptic response!
+        // 2. EXTERNAL FILE DRAG HOVER: Spring-loaded dwell timer (0.4s hover triggers switch)
         FeedbackManager.playHover()
-        DispatchQueue.main.async {
+        SpringLoadManager.shared.schedule(for: targetId) {
             self.registry.selectFileDropTarget(for: targetId)
+            FeedbackManager.playPin()
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 self.scrollProxy.scrollTo(targetId, anchor: .center)
             }
@@ -573,6 +633,7 @@ public struct UniversalTabDropDelegate: DropDelegate {
     
     public func dropExited(info: DropInfo) {
         isTargeted = false
+        SpringLoadManager.shared.cancel()
     }
 }
 
@@ -596,6 +657,8 @@ private struct CompactNotchIndicator: View {
                 dateTimeIndicator
             case .circadian:
                 circadianIndicator
+            case .threeZoneStatusBar:
+                threeZoneStatusBarIndicator
             }
         }
         .padding(.horizontal, 10)
@@ -699,6 +762,110 @@ private struct CompactNotchIndicator: View {
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(DesignSystem.secondaryText)
             }
+        }
+    }
+    
+    @ViewBuilder
+    private var threeZoneStatusBarIndicator: some View {
+        let geometry = NotchGeometry.current()
+        if geometry.hasPhysicalNotch {
+            // Physical Notch Wings Layout: subtle wings flanking hardware cutout (never inside)
+            HStack(spacing: 0) {
+                // Left Wing: Clock or Now Playing media track
+                HStack(spacing: 5) {
+                    if nowPlaying.hasActiveMedia {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 9))
+                            .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
+                        Text(nowPlaying.trackTitle)
+                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    } else {
+                        Image(systemName: "clock")
+                            .font(.system(size: 8.5))
+                            .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
+                        TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
+                            Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 8)
+                
+                // Center Zone: Hardware Notch Gap (Completely Clear, NEVER draw inside physical cutout)
+                Spacer()
+                    .frame(width: max(20.0, geometry.physicalNotchWidth))
+                    .allowsHitTesting(false)
+                
+                // Right Wing: Battery percentage and glyph
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text("\(battery.percentage)%")
+                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                        .font(.system(size: 9))
+                        .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.threeZoneStatusBar.tintColor)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 8)
+            }
+            .contentShape(Rectangle())
+        } else {
+            // Floating Status Bar Pill for non-notch displays
+            HStack(spacing: 8) {
+                // Left: Clock
+                TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
+                    HStack(spacing: 3) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 8.5))
+                            .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
+                        Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                Circle()
+                    .fill(Color.white.opacity(0.20))
+                    .frame(width: 3, height: 3)
+                
+                // Center: Media or Status
+                if nowPlaying.hasActiveMedia {
+                    HStack(spacing: 4) {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 8.5))
+                            .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
+                        Text(nowPlaying.trackTitle)
+                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                } else {
+                    Text("Notch Island")
+                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Circle()
+                    .fill(Color.white.opacity(0.20))
+                    .frame(width: 3, height: 3)
+                
+                // Right: Battery
+                HStack(spacing: 3) {
+                    Text("\(battery.percentage)%")
+                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                        .font(.system(size: 9))
+                        .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.threeZoneStatusBar.tintColor)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
     }
 }

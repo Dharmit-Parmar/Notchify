@@ -241,3 +241,41 @@
   3. Implement 3-zone status bar as 6th compact indicator option (wings/pill below notch, never inside cutout, click-through, non-notch fallback).
   4. Retain all 20 existing themes (Rule 0); add `Birch` (clean light wood/paper warm white) and `Sakura` (soft blossom light pastel) as extra themes; ensure text contrast >= 4.5:1; keep bezel strip dark if adjacent to physical cutout.
   5. Add Global vs Per-Module Accent toggle in Settings.
+
+### Phase 4 Execution & Findings
+- **Dock Navigation & Spring-Loaded Direct Manipulation** (`swiftui-expert-skill`, `apple-design`, `ponytail`):
+  - Added horizontal edge fade gradient masks (`LinearGradient([.clear, .black])` leading and trailing) on the dock scrollview so overflowing tabs fade gently at margins without abrupt clipping.
+  - Active tab auto-scrolls into center view on selection change (`onChange(of: registry.activeModuleId)`) and on initial render (`onAppear`).
+  - Added `SpringLoadManager`: hovering over a tab chip during an active external file drag for 0.40s triggers a spring-loaded tab switch (`selectFileDropTarget`) with a tactile haptic snap (`FeedbackManager.playPin()`). Leaving before 0.4s cancels the timer, eliminating jitter and thrashing.
+  - Added `isMenuOrPopoverOpen` to `NotchShellCoordinator` (`registerPopoverOpened()`, `registerPopoverClosed()`) with guards in `onMouseExit()` and `collapseImmediately()`, keeping the notch open while context menus and popovers are active.
+- **Compact Indicator Style 6: 3-Zone Status Bar** (`apple-design`, `axiom-design`, `axiom-accessibility`):
+  - Added `case threeZoneStatusBar = "3-Zone Status Bar"` as 6th option to `CompactIndicatorStyle` in `DesignSystem.swift` (Rule 0: all 5 existing options preserved).
+  - Physical Notch displays: Left wing renders Time or Now Playing track title, center zone leaves a clear hardware gap (`Spacer().frame(width: max(20, physicalNotchWidth)).allowsHitTesting(false)`), right wing renders battery percentage and charging glyph.
+  - Non-notch displays: Fallback renders a clean floating status bar pill with clock, status text, and battery.
+  - `NotchPanel.calculateFrame`: Widened collapsed frame for `.threeZoneStatusBar` (physical notch: `physicalNotchWidth + 180.0`, non-notch: `270.0`).
+- **Birch and Sakura Light Themes & Bezel Blend** (`ui-ux-pro-max`, `impeccable`, `axiom-accessibility`):
+  - Added `.birch = "Birch Studio"` (warm paper `#F7F5F0`, dark charcoal `#1E1E1E`, amber `#C47D2B`) and `.sakura = "Sakura Blossom"` (soft pastel `#FDF6F7`, deep plum `#281820`, blossom pink `#E06D8C`) to `AppTheme` (22 themes total, Rule 0 guarded).
+  - Both themes pass WCAG AA contrast against their background (Birch: 15.3:1, Sakura: 15.9:1, well above 4.5:1).
+  - Added camera bezel blend in `NotchGlassBackground` for physical notch displays so the top bezel strip remains dark without creating a white halo around the MacBook notch.
+- **Global vs Per-Module Accent Switching** (`DesignSystem`, `SettingsStore`, `SettingsView`):
+  - Added `usePerModuleAccent: Bool` to `SettingsStore` (persisted to `UserDefaults`).
+  - Added `DesignSystem.moduleAccentColor(for:)` which routes to each module's signature color (e.g. green for Battery, cyan for AirDrop) when enabled, or global theme accent when disabled.
+  - Added accessible toggle card in Settings Appearance tab.
+- **Verification**: Test 77 passing, all 77 tests green.
+
+---
+
+## 8. Phase 5: Motion and Energy Governor
+
+### Skill Selection for Phase 5 (Re-selection)
+- **Skills active**: `apple-design`, `emilkowalski-motion`, `axiom-performance`, `axiom-accessibility`, `swiftui-expert-skill`, `ponytail`, `gravitas`.
+- **Trigger**: Refined expand/collapse physics, spring headroom, reversible mid-flight motion, single resettable idle dim deadline timer, and battery/thermal energy governor reading `EnvironmentState`.
+- **Goals**:
+  1. Maintain all 3 motion profiles (`appleFluid`, `snappy`, `gentle`) and all 4 glass styles (`frosted`, `deepOLED`, `luminous`, `crystal`) (Rule 0).
+  2. Refine expand/collapse animation curves: short open duration, spring headroom, instantaneous mid-flight reversibility, and immediate zero-duration jump when Reduce Motion is active.
+  3. Idle dimming: single resettable deadline timer (4s, resets on mouse movement/hover). While dimmed, ensure text contrast remains WCAG AA compliant (>= 4.5:1) and captions stay >= 10 pt.
+  4. Energy Governor reading `EnvironmentState`:
+     - Low Power Mode: drop heavy glass blur to cheap material, snap colors without interpolation, switch motion profile to Snappy.
+     - Thermal critical/serious: stop non-essential animations, drop blur.
+     - Reduce Motion: snap transitions immediately.
+  5. Add Test 78 in `Tests/VerificationTests.swift`. Verify release build and test pass. Commit Phase 5.

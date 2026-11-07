@@ -286,6 +286,13 @@ public class SettingsStore: ObservableObject {
         }
     }
     
+    // Global vs Per-Module Accent Colors (default: false)
+    @Published public var usePerModuleAccent: Bool = false {
+        didSet {
+            UserDefaults.standard.set(usePerModuleAccent, forKey: "NotchApp_UsePerModuleAccent")
+        }
+    }
+    
     // Feedback Dynamics
     @Published public var soundFeedbackEnabled: Bool = true {
         didSet {
@@ -362,6 +369,9 @@ public class SettingsStore: ObservableObject {
         if let savedTheme = UserDefaults.standard.string(forKey: "NotchApp_CurrentTheme"),
            let theme = AppTheme(rawValue: savedTheme) {
             self.currentTheme = theme
+        }
+        if defaults.object(forKey: "NotchApp_UsePerModuleAccent") != nil {
+            self.usePerModuleAccent = defaults.bool(forKey: "NotchApp_UsePerModuleAccent")
         }
         if let savedStyle = UserDefaults.standard.string(forKey: "NotchApp_GlassMaterialStyle"),
            let style = GlassMaterialStyle(rawValue: savedStyle) {

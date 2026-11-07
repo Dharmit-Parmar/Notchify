@@ -21,10 +21,12 @@ public final class NotchShellCoordinator: ObservableObject {
             }
         }
     }
+    public var isExpanded: Bool { state == .expanded }
     @Published public var isHovered: Bool = false
     @Published public var isLockedOpen: Bool = false
     @Published public var isFileDragTargeted = false
     @Published public var isFileDraggingActive = false
+    @Published public var isMenuOrPopoverOpen: Bool = false
     public var fileDropWasAccepted = false
     @Published public var geometry: NotchGeometry = NotchGeometry.current()
     
@@ -275,7 +277,7 @@ public final class NotchShellCoordinator: ObservableObject {
         hoverWorkItem = nil
         isHovered = false
         
-        guard !isLockedOpen, !isFileDraggingActive, state != .collapsed else { return }
+        guard !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen, state != .collapsed else { return }
         
         if collapseWorkItem != nil { return }
         
@@ -297,7 +299,7 @@ public final class NotchShellCoordinator: ObservableObject {
                     return
                 }
             }
-            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive else { return }
+            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen else { return }
             
             self.stopExpandedWatchdog()
             withAnimation(self.transitionAnimation) {
@@ -311,10 +313,22 @@ public final class NotchShellCoordinator: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0.25, collapseDelay), execute: item)
     }
     
+    public func registerPopoverOpened() {
+        isMenuOrPopoverOpen = true
+        collapseWorkItem?.cancel()
+        collapseWorkItem = nil
+    }
+    
+    public func registerPopoverClosed() {
+        isMenuOrPopoverOpen = false
+        onMouseExit()
+    }
+    
     public func collapseImmediately(force: Bool = false) {
         if force {
             isLockedOpen = false
             isFileDraggingActive = false
+            isMenuOrPopoverOpen = false
         }
         isAppearancePreviewActive = false
         stopExpandedWatchdog()
@@ -325,7 +339,7 @@ public final class NotchShellCoordinator: ObservableObject {
         appearancePreviewWorkItem?.cancel()
         appearancePreviewWorkItem = nil
         
-        guard force || (!isLockedOpen && !isFileDraggingActive) else { return }
+        guard force || (!isLockedOpen && !isFileDraggingActive && !isMenuOrPopoverOpen) else { return }
         if isHovered { isHovered = false }
         withAnimation(transitionAnimation) {
             self.state = .collapsed

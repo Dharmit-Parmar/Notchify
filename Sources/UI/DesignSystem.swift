@@ -24,6 +24,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
     case starlight = "Starlight Gold"
     case noir = "Minimalist Noir"
     case emerald = "Emerald Forest"
+    case birch = "Birch Studio"
+    case sakura = "Sakura Blossom"
     
     public var id: String { rawValue }
 
@@ -33,6 +35,24 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
             return true
         default:
             return false
+        }
+    }
+
+    public var isLight: Bool {
+        switch self {
+        case .birch, .sakura:
+            return true
+        default:
+            return false
+        }
+    }
+
+    @MainActor
+    public var primaryTextColor: Color {
+        switch self {
+        case .birch: return Color(red: 0.118, green: 0.118, blue: 0.118) // #1E1E1E Dark Charcoal
+        case .sakura: return Color(red: 0.157, green: 0.094, blue: 0.125) // #281820 Deep Plum
+        default: return Color.white
         }
     }
 
@@ -58,6 +78,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: "Starlight"
         case .noir: "Noir"
         case .emerald: "Emerald"
+        case .birch: "Birch"
+        case .sakura: "Sakura"
         }
     }
 
@@ -77,6 +99,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: "Champagne gold luxury"
         case .noir: "Apple Pro deep contrast"
         case .emerald: "Lush forest jewel"
+        case .birch: "Warm paper light studio"
+        case .sakura: "Soft blossom light pastel"
         default: "Color preset"
         }
     }
@@ -100,6 +124,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.06, 0.05, 0.04)
         case .noir: return (0.02, 0.02, 0.02)
         case .emerald: return (0.03, 0.06, 0.04)
+        case .birch: return (0.969, 0.961, 0.941) // #F7F5F0 Warm Paper
+        case .sakura: return (0.992, 0.965, 0.969) // #FDF6F7 Soft Pastel
         }
     }
 
@@ -129,6 +155,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.16, 0.14, 0.11)
         case .noir: return (0.10, 0.10, 0.10)
         case .emerald: return (0.08, 0.15, 0.10)
+        case .birch: return (0.922, 0.906, 0.875) // #EBE7DF
+        case .sakura: return (0.961, 0.898, 0.918) // #F5E5EA
         }
     }
 
@@ -158,6 +186,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.92, 0.78, 0.50)
         case .noir: return (0.98, 0.98, 0.98)
         case .emerald: return (0.20, 0.82, 0.45)
+        case .birch: return (0.769, 0.490, 0.169) // #C47D2B Amber Accent
+        case .sakura: return (0.878, 0.427, 0.549) // #E06D8C Blossom Pink Accent
         }
     }
 
@@ -187,6 +217,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.88, 0.82, 0.72)
         case .noir: return (0.80, 0.80, 0.80)
         case .emerald: return (0.65, 0.85, 0.72)
+        case .birch: return (0.353, 0.337, 0.306) // #5A564E Dark Charcoal Gray
+        case .sakura: return (0.431, 0.333, 0.376) // #6E5560 Deep Plum Gray
         }
     }
     
@@ -290,6 +322,7 @@ public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
     case battery = "Battery"
     case dateTime = "Clock"
     case circadian = "Solar Status"
+    case threeZoneStatusBar = "3-Zone Status Bar"
     
     public var id: String { rawValue }
     
@@ -300,6 +333,7 @@ public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
         case .battery: return "battery.100.bolt"
         case .dateTime: return "clock.fill"
         case .circadian: return "sun.max.fill"
+        case .threeZoneStatusBar: return "menubar.rectangle"
         }
     }
     
@@ -310,6 +344,7 @@ public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
         case .battery: return Color(red: 0.40, green: 0.88, blue: 0.45) // Lime Green
         case .dateTime: return Color(red: 0.30, green: 0.65, blue: 1.00) // Electric Blue
         case .circadian: return Color(red: 0.98, green: 0.72, blue: 0.22) // Solar Gold
+        case .threeZoneStatusBar: return Color(red: 0.35, green: 0.78, blue: 0.98) // Sky Cyan
         }
     }
 }
@@ -859,6 +894,10 @@ public final class DynamicThemeEngine: ObservableObject {
             let adjS = min(1.0, max(0.20, hs * vibrancy))
             let adjH = NSColor(hue: hh, saturation: adjS, brightness: max(0.60, hb), alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
             targetAccentRGB = (adjH.redComponent, adjH.greenComponent, adjH.blueComponent)
+        } else if !theme.isDynamic {
+            targetCanvasRGB = theme.baseCanvasRGB
+            targetStructureRGB = theme.baseStructureRGB
+            targetAccentRGB = theme.baseAccentRGB
         } else {
             let nsCanvas = NSColor(hue: hue, saturation: min(0.36, saturation * 0.55), brightness: 0.075, alpha: 1).usingColorSpace(.deviceRGB) ?? .black
             let nsStruct = NSColor(hue: hue, saturation: min(0.48, saturation * 0.68), brightness: 0.20, alpha: 1).usingColorSpace(.deviceRGB) ?? .darkGray
@@ -868,7 +907,9 @@ public final class DynamicThemeEngine: ObservableObject {
             targetAccentRGB = (nsAccent.redComponent, nsAccent.greenComponent, nsAccent.blueComponent)
         }
         
-        let safeCanvasRGB = ContrastGuard.ensureContrast(background: targetCanvasRGB, forTextLuminance: 1.0, minRatio: 4.5)
+        let safeCanvasRGB = theme.isLight
+            ? ContrastGuard.ensureContrast(background: targetCanvasRGB, forTextLuminance: 0.05, minRatio: 4.5)
+            : ContrastGuard.ensureContrast(background: targetCanvasRGB, forTextLuminance: 1.0, minRatio: 4.5)
         
         let tCanvasOKLab = OKLabColor.from(rgb: safeCanvasRGB)
         let tStructureOKLab = OKLabColor.from(rgb: targetStructureRGB)
@@ -876,7 +917,7 @@ public final class DynamicThemeEngine: ObservableObject {
         
         transitionTo(targetCanvas: tCanvasOKLab, targetStructure: tStructureOKLab, targetAccent: tAccentOKLab)
         
-        let secondaryText = Color.white.opacity(0.68)
+        let secondaryText = theme.isLight ? theme.secondaryTextColor : Color.white.opacity(0.68)
         if secondaryTextColor != secondaryText { secondaryTextColor = secondaryText }
     }
 
@@ -1138,10 +1179,18 @@ public struct DesignSystem {
     public static var secondaryText: Color { DynamicThemeEngine.shared.secondaryTextColor }
     public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     
-    public static let primaryText = Color.white
-    public static let tertiaryText = Color.white.opacity(0.40)
-    public static let subtleBorder = Color.white.opacity(0.12)
-    public static let surfaceFill = Color.white.opacity(0.08)
+    public static var primaryText: Color {
+        currentTheme.isLight ? currentTheme.primaryTextColor : Color.white
+    }
+    public static var tertiaryText: Color {
+        currentTheme.isLight ? Color.black.opacity(0.38) : Color.white.opacity(0.40)
+    }
+    public static var subtleBorder: Color {
+        currentTheme.isLight ? Color.black.opacity(0.08) : Color.white.opacity(0.12)
+    }
+    public static var surfaceFill: Color {
+        currentTheme.isLight ? Color.black.opacity(0.05) : Color.white.opacity(0.08)
+    }
     public static var cardFill: Color { structureColor.opacity(0.62) }
     public static var cardGradient: LinearGradient {
         LinearGradient(
@@ -1150,7 +1199,9 @@ public struct DesignSystem {
             endPoint: .bottomTrailing
         )
     }
-    public static let cardBorder = Color.white.opacity(0.09)
+    public static var cardBorder: Color {
+        currentTheme.isLight ? Color.black.opacity(0.08) : Color.white.opacity(0.09)
+    }
     public static let defaultCornerRadius: CGFloat = 18.0
     public static var springResponse: Double {
         SettingsStore.shared.motionPhysics.response
@@ -1163,6 +1214,16 @@ public struct DesignSystem {
         SettingsStore.shared.autoCollapseDelay
     }
     public static let maxNotificationCards: Int = 50
+    
+    // Global vs Per-Module Signature Accent Color
+    public static func moduleAccentColor(for moduleId: String) -> Color {
+        if SettingsStore.shared.usePerModuleAccent {
+            if let mod = ModuleRegistry.shared.modules.first(where: { $0.id == moduleId }) {
+                return mod.themeColor
+            }
+        }
+        return accentColor
+    }
 }
 
 @MainActor
@@ -1346,6 +1407,21 @@ public struct NotchGlassBackground: View {
                     ),
                     lineWidth: 0.9
                 )
+            
+            // Top Camera Bezel Blend for Light Themes: Blends into MacBook bezel without a white halo
+            if store.currentTheme.isLight && NotchGeometry.current().hasPhysicalNotch {
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.85),
+                        Color.black.opacity(0.35),
+                        Color.clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .init(x: 0.5, y: 0.16)
+                )
+                .clipShape(CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
+                .allowsHitTesting(false)
+            }
         }
     }
 }

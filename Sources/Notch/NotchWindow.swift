@@ -124,7 +124,15 @@ public final class NotchPanel: NSPanel {
             targetHeight = store.notchHeight
         } else {
             let baseWidth = geometry.physicalNotchWidth + 24.0
-            targetWidth = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : baseWidth
+            if store.compactIndicatorStyle == .threeZoneStatusBar {
+                if geometry.hasPhysicalNotch {
+                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 180.0)
+                } else {
+                    targetWidth = max(store.hoverTriggerWidth, 270.0)
+                }
+            } else {
+                targetWidth = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : baseWidth
+            }
             targetHeight = store.hoverTriggerHeight
         }
         
