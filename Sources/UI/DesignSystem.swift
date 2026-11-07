@@ -393,6 +393,35 @@ extension ButtonStyle where Self == SpringButtonStyle {
     public static func spring(scale: CGFloat) -> SpringButtonStyle { SpringButtonStyle(scaleAmount: scale) }
 }
 
+// MARK: - Multi-Zone Palette (Shadow, Midtone, Highlight)
+public struct MultiZonePalette: Sendable, Equatable {
+    public var shadowRGB: (CGFloat, CGFloat, CGFloat)
+    public var midtoneRGB: (CGFloat, CGFloat, CGFloat)
+    public var highlightRGB: (CGFloat, CGFloat, CGFloat)
+    
+    public init(
+        shadowRGB: (CGFloat, CGFloat, CGFloat) = (0.05, 0.06, 0.08),
+        midtoneRGB: (CGFloat, CGFloat, CGFloat) = (0.13, 0.15, 0.20),
+        highlightRGB: (CGFloat, CGFloat, CGFloat) = (0.22, 0.62, 1.0)
+    ) {
+        self.shadowRGB = shadowRGB
+        self.midtoneRGB = midtoneRGB
+        self.highlightRGB = highlightRGB
+    }
+    
+    public static func == (lhs: MultiZonePalette, rhs: MultiZonePalette) -> Bool {
+        return lhs.shadowRGB.0 == rhs.shadowRGB.0 &&
+               lhs.shadowRGB.1 == rhs.shadowRGB.1 &&
+               lhs.shadowRGB.2 == rhs.shadowRGB.2 &&
+               lhs.midtoneRGB.0 == rhs.midtoneRGB.0 &&
+               lhs.midtoneRGB.1 == rhs.midtoneRGB.1 &&
+               lhs.midtoneRGB.2 == rhs.midtoneRGB.2 &&
+               lhs.highlightRGB.0 == rhs.highlightRGB.0 &&
+               lhs.highlightRGB.1 == rhs.highlightRGB.1 &&
+               lhs.highlightRGB.2 == rhs.highlightRGB.2
+    }
+}
+
 // MARK: - Color Detection Diagnostics & Telemetry
 public struct ColorDetectionDiagnostics: Sendable {
     public var wallpaperURL: URL? = nil
@@ -421,12 +450,20 @@ public final class DynamicThemeEngine: ObservableObject {
     @Published public var canvasColor: Color = Color(red: 0.05, green: 0.06, blue: 0.08)
     @Published public var structureColor: Color = Color(red: 0.13, green: 0.15, blue: 0.20)
     @Published public var accentColor: Color = Color(red: 0.22, green: 0.62, blue: 1.0)
+    @Published public var appAccentColor: Color = Color(red: 0.22, green: 0.62, blue: 1.0)
     @Published public var secondaryTextColor: Color = Color(red: 0.75, green: 0.82, blue: 0.92)
     @Published public var paletteSource = "Wallpaper"
     @Published public var diagnostics = ColorDetectionDiagnostics()
+    @Published public var multiZonePalette = MultiZonePalette()
+    
+    private var currentCanvasOKLab = OKLabColor(l: 0.08, a: 0.0, b: 0.0)
+    private var currentStructureOKLab = OKLabColor(l: 0.16, a: 0.0, b: 0.0)
+    private var currentAccentOKLab = OKLabColor(l: 0.65, a: 0.0, b: -0.15)
+    private var transitionTask: Task<Void, Never>?
     
     private var sampledWallpaperURL: URL?
     private var sampledWallpaperModDate: Date?
+    private var sampledWallpaperPalette: MultiZonePalette?
     private var sampledWallpaperColor: (CGFloat, CGFloat, CGFloat)?
     private var sampledAppColors: [String: (CGFloat, CGFloat, CGFloat)] = [:]
     private var samplingAppBundleIDs: Set<String> = []
@@ -445,8 +482,62 @@ public final class DynamicThemeEngine: ObservableObject {
         sampledWallpaperURL = nil
         sampledWallpaperModDate = nil
         sampledWallpaperColor = nil
+        sampledWallpaperPalette = nil
         sampledAppColors.removeAll()
         refreshColors()
+    }
+    
+    private func applyCurrentOKLabColors() {
+        let cRGB = currentCanvasOKLab.toRGB()
+        let sRGB = currentStructureOKLab.toRGB()
+        let aRGB = currentAccentOKLab.toRGB()
+        
+        // Guarantee contrast on final rendered canvas color
+        let safeCanvas = ContrastGuard.ensureContrast(background: cRGB, forTextLuminance: 1.0, minRatio: 4.5)
+        
+        self.canvasColor = Color(red: safeCanvas.0, green: safeCanvas.1, blue: safeCanvas.2)
+        self.structureColor = Color(red: sRGB.0, green: sRGB.1, blue: sRGB.2)
+        self.accentColor = Color(red: aRGB.0, green: aRGB.1, blue: aRGB.2)
+    }
+    
+    private func transitionTo(targetCanvas: OKLabColor, targetStructure: OKLabColor, targetAccent: OKLabColor) {
+        let isCollapsed = (NotchShellCoordinator.shared.state == .collapsed)
+        let reduceMotion = EnvironmentState.shared.reduceMotion || SettingsStore.shared.motionPhysics == .snappy
+        
+        transitionTask?.cancel()
+        transitionTask = nil
+        
+        if isCollapsed || reduceMotion {
+            // Instant transition when notch is collapsed or Reduce Motion is active
+            currentCanvasOKLab = targetCanvas
+            currentStructureOKLab = targetStructure
+            currentAccentOKLab = targetAccent
+            applyCurrentOKLabColors()
+            return
+        }
+        
+        // Smooth interruptible OKLab transition
+        let startCanvas = currentCanvasOKLab
+        let startStructure = currentStructureOKLab
+        let startAccent = currentAccentOKLab
+        
+        transitionTask = Task { @MainActor [weak self] in
+            let steps = 12
+            let duration: TimeInterval = 0.30
+            let interval = duration / Double(steps)
+            for step in 1...steps {
+                if Task.isCancelled { break }
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                if Task.isCancelled { break }
+                let t = CGFloat(step) / CGFloat(steps)
+                let easeT = sin(t * .pi / 2.0)
+                guard let self else { break }
+                self.currentCanvasOKLab = OKLabColor.blend(startCanvas, targetCanvas, progress: easeT)
+                self.currentStructureOKLab = OKLabColor.blend(startStructure, targetStructure, progress: easeT)
+                self.currentAccentOKLab = OKLabColor.blend(startAccent, targetAccent, progress: easeT)
+                self.applyCurrentOKLabColors()
+            }
+        }
     }
     
     public static func systemAccentRGB() -> (CGFloat, CGFloat, CGFloat) {
@@ -590,13 +681,18 @@ public final class DynamicThemeEngine: ObservableObject {
         if let imageURL = imageURL, !isCacheValid, !isSamplingWallpaper {
             isSamplingWallpaper = true
             DispatchQueue.global(qos: .utility).async { [weak self] in
-                let color = Self.sampleWallpaperColor(at: imageURL)
+                let palette = Self.sampleWallpaperPalette(at: imageURL)
+                let color = palette?.highlightRGB ?? Self.sampleWallpaperColor(at: imageURL)
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
                     self.isSamplingWallpaper = false
                     self.sampledWallpaperURL = imageURL
                     self.sampledWallpaperModDate = fileModDate
                     self.sampledWallpaperColor = color
+                    self.sampledWallpaperPalette = palette
+                    if let pal = palette {
+                        self.multiZonePalette = pal
+                    }
                     if SettingsStore.shared.currentTheme == .adaptive || SettingsStore.shared.currentTheme == .activeApp {
                         self.refreshColors()
                     }
@@ -749,12 +845,37 @@ public final class DynamicThemeEngine: ObservableObject {
 
         if paletteSource != sourceName { paletteSource = sourceName }
 
-        let canvas = Color(hue: hue, saturation: min(0.36, saturation * 0.55), brightness: 0.075)
-        if canvasColor != canvas { canvasColor = canvas }
-        let structure = Color(hue: hue, saturation: min(0.48, saturation * 0.68), brightness: 0.20)
-        if structureColor != structure { structureColor = structure }
-        let accent = Color(hue: hue, saturation: min(0.85, max(0.40, saturation * 0.85)), brightness: 0.94)
-        if accentColor != accent { accentColor = accent }
+        let targetCanvasRGB: (CGFloat, CGFloat, CGFloat)
+        let targetStructureRGB: (CGFloat, CGFloat, CGFloat)
+        let targetAccentRGB: (CGFloat, CGFloat, CGFloat)
+        
+        if theme == .adaptive, let pal = sampledWallpaperPalette {
+            targetCanvasRGB = pal.shadowRGB
+            targetStructureRGB = pal.midtoneRGB
+            let hRGB = pal.highlightRGB
+            let nsH = NSColor(red: hRGB.0, green: hRGB.1, blue: hRGB.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
+            var hh: CGFloat = 0, hs: CGFloat = 0, hb: CGFloat = 0, ha: CGFloat = 1
+            nsH.getHue(&hh, saturation: &hs, brightness: &hb, alpha: &ha)
+            let adjS = min(1.0, max(0.20, hs * vibrancy))
+            let adjH = NSColor(hue: hh, saturation: adjS, brightness: max(0.60, hb), alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
+            targetAccentRGB = (adjH.redComponent, adjH.greenComponent, adjH.blueComponent)
+        } else {
+            let nsCanvas = NSColor(hue: hue, saturation: min(0.36, saturation * 0.55), brightness: 0.075, alpha: 1).usingColorSpace(.deviceRGB) ?? .black
+            let nsStruct = NSColor(hue: hue, saturation: min(0.48, saturation * 0.68), brightness: 0.20, alpha: 1).usingColorSpace(.deviceRGB) ?? .darkGray
+            let nsAccent = NSColor(hue: hue, saturation: min(0.85, max(0.40, saturation * 0.85)), brightness: 0.94, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
+            targetCanvasRGB = (nsCanvas.redComponent, nsCanvas.greenComponent, nsCanvas.blueComponent)
+            targetStructureRGB = (nsStruct.redComponent, nsStruct.greenComponent, nsStruct.blueComponent)
+            targetAccentRGB = (nsAccent.redComponent, nsAccent.greenComponent, nsAccent.blueComponent)
+        }
+        
+        let safeCanvasRGB = ContrastGuard.ensureContrast(background: targetCanvasRGB, forTextLuminance: 1.0, minRatio: 4.5)
+        
+        let tCanvasOKLab = OKLabColor.from(rgb: safeCanvasRGB)
+        let tStructureOKLab = OKLabColor.from(rgb: targetStructureRGB)
+        let tAccentOKLab = OKLabColor.from(rgb: targetAccentRGB)
+        
+        transitionTo(targetCanvas: tCanvasOKLab, targetStructure: tStructureOKLab, targetAccent: tAccentOKLab)
+        
         let secondaryText = Color.white.opacity(0.68)
         if secondaryTextColor != secondaryText { secondaryTextColor = secondaryText }
     }
@@ -884,6 +1005,123 @@ public final class DynamicThemeEngine: ObservableObject {
         guard count > 0 else { return nil }
         return (totalR / count, totalG / count, totalB / count)
     }
+
+    nonisolated public static func sampleWallpaperPalette(at imageURL: URL) -> MultiZonePalette? {
+        let ext = imageURL.pathExtension.lowercased()
+        if ["mov", "mp4", "m4v"].contains(ext) {
+            let asset = AVURLAsset(url: imageURL)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 64, height: 64)
+            if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                return sampleMultiZonePalette(from: cgImage)
+            }
+        }
+        
+        return autoreleasepool { () -> MultiZonePalette? in
+            let sourceOpts: [CFString: Any] = [
+                kCGImageSourceShouldCache: false,
+                kCGImageSourceShouldCacheImmediately: false
+            ]
+            guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, sourceOpts as CFDictionary) else { return nil }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 64,
+                kCGImageSourceShouldCache: false
+            ]
+            guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+            return sampleMultiZonePalette(from: thumbnail)
+        }
+    }
+    
+    nonisolated public static func sampleMultiZonePalette(from cgImage: CGImage) -> MultiZonePalette {
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0 && height > 0 else { return MultiZonePalette() }
+        
+        let size = CGSize(width: width, height: height)
+        var rawData = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &rawData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return MultiZonePalette() }
+        
+        ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
+        
+        struct SamplePixel {
+            let r: CGFloat
+            let g: CGFloat
+            let b: CGFloat
+            let lum: CGFloat
+            let sat: CGFloat
+        }
+        
+        var pixels: [SamplePixel] = []
+        pixels.reserveCapacity(width * height)
+        
+        for i in stride(from: 0, to: rawData.count, by: 4) {
+            let a = CGFloat(rawData[i + 3]) / 255.0
+            if a > 0.15 {
+                let r = (CGFloat(rawData[i]) / 255.0) / a
+                let g = (CGFloat(rawData[i + 1]) / 255.0) / a
+                let b = (CGFloat(rawData[i + 2]) / 255.0) / a
+                let lum = ContrastGuard.relativeLuminance(r: r, g: g, b: b)
+                let maxC = max(r, g, b)
+                let minC = min(r, g, b)
+                let sat = maxC > 0.001 ? (maxC - minC) / maxC : 0
+                pixels.append(SamplePixel(r: r, g: g, b: b, lum: lum, sat: sat))
+            }
+        }
+        
+        guard !pixels.isEmpty else { return MultiZonePalette() }
+        
+        pixels.sort { $0.lum < $1.lum }
+        
+        // 1. Shadow Zone: lowest 35% luminance
+        let shadowCount = max(1, Int(Double(pixels.count) * 0.35))
+        var sR: CGFloat = 0, sG: CGFloat = 0, sB: CGFloat = 0
+        for i in 0..<shadowCount {
+            sR += pixels[i].r
+            sG += pixels[i].g
+            sB += pixels[i].b
+        }
+        let shadowRaw = (sR / CGFloat(shadowCount), sG / CGFloat(shadowCount), sB / CGFloat(shadowCount))
+        let shadowSafe = ContrastGuard.ensureContrast(background: shadowRaw, forTextLuminance: 1.0, minRatio: 4.5)
+        
+        // 2. Midtone Zone: 35% to 75% luminance
+        let midStart = shadowCount
+        let midEnd = max(midStart + 1, Int(Double(pixels.count) * 0.75))
+        var mR: CGFloat = 0, mG: CGFloat = 0, mB: CGFloat = 0, mCount: CGFloat = 0
+        for i in midStart..<midEnd {
+            mR += pixels[i].r
+            mG += pixels[i].g
+            mB += pixels[i].b
+            mCount += 1
+        }
+        let midtone = mCount > 0 ? (mR / mCount, mG / mCount, mB / mCount) : (0.13, 0.15, 0.20)
+        
+        // 3. Highlight Zone: pixel with highest saturation
+        var maxSatPixel = pixels[0]
+        for p in pixels {
+            if p.sat > maxSatPixel.sat && p.lum >= 0.10 && p.lum <= 0.95 {
+                maxSatPixel = p
+            }
+        }
+        let highlight = maxSatPixel.sat >= 0.10 ? (maxSatPixel.r, maxSatPixel.g, maxSatPixel.b) : (pixels.last!.r, pixels.last!.g, pixels.last!.b)
+        
+        return MultiZonePalette(
+            shadowRGB: shadowSafe,
+            midtoneRGB: midtone,
+            highlightRGB: highlight
+        )
+    }
 }
 
 @MainActor
@@ -896,6 +1134,7 @@ public struct DesignSystem {
     public static var canvasColor: Color { DynamicThemeEngine.shared.canvasColor }
     public static var structureColor: Color { DynamicThemeEngine.shared.structureColor }
     public static var accentColor: Color { DynamicThemeEngine.shared.accentColor }
+    public static var appAccentColor: Color { DynamicThemeEngine.shared.appAccentColor }
     public static var secondaryText: Color { DynamicThemeEngine.shared.secondaryTextColor }
     public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     

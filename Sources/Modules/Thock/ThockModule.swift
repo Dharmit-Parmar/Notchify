@@ -1223,37 +1223,6 @@ public struct ThockExpandedView: View {
                     )
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
-            } else {
-                if !module.hasDismissedAuthorizedBanner {
-                    // Sleek Authorized Pill (with dismiss 'X' cross sign button)
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.shield.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(Color.green)
-                        Text("Full Typing Interception Authorized (Accessibility & Input Monitoring)")
-                            .font(.system(size: 8, weight: .medium, design: .rounded))
-                            .foregroundColor(Color.green.opacity(0.9))
-                        Spacer()
-                        Button(action: {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                module.dismissAuthorizedBanner()
-                            }
-                        }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 7.5, weight: .bold))
-                                .foregroundColor(Color.green.opacity(0.85))
-                                .padding(3)
-                                .background(Circle().fill(Color.green.opacity(0.18)))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Dismiss notification")
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3.5)
-                    .background(Capsule().fill(Color.green.opacity(0.1)))
-                    .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.7))
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                }
             }
             
             // Thock Missing / Auto-Setup Banner

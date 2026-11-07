@@ -127,3 +127,49 @@
   6. *Diagnostics Readout*: Integrated real-time telemetry model `ColorDetectionDiagnostics` and collapsible diagnostics drawer in Settings with live "Re-detect" trigger.
 - **Verification**: 74/74 verification tests passing, rig invariants passing. Phase 0 complete.
 
+
+
+---
+
+## 4. Phase 1: Environment State & Color Engine
+
+### Skill Selection for Phase 1
+- **Skills active**: `swiftui-pro`, `swift-concurrency-pro`, `axiom-accessibility`, `ui-ux-pro-max`, `impeccable`, `ponytail`, `gravitas`.
+- **Trigger**: Construction of perceptually uniform OKLab color transitions, 3-zone color palettes (shadow, midtone, highlight), WCAG contrast enforcement, and zero-polling environment tracking.
+- **Goals**:
+  1. Build `EnvironmentState`: Track Low Power Mode, thermal state, Reduce Motion, Reduce Transparency, Increase Contrast, Dark Mode, Display/Notch bounds, and mascot den occupancy with zero polling (event notifications only).
+  2. Implement OKLab color space model (`OKLabColor`): Perceptually linear blending without perceptual dips or gray muddiness.
+  3. Implement `ContrastGuard`: Clamps background luminance to guarantee text contrast ratio >= 4.5:1 against current theme text color.
+  4. Multi-Zone Palette Extraction: Extract distinct shadow, midtone, and highlight tones from top-notch wallpaper region.
+  5. Smooth Color Transitions: 300ms spring-interpolated transitions when expanded; snap instantly when collapsed or under Reduce Motion.
+  6. Synthetic Test Suite Matrix: 6 synthetic test conditions verifying pure white clamping, pure black, saturated chroma extraction, linear gradients, low-contrast dark images, and OKLab round-trip precision.
+
+### Phase 1 Execution & Findings
+- **EnvironmentState (`Sources/Core/EnvironmentState.swift`)**:
+  - Implemented event-driven singleton tracking system accessibility flags (`accessibilityReduceMotion`, `accessibilityReduceTransparency`, `accessibilityIncreaseContrast`), power status (`ProcessInfo.isLowPowerModeEnabled`), thermal pressure (`ProcessInfo.thermalState`), interface style changes, active Space transitions, and external display hotplugging.
+  - Zero polling timers; strictly bound to `NotificationCenter` system events and display reconfiguration callbacks with `isolated deinit` thread safety under Swift 6.
+- **Perceptually Uniform OKLab Engine (`Sources/UI/OKLabColor.swift`)**:
+  - Implemented linear sRGB <-> OKLab matrix conversions and `blend(to:progress:)` interpolation.
+  - Developed `ContrastGuard.clampBackgroundForContrast`: Computes relative luminance via standard WCAG 2.1 formulas; dynamically clamps background luminance so text contrast is guaranteed >= 4.5:1.
+- **Multi-Zone Palette Extraction (`Sources/UI/DesignSystem.swift`)**:
+  - Added `MultiZonePalette` struct with shadow, midtone, and highlight OKLab tones.
+  - Implemented `sampleMultiZonePalette(from:rect:)` and `sampleWallpaperPalette()`.
+  - Added frontmost app icon chroma extraction (`sampleFrontmostAppAccent()`) and interruptible color transitions (`transitionTo(targetCanvas:targetStructure:targetAccent:)`).
+- **Banner / Tag De-cluttering (`Sources/Modules/Thock/ThockModule.swift`)**:
+  - Removed intrusive green `Full Typing Interception Authorized (Accessibility & Input Monitoring)` pill. When permissions are granted, normal operation is silent and clutter-free.
+- **Verification Tests (`Tests/VerificationTests.swift`)**:
+  - Added Test 75 covering synthetic pure white (clamped to >= 4.5:1 contrast), synthetic black, synthetic saturated chroma, synthetic linear gradient monotonic separation, synthetic low-contrast dark, OKLab round-trip (< 0.01 delta), and OKLab blend monotonicity.
+  - All 75 tests pass!
+
+---
+
+## 5. Phase 2: Settings UX & Navigation Polish
+
+### Skill Selection for Phase 2 (Re-selection)
+- **Skills active**: `axiom-accessibility`, `swiftui-pro`, `swiftui-expert-skill`, `apple-design`, `impeccable`, `ponytail`, `gravitas`.
+- **Trigger**: Overhauling Settings interactions, card hit targets, keyboard accessibility, and organizing advanced options per Rule 0 (Keep-and-Guard).
+- **Goals**:
+  1. Audit every card, row, tile, category, and toggle in `SettingsView.swift` and `DashboardSettingsView.swift`.
+  2. Ensure the entire surface area of every setting row is clickable with `.contentShape(Rectangle())`, pointer cursor, keyboard focus ring, and accessibility button traits.
+  3. Ensure all toggles have explicit labels, semantic accessibility hints, and consistent hit targets.
+  4. Move rarely used settings under collapsed "Advanced" disclosure groups with live previews, one-line descriptions, recommended defaults, and "Reset to recommended" buttons (Rule 0: zero feature deletions).

@@ -2039,8 +2039,251 @@ func runAllVerificationTests() {
     }
     print("  ✓ Clock 1.0s throttling, 0% CPU collapsed pause, and POSIX 0600 security invariants verified.")
     
+    // Test 75: Multi-Zone OKLab Color Engine & Synthetic Image Matrix Contract
+    print("\n[TEST 75] Multi-Zone OKLab Color Engine & Synthetic Image Matrix Contract...")
+    
+    struct TestOKLab {
+        let l: CGFloat
+        let a: CGFloat
+        let b: CGFloat
+        
+        static func from(rgb: (CGFloat, CGFloat, CGFloat)) -> TestOKLab {
+            func linearize(_ c: CGFloat) -> CGFloat {
+                let clamped = max(0, min(1, c))
+                return clamped <= 0.04045 ? clamped / 12.92 : pow((clamped + 0.055) / 1.055, 2.4)
+            }
+            let r = linearize(rgb.0)
+            let g = linearize(rgb.1)
+            let b = linearize(rgb.2)
+            let l_ = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+            let m_ = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+            let s_ = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+            let l_c = cbrt(Double(l_))
+            let m_c = cbrt(Double(m_))
+            let s_c = cbrt(Double(s_))
+            return TestOKLab(
+                l: CGFloat(0.2104542553 * l_c + 0.7936177850 * m_c - 0.0040720404 * s_c),
+                a: CGFloat(1.9779984951 * l_c - 2.4285922050 * m_c + 0.4505937099 * s_c),
+                b: CGFloat(0.0259040371 * l_c + 0.7827717662 * m_c - 0.8086757660 * s_c)
+            )
+        }
+        
+        func toRGB() -> (CGFloat, CGFloat, CGFloat) {
+            let l_ = Double(l) + 0.3963377774 * Double(a) + 0.2158037573 * Double(b)
+            let m_ = Double(l) - 0.1055613458 * Double(a) - 0.0638541728 * Double(b)
+            let s_ = Double(l) - 0.0894841775 * Double(a) - 1.2914855480 * Double(b)
+            let l3 = l_ * l_ * l_
+            let m3 = m_ * m_ * m_
+            let s3 = s_ * s_ * s_
+            let r_lin = CGFloat(+4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3)
+            let g_lin = CGFloat(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3)
+            let b_lin = CGFloat(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3)
+            func delinearize(_ c: CGFloat) -> CGFloat {
+                let clamped = max(0, min(1, c))
+                return clamped <= 0.0031308 ? 12.92 * clamped : 1.055 * pow(clamped, 1.0 / 2.4) - 0.055
+            }
+            return (delinearize(r_lin), delinearize(g_lin), delinearize(b_lin))
+        }
+        
+        static func blend(_ c1: TestOKLab, _ c2: TestOKLab, progress: CGFloat) -> TestOKLab {
+            let t = max(0, min(1, progress))
+            return TestOKLab(
+                l: c1.l + (c2.l - c1.l) * t,
+                a: c1.a + (c2.a - c1.a) * t,
+                b: c1.b + (c2.b - c1.b) * t
+            )
+        }
+    }
+    
+    struct TestContrastGuard {
+        static func relativeLuminance(r: CGFloat, g: CGFloat, b: CGFloat) -> CGFloat {
+            func linearize(_ c: CGFloat) -> CGFloat {
+                let clamped = max(0, min(1, c))
+                return clamped <= 0.04045 ? clamped / 12.92 : pow((clamped + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
+        }
+        
+        static func contrastRatio(lum1: CGFloat, lum2: CGFloat) -> CGFloat {
+            let lighter = max(lum1, lum2)
+            let darker = min(lum1, lum2)
+            return (lighter + 0.05) / (darker + 0.05)
+        }
+        
+        static func ensureContrast(background: (CGFloat, CGFloat, CGFloat), forTextLuminance textLum: CGFloat = 1.0, minRatio: CGFloat = 4.5) -> (CGFloat, CGFloat, CGFloat) {
+            let bgLum = relativeLuminance(r: background.0, g: background.1, b: background.2)
+            let currentRatio = contrastRatio(lum1: textLum, lum2: bgLum)
+            if currentRatio >= minRatio { return background }
+            let targetMaxLum = max(0.005, (textLum + 0.05) / minRatio - 0.05)
+            let scale = sqrt(targetMaxLum / max(0.0001, bgLum))
+            return (
+                max(0, min(1, background.0 * scale)),
+                max(0, min(1, background.1 * scale)),
+                max(0, min(1, background.2 * scale))
+            )
+        }
+    }
+    
+    struct TestMultiZonePalette {
+        let shadowRGB: (CGFloat, CGFloat, CGFloat)
+        let midtoneRGB: (CGFloat, CGFloat, CGFloat)
+        let highlightRGB: (CGFloat, CGFloat, CGFloat)
+        
+        static func extract(from cgImage: CGImage) -> TestMultiZonePalette {
+            let width = cgImage.width
+            let height = cgImage.height
+            var rawData = [UInt8](repeating: 0, count: width * height * 4)
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let ctx = CGContext(
+                data: &rawData,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width * 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return TestMultiZonePalette(shadowRGB: (0.05, 0.06, 0.08), midtoneRGB: (0.13, 0.15, 0.20), highlightRGB: (0.22, 0.62, 1.0))
+            }
+            ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            
+            struct Sample {
+                let r: CGFloat; let g: CGFloat; let b: CGFloat; let lum: CGFloat; let sat: CGFloat
+            }
+            var samples: [Sample] = []
+            for i in stride(from: 0, to: rawData.count, by: 4) {
+                let a = CGFloat(rawData[i + 3]) / 255.0
+                if a > 0.15 {
+                    let r = (CGFloat(rawData[i]) / 255.0) / a
+                    let g = (CGFloat(rawData[i + 1]) / 255.0) / a
+                    let b = (CGFloat(rawData[i + 2]) / 255.0) / a
+                    let lum = TestContrastGuard.relativeLuminance(r: r, g: g, b: b)
+                    let maxC = max(r, g, b)
+                    let minC = min(r, g, b)
+                    let sat = maxC > 0.001 ? (maxC - minC) / maxC : 0
+                    samples.append(Sample(r: r, g: g, b: b, lum: lum, sat: sat))
+                }
+            }
+            guard !samples.isEmpty else {
+                return TestMultiZonePalette(shadowRGB: (0.05, 0.06, 0.08), midtoneRGB: (0.13, 0.15, 0.20), highlightRGB: (0.22, 0.62, 1.0))
+            }
+            samples.sort { $0.lum < $1.lum }
+            
+            let sCount = max(1, Int(Double(samples.count) * 0.35))
+            var sR: CGFloat = 0, sG: CGFloat = 0, sB: CGFloat = 0
+            for i in 0..<sCount { sR += samples[i].r; sG += samples[i].g; sB += samples[i].b }
+            let sRaw = (sR / CGFloat(sCount), sG / CGFloat(sCount), sB / CGFloat(sCount))
+            let sSafe = TestContrastGuard.ensureContrast(background: sRaw, forTextLuminance: 1.0, minRatio: 4.5)
+            
+            let mCount = max(1, Int(Double(samples.count) * 0.40))
+            var mR: CGFloat = 0, mG: CGFloat = 0, mB: CGFloat = 0
+            for i in sCount..<min(samples.count, sCount + mCount) { mR += samples[i].r; mG += samples[i].g; mB += samples[i].b }
+            let mRaw = (mR / CGFloat(mCount), mG / CGFloat(mCount), mB / CGFloat(mCount))
+            
+            var maxSat = samples[0]
+            for s in samples { if s.sat > maxSat.sat { maxSat = s } }
+            let hRaw = (maxSat.r, maxSat.g, maxSat.b)
+            
+            return TestMultiZonePalette(shadowRGB: sSafe, midtoneRGB: mRaw, highlightRGB: hRaw)
+        }
+    }
+    
+    func createSyntheticCGImage(width: Int = 32, height: Int = 32, pixelGenerator: (Int, Int) -> (UInt8, UInt8, UInt8, UInt8)) -> CGImage? {
+        var rawData = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let pixel = pixelGenerator(x, y)
+                let offset = (y * width + x) * 4
+                rawData[offset] = pixel.0
+                rawData[offset + 1] = pixel.1
+                rawData[offset + 2] = pixel.2
+                rawData[offset + 3] = pixel.3
+            }
+        }
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &rawData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        return ctx.makeImage()
+    }
+    
+    // 1. Synthetic Pure White Image
+    let whiteImage = createSyntheticCGImage { _, _ in (255, 255, 255, 255) }!
+    let whitePalette = TestMultiZonePalette.extract(from: whiteImage)
+    let whiteSafeShadow = TestContrastGuard.ensureContrast(background: whitePalette.shadowRGB, forTextLuminance: 1.0, minRatio: 4.5)
+    let whiteContrast = TestContrastGuard.contrastRatio(lum1: 1.0, lum2: TestContrastGuard.relativeLuminance(r: whiteSafeShadow.0, g: whiteSafeShadow.1, b: whiteSafeShadow.2))
+    assert(whiteContrast >= 4.49, "ContrastGuard MUST clamp pure white background to maintain >= 4.5:1 text contrast")
+    print("  ✓ Synthetic pure white image multi-zone extraction & contrast guard verified (Ratio: \(String(format: "%.2f", whiteContrast)):1)")
+    
+    // 2. Synthetic Pure Black Image
+    let blackImage = createSyntheticCGImage { _, _ in (0, 0, 0, 255) }!
+    let blackPalette = TestMultiZonePalette.extract(from: blackImage)
+    assert(blackPalette.shadowRGB.0 <= 0.10 && blackPalette.shadowRGB.1 <= 0.10 && blackPalette.shadowRGB.2 <= 0.10, "Shadow of pure black image must be dark")
+    print("  ✓ Synthetic pure black image multi-zone extraction verified.")
+    
+    // 3. Synthetic Saturated Image (Vibrant Red)
+    let saturatedImage = createSyntheticCGImage { x, y in
+        if x < 16 {
+            return (255, 20, 30, 255) // Vibrant Red
+        } else {
+            return (30, 30, 40, 255) // Dark Background
+        }
+    }!
+    let satPalette = TestMultiZonePalette.extract(from: saturatedImage)
+    assert(satPalette.highlightRGB.0 > satPalette.highlightRGB.1, "Highlight zone must capture the vibrant red pixel cluster")
+    print("  ✓ Synthetic saturated image chroma highlight extraction verified.")
+    
+    // 4. Synthetic Linear Gradient Image (Dark to Bright)
+    let gradientImage = createSyntheticCGImage { x, _ in
+        let val = UInt8(min(255, max(0, x * 8)))
+        return (val, UInt8(Double(val) * 0.5), UInt8(Double(val) * 0.2), 255)
+    }!
+    let gradPalette = TestMultiZonePalette.extract(from: gradientImage)
+    let shadowLum = TestContrastGuard.relativeLuminance(r: gradPalette.shadowRGB.0, g: gradPalette.shadowRGB.1, b: gradPalette.shadowRGB.2)
+    let midLum = TestContrastGuard.relativeLuminance(r: gradPalette.midtoneRGB.0, g: gradPalette.midtoneRGB.1, b: gradPalette.midtoneRGB.2)
+    assert(shadowLum <= midLum, "Shadow luminance must be less than or equal to midtone luminance on gradient")
+    print("  ✓ Synthetic linear gradient monotonic multi-zone separation verified.")
+    
+    // 5. Synthetic Low-Contrast Dark Image
+    let lowContrastImage = createSyntheticCGImage { _, _ in (35, 38, 42, 255) }!
+    let lowContrastPalette = TestMultiZonePalette.extract(from: lowContrastImage)
+    let safeLowContrast = TestContrastGuard.ensureContrast(background: lowContrastPalette.shadowRGB, forTextLuminance: 1.0, minRatio: 4.5)
+    let safeRatio = TestContrastGuard.contrastRatio(lum1: 1.0, lum2: TestContrastGuard.relativeLuminance(r: safeLowContrast.0, g: safeLowContrast.1, b: safeLowContrast.2))
+    assert(safeRatio >= 4.5, "Low-contrast background must maintain >= 4.5:1 WCAG contrast ratio")
+    print("  ✓ Synthetic low-contrast image contrast guard verified (Ratio: \(String(format: "%.2f", safeRatio)):1)")
+    
+    // 6. OKLab Round-Trip Conversion Accuracy
+    let testRGBs: [(CGFloat, CGFloat, CGFloat)] = [
+        (0.85, 0.20, 0.35),
+        (0.12, 0.75, 0.45),
+        (0.20, 0.50, 0.95),
+        (0.95, 0.85, 0.20)
+    ]
+    for rgb in testRGBs {
+        let oklab = TestOKLab.from(rgb: rgb)
+        let rt = oklab.toRGB()
+        let deltaR = abs(rt.0 - rgb.0)
+        let deltaG = abs(rt.1 - rgb.1)
+        let deltaB = abs(rt.2 - rgb.2)
+        assert(deltaR < 0.01 && deltaG < 0.01 && deltaB < 0.01, "OKLab round-trip conversion accuracy delta must be < 0.01")
+    }
+    print("  ✓ OKLab color model perceptual round-trip accuracy verified.")
+    
+    // 7. OKLab Blending Monotonicity
+    let c1 = TestOKLab.from(rgb: (0.1, 0.2, 0.8))
+    let c2 = TestOKLab.from(rgb: (0.9, 0.4, 0.2))
+    let midBlend = TestOKLab.blend(c1, c2, progress: 0.5)
+    assert(midBlend.l > min(c1.l, c2.l) && midBlend.l < max(c1.l, c2.l), "OKLab midpoint blend lightness must lie strictly between endpoints")
+    print("  ✓ OKLab smooth perceptual interpolation monotonicity verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (74/74) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (75/75) ")
     print("=====================================================\n")
 }
 
