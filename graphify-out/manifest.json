@@ -18,10 +18,10 @@
     "semantic_hash": "08f3225fa571111c91fd7b52f3051faa"
   },
   "Sources/Core/ModuleRegistry.swift": {
-    "mtime": 1793821083.6749809,
-    "seen": 1793987242.1460989,
-    "ast_hash": "9864f3179c5880e8713430889fd7f1cc",
-    "semantic_hash": "9864f3179c5880e8713430889fd7f1cc"
+    "mtime": 1794030133.7457407,
+    "seen": 1794030342.747734,
+    "ast_hash": "c2a647376f5cf4c36ef61274e3c1478a",
+    "semantic_hash": ""
   },
   "Sources/Core/NotchModule.swift": {
     "mtime": 1793818674.483665,
@@ -60,9 +60,9 @@
     "semantic_hash": "4293b00c56a7bf39b3aaca588f8f0f30"
   },
   "Sources/Modules/NowPlaying/NowPlayingModule.swift": {
-    "mtime": 1794027912.6894085,
-    "seen": 1794028366.822628,
-    "ast_hash": "6ad759aea9cb793fa243654eae6855db",
+    "mtime": 1794029915.147567,
+    "seen": 1794030342.747744,
+    "ast_hash": "044e1aef351e68b2625bde74579c72dc",
     "semantic_hash": ""
   },
   "Sources/Modules/Shelf/ShelfModule.swift": {
@@ -132,9 +132,9 @@
     "semantic_hash": "07c426bc56614479060722fb7f47bb2b"
   },
   "README.md": {
-    "mtime": 1794029186.950656,
-    "seen": 1794029368.994556,
-    "ast_hash": "0cc4c99c2f7f4b94624abfda97c95203",
+    "mtime": 1794030207.9814472,
+    "seen": 1794030342.747757,
+    "ast_hash": "8c56317204a4bea26847f3b7f03e482a",
     "semantic_hash": ""
   },
   "Sources/Modules/AirDrop/AirDropModule.swift": {
@@ -216,10 +216,10 @@
     "semantic_hash": "160f028db4c3f7480eadd13759ade513"
   },
   "Sources/Modules/Companion/KinematicEngine.swift": {
-    "mtime": 1793748867.246036,
-    "seen": 1793987242.146105,
-    "ast_hash": "4afc70fdcb745a9b0cae0d4626736df5",
-    "semantic_hash": "4afc70fdcb745a9b0cae0d4626736df5"
+    "mtime": 1794030044.10092,
+    "seen": 1794030342.747741,
+    "ast_hash": "82c04457cf944422be5c1f8bb91bd8c7",
+    "semantic_hash": ""
   },
   "Sources/Modules/Companion/KinematicSkeleton.swift": {
     "mtime": 1793557417.8456788,
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "REPORT.md": {
-    "mtime": 1794029215.485274,
-    "seen": 1794029368.994556,
-    "ast_hash": "429121cf5698615702aa9bcc7bb312ec",
+    "mtime": 1794029383.6674445,
+    "seen": 1794030342.7477582,
+    "ast_hash": "89603fec893d7c8f6c1242591be5afd5",
     "semantic_hash": ""
   }
 }

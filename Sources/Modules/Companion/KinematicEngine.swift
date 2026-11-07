@@ -1263,18 +1263,31 @@ public final class KinematicEngine: ObservableObject {
         var pose = SkeletonPose()
         pose.timestamp = behaviorTime
         let walkY = walkLedgeY
-        let p = min(1.0, behaviorTime / 0.8)
-        let jumpY = CGFloat(sin(p * .pi)) * 14.0
+        let duration: Double = 0.85
+        let p = min(1.0, behaviorTime / duration)
+        let jumpY = CGFloat(sin(p * .pi)) * 22.0
         pose.torso.root = visibleBodyRoot(at: CGPoint(x: rootWorldX, y: walkY - 14.0 - jumpY))
-        pose.torso.spineAngle = -.pi / 2.0
-        pose.headCenter = visibleRouteHead(at: CGPoint(x: pose.torso.neck.x, y: pose.torso.neck.y - 8.0))
-        pose.headAngle = sin(p * .pi) * 8.0
-        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: pose.torso.root.x - 5.0, y: pose.torso.root.y + 6.0), bendPositive: false)
-        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: pose.torso.root.x + 5.0, y: pose.torso.root.y + 6.0), bendPositive: true)
-        let armLift = CGFloat(sin(p * .pi)) * 8.0
-        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x - 10.0, y: pose.torso.neck.y - 4.0 - armLift), bendPositive: false)
-        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x + 10.0, y: pose.torso.neck.y - 4.0 - armLift), bendPositive: true)
-        pose.mouthShape = .smile
+        
+        // Full 360-degree acrobatic backflip rotation
+        let flipAngle = Double(p) * 2.0 * .pi
+        pose.torso.spineAngle = -.pi / 2.0 - flipAngle
+        
+        let neckPoint = pose.torso.neck
+        pose.headCenter = visibleRouteHead(at: CGPoint(x: neckPoint.x, y: neckPoint.y - 6.0 * cos(flipAngle)))
+        pose.headAngle = -sin(Double(p) * .pi) * 15.0
+        
+        // Tucked limbs during flip rotation, extending gracefully on landing
+        let tuck: CGFloat = CGFloat(sin(p * .pi)) * 4.0
+        pose.leftLeg.solveIK(from: pose.torso.leftHipAnchor, toward: CGPoint(x: pose.torso.root.x - 4.0, y: pose.torso.root.y + 4.0 - tuck), bendPositive: false)
+        pose.rightLeg.solveIK(from: pose.torso.rightHipAnchor, toward: CGPoint(x: pose.torso.root.x + 4.0, y: pose.torso.root.y + 4.0 - tuck), bendPositive: true)
+        
+        let armFlare: CGFloat = (1.0 - CGFloat(sin(p * .pi))) * 5.0
+        pose.leftArm.solveIK(from: pose.torso.leftShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x - 7.0 - armFlare, y: pose.torso.neck.y - tuck), bendPositive: false)
+        pose.rightArm.solveIK(from: pose.torso.rightShoulderAnchor, toward: CGPoint(x: pose.torso.neck.x + 7.0 + armFlare, y: pose.torso.neck.y - tuck), bendPositive: true)
+        
+        pose.mouthShape = p < 0.75 ? .openW : .smile
+        pose.leftEyeOpen = 1.1
+        pose.rightEyeOpen = 1.1
         return pose
     }
     

@@ -253,7 +253,8 @@ public struct NowPlayingHomeCardView: View {
                     
                     // Scrubber progress bar
                     if module.duration > 0 {
-                        TimelineView(.animation(minimumInterval: 1, paused: !module.isPlaying)) { _ in
+                        let isExpanded = NotchShellCoordinator.shared.state == .expanded
+                        TimelineView(.animation(minimumInterval: 1, paused: !module.isPlaying || !isExpanded)) { _ in
                             let progress = module.progress
                             VStack(spacing: 2) {
                                 GeometryReader { geo in

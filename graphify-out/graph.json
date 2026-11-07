@@ -787,7 +787,7 @@
       "file_type": "code",
       "norm_label": "nowplayingadaptivewidgetview",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L482"
+      "source_location": "L483"
     },
     {
       "id": "sources_modules_nowplaying_nowplayingmodule_nowplayingcompacttileview",
@@ -800,7 +800,7 @@
       "file_type": "code",
       "norm_label": "nowplayingcompacttileview",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L356"
+      "source_location": "L357"
     },
     {
       "id": "sources_modules_nowplaying_nowplayingmodule_nowplayinghomecardview",
@@ -2488,7 +2488,7 @@
       "file_type": "code",
       "norm_label": ".activatehoveredmodule()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L137"
+      "source_location": "L155"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_cancelfiledroptarget",
@@ -2500,7 +2500,7 @@
       "file_type": "code",
       "norm_label": ".cancelfiledroptarget()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L241"
+      "source_location": "L259"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_cancelpendingtabhover",
@@ -2512,7 +2512,7 @@
       "file_type": "code",
       "norm_label": ".cancelpendingtabhover()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L288"
+      "source_location": "L306"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_hovertohome",
@@ -2524,7 +2524,7 @@
       "file_type": "code",
       "norm_label": ".hovertohome()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L128"
+      "source_location": "L146"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_init",
@@ -2536,7 +2536,7 @@
       "file_type": "code",
       "norm_label": ".init()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L19"
+      "source_location": "L20"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_ismodulevalidandenabled",
@@ -2548,7 +2548,7 @@
       "file_type": "code",
       "norm_label": ".ismodulevalidandenabled()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L84"
+      "source_location": "L102"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_module",
@@ -2560,7 +2560,7 @@
       "file_type": "code",
       "norm_label": ".module()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L80"
+      "source_location": "L98"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_movemodule",
@@ -2572,7 +2572,7 @@
       "file_type": "code",
       "norm_label": ".movemodule()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L251"
+      "source_location": "L269"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_movemoduletofirst",
@@ -2584,7 +2584,7 @@
       "file_type": "code",
       "norm_label": ".movemoduletofirst()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L264"
+      "source_location": "L282"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_movemoduletolast",
@@ -2596,7 +2596,7 @@
       "file_type": "code",
       "norm_label": ".movemoduletolast()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L274"
+      "source_location": "L292"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_ondashboardhover",
@@ -2608,7 +2608,7 @@
       "file_type": "code",
       "norm_label": ".ondashboardhover()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L115"
+      "source_location": "L133"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_ontabhover",
@@ -2620,7 +2620,7 @@
       "file_type": "code",
       "norm_label": ".ontabhover()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L90"
+      "source_location": "L108"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_persistorder",
@@ -2632,7 +2632,7 @@
       "file_type": "code",
       "norm_label": ".persistorder()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L284"
+      "source_location": "L302"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_register",
@@ -2644,7 +2644,7 @@
       "file_type": "code",
       "norm_label": ".register()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L26"
+      "source_location": "L44"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_returntohome",
@@ -2656,7 +2656,7 @@
       "file_type": "code",
       "norm_label": ".returntohome()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L219"
+      "source_location": "L237"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_selectfiledroptarget",
@@ -2668,7 +2668,7 @@
       "file_type": "code",
       "norm_label": ".selectfiledroptarget()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L228"
+      "source_location": "L246"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_selectmodule",
@@ -2680,7 +2680,7 @@
       "file_type": "code",
       "norm_label": ".selectmodule()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L153"
+      "source_location": "L171"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_toggledashboardpin",
@@ -2692,7 +2692,7 @@
       "file_type": "code",
       "norm_label": ".toggledashboardpin()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L170"
+      "source_location": "L188"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_togglepin",
@@ -2704,7 +2704,7 @@
       "file_type": "code",
       "norm_label": ".togglepin()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L193"
+      "source_location": "L211"
     },
     {
       "id": "sources_notch_notchrootview_notchrootview_init",
@@ -4024,7 +4024,7 @@
       "file_type": "code",
       "norm_label": ".init()",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L485"
+      "source_location": "L486"
     },
     {
       "id": "sources_modules_nowplaying_nowplayingmodule_nowplayingmodule_formattime",
@@ -4480,7 +4480,7 @@
       "file_type": "code",
       "norm_label": ".stopall()",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L293"
+      "source_location": "L311"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_onfiledragentered",
@@ -5368,7 +5368,7 @@
       "file_type": "code",
       "norm_label": ".evaluatecrawling()",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1285"
+      "source_location": "L1298"
     },
     {
       "id": "sources_modules_companion_kinematicengine_kinematicengine_evaluatefarcornerturn",
@@ -5536,7 +5536,7 @@
       "file_type": "code",
       "norm_label": ".nextcrawlstride()",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1281"
+      "source_location": "L1294"
     },
     {
       "id": "sources_modules_companion_kinematicengine_kinematicengine_refreshscreengeometry",
@@ -8347,7 +8347,7 @@
       "file_type": "code",
       "norm_label": ".activemodule",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L75"
+      "source_location": "L93"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_activemoduleid",
@@ -8358,7 +8358,7 @@
       "file_type": "code",
       "norm_label": ".activemoduleid",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L57"
+      "source_location": "L75"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_isdashboardpinned",
@@ -8369,7 +8369,7 @@
       "file_type": "code",
       "norm_label": ".isdashboardpinned",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L71"
+      "source_location": "L89"
     },
     {
       "id": "sources_core_moduleregistry_moduleregistry_orderedmodules",
@@ -8380,7 +8380,7 @@
       "file_type": "code",
       "norm_label": ".orderedmodules",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L41"
+      "source_location": "L59"
     },
     {
       "id": "sources_core_moduleregistry_swift_bool",
@@ -11309,7 +11309,7 @@
       "file_type": "code",
       "norm_label": ".body",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L489"
+      "source_location": "L490"
     },
     {
       "id": "sources_modules_nowplaying_nowplayingmodule_nowplayingcompacttileview_body",
@@ -11320,7 +11320,7 @@
       "file_type": "code",
       "norm_label": ".body",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L360"
+      "source_location": "L361"
     },
     {
       "id": "sources_modules_nowplaying_nowplayingmodule_nowplayinghomecardview_body",
@@ -17278,7 +17278,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L144",
+      "source_location": "L162",
       "weight": 1.0
     },
     {
@@ -17290,7 +17290,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L61",
+      "source_location": "L79",
       "weight": 1.0
     },
     {
@@ -17302,7 +17302,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L134",
+      "source_location": "L152",
       "weight": 1.0
     },
     {
@@ -17314,7 +17314,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L259",
+      "source_location": "L277",
       "weight": 1.0
     },
     {
@@ -17326,7 +17326,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L260",
+      "source_location": "L278",
       "weight": 1.0
     },
     {
@@ -17338,7 +17338,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L269",
+      "source_location": "L287",
       "weight": 1.0
     },
     {
@@ -17350,7 +17350,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L270",
+      "source_location": "L288",
       "weight": 1.0
     },
     {
@@ -17362,7 +17362,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L279",
+      "source_location": "L297",
       "weight": 1.0
     },
     {
@@ -17374,7 +17374,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L280",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -17386,7 +17386,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L116",
+      "source_location": "L134",
       "weight": 1.0
     },
     {
@@ -17398,7 +17398,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L118",
+      "source_location": "L136",
       "weight": 1.0
     },
     {
@@ -17410,43 +17410,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L121",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry_ontabhover",
-      "target": "sources_core_moduleregistry_moduleregistry_cancelpendingtabhover",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L105",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry_ontabhover",
-      "target": "sources_core_moduleregistry_swift_dispatchworkitem",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L107",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry_ontabhover",
-      "target": "sources_core_moduleregistry_moduleregistry_activatehoveredmodule",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L108",
+      "source_location": "L139",
       "weight": 1.0
     },
     {
@@ -17458,7 +17422,43 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L93",
+      "source_location": "L111",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry_ontabhover",
+      "target": "sources_core_moduleregistry_moduleregistry_cancelpendingtabhover",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L123",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry_ontabhover",
+      "target": "sources_core_moduleregistry_swift_dispatchworkitem",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L125",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry_ontabhover",
+      "target": "sources_core_moduleregistry_moduleregistry_activatehoveredmodule",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L126",
       "weight": 1.0
     },
     {
@@ -17470,7 +17470,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L36",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -17482,7 +17482,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L220",
+      "source_location": "L238",
       "weight": 1.0
     },
     {
@@ -17494,7 +17494,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L225",
+      "source_location": "L243",
       "weight": 1.0
     },
     {
@@ -17506,7 +17506,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L229",
+      "source_location": "L247",
       "weight": 1.0
     },
     {
@@ -17518,7 +17518,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L230",
+      "source_location": "L248",
       "weight": 1.0
     },
     {
@@ -17530,7 +17530,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L237",
+      "source_location": "L255",
       "weight": 1.0
     },
     {
@@ -17542,7 +17542,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L154",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -17554,7 +17554,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L159",
+      "source_location": "L177",
       "weight": 1.0
     },
     {
@@ -17566,7 +17566,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L294",
+      "source_location": "L312",
       "weight": 1.0
     },
     {
@@ -17578,7 +17578,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L171",
+      "source_location": "L189",
       "weight": 1.0
     },
     {
@@ -17590,7 +17590,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L179",
+      "source_location": "L197",
       "weight": 1.0
     },
     {
@@ -17602,7 +17602,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L194",
+      "source_location": "L212",
       "weight": 1.0
     },
     {
@@ -17614,7 +17614,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L202",
+      "source_location": "L220",
       "weight": 1.0
     },
     {
@@ -21058,7 +21058,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1267",
+      "source_location": "L1268",
       "weight": 1.0
     },
     {
@@ -21070,7 +21070,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1268",
+      "source_location": "L1269",
       "weight": 1.0
     },
     {
@@ -21082,7 +21082,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1268",
+      "source_location": "L1269",
       "weight": 1.0
     },
     {
@@ -21094,7 +21094,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1270",
+      "source_location": "L1276",
       "weight": 1.0
     },
     {
@@ -21214,7 +21214,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1286",
+      "source_location": "L1299",
       "weight": 1.0
     },
     {
@@ -21226,7 +21226,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1307",
+      "source_location": "L1320",
       "weight": 1.0
     },
     {
@@ -21238,7 +21238,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1310",
+      "source_location": "L1323",
       "weight": 1.0
     },
     {
@@ -21250,7 +21250,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1314",
+      "source_location": "L1327",
       "weight": 1.0
     },
     {
@@ -23470,7 +23470,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L492",
+      "source_location": "L493",
       "weight": 1.0
     },
     {
@@ -23482,24 +23482,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L494",
+      "source_location": "L495",
       "weight": 1.0
     },
     {
       "source": "sources_modules_nowplaying_nowplayingmodule_nowplayingcompacttileview_body",
       "target": "sources_ui_designsystem_feedbackmanager_playclick",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L425",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_modules_nowplaying_nowplayingmodule_nowplayingcompacttileview_body",
-      "target": "sources_modules_nowplaying_nowplayingmodule_nowplayingmodule_previoustrack",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -23511,6 +23499,18 @@
     },
     {
       "source": "sources_modules_nowplaying_nowplayingmodule_nowplayingcompacttileview_body",
+      "target": "sources_modules_nowplaying_nowplayingmodule_nowplayingmodule_previoustrack",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
+      "source_location": "L427",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_modules_nowplaying_nowplayingmodule_nowplayingcompacttileview_body",
       "target": "sources_modules_nowplaying_nowplayingmodule_nowplayingmodule_toggleplaypause",
       "relation": "calls",
       "_origin": "ast",
@@ -23518,7 +23518,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L436",
+      "source_location": "L437",
       "weight": 1.0
     },
     {
@@ -23530,7 +23530,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L448",
+      "source_location": "L449",
       "weight": 1.0
     },
     {
@@ -23542,7 +23542,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L477",
+      "source_location": "L478",
       "weight": 1.0
     },
     {
@@ -23554,7 +23554,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L274",
+      "source_location": "L275",
       "weight": 1.0
     },
     {
@@ -23566,7 +23566,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L296",
+      "source_location": "L297",
       "weight": 1.0
     },
     {
@@ -23578,7 +23578,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L297",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -23590,7 +23590,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L309",
+      "source_location": "L310",
       "weight": 1.0
     },
     {
@@ -23602,7 +23602,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L327",
+      "source_location": "L328",
       "weight": 1.0
     },
     {
@@ -23614,7 +23614,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L351",
+      "source_location": "L352",
       "weight": 1.0
     },
     {
@@ -29578,7 +29578,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L57",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -29590,7 +29590,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L71",
+      "source_location": "L89",
       "weight": 1.0
     },
     {
@@ -29602,7 +29602,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L75",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -31402,7 +31402,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L483",
+      "source_location": "L484",
       "weight": 1.0
     },
     {
@@ -31414,7 +31414,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L358",
+      "source_location": "L359",
       "weight": 1.0
     },
     {
@@ -34918,7 +34918,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L137",
+      "source_location": "L155",
       "weight": 1.0
     },
     {
@@ -34930,7 +34930,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L84",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -34942,7 +34942,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L80",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -34954,7 +34954,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L251",
+      "source_location": "L269",
       "weight": 1.0
     },
     {
@@ -34966,7 +34966,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L264",
+      "source_location": "L282",
       "weight": 1.0
     },
     {
@@ -34978,7 +34978,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L274",
+      "source_location": "L292",
       "weight": 1.0
     },
     {
@@ -34990,7 +34990,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L90",
+      "source_location": "L108",
       "weight": 1.0
     },
     {
@@ -35002,7 +35002,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L26",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -35014,7 +35014,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L228",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -35026,7 +35026,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L153",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -35038,7 +35038,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L193",
+      "source_location": "L211",
       "weight": 1.0
     },
     {
@@ -36658,7 +36658,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1285",
+      "source_location": "L1298",
       "weight": 1.0
     },
     {
@@ -37378,7 +37378,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L485",
+      "source_location": "L486",
       "weight": 1.0
     },
     {
@@ -39280,7 +39280,7 @@
         "swift_plain_return": true
       },
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L84",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -39670,7 +39670,7 @@
         "swift_plain_return": true
       },
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1281",
+      "source_location": "L1294",
       "weight": 1.0
     },
     {
@@ -40084,7 +40084,7 @@
       "confidence_score": 1.0,
       "context": "return_type",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L80",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -42796,7 +42796,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L356",
+      "source_location": "L357",
       "weight": 1.0
     },
     {
@@ -42807,7 +42807,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L482",
+      "source_location": "L483",
       "weight": 1.0
     },
     {
@@ -44490,7 +44490,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L482",
+      "source_location": "L483",
       "weight": 1.0
     },
     {
@@ -44501,7 +44501,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L356",
+      "source_location": "L357",
       "weight": 1.0
     },
     {
@@ -46046,255 +46046,13 @@
     },
     {
       "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_ondashboardhover",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L115",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_hovertohome",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L128",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_activatehoveredmodule",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L137",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_selectmodule",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L153",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_toggledashboardpin",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L170",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_init",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L19",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_togglepin",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L193",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_returntohome",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L219",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_selectfiledroptarget",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L228",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_cancelfiledroptarget",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L241",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_movemodule",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L251",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_register",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L26",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_movemoduletofirst",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L264",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_movemoduletolast",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L274",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_persistorder",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L284",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_cancelpendingtabhover",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L288",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_stopall",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L293",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_orderedmodules",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L41",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_activemoduleid",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L57",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_isdashboardpinned",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L71",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_activemodule",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L75",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
-      "target": "sources_core_moduleregistry_moduleregistry_module",
-      "relation": "method",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L80",
-      "weight": 1.0
-    },
-    {
-      "source": "sources_core_moduleregistry_moduleregistry",
       "target": "sources_core_moduleregistry_moduleregistry_ismodulevalidandenabled",
       "relation": "method",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L84",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -46305,7 +46063,249 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L90",
+      "source_location": "L108",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_ondashboardhover",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L133",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_hovertohome",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L146",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_activatehoveredmodule",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L155",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_selectmodule",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L171",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_toggledashboardpin",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L188",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_init",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_togglepin",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L211",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_returntohome",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L237",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_selectfiledroptarget",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L246",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_cancelfiledroptarget",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L259",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_movemodule",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L269",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_movemoduletofirst",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L282",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_movemoduletolast",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L292",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_persistorder",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L302",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_cancelpendingtabhover",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L306",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_stopall",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L311",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_register",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L44",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_orderedmodules",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L59",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_activemoduleid",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L75",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_isdashboardpinned",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L89",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_activemodule",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L93",
+      "weight": 1.0
+    },
+    {
+      "source": "sources_core_moduleregistry_moduleregistry",
+      "target": "sources_core_moduleregistry_moduleregistry_module",
+      "relation": "method",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "Sources/Core/ModuleRegistry.swift",
+      "source_location": "L98",
       "weight": 1.0
     },
     {
@@ -49110,7 +49110,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1281",
+      "source_location": "L1294",
       "weight": 1.0
     },
     {
@@ -49121,7 +49121,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1285",
+      "source_location": "L1298",
       "weight": 1.0
     },
     {
@@ -50606,7 +50606,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L485",
+      "source_location": "L486",
       "weight": 1.0
     },
     {
@@ -50617,7 +50617,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L489",
+      "source_location": "L490",
       "weight": 1.0
     },
     {
@@ -50628,7 +50628,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L360",
+      "source_location": "L361",
       "weight": 1.0
     },
     {
@@ -55211,7 +55211,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L146",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -55223,7 +55223,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L77",
+      "source_location": "L95",
       "weight": 1.0
     },
     {
@@ -55235,7 +55235,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L245",
+      "source_location": "L263",
       "weight": 1.0
     },
     {
@@ -55247,7 +55247,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L130",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -55259,7 +55259,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L85",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -55271,7 +55271,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L44",
+      "source_location": "L62",
       "weight": 1.0
     },
     {
@@ -55283,7 +55283,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L221",
+      "source_location": "L239",
       "weight": 1.0
     },
     {
@@ -55295,7 +55295,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L235",
+      "source_location": "L253",
       "weight": 1.0
     },
     {
@@ -55307,7 +55307,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L163",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -55319,7 +55319,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L189",
+      "source_location": "L207",
       "weight": 1.0
     },
     {
@@ -55331,7 +55331,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Core/ModuleRegistry.swift",
-      "source_location": "L213",
+      "source_location": "L231",
       "weight": 1.0
     },
     {
@@ -56123,7 +56123,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "Sources/Modules/NowPlaying/NowPlayingModule.swift",
-      "source_location": "L403",
+      "source_location": "L404",
       "weight": 1.0
     },
     {
@@ -56719,5 +56719,5 @@
       "source_file": "NOTCH_CREATURE_MVP.md"
     }
   ],
-  "built_at_commit": "251dc5ef4af4540e84c5c5d4038f80452401f278"
+  "built_at_commit": "e5328b1586d2a25f20796885fe22919e908e3754"
 }

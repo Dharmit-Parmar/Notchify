@@ -13,6 +13,7 @@ public final class ModuleRegistry: ObservableObject {
     @Published public var pinnedModuleId: String? = nil
     private var suppressedHoverId: String? = nil
     private var tabHoverWorkItem: DispatchWorkItem?
+    private var cancellables = Set<AnyCancellable>()
     
     private let orderStorageKey = "NotchApp_ModuleOrder"
     
@@ -21,6 +22,23 @@ public final class ModuleRegistry: ObservableObject {
             // Filter out 'nowPlaying' or 'calendar' from header tabs if previously saved
             self.moduleOrder = savedOrder.filter { $0 != "nowPlaying" && $0 != "home" }
         }
+        
+        SettingsStore.shared.$enabledModules
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabledDict in
+                guard let self = self else { return }
+                for m in self.modules {
+                    m.isEnabled = enabledDict[m.id] ?? true
+                }
+                if let pinned = self.pinnedModuleId, pinned != "dashboard" && !(enabledDict[pinned] ?? true) {
+                    self.pinnedModuleId = nil
+                }
+                if let hovered = self.hoveredModuleId, !(enabledDict[hovered] ?? true) {
+                    self.hoveredModuleId = nil
+                }
+                self.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
     
     public func register(_ module: any NotchModule) {
@@ -41,12 +59,12 @@ public final class ModuleRegistry: ObservableObject {
     public var orderedModules: [any NotchModule] {
         var result: [any NotchModule] = []
         for id in moduleOrder {
-            if let m = modules.first(where: { $0.id == id }) {
+            if let m = modules.first(where: { $0.id == id && $0.isEnabled }) {
                 result.append(m)
             }
         }
         for m in modules {
-            if !result.contains(where: { $0.id == m.id }) {
+            if m.isEnabled && !result.contains(where: { $0.id == m.id }) {
                 result.append(m)
             }
         }

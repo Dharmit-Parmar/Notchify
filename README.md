@@ -91,7 +91,7 @@ An interactive rotary dial for everyday document workflows:
 ### 1. Launch Notchify
 Clone the repository and run the pre-configured release runner:
 ```bash
-git clone https://github.com/your-username/Notchify.git
+git clone https://github.com/Dharmit-Parmar/Notchify.git
 cd Notchify
 ./run_notch.sh
 ```
@@ -159,10 +159,16 @@ Run all suites with:
 
 ---
 
-## 🛡️ Privacy & Security
+## 🛡️ Privacy, Security & Network Architecture
 
-- **100% Local Execution:** Notchify does not connect to any external cloud, tracking, or telemetry servers.
-- **Sanitized Repository:** Includes strict credential and key ignoring rules (`.gitignore`) preventing leaks of `.env` files, SSH keys, certificates, or local API tokens.
+- **Local-First Architecture & Zero Telemetry:** Notchify collects zero telemetry, zero analytics, and runs entirely locally for shell navigation, desktop pet kinematics, document operations, and system monitoring.
+- **User-Initiated Cloud Endpoints:** Outbound network connections occur solely when explicitly configured and triggered by the user:
+  - **Google Gemini API** (`generativelanguage.googleapis.com`): For note summarization, polish, and queries when Gemini provider is selected.
+  - **OpenAI API** (`api.openai.com`): For GPT copilot queries when OpenAI provider is selected.
+  - **Telegram Bot API** (`api.telegram.org`): For direct dispatch when configured with a personal bot token.
+- **Hardware-Enclave Keychain Storage:** All API tokens and credentials are encrypted using Apple's native Security framework (`kSecClassGenericPassword` with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`), completely isolated from application files.
+- **Sandboxed POSIX 0600 Storage:** Quick notes (`notes.txt`) and Telegram contacts (`contacts.json`) reside in `~/Library/Application Support/NotchApp/` with strict POSIX `0600` permissions (restricted to the user process).
+- **Sanitized Repository & Supply Chain:** Pre-commit and pre-push Git hooks prevent secret leaks. External audio engine assets are pinned to verified immutable Git commit SHAs.
 
 ---
 
