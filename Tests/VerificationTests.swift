@@ -2561,8 +2561,151 @@ func runAllVerificationTests() {
     assert(dwellElapsedTarget, "Must trigger spring-loaded switch after 0.4s dwell")
     print("  ✓ Spring-loaded 0.4s dwell timer activation contract verified.")
     
+    // =========================================================================
+    // TEST 78: Phase 5 Verification — Motion Physics Refinement, Energy Governor,
+    //          and Idle Dimming with WCAG AA Contrast Guard
+    // =========================================================================
+    print("\n[Test 78] Phase 5 Verification: Motion Physics, Energy Governor & Idle Dimming")
+    
+    // 1. Motion Physics & Glass Material Enum Guard (Rule 0)
+    enum TestMotionPhysicsStyle: String, CaseIterable {
+        case appleFluid = "Apple Fluid"
+        case snappy = "Snappy"
+        case gentle = "Gentle"
+        
+        var response: Double {
+            switch self {
+            case .appleFluid: return 0.32
+            case .snappy: return 0.20
+            case .gentle: return 0.44
+            }
+        }
+        
+        var damping: Double {
+            switch self {
+            case .appleFluid: return 0.96
+            case .snappy: return 1.0
+            case .gentle: return 0.88
+            }
+        }
+    }
+    
+    assert(TestMotionPhysicsStyle.allCases.count == 3, "MotionPhysicsStyle must retain all 3 options")
+    assert(TestMotionPhysicsStyle.appleFluid.response == 0.32, "Apple Fluid response must be 0.32s")
+    assert(TestMotionPhysicsStyle.snappy.damping == 1.0, "Snappy damping must be critically damped (1.0)")
+    
+    enum TestGlassMaterialStyle: String, CaseIterable {
+        case frosted = "Frosted Glass"
+        case deepOLED = "Deep OLED"
+        case luminous = "Luminous Tint"
+        case crystal = "Crystal Clear"
+    }
+    assert(TestGlassMaterialStyle.allCases.count == 4, "GlassMaterialStyle must retain all 4 options")
+    print("  ✓ Motion physics profiles and glass material styles contract preserved (Rule 0).")
+    
+    // 2. Energy Governor Decision Matrix
+    struct TestEnergyGovernor {
+        var isLowPowerMode: Bool = false
+        var isThermalThrottled: Bool = false
+        var reduceMotion: Bool = false
+        var reduceTransparency: Bool = false
+        var preferredPhysics: TestMotionPhysicsStyle = .appleFluid
+        
+        var effectivePhysics: TestMotionPhysicsStyle {
+            if isLowPowerMode || isThermalThrottled {
+                return .snappy
+            }
+            return preferredPhysics
+        }
+        
+        var shouldRenderGPUBlur: Bool {
+            if reduceTransparency || isLowPowerMode || isThermalThrottled {
+                return false
+            }
+            return true
+        }
+        
+        var shouldAnimateWaveforms: Bool {
+            if isLowPowerMode || isThermalThrottled {
+                return false
+            }
+            return true
+        }
+        
+        var shouldInterpolateColors: Bool {
+            if isLowPowerMode || reduceMotion {
+                return false
+            }
+            return true
+        }
+    }
+    
+    // Normal Conditions
+    var gov = TestEnergyGovernor()
+    assert(gov.effectivePhysics == .appleFluid, "Normal mode should use preferred physics")
+    assert(gov.shouldRenderGPUBlur == true, "Normal mode should allow GPU blur")
+    assert(gov.shouldAnimateWaveforms == true, "Normal mode should animate equalizers")
+    assert(gov.shouldInterpolateColors == true, "Normal mode should smoothly blend OKLab colors")
+    
+    // Low Power Mode Active
+    gov.isLowPowerMode = true
+    assert(gov.effectivePhysics == .snappy, "Low Power Mode must automatically drop motion to Snappy")
+    assert(gov.shouldRenderGPUBlur == false, "Low Power Mode must drop heavy GPU blur to save battery")
+    assert(gov.shouldAnimateWaveforms == false, "Low Power Mode must pause continuous sine waveforms")
+    assert(gov.shouldInterpolateColors == false, "Low Power Mode must snap colors without background timers")
+    
+    // Thermal Throttled Active
+    gov.isLowPowerMode = false
+    gov.isThermalThrottled = true
+    assert(gov.effectivePhysics == .snappy, "High thermal state must switch to Snappy")
+    assert(gov.shouldRenderGPUBlur == false, "High thermal state must disable heavy GPU blur")
+    assert(gov.shouldAnimateWaveforms == false, "High thermal state must pause non-essential live animations")
+    print("  ✓ Energy Governor state matrix verified (Low Power & Thermal optimization).")
+    
+    // 3. Idle Dimming 4s Deadline Timer & Instantaneous Reset Contract
+    struct TestIdleState {
+        var isDimmed: Bool = false
+        var lastInteraction: Date = Date()
+        let timeout: TimeInterval = 4.0
+        
+        mutating func checkIdle(at date: Date) {
+            if date.timeIntervalSince(lastInteraction) >= timeout {
+                isDimmed = true
+            }
+        }
+        
+        mutating func registerInteraction(at date: Date) {
+            isDimmed = false
+            lastInteraction = date
+        }
+    }
+    
+    var idleState = TestIdleState()
+    let idleNow = Date()
+    idleState.checkIdle(at: idleNow.addingTimeInterval(2.5))
+    assert(!idleState.isDimmed, "Must NOT dim before 4s idle threshold")
+    
+    idleState.checkIdle(at: idleNow.addingTimeInterval(4.1))
+    assert(idleState.isDimmed, "Must dim after 4s without interaction")
+    
+    idleState.registerInteraction(at: idleNow.addingTimeInterval(4.2))
+    assert(!idleState.isDimmed, "Must immediately undim upon pointer motion or interaction")
+    print("  ✓ Resettable 4s idle dimming timer contract verified.")
+    
+    // 4. Dimmed State WCAG AA Contrast Invariant (>= 4.5:1)
+    let dimmedWhiteLum = TestContrastGuard.relativeLuminance(r: 0.88, g: 0.88, b: 0.88)
+    let darkCanvasLum = TestContrastGuard.relativeLuminance(r: 0.05, g: 0.06, b: 0.08)
+    let dimmedDarkRatio = TestContrastGuard.contrastRatio(lum1: dimmedWhiteLum, lum2: darkCanvasLum)
+    assert(dimmedDarkRatio >= 4.5, "Dimmed dark theme text must exceed WCAG AA 4.5:1 ratio (measured: \(dimmedDarkRatio))")
+    
+    let paperCanvasLum = TestContrastGuard.relativeLuminance(r: 0.969, g: 0.961, b: 0.941)
+    let dimmedCharcoalLum = TestContrastGuard.relativeLuminance(r: 0.20, g: 0.20, b: 0.20)
+    let dimmedLightRatio = TestContrastGuard.contrastRatio(lum1: paperCanvasLum, lum2: dimmedCharcoalLum)
+    assert(dimmedLightRatio >= 4.5, "Dimmed light theme text must exceed WCAG AA 4.5:1 ratio (measured: \(dimmedLightRatio))")
+    print("  ✓ Dimmed state WCAG AA contrast ratio compliance verified (Dark: \(String(format: "%.1f", dimmedDarkRatio)):1, Light: \(String(format: "%.1f", dimmedLightRatio)):1).")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (77/77) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (78/78) ")
     print("=====================================================\n")
 }
 

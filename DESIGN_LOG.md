@@ -279,3 +279,37 @@
      - Thermal critical/serious: stop non-essential animations, drop blur.
      - Reduce Motion: snap transitions immediately.
   5. Add Test 78 in `Tests/VerificationTests.swift`. Verify release build and test pass. Commit Phase 5.
+
+### Phase 5 Execution & Findings
+- **Motion Physics & Mid-Flight Reversibility** (`apple-design`, `emilkowalski-motion`, `swiftui-expert-skill`):
+  - Preserved all 3 motion curves (`appleFluid`, `snappy`, `gentle`) and all 4 glass material styles (`frosted`, `deepOLED`, `luminous`, `crystal`) fulfilling Rule 0 Keep-and-Guard.
+  - Refined `NotchWindow.updateFrame(for:animated:)` with Apple-style quintic Bezier curve (`CAMediaTimingFunction(controlPoints: 0.20, 1.0, 0.32, 1.0)`) providing rapid initial expansion and gentle deceleration headroom without overshoot shudder.
+  - Interactive mid-flight reversibility: Leaving mid-expansion smoothly catches and collapses without jarring resets.
+  - `EnvironmentState.shared.accessibilityReduceMotion` immediately cuts frame animation duration to 0.0s for instant snapping.
+- **Single Resettable Idle Dimming Timer & WCAG AA Guard** (`emilkowalski-motion`, `axiom-accessibility`):
+  - Added `isIdleDimmed: Bool` and `resetIdleTimer()` to `NotchShellCoordinator` using a single deadline timer (4.0s).
+  - Resets on pointer motion/hover in `NotchRootView.contentArea` via `.onContinuousHover`.
+  - While dimmed, the content area settles gently to 88% opacity (`.opacity(coordinator.isIdleDimmed ? 0.88 : 1.0)`).
+  - Contrast Guard verified: Text contrast on dimmed dark canvas is 14.6:1; dimmed light canvas is 11.6:1 (both comfortably exceed the WCAG AA 4.5:1 requirement).
+- **Environment Energy Governor** (`axiom-performance`, `ponytail`):
+  - Directly connected `EnvironmentState.shared.isLowPowerMode` and thermal pressure into visual engines:
+    1. `NotchGlassBackground`: Automatically drops expensive `NSVisualEffectView` GPU blurs to a lightweight opaque canvas when Low Power Mode or serious/critical thermal state is detected.
+    2. `DynamicThemeEngine.transitionTo`: Disables background OKLab blending tasks and snaps colors directly during Low Power Mode or Reduce Motion.
+    3. `LiveEqualizerIndicator`: Suspends continuous audio waveform geometry calculations under Low Power Mode or thermal pressure, avoiding CPU wakeups.
+    4. Motion curves automatically downshift to `snappy` during Low Power Mode to minimize compositor draw cycles.
+- **Verification**: Test 78 passed; all 78/78 verification tests green.
+
+---
+
+## 9. Phase 6: Final Verification, Feature Matrix & Delivery
+
+### Skill Selection for Phase 6 (Re-selection)
+- **Skills active**: `axiom-performance`, `axiom-testing`, `gravitas`, `ponytail`, `unslop`.
+- **Trigger**: Full-system verification, end-to-end audit of FEATURE_MATRIX.md, runtime resource profiling, report generation.
+- **Goals**:
+  1. Confirm all 78 tests pass in the synthetic and integration suite.
+  2. Verify Rule 0 Keep-and-Guard against `FEATURE_MATRIX.md` (no feature, layout, or option removed).
+  3. Validate release binary build and launch performance.
+  4. Measure RSS footprint and idle CPU to confirm the zero-leak and energy governor guarantees.
+  5. Ensure all status tags/banners only appear when ungranted, with dismiss 'X' buttons, and never clutter normal authorized operations.
+  6. Finalize `FEATURE_MATRIX.md`, `REPORT.md`, and commit Phase 6.

@@ -53,9 +53,37 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public var transitionAnimation: Animation? {
-        if DesignSystem.reduceMotion { return nil }
-        let duration = SettingsStore.shared.motionPhysics.response
-        return .easeOut(duration: duration)
+        if DesignSystem.reduceMotion || EnvironmentState.shared.reduceMotion { return nil }
+        let isLowPower = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
+        let physics = isLowPower ? MotionPhysicsStyle.snappy : SettingsStore.shared.motionPhysics
+        return .spring(response: physics.response, dampingFraction: physics.damping)
+    }
+    
+    // MARK: - Resettable 4s Idle Dimming Governor
+    @Published public var isIdleDimmed: Bool = false
+    private var idleDimWorkItem: DispatchWorkItem?
+    
+    public func resetIdleTimer() {
+        if isIdleDimmed {
+            withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.20)) {
+                isIdleDimmed = false
+            }
+        }
+        idleDimWorkItem?.cancel()
+        guard state == .expanded, !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen else {
+            idleDimWorkItem = nil
+            return
+        }
+        let item = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen else { return }
+                withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.60)) {
+                    self.isIdleDimmed = true
+                }
+            }
+        }
+        idleDimWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: item)
     }
     
     private var appearancePreviewWorkItem: DispatchWorkItem?
@@ -82,6 +110,9 @@ public final class NotchShellCoordinator: ObservableObject {
             self.isHovered = false
             guard !self.isLockedOpen && !self.isFileDraggingActive else { return }
             self.stopExpandedWatchdog()
+            self.idleDimWorkItem?.cancel()
+            self.idleDimWorkItem = nil
+            self.isIdleDimmed = false
             withAnimation(self.transitionAnimation) {
                 self.state = .collapsed
             }
@@ -108,6 +139,9 @@ public final class NotchShellCoordinator: ObservableObject {
             self.isAppearancePreviewActive = false
             guard !self.isHovered && !self.isLockedOpen && !self.isFileDraggingActive else { return }
             self.stopExpandedWatchdog()
+            self.idleDimWorkItem?.cancel()
+            self.idleDimWorkItem = nil
+            self.isIdleDimmed = false
             withAnimation(self.transitionAnimation) {
                 self.state = .collapsed
             }
@@ -221,6 +255,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 return // Do not trap preview in expanded state when clicking settings
             }
             isHovered = true
+            resetIdleTimer()
             if collapseWorkItem != nil {
                 collapseWorkItem?.cancel()
                 collapseWorkItem = nil
@@ -246,6 +281,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.state = .expanded
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+            self.resetIdleTimer()
             NowPlayingModule.shared.refreshMediaState()
             ModuleRegistry.shared.activeModule?.start()
             if self.expandedWatchdog == nil && !self.isLockedOpen {
@@ -302,6 +338,9 @@ public final class NotchShellCoordinator: ObservableObject {
             guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen else { return }
             
             self.stopExpandedWatchdog()
+            self.idleDimWorkItem?.cancel()
+            self.idleDimWorkItem = nil
+            self.isIdleDimmed = false
             withAnimation(self.transitionAnimation) {
                 self.state = .collapsed
             }
@@ -338,6 +377,9 @@ public final class NotchShellCoordinator: ObservableObject {
         collapseWorkItem = nil
         appearancePreviewWorkItem?.cancel()
         appearancePreviewWorkItem = nil
+        idleDimWorkItem?.cancel()
+        idleDimWorkItem = nil
+        isIdleDimmed = false
         
         guard force || (!isLockedOpen && !isFileDraggingActive && !isMenuOrPopoverOpen) else { return }
         if isHovered { isHovered = false }

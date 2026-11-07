@@ -365,7 +365,8 @@ public struct LiveEqualizerIndicator: View {
     
     public var body: some View {
         let isExpanded = NotchShellCoordinator.shared.state == .expanded
-        TimelineView(.animation(minimumInterval: 0.20, paused: !isPlaying || !isExpanded)) { timeline in
+        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
+        TimelineView(.animation(minimumInterval: 0.20, paused: !isPlaying || !isExpanded || isPowerThrottled)) { timeline in
             let date = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 1.5) {
                 equalizerBar(height: isPlaying ? barHeight(offset: 0.0, time: date) : 6)
@@ -537,13 +538,14 @@ public final class DynamicThemeEngine: ObservableObject {
     
     private func transitionTo(targetCanvas: OKLabColor, targetStructure: OKLabColor, targetAccent: OKLabColor) {
         let isCollapsed = (NotchShellCoordinator.shared.state == .collapsed)
-        let reduceMotion = EnvironmentState.shared.reduceMotion || SettingsStore.shared.motionPhysics == .snappy
+        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
+        let reduceMotion = EnvironmentState.shared.reduceMotion || SettingsStore.shared.motionPhysics == .snappy || isPowerThrottled
         
         transitionTask?.cancel()
         transitionTask = nil
         
         if isCollapsed || reduceMotion {
-            // Instant transition when notch is collapsed or Reduce Motion is active
+            // Instant transition when notch is collapsed, in Low Power Mode, or Reduce Motion is active
             currentCanvasOKLab = targetCanvas
             currentStructureOKLab = targetStructure
             currentAccentOKLab = targetAccent
@@ -1342,9 +1344,10 @@ public struct NotchGlassBackground: View {
     public var body: some View {
         let glassStyle = store.glassMaterialStyle
         let glowEnabled = store.specularGlowEnabled
+        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
         
         ZStack {
-            if showsMaterial && !reduceTransparency {
+            if showsMaterial && !reduceTransparency && !isPowerThrottled {
                 let material: NSVisualEffectView.Material = {
                     switch glassStyle {
                     case .frosted: return .hudWindow

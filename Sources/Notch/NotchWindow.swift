@@ -153,11 +153,13 @@ public final class NotchPanel: NSPanel {
         
         guard self.frame != targetRect else { return }
         
-        if animated && !DesignSystem.reduceMotion {
-            let duration = SettingsStore.shared.motionPhysics.response
+        if animated && !DesignSystem.reduceMotion && !EnvironmentState.shared.reduceMotion {
+            let isLowPower = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
+            let physics = isLowPower ? MotionPhysicsStyle.snappy : SettingsStore.shared.motionPhysics
+            let duration = physics.response
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = duration
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.20, 1.0, 0.32, 1.0)
                 self.animator().setFrame(targetRect, display: false)
             }
         } else {

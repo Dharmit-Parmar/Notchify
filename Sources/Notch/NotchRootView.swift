@@ -61,6 +61,8 @@ public struct NotchRootView: View {
                         .padding(.horizontal, store.contentHorizontalPadding)
                         .padding(.bottom, store.contentVerticalPadding)
                         .frame(maxHeight: .infinity, alignment: .top)
+                        .opacity(coordinator.isIdleDimmed ? 0.88 : 1.0)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: coordinator.isIdleDimmed ? 0.60 : 0.20), value: coordinator.isIdleDimmed)
                         .transition(.opacity)
                 }
             }
@@ -68,6 +70,11 @@ public struct NotchRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: store.currentTheme)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: themeEngine.canvasColor)
+        .onContinuousHover { _ in
+            if isExpanded {
+                coordinator.resetIdleTimer()
+            }
+        }
         .contentShape(Rectangle())
         .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
             coordinator.fileDropWasAccepted = true
