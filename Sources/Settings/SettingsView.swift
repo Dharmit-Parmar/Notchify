@@ -1,6 +1,32 @@
 import SwiftUI
+import AppKit
 
-import SwiftUI
+@MainActor
+public enum SettingsInk {
+    /// True when the current theme canvas is light (Sakura, Birch)
+    public static var isLight: Bool {
+        DesignSystem.isLightTheme
+    }
+    public static var primary: Color {
+        isLight ? Color(red: 0.16, green: 0.09, blue: 0.12) : .white   // deep plum on light
+    }
+    public static var secondary: Color { primary.opacity(0.62) }
+    public static var tertiary: Color  { primary.opacity(0.42) }
+    /// Replacement for SettingsInk.tint(x): fills, borders, dividers
+    public static func tint(_ o: Double) -> Color {
+        (isLight ? Color.black : Color.white).opacity(isLight ? o * 0.7 : o)
+    }
+}
+
+struct SettingsWindowAppearance: NSViewRepresentable {
+    let isLight: Bool
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ v: NSView, context: Context) {
+        DispatchQueue.main.async {
+            v.window?.appearance = NSAppearance(named: isLight ? .aqua : .darkAqua)
+        }
+    }
+}
 
 public enum SettingsCategory: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
@@ -133,12 +159,12 @@ public struct AdvancedSettingsSection<Content: View>: View {
                     HStack(spacing: 7) {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 9.5, weight: .bold))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                             .frame(width: 12)
                         
                         Text(title)
                             .font(.system(size: 11.5, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                         
                         Text("Advanced")
                             .font(.system(size: 8.5, weight: .semibold, design: .rounded))
@@ -168,7 +194,7 @@ public struct AdvancedSettingsSection<Content: View>: View {
                         .foregroundColor(DesignSystem.accentColor)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.white.opacity(0.06)))
+                        .background(Capsule().fill(SettingsInk.tint(0.06)))
                     }
                     .buttonStyle(.plain)
                     .pointerHoverCursor()
@@ -178,12 +204,12 @@ public struct AdvancedSettingsSection<Content: View>: View {
             
             Text(description)
                 .font(.system(size: 9.5))
-                .foregroundColor(DesignSystem.secondaryText)
+                .foregroundColor(SettingsInk.secondary)
                 .padding(.leading, 19)
             
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
-                    Divider().background(Color.white.opacity(0.08))
+                    Divider().background(SettingsInk.tint(0.08))
                     content()
                 }
                 .padding(.top, 4)
@@ -194,11 +220,11 @@ public struct AdvancedSettingsSection<Content: View>: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.025))
+                .fill(SettingsInk.tint(0.025))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.8)
+                .strokeBorder(SettingsInk.tint(0.06), lineWidth: 0.8)
         )
     }
 }
@@ -218,14 +244,14 @@ public struct SettingsView: View {
                 .frame(width: 210)
                 .background(DesignSystem.canvasColor.opacity(0.65))
             
-            Divider().background(Color.white.opacity(0.12))
+            Divider().background(SettingsInk.tint(0.12))
             
             // Right Fluid Detail Stage
             VStack(spacing: 0) {
                 // Detail Header Bar
                 detailHeaderBar
                 
-                Divider().background(Color.white.opacity(0.12))
+                Divider().background(SettingsInk.tint(0.12))
                 
                 // Detail Scroll Area
                 ScrollView(.vertical, showsIndicators: true) {
@@ -253,7 +279,7 @@ public struct SettingsView: View {
                 }
                 .animation(DesignSystem.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.9), value: nav.selectedCategory)
                 
-                Divider().background(Color.white.opacity(0.12))
+                Divider().background(SettingsInk.tint(0.12))
                 
                 // Footer Bar
                 footerBar
@@ -263,6 +289,7 @@ public struct SettingsView: View {
         }
         .background(DesignSystem.canvasColor)
         .tint(DesignSystem.accentColor)
+        .background(SettingsWindowAppearance(isLight: store.currentTheme.isLight))
         .animation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.22), value: themeEngine.canvasColor)
         .frame(minWidth: 780, minHeight: 560)
         .onAppear {
@@ -287,10 +314,10 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Notch Island")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Text("Liquid Retina Workspace")
                         .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 
                 Spacer()
@@ -299,7 +326,7 @@ public struct SettingsView: View {
             .padding(.top, 18)
             .padding(.bottom, 16)
             
-            Divider().background(Color.white.opacity(0.08))
+            Divider().background(SettingsInk.tint(0.08))
             
             // Categories List
             ScrollView(.vertical, showsIndicators: false) {
@@ -319,12 +346,12 @@ public struct SettingsView: View {
                                         .frame(width: 24, height: 24)
                                     Image(systemName: category.icon)
                                         .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(isSelected ? .white : category.tintColor)
+                                        .foregroundColor(isSelected ? SettingsInk.primary : category.tintColor)
                                 }
                                 
                                 Text(category.rawValue)
                                     .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium, design: .rounded))
-                                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                                    .foregroundColor(isSelected ? SettingsInk.primary : SettingsInk.secondary)
                                 
                                 Spacer()
                             }
@@ -332,7 +359,7 @@ public struct SettingsView: View {
                             .padding(.vertical, 7)
                             .background(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
+                                    .fill(isSelected ? SettingsInk.tint(0.12) : Color.clear)
                             )
                             .contentShape(Rectangle())
                         }
@@ -350,7 +377,7 @@ public struct SettingsView: View {
             
             Spacer()
             
-            Divider().background(Color.white.opacity(0.08))
+            Divider().background(SettingsInk.tint(0.08))
             
             // Current Theme Footer Chip
             HStack(spacing: 8) {
@@ -360,10 +387,10 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("ACTIVE THEME")
                         .font(.system(size: 8.5, weight: .bold))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                     Text(store.currentTheme.displayName)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                 }
                 Spacer()
             }
@@ -378,10 +405,10 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(nav.selectedCategory.rawValue)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
                 Text(categorySubtitle(nav.selectedCategory))
                     .font(.system(size: 11))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
             }
             
             Spacer()
@@ -422,11 +449,11 @@ public struct SettingsView: View {
         HStack(alignment: .top, spacing: 8) {
             Text(label)
                 .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                .foregroundColor(Color.white.opacity(0.6))
+                .foregroundColor(SettingsInk.tint(0.6))
                 .frame(width: 125, alignment: .leading)
             Text(value)
                 .font(.system(size: 9.5, weight: .regular, design: .monospaced))
-                .foregroundColor(.white)
+                .foregroundColor(SettingsInk.primary)
                 .lineLimit(2)
             Spacer()
         }
@@ -439,7 +466,7 @@ public struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Theme Palette (22 Themes)")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     if store.currentTheme.isDynamic {
                         HStack(spacing: 5) {
                             Circle()
@@ -447,14 +474,14 @@ public struct SettingsView: View {
                                 .frame(width: 6, height: 6)
                             Text("Dynamic: following \(themeEngine.paletteSource)")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                     }
                 }
                 Spacer()
                 Text(store.currentTheme.subtitle)
                     .font(.system(size: 11))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
             }
             
             // Sub-Section 1: Dynamic Living Themes
@@ -465,11 +492,11 @@ public struct SettingsView: View {
                         .foregroundColor(SettingsCategory.appearance.tintColor)
                     Text("Dynamic Living Themes")
                         .font(.system(size: 11.5, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Spacer()
                     Text("Auto-adapting")
                         .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
@@ -499,11 +526,11 @@ public struct SettingsView: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(theme.displayName)
                                         .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SettingsInk.primary)
                                         .lineLimit(1)
                                     Text(isSelected ? "Active" : theme.subtitle)
                                         .font(.system(size: 9))
-                                        .foregroundColor(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.4))
+                                        .foregroundColor(isSelected ? DesignSystem.accentColor : SettingsInk.tint(0.4))
                                 }
                                 Spacer()
                             }
@@ -511,11 +538,11 @@ public struct SettingsView: View {
                             .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                    .fill(isSelected ? DesignSystem.structureColor.opacity(0.85) : Color.white.opacity(0.05))
+                                    .fill(isSelected ? DesignSystem.structureColor.opacity(0.85) : SettingsInk.tint(0.05))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                    .strokeBorder(isSelected ? DesignSystem.accentColor.opacity(0.9) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
+                                    .strokeBorder(isSelected ? DesignSystem.accentColor.opacity(0.9) : SettingsInk.tint(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
                             .overlay(alignment: .topTrailing) {
                                 if isSelected {
@@ -549,11 +576,11 @@ public struct SettingsView: View {
                         .foregroundColor(SettingsCategory.appearance.tintColor)
                     Text("Studio Color Presets (18 Styles)")
                         .font(.system(size: 11.5, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Spacer()
                     Text("Fixed 60-30-10 palettes")
                         .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
@@ -586,11 +613,11 @@ public struct SettingsView: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(theme.displayName)
                                         .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SettingsInk.primary)
                                         .lineLimit(1)
                                     Text(isSelected ? "Active" : theme.subtitle)
                                         .font(.system(size: 9))
-                                        .foregroundColor(isSelected ? theme.accentColor : Color.white.opacity(0.4))
+                                        .foregroundColor(isSelected ? theme.accentColor : SettingsInk.tint(0.4))
                                 }
                                 Spacer()
                             }
@@ -598,11 +625,11 @@ public struct SettingsView: View {
                             .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                    .fill(isSelected ? theme.structureColor.opacity(0.85) : Color.white.opacity(0.05))
+                                    .fill(isSelected ? theme.structureColor.opacity(0.85) : SettingsInk.tint(0.05))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                    .strokeBorder(isSelected ? theme.accentColor.opacity(0.9) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
+                                    .strokeBorder(isSelected ? theme.accentColor.opacity(0.9) : SettingsInk.tint(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
                             .overlay(alignment: .topTrailing) {
                                 if isSelected {
@@ -636,7 +663,7 @@ public struct SettingsView: View {
                         .foregroundColor(SettingsCategory.appearance.tintColor)
                     Text("Glass Material Style")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                 }
                 
                 HStack(spacing: 8) {
@@ -652,21 +679,21 @@ public struct SettingsView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(style.rawValue)
                                     .font(.system(size: 10.5, weight: isSelected ? .bold : .medium, design: .rounded))
-                                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                                    .foregroundColor(isSelected ? SettingsInk.primary : SettingsInk.secondary)
                                 Text(style.subtitle)
                                     .font(.system(size: 8.5))
-                                    .foregroundColor(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.35))
+                                    .foregroundColor(isSelected ? DesignSystem.accentColor : SettingsInk.tint(0.35))
                                     .lineLimit(2)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(8)
                             .background(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(isSelected ? DesignSystem.structureColor : Color.white.opacity(0.04))
+                                    .fill(isSelected ? DesignSystem.structureColor : SettingsInk.tint(0.04))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
+                                    .strokeBorder(isSelected ? DesignSystem.accentColor : SettingsInk.tint(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
                             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
@@ -691,7 +718,7 @@ public struct SettingsView: View {
                         .foregroundColor(SettingsCategory.appearance.tintColor)
                     Text("Corner Geometry")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                 }
                 
                 Picker("", selection: Binding(
@@ -721,17 +748,17 @@ public struct SettingsView: View {
                         HStack(spacing: 6) {
                             Text("Per-Module Accent Colors")
                                 .font(.system(size: 11.5, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text(store.usePerModuleAccent ? "Per-Module" : "Global Accent")
                                 .font(.system(size: 8.5))
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1.5)
-                                .background(Capsule().fill(store.usePerModuleAccent ? DesignSystem.accentColor.opacity(0.25) : Color.white.opacity(0.08)))
-                                .foregroundColor(store.usePerModuleAccent ? DesignSystem.accentColor : DesignSystem.secondaryText)
+                                .background(Capsule().fill(store.usePerModuleAccent ? DesignSystem.accentColor.opacity(0.25) : SettingsInk.tint(0.08)))
+                                .foregroundColor(store.usePerModuleAccent ? DesignSystem.accentColor : SettingsInk.secondary)
                         }
                         Text("Use distinct signature colors for each module (e.g. green for Battery, blue for AirDrop) instead of the unified theme accent.")
                             .font(.system(size: 9.5))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     Spacer()
                     Toggle("", isOn: Binding(
@@ -744,7 +771,7 @@ public struct SettingsView: View {
                     .labelsHidden()
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(SettingsInk.tint(0.03)))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -773,11 +800,11 @@ public struct SettingsView: View {
                         HStack {
                             Text("Dynamic Color Vibrancy")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: Balanced")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         
                         Picker("", selection: Binding(
@@ -794,7 +821,7 @@ public struct SettingsView: View {
                         .pickerStyle(.segmented)
                     }
                     .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(SettingsInk.tint(0.03)))
                     
                     // Specular Glow Toggle
                     Button {
@@ -806,14 +833,14 @@ public struct SettingsView: View {
                                 HStack(spacing: 6) {
                                     Text("Specular Bevel Glow")
                                         .font(.system(size: 11.5, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SettingsInk.primary)
                                     Text("Default: ON")
                                         .font(.system(size: 8.5))
                                         .foregroundColor(Color.green)
                                 }
                                 Text("Dynamic accent reflection along outer notch hairline")
                                     .font(.system(size: 9.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
+                                    .foregroundColor(SettingsInk.secondary)
                             }
                             Spacer()
                             Toggle("", isOn: Binding(
@@ -842,7 +869,7 @@ public struct SettingsView: View {
                                 .frame(width: 6, height: 6)
                             Text(themeEngine.diagnostics.detectionStatus)
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                         Button(action: {
@@ -858,7 +885,7 @@ public struct SettingsView: View {
                             .foregroundColor(DesignSystem.accentColor)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3.5)
-                            .background(Capsule().fill(Color.white.opacity(0.06)))
+                            .background(Capsule().fill(SettingsInk.tint(0.06)))
                             .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -876,10 +903,10 @@ public struct SettingsView: View {
                                 Text(nav.showColorDiagnostics ? "Hide" : "Diagnostics")
                                     .font(.system(size: 9, weight: .medium))
                             }
-                            .foregroundColor(Color.white.opacity(0.6))
+                            .foregroundColor(SettingsInk.tint(0.6))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3.5)
-                            .background(Capsule().fill(Color.white.opacity(0.04)))
+                            .background(Capsule().fill(SettingsInk.tint(0.04)))
                             .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -888,7 +915,7 @@ public struct SettingsView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(SettingsInk.tint(0.03)))
                     
                     if nav.showColorDiagnostics {
                         VStack(alignment: .leading, spacing: 5) {
@@ -910,7 +937,7 @@ public struct SettingsView: View {
                         }
                         .padding(10)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.35)))
-                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 0.7))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(SettingsInk.tint(0.08), lineWidth: 0.7))
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                     }
                 }
@@ -928,18 +955,18 @@ public struct SettingsView: View {
                     .foregroundColor(SettingsCategory.geometry.tintColor)
                 Text("Spatial Geometry & Sizing")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
             }
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Expanded Notch Width: \(Int(store.notchWidth)) pt")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Spacer()
                     Text("Default: 620 pt")
                         .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 Slider(value: $store.notchWidth, in: 480...800, step: 20) { editing in
                     if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
@@ -953,11 +980,11 @@ public struct SettingsView: View {
                 HStack {
                     Text("Expanded Notch Height: \(Int(store.notchHeight)) pt")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Spacer()
                     Text("Default: 330 pt")
                         .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 Slider(value: $store.notchHeight, in: 310...420, step: 10) { editing in
                     if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
@@ -988,11 +1015,11 @@ public struct SettingsView: View {
                         HStack {
                             Text("Hover Trigger Height: \(Int(store.hoverTriggerHeight)) pt")
                                 .font(.system(size: 11.5))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: 34 pt")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Slider(value: $store.hoverTriggerHeight, in: 24...54, step: 2) { editing in
                             if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
@@ -1006,11 +1033,11 @@ public struct SettingsView: View {
                         HStack {
                             Text("Hover Trigger Width: \(Int(store.hoverTriggerWidth)) pt")
                                 .font(.system(size: 11.5))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: 210 pt")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Slider(value: $store.hoverTriggerWidth, in: 160...380, step: 10) { editing in
                             if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
@@ -1020,17 +1047,17 @@ public struct SettingsView: View {
                         .accessibilityHint("Fine-tunes the width of the activation zone centered on the physical notch.")
                     }
                     
-                    Divider().background(Color.white.opacity(0.06))
+                    Divider().background(SettingsInk.tint(0.06))
                     
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Horizontal Content Padding: \(Int(store.contentHorizontalPadding)) pt")
                                 .font(.system(size: 11.5))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: 16 pt")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Slider(value: $store.contentHorizontalPadding, in: 12...32, step: 2)
                         .tint(SettingsCategory.geometry.tintColor)
@@ -1042,11 +1069,11 @@ public struct SettingsView: View {
                         HStack {
                             Text("Vertical Content Padding: \(Int(store.contentVerticalPadding)) pt")
                                 .font(.system(size: 11.5))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: 12 pt")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Slider(value: $store.contentVerticalPadding, in: 8...24, step: 2)
                         .tint(SettingsCategory.geometry.tintColor)
@@ -1068,7 +1095,7 @@ public struct SettingsView: View {
                     .foregroundColor(SettingsCategory.motion.tintColor)
                 Text("Apple Motion Physics")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
             }
             
             HStack(spacing: 8) {
@@ -1083,20 +1110,20 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(motion.rawValue)
                                 .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
-                                .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                                .foregroundColor(isSelected ? SettingsInk.primary : SettingsInk.secondary)
                             Text("Resp: \(String(format: "%.2f", motion.response))s • Damp: \(String(format: "%.2f", motion.damping))")
                                 .font(.system(size: 9))
-                                .foregroundColor(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.35))
+                                .foregroundColor(isSelected ? DesignSystem.accentColor : SettingsInk.tint(0.35))
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(9)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(isSelected ? DesignSystem.structureColor : Color.white.opacity(0.04))
+                                .fill(isSelected ? DesignSystem.structureColor : SettingsInk.tint(0.04))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
+                                .strokeBorder(isSelected ? DesignSystem.accentColor : SettingsInk.tint(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                         )
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
@@ -1120,10 +1147,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Keep Notch Open while Settings Active")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Prevents notch from collapsing so you can preview changes live in real-time")
                                 .font(.system(size: 10))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                         Toggle("", isOn: $store.keepOpenWhileSettingsActive)
@@ -1138,7 +1165,7 @@ public struct SettingsView: View {
                 .accessibilityLabel("Keep Notch Open while Settings Active")
                 .accessibilityHint("Prevents the notch island from collapsing while this settings window is visible.")
                 
-                Divider().background(Color.white.opacity(0.06))
+                Divider().background(SettingsInk.tint(0.06))
                 
                 Button {
                     store.closeOnOutsideClick.toggle()
@@ -1147,10 +1174,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Close Notch on Outside Click")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Automatically collapse the notch when clicking anywhere outside on the screen")
                                 .font(.system(size: 10))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                         Toggle("", isOn: $store.closeOnOutsideClick)
@@ -1165,7 +1192,7 @@ public struct SettingsView: View {
                 .accessibilityLabel("Close Notch on Outside Click")
                 .accessibilityHint("Collapses the notch whenever you click outside its window.")
                 
-                Divider().background(Color.white.opacity(0.06))
+                Divider().background(SettingsInk.tint(0.06))
                 
                 Button {
                     store.closeOnEsc.toggle()
@@ -1174,10 +1201,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Dismiss Notch on Esc Key")
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Press Esc at any time to instantly collapse the notch back into the hardware bezel")
                                 .font(.system(size: 10))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                         Toggle("", isOn: $store.closeOnEsc)
@@ -1211,11 +1238,11 @@ public struct SettingsView: View {
                         HStack {
                             Text("Hover Expand Delay: \(store.hoverDelay, specifier: "%.2f") sec")
                                 .font(.system(size: 11.5))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: 0.10s")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Slider(value: $store.hoverDelay, in: 0...0.6, step: 0.05)
                         .tint(SettingsCategory.motion.tintColor)
@@ -1227,11 +1254,11 @@ public struct SettingsView: View {
                         HStack {
                             Text("Auto-Collapse Exit Delay: \(store.autoCollapseDelay, specifier: "%.2f") sec")
                                 .font(.system(size: 11.5))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             Text("Default: 0.25s")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Slider(value: $store.autoCollapseDelay, in: 0.10...0.80, step: 0.05)
                         .tint(SettingsCategory.motion.tintColor)
@@ -1255,7 +1282,7 @@ public struct SettingsView: View {
                         .foregroundColor(SettingsCategory.modules.tintColor)
                     Text("Collapsed Notch Indicator")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                 }
                 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
@@ -1280,13 +1307,13 @@ public struct SettingsView: View {
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
-                                    .fill(isSelected ? style.tintColor.opacity(0.18) : Color.white.opacity(0.04))
+                                    .fill(isSelected ? style.tintColor.opacity(0.18) : SettingsInk.tint(0.04))
                             )
                             .overlay(
                                 Capsule()
-                                    .strokeBorder(isSelected ? style.tintColor.opacity(0.85) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
+                                    .strokeBorder(isSelected ? style.tintColor.opacity(0.85) : SettingsInk.tint(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
-                            .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                            .foregroundColor(isSelected ? SettingsInk.primary : SettingsInk.secondary)
                             .contentShape(Capsule())
                         }
                         .buttonStyle(.spring)
@@ -1306,7 +1333,7 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Enabled Header Modules & Tab Order")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
                 
                 ForEach(Array(registry.orderedModules.enumerated()), id: \.element.id) { index, module in
                     HStack(spacing: 8) {
@@ -1338,7 +1365,7 @@ public struct SettingsView: View {
                                     .foregroundColor(module.themeColor)
                                 Text(module.title)
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(SettingsInk.primary)
                                 
                                 Spacer()
                             }
@@ -1405,14 +1432,14 @@ public struct SettingsView: View {
                                 HStack(spacing: 6) {
                                     Text("Show Navigation Breadcrumbs")
                                         .font(.system(size: 11.5, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(SettingsInk.primary)
                                     Text("Default: ON")
                                         .font(.system(size: 8.5))
                                         .foregroundColor(Color.green)
                                 }
                                 Text("Displays path ribbon (Dashboard > Module) inside secondary tools")
                                     .font(.system(size: 9.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
+                                    .foregroundColor(SettingsInk.secondary)
                             }
                             Spacer()
                             Toggle("", isOn: $store.showBreadcrumbs)
@@ -1427,7 +1454,7 @@ public struct SettingsView: View {
                     .accessibilityLabel("Show Navigation Breadcrumbs")
                     .accessibilityHint("Shows or hides the top navigation breadcrumbs trail.")
                     
-                    Divider().background(Color.white.opacity(0.06))
+                    Divider().background(SettingsInk.tint(0.06))
                     
                     // Telegram Bot Direct Dispatch Configuration
                     VStack(alignment: .leading, spacing: 8) {
@@ -1437,7 +1464,7 @@ public struct SettingsView: View {
                                 .foregroundColor(Color.cyan)
                             Text("Telegram Direct Bot API (Zero Windows)")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Spacer()
                             if let token = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token"), !token.isEmpty {
                                 Text("Active ✓")
@@ -1451,7 +1478,7 @@ public struct SettingsView: View {
                         
                         Text("Enable 100% silent background message sending without opening or closing the Telegram app window.")
                             .font(.system(size: 9.5))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                         
                         if let tg = registry.module(for: "telegram") as? TelegramModule {
                             TelegramSettingsBotRow(module: tg)
@@ -1472,7 +1499,7 @@ public struct SettingsView: View {
                     .foregroundColor(SettingsCategory.feedback.tintColor)
                 Text("Interactive Audio & Haptics")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
             }
             
             Button {
@@ -1485,10 +1512,10 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Sound Feedback")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                         Text("Play soft clicks, pop on pin, and whoosh on sent messages")
                             .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     Spacer()
                     Toggle("", isOn: $store.soundFeedbackEnabled)
@@ -1503,7 +1530,7 @@ public struct SettingsView: View {
             .accessibilityLabel("Sound Feedback")
             .accessibilityHint("Plays acoustic feedback sounds on interactive UI events.")
             
-            Divider().background(Color.white.opacity(0.06))
+            Divider().background(SettingsInk.tint(0.06))
             
             Button {
                 store.hapticFeedbackEnabled.toggle()
@@ -1515,10 +1542,10 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Haptic Feedback")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                         Text("Tactile trackpad pulses on hover, snapping, and pinning")
                             .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     Spacer()
                     Toggle("", isOn: $store.hapticFeedbackEnabled)
@@ -1539,7 +1566,7 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Test Audio Feedback")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
                 
                 HStack(spacing: 8) {
                     Button("Click") { FeedbackManager.playClick() }
@@ -1583,7 +1610,7 @@ public struct SettingsView: View {
                                 .foregroundColor(Color(red: 1.00, green: 0.58, blue: 0.20))
                             Text("Notch Companion (Bubu Mascot)")
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                         }
                         
                         Text("Zero-RAM when disabled")
@@ -1609,14 +1636,14 @@ public struct SettingsView: View {
                 
                 Text("When turned off, 0 MB is loaded into RAM. Turn on to bring Bubu to life around your MacBook notch with cute animations.")
                     .font(.system(size: 11))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
                 
                 // Live Test & Action Bar
                 if store.isCompanionEnabled {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("TEST ANIMATIONS & ACTIONS")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
@@ -1671,10 +1698,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Collectible Skins (6 Characters)")
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Each skin features distinctive custom vector geometry, colors, ears, and accessories")
                                 .font(.system(size: 10.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                     }
@@ -1706,10 +1733,10 @@ public struct SettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(skin.displayName)
                                             .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(SettingsInk.primary)
                                         Text(skin.subtitle)
                                             .font(.system(size: 9.5))
-                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .foregroundColor(SettingsInk.secondary)
                                             .lineLimit(1)
                                     }
                                     
@@ -1765,14 +1792,14 @@ public struct SettingsView: View {
                                     HStack(spacing: 6) {
                                         Text("Activity Frequency & Pacing")
                                             .font(.system(size: 11.5, weight: .bold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(SettingsInk.primary)
                                         Text("Default: Balanced")
                                             .font(.system(size: 8.5))
                                             .foregroundColor(Color.green)
                                     }
                                     Text("Controls how frequently the creature emerges from the physical notch bezel")
                                         .font(.system(size: 9.5))
-                                        .foregroundColor(DesignSystem.secondaryText)
+                                        .foregroundColor(SettingsInk.secondary)
                                 }
                                 Spacer()
                             }
@@ -1787,12 +1814,12 @@ public struct SettingsView: View {
                             HStack {
                                 Text(store.companionActivityLevel.description)
                                     .font(.system(size: 9.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
+                                    .foregroundColor(SettingsInk.secondary)
                                 Spacer()
                             }
                         }
                         
-                        Divider().background(Color.white.opacity(0.06))
+                        Divider().background(SettingsInk.tint(0.06))
                         
                         // Interactive Behaviors Toggles
                         VStack(spacing: 10) {
@@ -1804,10 +1831,10 @@ public struct SettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Mimic Typing Cadence")
                                             .font(.system(size: 11.5, weight: .semibold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(SettingsInk.primary)
                                         Text("Whips out a miniature laptop and frantically taps paws while you type")
                                             .font(.system(size: 9.5))
-                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .foregroundColor(SettingsInk.secondary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: $store.companionMimicTyping)
@@ -1821,7 +1848,7 @@ public struct SettingsView: View {
                             .accessibilityLabel("Mimic Typing Cadence")
                             .accessibilityHint("Plays cute typing animation when you type in any application.")
                             
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(SettingsInk.tint(0.06))
                             
                             // Music Groove
                             Button {
@@ -1831,10 +1858,10 @@ public struct SettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Groove to Music & Audio")
                                             .font(.system(size: 11.5, weight: .semibold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(SettingsInk.primary)
                                         Text("Puts on tiny headphones and bobs head with floating notes when audio/video plays")
                                             .font(.system(size: 9.5))
-                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .foregroundColor(SettingsInk.secondary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: $store.companionGrooveMusic)
@@ -1848,7 +1875,7 @@ public struct SettingsView: View {
                             .accessibilityLabel("Groove to Music")
                             .accessibilityHint("Reacts to playing media with headphones and head-bobbing animation.")
                             
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(SettingsInk.tint(0.06))
                             
                             // Ledge Slip & Dangle
                             Button {
@@ -1858,10 +1885,10 @@ public struct SettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Allow Ledge Slips & Dangles")
                                             .font(.system(size: 11.5, weight: .semibold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(SettingsInk.primary)
                                         Text("Occasionally slips off the bottom lip of the notch, dangles with kicking feet, and climbs back up")
                                             .font(.system(size: 9.5))
-                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .foregroundColor(SettingsInk.secondary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: $store.companionAllowSlips)
@@ -1875,7 +1902,7 @@ public struct SettingsView: View {
                             .accessibilityLabel("Allow Ledge Slips & Dangles")
                             .accessibilityHint("Allows the creature to slip and hang from the bottom lip of the notch.")
                             
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(SettingsInk.tint(0.06))
                             
                             // Sleep during DND
                             Button {
@@ -1885,10 +1912,10 @@ public struct SettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Sleep During Focus & Do Not Disturb")
                                             .font(.system(size: 11.5, weight: .semibold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(SettingsInk.primary)
                                         Text("Curled up asleep under the camera with floating Zzz particles during focus sessions")
                                             .font(.system(size: 9.5))
-                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .foregroundColor(SettingsInk.secondary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: $store.companionSleepDuringDND)
@@ -1902,7 +1929,7 @@ public struct SettingsView: View {
                             .accessibilityLabel("Sleep During Focus & Do Not Disturb")
                             .accessibilityHint("Puts the creature to sleep during active Do Not Disturb or Focus sessions.")
                             
-                            Divider().background(Color.white.opacity(0.06))
+                            Divider().background(SettingsInk.tint(0.06))
                             
                             // Debug Skeleton Rig Overlay
                             Button {
@@ -1913,14 +1940,14 @@ public struct SettingsView: View {
                                         HStack(spacing: 6) {
                                             Text("Debug Skeleton Rig Overlay")
                                                 .font(.system(size: 11.5, weight: .semibold))
-                                                .foregroundColor(.white)
+                                                .foregroundColor(SettingsInk.primary)
                                             Text("Dev Mode")
                                                 .font(.system(size: 8.5))
                                                 .foregroundColor(Color.orange)
                                         }
                                         Text("Render kinematic bone lines and joint dots in real-time to verify anchor connection")
                                             .font(.system(size: 9.5))
-                                            .foregroundColor(DesignSystem.secondaryText)
+                                            .foregroundColor(SettingsInk.secondary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: $store.companionDebugSkeleton)
@@ -1946,10 +1973,10 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Zero-RAM & Battery Drain Guarantee")
                             .font(.system(size: 11.5, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                         Text("When turned off, 0 MB is loaded into RAM (windows and views are fully deallocated). When resting inside the notch den, display timers pause with 0.00% CPU.")
                             .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     Spacer()
                 }
@@ -1977,7 +2004,7 @@ public struct SettingsView: View {
                         .foregroundColor(SettingsCategory.permissions.tintColor)
                     Text("System Permissions & macOS Privacy")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                 }
                 Spacer()
                 Button(action: {
@@ -2020,7 +2047,7 @@ public struct SettingsView: View {
                         }
                         Text(store.isAccessibilityGranted ? "1-Click Direct Sending in WhatsApp & Telegram is active." : "Required for Notch to auto-send in WhatsApp/Telegram and window automation.")
                             .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     
                     Spacer()
@@ -2064,7 +2091,7 @@ public struct SettingsView: View {
                         }
                         Text(store.isInputMonitoringGranted ? "Thock mechanical keyboard sound engine active." : "Required for Thock to play tactile key sounds as you type anywhere.")
                             .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     
                     Spacer()
@@ -2099,7 +2126,7 @@ public struct SettingsView: View {
                         .font(.system(size: 13))
                     Text("How to Grant Permission (Fast & Foolproof)")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                 }
                 
                 VStack(spacing: 12) {
@@ -2117,10 +2144,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Click \"Reveal Notch in Finder\"")
                                 .font(.system(size: 11.5, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Finder opens directly to Applications with the **Notch** app highlighted and selected.")
                                 .font(.system(size: 10))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             
                             Button(action: {
                                 PermissionsHelper.revealAppInFinder()
@@ -2141,7 +2168,7 @@ public struct SettingsView: View {
                         Spacer()
                     }
                     
-                    Divider().background(Color.white.opacity(0.1))
+                    Divider().background(SettingsInk.tint(0.1))
                     
                     // Step 2
                     HStack(alignment: .top, spacing: 12) {
@@ -2157,16 +2184,16 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Drag the highlighted \"Notch\" icon into System Settings")
                                 .font(.system(size: 11.5, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Drag the highlighted **Notch** icon directly from the Finder window into the list in System Settings! (You don't even need to click +).")
                                 .font(.system(size: 10))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             
                             // ⌘⇧G Path Helper
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Alternatively, if using the (+) button: Press **⌘⇧G**, paste the path, and hit Return:")
                                     .font(.system(size: 9.5))
-                                    .foregroundColor(Color.white.opacity(0.75))
+                                    .foregroundColor(SettingsInk.tint(0.75))
                                 
                                 HStack(spacing: 8) {
                                     Text("/Applications/Notch.app")
@@ -2195,7 +2222,7 @@ public struct SettingsView: View {
                                         .foregroundColor(nav.hasCopiedPath ? .green : .white)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 3.5)
-                                        .background(Capsule().fill(Color.white.opacity(0.1)))
+                                        .background(Capsule().fill(SettingsInk.tint(0.1)))
                                     }
                                     .buttonStyle(.spring)
                                 }
@@ -2205,7 +2232,7 @@ public struct SettingsView: View {
                         Spacer()
                     }
                     
-                    Divider().background(Color.white.opacity(0.1))
+                    Divider().background(SettingsInk.tint(0.1))
                     
                     // Step 3
                     HStack(alignment: .top, spacing: 12) {
@@ -2221,10 +2248,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Toggle the switch to ON")
                                 .font(.system(size: 11.5, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Ensure the toggle switch next to **Notch** is turned ON (blue). Permissions take effect immediately.")
                                 .font(.system(size: 10))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             
                             HStack(spacing: 8) {
                                 Button(action: {
@@ -2237,8 +2264,8 @@ public struct SettingsView: View {
                                     .font(.system(size: 10, weight: .medium))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 5)
-                                    .background(Capsule().fill(Color.white.opacity(0.08)))
-                                    .foregroundColor(.white)
+                                    .background(Capsule().fill(SettingsInk.tint(0.08)))
+                                    .foregroundColor(SettingsInk.primary)
                                 }
                                 .buttonStyle(.spring)
                                 
@@ -2252,8 +2279,8 @@ public struct SettingsView: View {
                                     .font(.system(size: 10, weight: .medium))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 5)
-                                    .background(Capsule().fill(Color.white.opacity(0.08)))
-                                    .foregroundColor(.white)
+                                    .background(Capsule().fill(SettingsInk.tint(0.08)))
+                                    .foregroundColor(SettingsInk.primary)
                                 }
                                 .buttonStyle(.spring)
                             }
@@ -2264,8 +2291,8 @@ public struct SettingsView: View {
                 }
             }
             .padding(12)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8))
+            .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.8))
         }
         .settingsCard()
         .onAppear {
@@ -2279,7 +2306,7 @@ public struct SettingsView: View {
         HStack {
             Text("Notch Island • Native Liquid Retina")
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(DesignSystem.secondaryText.opacity(0.7))
+                .foregroundColor(SettingsInk.secondary.opacity(0.7))
             
             Spacer()
             

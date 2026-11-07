@@ -13,11 +13,11 @@ public struct DashboardSettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Modular Dashboard Grid")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
                     .lineLimit(1)
                 Text("Customize layout slots with Notes, Calendar, Media, Mirror, and Clock. Choose side-by-side strip, 2×2 bento, or smart adaptive auto-stretch.")
                     .font(.system(size: 12))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
             }
             
             // Live Notch Layout Preview & Trigger
@@ -31,14 +31,14 @@ public struct DashboardSettingsView: View {
                 HStack {
                     Text("DASHBOARD SLOTS CANVAS")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                         .lineLimit(1)
                     
                     Spacer()
                     
                     Text("Reorder, assign, or set 1-space / 2-space size")
                         .font(.system(size: 10.5))
-                        .foregroundColor(DesignSystem.tertiaryText)
+                        .foregroundColor(SettingsInk.tertiary)
                         .lineLimit(1)
                 }
                 
@@ -48,7 +48,7 @@ public struct DashboardSettingsView: View {
                         ForEach(0..<4, id: \.self) { index in
                             if index > 0 && store.dashboardSlots[index - 1] != nil && store.dashboardSlots[index] != nil {
                                 Rectangle()
-                                    .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                    .stroke(SettingsInk.tint(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                                     .frame(width: 1)
                                     .padding(.vertical, 8)
                             }
@@ -77,7 +77,7 @@ public struct DashboardSettingsView: View {
                         // Dotted divider between adjacent filled slots
                         if store.dashboardSlots[0] != nil && store.dashboardSlots[1] != nil {
                             Rectangle()
-                                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+                                .stroke(SettingsInk.tint(0.4), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
                                 .frame(width: 1)
                                 .padding(.vertical, 8)
                         }
@@ -119,7 +119,7 @@ public struct DashboardSettingsView: View {
                         // Dotted vertical divider only between adjacent FILLED columns (none next to empty slots)
                         if leftHasFilled && rightHasFilled {
                             Rectangle()
-                                .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.0, dash: [3, 4]))
+                                .stroke(SettingsInk.tint(0.35), style: StrokeStyle(lineWidth: 1.0, dash: [3, 4]))
                                 .frame(width: 1)
                                 .padding(.vertical, 8)
                         }
@@ -148,10 +148,10 @@ public struct DashboardSettingsView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(SettingsInk.tint(0.04))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                            .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
                     )
             )
             
@@ -160,12 +160,12 @@ public struct DashboardSettingsView: View {
                 HStack {
                     Text("AVAILABLE WIDGETS PALETTE")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                         .lineLimit(1)
                     Spacer()
                     Text("Drag card into slot or tap + to assign")
                         .font(.system(size: 10.5))
-                        .foregroundColor(DesignSystem.tertiaryText)
+                        .foregroundColor(SettingsInk.tertiary)
                         .lineLimit(1)
                 }
                 
@@ -195,10 +195,10 @@ public struct DashboardSettingsView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(SettingsInk.tint(0.04))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                            .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
                     )
             )
             
@@ -206,7 +206,7 @@ public struct DashboardSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("QUICK LAYOUT PRESETS")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
                     .lineLimit(1)
                 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 8)], spacing: 8) {
@@ -252,17 +252,17 @@ public struct DashboardSettingsView: View {
                 }
             }
             
-            Divider().background(Color.white.opacity(0.12))
+            Divider().background(SettingsInk.tint(0.12))
             
             // Notes Widget Customization Section
             notesCustomizationSection
             
-            Divider().background(Color.white.opacity(0.12))
+            Divider().background(SettingsInk.tint(0.12))
             
             // Clock Customization Section
             clockCustomizationSection
             
-            Divider().background(Color.white.opacity(0.12))
+            Divider().background(SettingsInk.tint(0.12))
             
             // AI Assistant Customization Section
             aiAssistantCustomizationSection
@@ -285,10 +285,10 @@ public struct DashboardSettingsView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("QUICK NOTES WIDGET CUSTOMIZATION")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Text("Manage scratchpad options and unified AI copilot integration")
                         .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 
                 Spacer()
@@ -299,10 +299,10 @@ public struct DashboardSettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Enable AI Assistant in Notes")
                         .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Text("Summarize notes, extract action items, and polish text directly within the note editor.")
                         .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 
                 Spacer()
@@ -312,7 +312,7 @@ public struct DashboardSettingsView: View {
                     .toggleStyle(.switch)
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+            .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.04)))
             
             // If Notes AI is enabled: Show Unified Login Status or Prompt to Login
             if store.isNotesAIEnabled {
@@ -324,10 +324,10 @@ public struct DashboardSettingsView: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Unified AI Login Active")
                                 .font(.system(size: 10.5, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                             Text("Logged in via \(AskAIService.shared.currentLoginBadgeText). Active across both Notes and Ask AI.")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                         Text("Ready ✓")
@@ -347,11 +347,11 @@ public struct DashboardSettingsView: View {
                                 .foregroundColor(Color.orange)
                             Text("AI Login Required for Notes & Ask AI")
                                 .font(.system(size: 10.5, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                         }
                         Text("To use AI in Notes and Ask AI, sign in with your Google account or configure an API key. Once logged in, your session is automatically shared between Notes and Ask AI.")
                             .font(.system(size: 9.5))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                         
                         HStack(spacing: 8) {
                             Button {
@@ -362,7 +362,7 @@ public struct DashboardSettingsView: View {
                                     Text("Sign in with Google")
                                 }
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(Capsule().fill(AIProvider.gemini.tintColor))
@@ -379,10 +379,10 @@ public struct DashboardSettingsView: View {
                                     Text("Configure API Key Below")
                                 }
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.white.opacity(0.12)))
+                                .background(Capsule().fill(SettingsInk.tint(0.12)))
                             }
                             .buttonStyle(.plain)
                         }
@@ -399,10 +399,10 @@ public struct DashboardSettingsView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+                .fill(SettingsInk.tint(0.04))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
                 )
         )
     }
@@ -412,7 +412,7 @@ public struct DashboardSettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("LAYOUT ORIENTATION MODE")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundColor(DesignSystem.secondaryText)
+                .foregroundColor(SettingsInk.secondary)
                 .lineLimit(1)
             
             HStack(spacing: 8) {
@@ -435,12 +435,12 @@ public struct DashboardSettingsView: View {
                         .padding(.vertical, 7)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(store.dashboardLayoutFlow == flow ? DesignSystem.accentColor : Color.white.opacity(0.05))
+                                .fill(store.dashboardLayoutFlow == flow ? DesignSystem.accentColor : SettingsInk.tint(0.05))
                         )
-                        .foregroundColor(store.dashboardLayoutFlow == flow ? .white : DesignSystem.secondaryText)
+                        .foregroundColor(store.dashboardLayoutFlow == flow ? SettingsInk.primary : SettingsInk.secondary)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(store.dashboardLayoutFlow == flow ? Color.white.opacity(0.25) : Color.white.opacity(0.08), lineWidth: 0.8)
+                                .strokeBorder(store.dashboardLayoutFlow == flow ? SettingsInk.tint(0.25) : SettingsInk.tint(0.08), lineWidth: 0.8)
                         )
                     }
                     .buttonStyle(.plain)
@@ -460,14 +460,14 @@ public struct DashboardSettingsView: View {
                             HStack(spacing: 6) {
                                 Text("Auto-Rotate Companion Widget")
                                     .font(.system(size: 11.5, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(SettingsInk.primary)
                                 Text("Default: OFF")
                                     .font(.system(size: 8.5))
                                     .foregroundColor(Color.orange)
                             }
                             Text("Cycles through secondary tools every 30s only while the notch is collapsed.")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         Spacer()
                         Toggle("", isOn: $store.autoRotateCompanion)
@@ -480,7 +480,7 @@ public struct DashboardSettingsView: View {
                 .buttonStyle(.plain)
                 .pointerHoverCursor()
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(SettingsInk.tint(0.03)))
                 .accessibilityLabel("Auto-Rotate Companion Widget")
                 .accessibilityHint("When enabled, periodically cycles the companion widget every 30 seconds only while the notch is hidden.")
             }
@@ -499,7 +499,7 @@ public struct DashboardSettingsView: View {
                     .frame(width: 130, height: 48)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
+                            .strokeBorder(SettingsInk.tint(0.18), lineWidth: 0.8)
                     )
                 
                 // Camera notch simulator
@@ -526,7 +526,7 @@ public struct DashboardSettingsView: View {
                                 .fill(DesignSystem.accentColor.opacity(0.85))
                                 .frame(maxWidth: .infinity)
                             Rectangle()
-                                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                                .stroke(SettingsInk.tint(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
                                 .frame(width: 1)
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(Color.orange.opacity(0.75))
@@ -583,7 +583,7 @@ public struct DashboardSettingsView: View {
                 HStack(spacing: 6) {
                     Text("Mode: \(store.dashboardLayoutFlow.title)")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                         .lineLimit(1)
                     
                     Text("\(activeCount) of 4 Active")
@@ -597,7 +597,7 @@ public struct DashboardSettingsView: View {
                 
                 Text(stretchExplanationText(activeCount))
                     .font(.system(size: 10.5))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
                     .lineLimit(2)
             }
             
@@ -625,7 +625,7 @@ public struct DashboardSettingsView: View {
             .help("Expand the physical notch dashboard to preview live changes")
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.03)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.03)))
     }
     
     private func colorForSlot(_ index: Int) -> Color {
@@ -658,7 +658,7 @@ public struct DashboardSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("CLOCK WIDGET CUSTOMIZATION")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundColor(DesignSystem.secondaryText)
+                .foregroundColor(SettingsInk.secondary)
                 .lineLimit(1)
             
             VStack(alignment: .leading, spacing: 12) {
@@ -666,7 +666,7 @@ public struct DashboardSettingsView: View {
                 HStack(spacing: 8) {
                     Text("Dial Aesthetics:")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                         .lineLimit(1)
                     
                     ForEach(ClockDialStyle.allCases) { style in
@@ -685,9 +685,9 @@ public struct DashboardSettingsView: View {
                             .padding(.vertical, 5)
                             .background(
                                 Capsule()
-                                    .fill(store.clockDialStyle == style ? DesignSystem.accentColor : Color.white.opacity(0.08))
+                                    .fill(store.clockDialStyle == style ? DesignSystem.accentColor : SettingsInk.tint(0.08))
                             )
-                            .foregroundColor(store.clockDialStyle == style ? .white : DesignSystem.secondaryText)
+                            .foregroundColor(store.clockDialStyle == style ? SettingsInk.primary : SettingsInk.secondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -710,10 +710,10 @@ public struct DashboardSettingsView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+                .fill(SettingsInk.tint(0.04))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
                 )
         )
     }
@@ -734,10 +734,10 @@ public struct DashboardSettingsView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("AI ASSISTANT (SIRI, GEMINI, CHATGPT)")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                     Text("Configure intelligence engine, native Siri bridge, and cloud API keys")
                         .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                 }
                 
                 Spacer()
@@ -747,7 +747,7 @@ public struct DashboardSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("DEFAULT PROVIDER")
                     .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
                 
                 HStack(spacing: 8) {
                     ForEach(AIProvider.allCases) { provider in
@@ -760,20 +760,20 @@ public struct DashboardSettingsView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: provider.icon)
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(isSelected ? .white : provider.tintColor)
+                                    .foregroundColor(isSelected ? SettingsInk.primary : provider.tintColor)
                                 Text(provider.displayName)
                                     .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                                    .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                                    .foregroundColor(isSelected ? SettingsInk.primary : SettingsInk.secondary)
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(isSelected ? provider.tintColor.opacity(0.85) : Color.white.opacity(0.05))
+                                    .fill(isSelected ? provider.tintColor.opacity(0.85) : SettingsInk.tint(0.05))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(isSelected ? Color.white.opacity(0.25) : Color.white.opacity(0.08), lineWidth: 0.8)
+                                    .strokeBorder(isSelected ? SettingsInk.tint(0.25) : SettingsInk.tint(0.08), lineWidth: 0.8)
                             )
                         }
                         .buttonStyle(.plain)
@@ -790,24 +790,24 @@ public struct DashboardSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Native macOS Siri Integration")
                             .font(.system(size: 11.5, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                         Text("Zero configuration required. Interacts directly with macOS built-in Siri assistant with 0 MB background RAM overhead.")
                             .font(.system(size: 10))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                     }
                     Spacer()
                     Button("Test Siri") {
                         AskAIService.shared.triggerSiri()
                     }
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(AIProvider.siri.tintColor))
                     .buttonStyle(.plain)
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+                .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.04)))
             } else if store.aiDefaultProvider == .gemini {
                 VStack(alignment: .leading, spacing: 10) {
                     if !store.connectedGoogleEmail.isEmpty {
@@ -818,10 +818,10 @@ public struct DashboardSettingsView: View {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Google Account Connected")
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(SettingsInk.primary)
                                 Text(store.connectedGoogleEmail)
                                     .font(.system(size: 10))
-                                    .foregroundColor(DesignSystem.secondaryText)
+                                    .foregroundColor(SettingsInk.secondary)
                             }
                             Spacer()
                             Button("Disconnect") {
@@ -831,7 +831,7 @@ public struct DashboardSettingsView: View {
                             .foregroundColor(.red.opacity(0.8))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                            .background(Capsule().fill(SettingsInk.tint(0.08)))
                             .buttonStyle(.plain)
                         }
                         .padding(8)
@@ -847,7 +847,7 @@ public struct DashboardSettingsView: View {
                                 Text(store.connectedGoogleEmail.isEmpty ? "Sign in with Google (Instant Zero-Key Login)" : "Open Gemini Web Workspace")
                             }
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Capsule().fill(AIProvider.gemini.tintColor))
@@ -858,14 +858,14 @@ public struct DashboardSettingsView: View {
                         
                         Text(store.connectedGoogleEmail.isEmpty ? "Uses Google session without requiring API key" : "gemini.google.com")
                             .font(.system(size: 9.5))
-                            .foregroundColor(DesignSystem.tertiaryText)
+                            .foregroundColor(SettingsInk.tertiary)
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(store.connectedGoogleEmail.isEmpty ? "GOOGLE GEMINI API KEY" : "CUSTOM GEMINI API KEY OVERRIDE (OPTIONAL)")
                                 .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             Spacer()
                             HStack(spacing: 4) {
                                 Image(systemName: "lock.shield.fill")
@@ -879,35 +879,35 @@ public struct DashboardSettingsView: View {
                         if !store.connectedGoogleEmail.isEmpty {
                             Text("Google Account (\(store.connectedGoogleEmail)) is active. A manual API key is completely optional.")
                                 .font(.system(size: 9.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                         }
                         SecureField("AIzaSy... (optional override)", text: $store.geminiApiKey)
                             .textFieldStyle(.plain)
                             .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                            .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
                     }
                     
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("MODEL")
                                 .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             TextField("gemini-1.5-flash", text: $store.geminiModel)
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 11))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                                .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("RAM FOOTPRINT")
                                 .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             Text("< 50 KB (Pure URLSession REST)")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.green)
@@ -926,7 +926,7 @@ public struct DashboardSettingsView: View {
                                 Text("Get OpenAI API Key")
                             }
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Capsule().fill(AIProvider.gpt.tintColor))
@@ -937,14 +937,14 @@ public struct DashboardSettingsView: View {
                         
                         Text("Opens platform.openai.com/api-keys")
                             .font(.system(size: 9.5))
-                            .foregroundColor(DesignSystem.tertiaryText)
+                            .foregroundColor(SettingsInk.tertiary)
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("OPENAI API KEY")
                                 .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             Spacer()
                             HStack(spacing: 4) {
                                 Image(systemName: "lock.shield.fill")
@@ -958,30 +958,30 @@ public struct DashboardSettingsView: View {
                         SecureField("sk-...", text: $store.openAIApiKey)
                             .textFieldStyle(.plain)
                             .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                            .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
                     }
                     
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("MODEL")
                                 .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             TextField("gpt-4o-mini", text: $store.gptModel)
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 11))
-                                .foregroundColor(.white)
+                                .foregroundColor(SettingsInk.primary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.07)))
+                                .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("RAM FOOTPRINT")
                                 .font(.system(size: 9.5, weight: .bold))
-                                .foregroundColor(DesignSystem.secondaryText)
+                                .foregroundColor(SettingsInk.secondary)
                             Text("< 50 KB (Pure URLSession REST)")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.green)
@@ -994,10 +994,10 @@ public struct DashboardSettingsView: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+                .fill(SettingsInk.tint(0.04))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.9)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
                 )
         )
     }
@@ -1044,13 +1044,13 @@ struct SlotDropCard: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(widget.title)
                             .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(SettingsInk.primary)
                             .lineLimit(1)
                             .fixedSize(horizontal: false, vertical: true)
                         
                         Text(title)
                             .font(.system(size: 9))
-                            .foregroundColor(DesignSystem.secondaryText)
+                            .foregroundColor(SettingsInk.secondary)
                             .lineLimit(1)
                     }
                     
@@ -1064,10 +1064,10 @@ struct SlotDropCard: View {
                     } label: {
                         Text(currentSpan == 2 ? "2 Spaces" : "1 Space")
                             .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                            .foregroundColor(currentSpan == 2 ? Color.orange : DesignSystem.secondaryText)
+                            .foregroundColor(currentSpan == 2 ? Color.orange : SettingsInk.secondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2.5)
-                            .background(Capsule().fill(Color.white.opacity(currentSpan == 2 ? 0.15 : 0.07)))
+                            .background(Capsule().fill(SettingsInk.tint(currentSpan == 2 ? 0.15 : 0.07)))
                             .lineLimit(1)
                     }
                     .buttonStyle(.plain)
@@ -1080,7 +1080,7 @@ struct SlotDropCard: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 13))
-                            .foregroundColor(Color.white.opacity(0.4))
+                            .foregroundColor(SettingsInk.tint(0.4))
                     }
                     .buttonStyle(.plain)
                     .help("Remove widget from slot")
@@ -1089,10 +1089,10 @@ struct SlotDropCard: View {
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(SettingsInk.tint(0.08))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.12), lineWidth: targetState.isTargeted ? 1.5 : 0.8)
+                                .strokeBorder(targetState.isTargeted ? DesignSystem.accentColor : SettingsInk.tint(0.12), lineWidth: targetState.isTargeted ? 1.5 : 0.8)
                         )
                 )
                 .onDrag {
@@ -1109,16 +1109,16 @@ struct SlotDropCard: View {
                     HStack(spacing: 6) {
                         Image(systemName: "plus.circle")
                             .font(.system(size: 14))
-                            .foregroundColor(targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.25))
+                            .foregroundColor(targetState.isTargeted ? DesignSystem.accentColor : SettingsInk.tint(0.25))
                         
                         VStack(alignment: .leading, spacing: 1) {
                             Text(title)
                                 .font(.system(size: 10.5, weight: .semibold))
-                                .foregroundColor(targetState.isTargeted ? .white : DesignSystem.secondaryText)
+                                .foregroundColor(targetState.isTargeted ? SettingsInk.primary : SettingsInk.secondary)
                                 .lineLimit(1)
                             Text("Click or drop to assign")
                                 .font(.system(size: 8.5))
-                                .foregroundColor(Color.white.opacity(0.3))
+                                .foregroundColor(SettingsInk.tint(0.3))
                                 .lineLimit(1)
                         }
                         
@@ -1129,7 +1129,7 @@ struct SlotDropCard: View {
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .strokeBorder(
-                                targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.15),
+                                targetState.isTargeted ? DesignSystem.accentColor : SettingsInk.tint(0.15),
                                 style: StrokeStyle(lineWidth: targetState.isTargeted ? 1.5 : 1.0, dash: [4, 4])
                             )
                             .background(targetState.isTargeted ? DesignSystem.accentColor.opacity(0.08) : Color.clear)
@@ -1193,7 +1193,7 @@ struct DraggableWidgetPaletteCard: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(widget.title)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundColor(isPlaced ? DesignSystem.secondaryText : .white)
+                            .foregroundColor(isPlaced ? SettingsInk.secondary : .white)
                             .lineLimit(1)
                             .fixedSize(horizontal: false, vertical: true)
                         
@@ -1205,7 +1205,7 @@ struct DraggableWidgetPaletteCard: View {
                         } else {
                             Text(widget.subtitle)
                                 .font(.system(size: 8.5))
-                                .foregroundColor(DesignSystem.tertiaryText)
+                                .foregroundColor(SettingsInk.tertiary)
                                 .lineLimit(1)
                         }
                     }
@@ -1227,10 +1227,10 @@ struct DraggableWidgetPaletteCard: View {
             } label: {
                 Text(currentSpan == 2 ? "2 Sp" : "1 Sp")
                     .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .foregroundColor(currentSpan == 2 ? Color.orange : DesignSystem.secondaryText)
+                    .foregroundColor(currentSpan == 2 ? Color.orange : SettingsInk.secondary)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.white.opacity(currentSpan == 2 ? 0.15 : 0.08)))
+                    .background(Capsule().fill(SettingsInk.tint(currentSpan == 2 ? 0.15 : 0.08)))
                     .lineLimit(1)
             }
             .buttonStyle(.plain)
@@ -1244,7 +1244,7 @@ struct DraggableWidgetPaletteCard: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(DesignSystem.secondaryText)
+                        .foregroundColor(SettingsInk.secondary)
                         .padding(4)
                 }
                 .buttonStyle(.plain)
@@ -1257,9 +1257,9 @@ struct DraggableWidgetPaletteCard: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(SettingsInk.primary)
                         .frame(width: 18, height: 18)
-                        .background(Circle().fill(Color.white.opacity(0.12)))
+                        .background(Circle().fill(SettingsInk.tint(0.12)))
                 }
                 .buttonStyle(.plain)
                 .pointerHoverCursor()
@@ -1270,10 +1270,10 @@ struct DraggableWidgetPaletteCard: View {
         .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(isPlaced ? Color.white.opacity(0.02) : Color.white.opacity(0.06))
+                .fill(isPlaced ? SettingsInk.tint(0.02) : SettingsInk.tint(0.06))
                 .overlay(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(isPlaced ? Color.white.opacity(0.06) : Color.white.opacity(0.12), lineWidth: 0.8)
+                        .strokeBorder(isPlaced ? SettingsInk.tint(0.06) : SettingsInk.tint(0.12), lineWidth: 0.8)
                 )
         )
         .onDrag {
@@ -1296,12 +1296,12 @@ struct PresetButton: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(SettingsInk.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Text(subtitle)
                     .font(.system(size: 9))
-                    .foregroundColor(DesignSystem.secondaryText)
+                    .foregroundColor(SettingsInk.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -1310,10 +1310,10 @@ struct PresetButton: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(SettingsInk.tint(0.06))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8)
+                            .strokeBorder(SettingsInk.tint(0.1), lineWidth: 0.8)
                     )
             )
             .contentShape(Rectangle())

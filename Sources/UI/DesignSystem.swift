@@ -351,6 +351,8 @@ public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
 
 // MARK: - Apple Music Live Waveform Equalizer
 public struct LiveEqualizerIndicator: View {
+    @ObservedObject private var shell = NotchShellCoordinator.shared
+    @ObservedObject private var env = EnvironmentState.shared
     let isPlaying: Bool
     var color: Color = DesignSystem.accentColor
     var barWidth: CGFloat = 2.0
@@ -364,8 +366,8 @@ public struct LiveEqualizerIndicator: View {
     }
     
     public var body: some View {
-        let isExpanded = NotchShellCoordinator.shared.state == .expanded
-        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
+        let isExpanded = shell.state == .expanded
+        let isPowerThrottled = env.isLowPowerMode || env.thermalState == .critical || env.thermalState == .serious
         TimelineView(.animation(minimumInterval: 0.20, paused: !isPlaying || !isExpanded || isPowerThrottled)) { timeline in
             let date = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 1.5) {
@@ -626,6 +628,8 @@ public final class DynamicThemeEngine: ObservableObject {
             if canvasColor != newCanvas { canvasColor = newCanvas }
             if secondaryTextColor != newSec { secondaryTextColor = newSec }
             if paletteSource != theme.displayName { paletteSource = theme.displayName }
+            diagnostics.detectionStatus = "Static theme: \(theme.displayName)"
+            diagnostics.activeFallbackStage = "Static Preset"
             return
         }
 
@@ -695,7 +699,7 @@ public final class DynamicThemeEngine: ObservableObject {
         let fileModDate = imageURL.flatMap { (try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate }
         d.wallpaperModDate = fileModDate
         
-        let isCacheValid = (imageURL != nil && sampledWallpaperURL == imageURL && sampledWallpaperModDate == fileModDate && sampledWallpaperColor != nil)
+        let isCacheValid = (imageURL != nil && sampledWallpaperURL == imageURL && sampledWallpaperModDate == fileModDate)
         
         if let imageURL = imageURL, !isCacheValid, !isSamplingWallpaper {
             isSamplingWallpaper = true
@@ -1132,14 +1136,19 @@ public final class DynamicThemeEngine: ObservableObject {
         }
         let midtone = mCount > 0 ? (mR / mCount, mG / mCount, mB / mCount) : (0.13, 0.15, 0.20)
         
-        // 3. Highlight Zone: pixel with highest saturation
-        var maxSatPixel = pixels[0]
-        for p in pixels {
-            if p.sat > maxSatPixel.sat && p.lum >= 0.10 && p.lum <= 0.95 {
-                maxSatPixel = p
-            }
+        // 3. Highlight Zone: average of top 5% most saturated pixels
+        let candidates = pixels.filter { $0.lum >= 0.10 && $0.lum <= 0.95 }
+            .sorted { $0.sat > $1.sat }
+        let top = candidates.prefix(max(1, candidates.count / 20))
+        let highlight: (CGFloat, CGFloat, CGFloat)
+        if let first = top.first, first.sat >= 0.10 {
+            let n = CGFloat(top.count)
+            highlight = (top.reduce(0) { $0 + $1.r } / n,
+                         top.reduce(0) { $0 + $1.g } / n,
+                         top.reduce(0) { $0 + $1.b } / n)
+        } else {
+            highlight = (pixels.last!.r, pixels.last!.g, pixels.last!.b)
         }
-        let highlight = maxSatPixel.sat >= 0.10 ? (maxSatPixel.r, maxSatPixel.g, maxSatPixel.b) : (pixels.last!.r, pixels.last!.g, pixels.last!.b)
         
         return MultiZonePalette(
             shadowRGB: shadowSafe,
@@ -1163,12 +1172,20 @@ public struct DesignSystem {
     public static var secondaryText: Color { DynamicThemeEngine.shared.secondaryTextColor }
     public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     
+    public static var isLightTheme: Bool { currentTheme.isLight }
+
     public static var primaryText: Color {
         currentTheme.isLight ? currentTheme.primaryTextColor : Color.white
     }
     public static var tertiaryText: Color {
-        currentTheme.isLight ? Color.black.opacity(0.38) : Color.white.opacity(0.40)
+        currentTheme.isLight ? currentTheme.primaryTextColor.opacity(0.55) : Color.white.opacity(0.40)
     }
+    /// Replacement for Color.white.opacity(x) on fills, borders and dividers
+    public static func fill(_ o: Double) -> Color {
+        currentTheme.isLight ? Color.black.opacity(o * 0.6) : Color.white.opacity(o)
+    }
+    /// Text in the theme's ink colour (deep plum on Sakura, white on dark themes)
+    public static func ink(_ o: Double = 1) -> Color { primaryText.opacity(o) }
     public static var subtleBorder: Color {
         currentTheme.isLight ? Color.black.opacity(0.08) : Color.white.opacity(0.12)
     }
@@ -1326,24 +1343,23 @@ public struct NotchGlassBackground: View {
     public var body: some View {
         let glassStyle = store.glassMaterialStyle
         let glowEnabled = store.specularGlowEnabled
-        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
         
         ZStack {
-            if showsMaterial && !reduceTransparency && !isPowerThrottled {
+            if showsMaterial && !reduceTransparency {
                 let material: NSVisualEffectView.Material = {
                     switch glassStyle {
                     case .frosted: return .hudWindow
                     case .deepOLED: return .underWindowBackground
-                    case .luminous: return .hudWindow
+                    case .luminous: return .menu
                     case .crystal: return .headerView
                     }
                 }()
                 let canvasOpacity: Double = {
                     switch glassStyle {
-                    case .frosted: return 0.58
-                    case .deepOLED: return 0.92
-                    case .luminous: return 0.38
-                    case .crystal: return 0.18
+                    case .frosted: return 0.50
+                    case .deepOLED: return 0.94
+                    case .luminous: return 0.30
+                    case .crystal: return 0.10
                     }
                 }()
                 
@@ -1355,6 +1371,10 @@ public struct NotchGlassBackground: View {
                     )
                     .overlay(
                         Group {
+                            if glassStyle == .deepOLED {
+                                CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+                                    .fill(Color.black.opacity(0.35))
+                            }
                             if glassStyle == .luminous {
                                 CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
                                     .fill(
@@ -1394,7 +1414,7 @@ public struct NotchGlassBackground: View {
                 )
             
             // Top Camera Bezel Blend for Light Themes: Blends into MacBook bezel without a white halo
-            if store.currentTheme.isLight && NotchGeometry.current().hasPhysicalNotch {
+            if store.currentTheme.isLight && NotchShellCoordinator.shared.geometry.hasPhysicalNotch {
                 LinearGradient(
                     colors: [
                         Color.black.opacity(0.85),
