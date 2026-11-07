@@ -1,0 +1,5 @@
+Commit: 3864f89 (commit3_phase2_settingsux)
+Git subject: feat(phase2): full-surface hit targets, pointer cursors, accessible toggles, and collapsible advanced sections
+Idle CPU: 0.0 | Idle MEM: 20M
+Active Hover CPU: 2.2 | Active MEM: 68M+
+Top Sample Raw (Active): 12161  NotchApp 2.2  68M+

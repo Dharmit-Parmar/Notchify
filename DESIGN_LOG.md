@@ -338,3 +338,43 @@
   6. Verify regressions: idle CPU, 15-minute memory soak, Thock child cleanup, camera stop on collapse, test suite.
   7. Add responsiveness and regression tests in `Tests/VerificationTests.swift`.
 
+### Stage A Execution & Empirical Root-Cause Analysis
+1. **Bisect Benchmark Results Across Commits (`evidence/bisect_summary.txt`)**:
+   - `0c19662` (Baseline pre-design): Idle CPU 0.0%, Active Hover CPU 0.2%, RSS 67M
+   - `880920b` (Phase 0 color diag): Idle CPU 0.0%, Active Hover CPU 6.6%, RSS 55M
+   - `919b76f` (Phase 1 OKLab): Idle CPU 0.0%, Active Hover CPU 5.9%, RSS 55M
+   - `3864f89` (Phase 2 Settings UX): Idle CPU 0.0%, Active Hover CPU 2.2%, RSS 68M
+   - `b6bac62` (Phase 3 Slots drag): Idle CPU 0.0%, Active Hover CPU 0.1%, RSS 67M
+   - `f774b33` (Phase 4 Dock & themes): Idle CPU 0.0%, Active Hover CPU 0.1%, RSS 62M
+   - `ed5c708` (Phase 5 Motion & idle): Idle CPU 0.0%, Active Hover CPU 0.1%, RSS 63M
+   - `ea1151e` (Phase 6 Current): Idle CPU 0.0%, Active Hover CPU 5.2%, RSS 57M
+   - **Post-Optimization**: Idle CPU 0.0%, Active Hover CPU **0.2%** (down from 5.2%!), RSS 63M (`evidence/bisect_post_optimization.txt`).
+
+2. **Root Causes Diagnosed via Time Profiler (`evidence/sample_commit7_phase6_current.txt`)**:
+   - Software gradient rasterization (`ripc_DrawShading`, `rgba64_shade`) caused by `.mask(HStack { LinearGradient... })` on dock scrollview. Replaced with hardware-blended non-blocking `.overlay(...)`.
+   - Main-thread timer churn caused by `resetIdleTimer()` recreating `DispatchWorkItem` on every 120Hz mouse coordinate in `onContinuousHover`. Replaced with zero-allocation deadline governor (`CACurrentMediaTime() + 4.0`) that schedules at most 1 check work item.
+   - Continuous ViewGraph re-renders from `transitionTo` running a 12-step sleep loop. Replaced with single native `withAnimation(.easeInOut(duration: 0.30))` assignment.
+   - Live drag ratio in `DottedDividerView` was mutating `SettingsStore.shared.dashboardSplitRatio` on every mouse-move tick, re-rendering the entire dashboard 60-120 times per second. Isolated ratio to local `@StateObject` preview, committing to `SettingsStore` strictly in `.onEnded`.
+   - Cursor stack unbalance in `SettingsView.swift`: Wrapped `NSCursor.push()` and `.pop()` in a single-pushed state guard.
+
+3. **Dashboard Widget Overlapping Fix (`ModularDashboardView.swift`)**:
+   - **Diagnosis**:
+     1. In `horizontalStripView`, width was clamped to `max(130, widgetWidth)`. With 4 widgets in a 400-480pt container, `4 * 130 + 24 = 544pt`, forcing horizontal overflow and overlap.
+     2. In `slotBasedBentoView`, `leftWidth` and `rightWidth` were rigidly clamped with `max(140, ...)`, which exceeded total width when container width was narrow, causing column collisions.
+     3. When 2 widgets were stacked vertically in a column, `VStack(spacing: 8)` had no bounded heights and no `.clipped()`, causing tall widgets (Clock with 70pt dial, Ask AI with setup cards) to draw over each other.
+   - **Remediation**:
+     1. Updated `horizontalStripView` to assign exact proportional shares (`availableWidth * share`) with `.clipped()`.
+     2. Updated `slotBasedBentoView` to compute exact non-overflowing partitions: `leftWidth = max(minColWidth, min(availableWidth - minColWidth, availableWidth * split))` and `rightWidth = max(0, availableWidth - leftWidth)` with 12pt separator spacing.
+     3. Stacked widgets partition vertical height cleanly: `widgetHeight = max(50, (totalHeight - spacing) / 2.0)` with `.frame(height: widgetHeight)` and `.clipped()`.
+     4. Made `ClockWidgetView.oneSpaceView` adaptive so the quartz dial scales down gracefully when height is compact (< 125pt), preventing any dial overflow.
+     5. Rendered and verified `evidence/visual_qa_dashboard_bento_fixed.png` showing zero overlap across all 4 widgets.
+
+4. **Permissions Status Banner Verification (`ThockModule.swift`)**:
+   - The user provided a screenshot of the intrusive green banner: `[✓] Full Typing Interception Authorized (Accessibility & Input Monitoring)`.
+   - Confirmed this banner was completely removed from the view hierarchy in commit `919b76f`. When permissions are granted, normal typing operation is 100% silent and uncluttered.
+   - Verified all other requirement/setup notices (missing permissions, uninstalled engine) appear only when ungranted, persist their dismissed state via `UserDefaults`, and include explicit `xmark` cross sign dismissal buttons.
+
+5. **All 83 Tests Passing**:
+   - Added Test 83 (`Tests/VerificationTests.swift`) verifying Bento Quad column bounding invariants, stacked widget height partitioning, and horizontal strip non-overlapping geometry.
+   - All 83/83 verification tests pass cleanly.
+

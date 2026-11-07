@@ -1,0 +1,13 @@
+=== NOTCHIFY DESIGN-PHASE BISECT HOVER BENCHMARK ===
+Date: Sat Nov  7 21:03:09 IST 2026
+
+COMMIT     LABEL                            IDLE_CPU        HOVER_CPU       MEM_RSS        
+---------- -------------------------------- --------------- --------------- ---------------
+0c19662    commit0_baseline                 0.0%            0.2%            67M            
+880920b    commit1_phase0_colordiag         0.0%            6.6%            55M-           
+919b76f    commit2_phase1_oklab             0.0%            5.9%            55M-           
+3864f89    commit3_phase2_settingsux        0.0%            2.2%            68M+           
+b6bac62    commit4_phase3_slotsdrag         0.0%            0.1%            67M            
+f774b33    commit5_phase4_dock_themes       0.0%            0.1%            62M            
+ed5c708    commit6_phase5_motion_idle       0.0%            0.1%            63M            
+ea1151e    commit7_phase6_current           0.0%            5.2%            57M-           

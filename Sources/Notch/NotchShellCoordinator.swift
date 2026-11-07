@@ -59,31 +59,49 @@ public final class NotchShellCoordinator: ObservableObject {
         return .spring(response: physics.response, dampingFraction: physics.damping)
     }
     
-    // MARK: - Resettable 4s Idle Dimming Governor
+    // MARK: - Resettable 4s Idle Dimming Governor (Zero-Allocation Deadline Model)
     @Published public var isIdleDimmed: Bool = false
+    private var idleDeadline: CFTimeInterval = 0
     private var idleDimWorkItem: DispatchWorkItem?
     
     public func resetIdleTimer() {
+        idleDeadline = CACurrentMediaTime() + 4.0
         if isIdleDimmed {
             withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.20)) {
                 isIdleDimmed = false
             }
         }
-        idleDimWorkItem?.cancel()
         guard state == .expanded, !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen else {
+            idleDimWorkItem?.cancel()
             idleDimWorkItem = nil
             return
         }
+        if idleDimWorkItem != nil {
+            // Already scheduled! Zero allocations on mouse moves
+            return
+        }
+        scheduleIdleDeadlineCheck()
+    }
+    
+    private func scheduleIdleDeadlineCheck() {
+        let remaining = max(0.2, idleDeadline - CACurrentMediaTime())
         let item = DispatchWorkItem { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self = self, self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen else { return }
-                withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.60)) {
-                    self.isIdleDimmed = true
+                guard let self = self else { return }
+                self.idleDimWorkItem = nil
+                guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen else { return }
+                let now = CACurrentMediaTime()
+                if now >= self.idleDeadline {
+                    withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.60)) {
+                        self.isIdleDimmed = true
+                    }
+                } else {
+                    self.scheduleIdleDeadlineCheck()
                 }
             }
         }
         idleDimWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: item)
     }
     
     private var appearancePreviewWorkItem: DispatchWorkItem?

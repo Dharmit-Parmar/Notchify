@@ -427,16 +427,16 @@ public struct CalendarMiniGlanceView: View {
             // Center: Large bold day numeral + weekday
             VStack(spacing: 1) {
                 Text(dayNumber)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .minimumScaleFactor(0.75)
                 
                 Text(weekdayAbbrev)
-                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundColor(DesignSystem.secondaryText)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             

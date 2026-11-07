@@ -544,35 +544,17 @@ public final class DynamicThemeEngine: ObservableObject {
         transitionTask?.cancel()
         transitionTask = nil
         
+        currentCanvasOKLab = targetCanvas
+        currentStructureOKLab = targetStructure
+        currentAccentOKLab = targetAccent
+        
         if isCollapsed || reduceMotion {
             // Instant transition when notch is collapsed, in Low Power Mode, or Reduce Motion is active
-            currentCanvasOKLab = targetCanvas
-            currentStructureOKLab = targetStructure
-            currentAccentOKLab = targetAccent
             applyCurrentOKLabColors()
-            return
-        }
-        
-        // Smooth interruptible OKLab transition
-        let startCanvas = currentCanvasOKLab
-        let startStructure = currentStructureOKLab
-        let startAccent = currentAccentOKLab
-        
-        transitionTask = Task { @MainActor [weak self] in
-            let steps = 12
-            let duration: TimeInterval = 0.30
-            let interval = duration / Double(steps)
-            for step in 1...steps {
-                if Task.isCancelled { break }
-                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
-                if Task.isCancelled { break }
-                let t = CGFloat(step) / CGFloat(steps)
-                let easeT = sin(t * .pi / 2.0)
-                guard let self else { break }
-                self.currentCanvasOKLab = OKLabColor.blend(startCanvas, targetCanvas, progress: easeT)
-                self.currentStructureOKLab = OKLabColor.blend(startStructure, targetStructure, progress: easeT)
-                self.currentAccentOKLab = OKLabColor.blend(startAccent, targetAccent, progress: easeT)
-                self.applyCurrentOKLabColors()
+        } else {
+            // Smooth single-transaction animation on GPU without re-render loop
+            withAnimation(.easeInOut(duration: 0.30)) {
+                applyCurrentOKLabColors()
             }
         }
     }

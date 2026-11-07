@@ -2,10 +2,11 @@ import SwiftUI
 
 // MARK: - Dotted Vertical Divider for Live Drag-Resizing
 @MainActor
-private final class DividerUIState: ObservableObject {
-    @Published var isHovered: Bool = false
-    @Published var isDragging: Bool = false
-    @Published var lastHapticSnap: CGFloat? = nil
+public final class DividerUIState: ObservableObject {
+    @Published public var isHovered: Bool = false
+    @Published public var isDragging: Bool = false
+    @Published public var previewRatio: CGFloat? = nil
+    @Published public var lastHapticSnap: CGFloat? = nil
 }
 
 public struct DottedDividerView: View {
@@ -86,10 +87,15 @@ public struct DottedDividerView: View {
                         uiState.lastHapticSnap = nil
                     }
                     
-                    store.dashboardSplitRatio = snappedRatio
+                    // Track ratio in local state during drag; only persist when drag ends
+                    uiState.previewRatio = snappedRatio
                 }
                 .onEnded { _ in
+                    if let finalRatio = uiState.previewRatio {
+                        store.dashboardSplitRatio = finalRatio
+                    }
                     uiState.isDragging = false
+                    uiState.previewRatio = nil
                     uiState.lastHapticSnap = nil
                 }
         )
@@ -258,7 +264,8 @@ public struct ModularDashboardView: View {
                             // Allocate 50% width to the widget with span 2 and 25% each to the other two widgets
                             let span2Index = widgets.firstIndex(where: { store.span(for: $0) == 2 }) ?? 0
                             if widget == widgets[span2Index] {
-                                return (2, availableWidth * 0.50)
+                                let w = availableWidth * 0.50
+                                return (w >= 220 ? 2 : 1, w)
                             } else {
                                 return (1, availableWidth * 0.25)
                             }
@@ -267,12 +274,14 @@ public struct ModularDashboardView: View {
                             let safeTotalSpan = max(1, totalSpan)
                             let span = store.span(for: widget)
                             let width = (CGFloat(span) / CGFloat(safeTotalSpan)) * availableWidth
-                            return (span, width)
+                            let actualSpan = (width >= 220 && span >= 2) ? span : 1
+                            return (actualSpan, width)
                         }
                     }()
                     
                     Self.renderWidget(type: widget, span: widgetSpan)
-                        .frame(width: max(130, widgetWidth), height: geo.size.height)
+                        .frame(width: max(0, widgetWidth), height: geo.size.height)
+                        .clipped()
                 }
             }
         }
@@ -293,6 +302,7 @@ public struct ModularDashboardView: View {
     private func oneWidgetView(_ widget: DashboardWidgetType) -> some View {
         Self.renderWidget(type: widget, span: 4)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
     }
     
     // MARK: - True Slot-Based Column Layout (Respects exact Top-Left, Top-Right, Bottom-Left, Bottom-Right placement)
@@ -326,22 +336,31 @@ public struct ModularDashboardView: View {
         return AnyView(
             GeometryReader { geo in
                 let totalWidth = geo.size.width
-                let dividerWidth: CGFloat = 16.0
-                let availableWidth = max(0, totalWidth - dividerWidth)
-                let leftWidth = max(140, min(availableWidth - 140, availableWidth * store.dashboardSplitRatio))
-                let rightWidth = max(140, availableWidth - leftWidth)
+                let totalHeight = geo.size.height
+                let dividerSpacing: CGFloat = 12.0
+                let availableWidth = max(0, totalWidth - dividerSpacing)
+                let split = max(0.20, min(0.80, store.dashboardSplitRatio))
+                let minColWidth: CGFloat = min(120, availableWidth * 0.30)
+                let leftWidth = max(minColWidth, min(availableWidth - minColWidth, availableWidth * split))
+                let rightWidth = max(0, availableWidth - leftWidth)
                 
                 HStack(alignment: .top, spacing: 0) {
                     // Left Column (Slot 0 top, Slot 2 bottom)
-                    renderColumnView(widgets: leftCol, oppositeCount: rightCol.count)
-                        .frame(width: leftWidth, height: geo.size.height)
+                    renderColumnView(widgets: leftCol, columnWidth: leftWidth, oppositeCount: rightCol.count, totalHeight: totalHeight)
+                        .frame(width: leftWidth, height: totalHeight)
+                        .clipped()
                     
-                    // Dotted divider between adjacent filled slots
-                    DottedDividerView(totalWidth: totalWidth)
+                    // Clean static separator between adjacent filled slots (draggable divider moved to Settings canvas)
+                    Rectangle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 1)
+                        .padding(.horizontal, (dividerSpacing - 1) / 2)
+                        .padding(.vertical, 8)
                     
                     // Right Column (Slot 1 top, Slot 3 bottom)
-                    renderColumnView(widgets: rightCol, oppositeCount: leftCol.count)
-                        .frame(width: rightWidth, height: geo.size.height)
+                    renderColumnView(widgets: rightCol, columnWidth: rightWidth, oppositeCount: leftCol.count, totalHeight: totalHeight)
+                        .frame(width: rightWidth, height: totalHeight)
+                        .clipped()
                 }
                 .coordinateSpace(name: "DashboardContainer")
             }
@@ -353,13 +372,14 @@ public struct ModularDashboardView: View {
     private func focusDominantView(_ widgets: [DashboardWidgetType]) -> some View {
         GeometryReader { geo in
             let totalWidth = geo.size.width
-            let dividerWidth: CGFloat = 16.0
-            let availableWidth = max(0, totalWidth - dividerWidth)
+            let totalHeight = geo.size.height
+            let dividerSpacing: CGFloat = 12.0
+            let availableWidth = max(0, totalWidth - dividerSpacing)
             
-            // In focus mode, default ratio is 0.70 unless customized
-            let ratio = store.dashboardSplitRatio
-            let dominantWidth = max(180, min(availableWidth - 130, availableWidth * ratio))
-            let companionWidth = max(130, availableWidth - dominantWidth)
+            let ratio = max(0.20, min(0.80, store.dashboardSplitRatio))
+            let minColWidth: CGFloat = min(120, availableWidth * 0.25)
+            let dominantWidth = max(minColWidth, min(availableWidth - minColWidth, availableWidth * ratio))
+            let companionWidth = max(0, availableWidth - dominantWidth)
             
             let dominantWidget: DashboardWidgetType = {
                 if let slotDom = store.dashboardSlots.first(where: { $0 != nil }) as? DashboardWidgetType {
@@ -373,17 +393,23 @@ public struct ModularDashboardView: View {
             }()
             
             HStack(spacing: 0) {
-                // Dominant Primary Widget (span: 2)
-                Self.renderWidget(type: dominantWidget, span: companionWidget == nil ? 4 : 2)
-                    .frame(width: companionWidget == nil ? totalWidth : dominantWidth, height: geo.size.height)
+                // Dominant Primary Widget
+                Self.renderWidget(type: dominantWidget, span: companionWidget == nil ? 4 : (dominantWidth >= 220 ? 2 : 1))
+                    .frame(width: companionWidget == nil ? totalWidth : dominantWidth, height: totalHeight)
+                    .clipped()
                 
                 if let companion = companionWidget {
-                    // Dotted divider between filled slots
-                    DottedDividerView(totalWidth: totalWidth)
+                    // Clean static separator between dominant and companion slot
+                    Rectangle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 1)
+                        .padding(.horizontal, (dividerSpacing - 1) / 2)
+                        .padding(.vertical, 8)
                     
                     // Companion Widget (span: 1)
                     Self.renderWidget(type: companion, span: 1)
-                        .frame(width: companionWidth, height: geo.size.height)
+                        .frame(width: companionWidth, height: totalHeight)
+                        .clipped()
                 }
             }
             .coordinateSpace(name: "DashboardContainer")
@@ -392,21 +418,29 @@ public struct ModularDashboardView: View {
     }
     
     @ViewBuilder
-    private func renderColumnView(widgets: [DashboardWidgetType], oppositeCount: Int) -> some View {
+    private func renderColumnView(widgets: [DashboardWidgetType], columnWidth: CGFloat, oppositeCount: Int, totalHeight: CGFloat) -> some View {
         if widgets.count == 1 {
-            // If the opposite column has 2 stacked widgets, this widget spans full vertical height (span: 2)
-            let span = oppositeCount > 1 ? 2 : max(1, store.span(for: widgets[0]))
+            // Span 2 only if column width >= 220pt AND totalHeight >= 160pt
+            let span = (columnWidth >= 220 && totalHeight >= 160) ? (oppositeCount > 1 ? 2 : max(1, store.span(for: widgets[0]))) : 1
             Self.renderWidget(type: widgets[0], span: span)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
         } else {
             // Stacked widgets in this column (e.g. Clock on top, Ask AI directly below it!)
-            VStack(spacing: 8) {
+            let spacing: CGFloat = 8.0
+            let widgetHeight = max(50, (totalHeight - spacing) / 2.0)
+            VStack(spacing: spacing) {
                 Self.renderWidget(type: widgets[0], span: 1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: widgetHeight)
+                    .clipped()
                 Self.renderWidget(type: widgets[1], span: 1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: widgetHeight)
+                    .clipped()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
     }
     
@@ -415,12 +449,20 @@ public struct ModularDashboardView: View {
         if widgets.count == 1 {
             oneWidgetView(widgets[0])
         } else {
-            HStack(spacing: 10) {
-                Self.renderWidget(type: widgets[0], span: 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Self.renderWidget(type: widgets[1], span: 2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            GeometryReader { geo in
+                let spacing: CGFloat = 10.0
+                let totalWidth = geo.size.width
+                let itemWidth = max(0, (totalWidth - spacing) / 2.0)
+                HStack(spacing: spacing) {
+                    Self.renderWidget(type: widgets[0], span: itemWidth >= 220 ? 2 : 1)
+                        .frame(width: itemWidth, height: geo.size.height)
+                        .clipped()
+                    Self.renderWidget(type: widgets[1], span: itemWidth >= 220 ? 2 : 1)
+                        .frame(width: itemWidth, height: geo.size.height)
+                        .clipped()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     

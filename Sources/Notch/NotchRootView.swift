@@ -220,24 +220,25 @@ public struct NotchRootView: View {
                         }
                         .padding(.horizontal, 6)
                     }
-                    .mask(
+                    .overlay(
                         HStack(spacing: 0) {
                             LinearGradient(
-                                colors: [Color.clear, Color.black],
+                                colors: [DesignSystem.canvasColor.opacity(0.85), Color.clear],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
-                            .frame(width: 10)
+                            .frame(width: 8)
                             
-                            Rectangle().fill(Color.black)
+                            Spacer()
                             
                             LinearGradient(
-                                colors: [Color.black, Color.clear],
+                                colors: [Color.clear, DesignSystem.canvasColor.opacity(0.85)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
-                            .frame(width: 10)
+                            .frame(width: 8)
                         }
+                        .allowsHitTesting(false)
                     )
                     
                     // Scroll Right Edge Arrow

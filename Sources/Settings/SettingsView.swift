@@ -62,16 +62,32 @@ public final class SettingsNavigationState: ObservableObject {
     }
 }
 
-// MARK: - Pointer Cursor View Modifier
+// MARK: - Pointer Cursor View Modifier (Balanced & Leak-Proof)
+@MainActor
+private final class CursorTrackingState: ObservableObject {
+    var isPushed = false
+}
+
 public struct PointerCursorModifier: ViewModifier {
+    @StateObject private var state = CursorTrackingState()
+    
     public func body(content: Content) -> some View {
-        content.onHover { inside in
-            if inside {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
+        content
+            .onHover { inside in
+                if inside && !state.isPushed {
+                    state.isPushed = true
+                    NSCursor.pointingHand.push()
+                } else if !inside && state.isPushed {
+                    state.isPushed = false
+                    NSCursor.pop()
+                }
             }
-        }
+            .onDisappear {
+                if state.isPushed {
+                    state.isPushed = false
+                    NSCursor.pop()
+                }
+            }
     }
 }
 

@@ -1,0 +1,5 @@
+Commit: ed5c708 (commit6_phase5_motion_idle)
+Git subject: feat(phase5): motion physics refinement, idle dimming with wcag contrast guard, and environment energy governor
+Idle CPU: 0.0 | Idle MEM: 20M
+Active Hover CPU: 0.1 | Active MEM: 63M
+Top Sample Raw (Active): 12947  NotchApp 0.1  63M 

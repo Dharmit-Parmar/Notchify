@@ -1,0 +1,4 @@
+Commit: HEAD (post_optimization)
+Idle CPU: 0.0 | Idle MEM: 20M
+Active Hover CPU: 0.2 | Active MEM: 63M
+Top Sample Raw (Active): 13818  NotchApp 0.2  63M 

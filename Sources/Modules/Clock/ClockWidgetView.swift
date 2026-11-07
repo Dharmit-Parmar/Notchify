@@ -114,30 +114,40 @@ public struct ClockWidgetView: View {
     // MARK: - 1-Space Mode
     @ViewBuilder
     private func oneSpaceView(date: Date) -> some View {
-        VStack(spacing: 6) {
-            // Centered analog quartz dial (70pt) with smooth sweeping second hand
-            AnalogClockFace(date: date, showSeconds: store.clockShowSeconds, size: 70)
-                .frame(width: 70, height: 70)
+        GeometryReader { geo in
+            let availableH = geo.size.height
+            let isCompact = availableH < 125
+            let dialSize: CGFloat = isCompact ? max(32, min(50, availableH - 50)) : 70
             
-            // Bold digital readout
-            Text(digitalTimeString(date))
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-            
-            // Day/date pill
-            Text(dayOfWeekString(date).uppercased() + " · " + dateFormattedString(date))
-                .font(.system(size: 8.5, weight: .medium, design: .rounded))
-                .foregroundColor(DesignSystem.secondaryText)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2.5)
-                .background(Capsule().fill(Color.white.opacity(0.08)))
+            VStack(spacing: isCompact ? 3 : 6) {
+                if availableH >= 65 {
+                    // Centered analog quartz dial with smooth sweeping second hand
+                    AnalogClockFace(date: date, showSeconds: store.clockShowSeconds, size: dialSize)
+                        .frame(width: dialSize, height: dialSize)
+                }
+                
+                // Bold digital readout
+                Text(digitalTimeString(date))
+                    .font(.system(size: isCompact ? 11.5 : 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                
+                if availableH >= 90 {
+                    // Day/date pill
+                    Text(dayOfWeekString(date).uppercased() + " · " + dateFormattedString(date))
+                        .font(.system(size: isCompact ? 7.5 : 8.5, weight: .medium, design: .rounded))
+                        .foregroundColor(DesignSystem.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(10)
+        .padding(8)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
                 .fill(DesignSystem.cardFill)
@@ -146,6 +156,7 @@ public struct ClockWidgetView: View {
                         .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.9)
                 )
         )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
     }
     
     // MARK: - 2-Space Mode

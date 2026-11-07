@@ -1,0 +1,5 @@
+Commit: 919b76f (commit2_phase1_oklab)
+Git subject: feat(phase1): environment state, multi-zone extraction, OKLab color blending, contrast guard, de-clutter banners, and synthetic test matrix
+Idle CPU: 0.0 | Idle MEM: 20M
+Active Hover CPU: 5.9 | Active MEM: 55M-
+Top Sample Raw (Active): 11945  NotchApp 5.9  55M-
