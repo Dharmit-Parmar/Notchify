@@ -215,7 +215,7 @@ public final class AskAIService: ObservableObject {
                     responseText = "❌ Gemini request failed: \(error.localizedDescription)"
                     self.errorMessage = error.localizedDescription
                 } else if let ctx = context, !ctx.isEmpty, isNoteAction(prompt: trimmed) {
-                    responseText = runLocalNoteAction(actionPrompt: trimmed, noteText: ctx) + "\n\n*(Connected via Google: \(SettingsStore.shared.connectedGoogleEmail))*"
+                    responseText = runLocalNoteAction(actionPrompt: trimmed, noteText: ctx)
                 } else {
                     responseText = runIntelligentAssistantQuery(prompt: trimmed, context: context, providerName: "Google Gemini", accountEmail: SettingsStore.shared.connectedGoogleEmail)
                 }
@@ -350,8 +350,7 @@ public final class AskAIService: ObservableObject {
             return runLocalNoteAction(actionPrompt: trimmed, noteText: ctx)
         }
         
-        let accountBadge = accountEmail.isEmpty ? "" : " (Connected: \(accountEmail))"
-        return "✦ **\(providerName)**\(accountBadge):\n\nProcessed response for: \"\(trimmed)\".\n\n• Verified Google session active.\n• Seamless zero-RAM operation (0 MB model overhead).\n• Visit [gemini.google.com](https://gemini.google.com/app) for full browser workspace."
+        return "✦ **\(providerName)**:\n\nProcessed response for: \"\(trimmed)\".\n\n• Session active.\n• Visit [gemini.google.com](https://gemini.google.com/app) for full workspace."
     }
     
     // MARK: - 1. Native macOS Siri Bridge (Zero RAM Allocation)

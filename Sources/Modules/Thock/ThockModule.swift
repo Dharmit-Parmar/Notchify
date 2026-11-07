@@ -8,7 +8,6 @@ import Darwin
 public enum ThockSubSection: String, CaseIterable, Identifiable {
     case keySound = "Key Sound"
     case asmr = "Ambient ASMR"
-    case terminal = "CLI Terminal"
     
     public var id: String { rawValue }
     
@@ -16,7 +15,6 @@ public enum ThockSubSection: String, CaseIterable, Identifiable {
         switch self {
         case .keySound: return "keyboard"
         case .asmr: return "cloud.rain.fill"
-        case .terminal: return "apple.terminal"
         }
     }
 }
@@ -109,6 +107,26 @@ public final class ThockModule: NotchModule {
     }
     @Published public var isAccessibilityGranted: Bool = false // Backwards compatibility
     
+    // Banner Dismissal State (Ensures status/permission tags appear once with dismiss cross)
+    @Published public var hasDismissedAuthorizedBanner: Bool = UserDefaults.standard.bool(forKey: "thock_authorized_banner_dismissed")
+    @Published public var hasDismissedPermissionsNotice: Bool = UserDefaults.standard.bool(forKey: "thock_permissions_notice_dismissed")
+    @Published public var hasDismissedInstallNotice: Bool = UserDefaults.standard.bool(forKey: "thock_install_notice_dismissed")
+    
+    public func dismissAuthorizedBanner() {
+        hasDismissedAuthorizedBanner = true
+        UserDefaults.standard.set(true, forKey: "thock_authorized_banner_dismissed")
+    }
+    
+    public func dismissPermissionsNotice() {
+        hasDismissedPermissionsNotice = true
+        UserDefaults.standard.set(true, forKey: "thock_permissions_notice_dismissed")
+    }
+    
+    public func dismissInstallNotice() {
+        hasDismissedInstallNotice = true
+        UserDefaults.standard.set(true, forKey: "thock_install_notice_dismissed")
+    }
+    
     // Engine State
     @Published public var isRunning: Bool = false
     @Published public var processPID: Int32? = nil
@@ -154,10 +172,6 @@ public final class ThockModule: NotchModule {
     @Published public var rainActive: Bool = false
     @Published public var windActive: Bool = false
     @Published public var thunderActive: Bool = false
-    
-    // Terminal Log Stream
-    @Published public var terminalLogs: [String] = []
-    @Published public var cliCommandInput: String = ""
     
     // Process Piping & Ownership Tracking (Strictly tracks ONLY child process spawned by Notch)
     private var process: Process?
@@ -654,7 +668,6 @@ public final class ThockModule: NotchModule {
         Self.sweepOrphanProcesses()
         
         guard FileManager.default.fileExists(atPath: binaryURL.path) else {
-            appendLog("❌ Binary missing at \(binaryURL.path). Build with 'cargo build --release' in KeySound.")
             return
         }
         
@@ -694,7 +707,6 @@ public final class ThockModule: NotchModule {
             }
             
             DispatchQueue.main.async {
-                self?.appendLog(clean)
                 self?.parseOutputTelemetry(clean)
             }
         }
@@ -710,7 +722,6 @@ public final class ThockModule: NotchModule {
                 self?.isRunning = false
                 self?.processPID = nil
                 self?.statusSubtitle = "Engine Stopped"
-                self?.appendLog("· thock-cli stopped (exit code: \(p.terminationStatus))")
             }
         }
         
@@ -726,7 +737,6 @@ public final class ThockModule: NotchModule {
             self.processPID = childPid
             self.statusSubtitle = "Active · PID \(childPid)"
             FeedbackManager.playSuccess()
-            appendLog("🚀 Thock CLI Engine launched [PID: \(childPid)]")
             
             // Sync current volume and asmr state to spawned engine
             let kv = isKeyMuted ? 0 : Int(keyVolume.rounded())
@@ -743,7 +753,6 @@ public final class ThockModule: NotchModule {
             self.spawnedProcess = nil
             self.spawnedPID = nil
             self.processPID = nil
-            appendLog("❌ Failed to launch thock-cli: \(error.localizedDescription)")
         }
     }
     
@@ -767,16 +776,10 @@ public final class ThockModule: NotchModule {
         let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        if echo {
-            appendLog("thock › \(trimmed)")
-        }
-        
         if let inPipe = self.inPipe, isRunning {
             if let data = "\(trimmed)\n".data(using: .utf8) {
                 try? inPipe.fileHandleForWriting.write(contentsOf: data)
             }
-        } else {
-            appendLog("⚠️ Engine is not running. Click 'Start Engine' to execute.")
         }
     }
     
@@ -931,29 +934,7 @@ public final class ThockModule: NotchModule {
         FeedbackManager.playClick()
     }
     
-    public func clearTerminal() {
-        terminalLogs.removeAll()
-        FeedbackManager.playClick()
-    }
-    
     // MARK: - Internal Helpers
-    private func appendLog(_ text: String) {
-        // Thermal & UI Optimization: Only accumulate and broadcast terminal logs when user is viewing CLI Terminal!
-        // This avoids dozens of MainActor publisher emissions per second during fast typing.
-        guard selectedSection == .terminal else { return }
-        
-        let lines = text.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty {
-                terminalLogs.append(trimmed)
-            }
-        }
-        if terminalLogs.count > 60 {
-            terminalLogs.removeFirst(terminalLogs.count - 60)
-        }
-    }
-    
     private func parseOutputTelemetry(_ text: String) {
         if text.contains("Rain [ON") { self.rainActive = true }
         if text.contains("Rain [OFF") { self.rainActive = false }
@@ -1090,8 +1071,6 @@ public struct ThockExpandedView: View {
                 keySoundSectionView
             case .asmr:
                 asmrSectionView
-            case .terminal:
-                terminalSectionView
             }
         }
         .padding(4)
@@ -1109,143 +1088,176 @@ public struct ThockExpandedView: View {
         VStack(spacing: 8) {
             // Comprehensive Dual Permission Banner (Accessibility & Input Monitoring)
             if !module.allPermissionsGranted {
-                VStack(spacing: 5) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.shield.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
-                        
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Permissions Required for Global Typing Sounds")
-                                .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                if !module.hasDismissedPermissionsNotice {
+                    VStack(spacing: 5) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.shield.fill")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
                             
-                            Text("macOS requires both permissions to capture typing in background apps and play authentic switch audio.")
-                                .font(.system(size: 8, weight: .regular))
-                                .foregroundColor(Color.white.opacity(0.75))
-                        }
-                        
-                        Spacer()
-                        
-                        // Master Request Button
-                        Button(action: { module.requestAllPermissions() }) {
-                            Text("Grant Permissions")
-                                .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4.5)
-                                .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
-                        }
-                        .buttonStyle(.spring)
-                        .help("Trigger system authorization dialogs and open settings panes")
-                    }
-                    
-                    // Detailed Permission Checklist Row with Reveal App in Finder
-                    HStack(spacing: 6) {
-                        // Accessibility Status Badge
-                        HStack(spacing: 4) {
-                            Image(systemName: module.hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .font(.system(size: 8))
-                                .foregroundColor(module.hasAccessibilityPermission ? Color.green : Color.red)
-                            Text("Accessibility")
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.85))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Permissions Required for Global Typing Sounds")
+                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                                
+                                Text("macOS requires both permissions to capture typing in background apps and play authentic switch audio.")
+                                    .font(.system(size: 8, weight: .regular))
+                                    .foregroundColor(Color.white.opacity(0.75))
+                            }
                             
-                            Button(action: { module.openAccessibilitySettings() }) {
-                                Image(systemName: "arrow.up.forward.square")
-                                    .font(.system(size: 7.5))
-                                    .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Open Accessibility in System Settings")
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2.5)
-                        .background(Capsule().fill(Color.white.opacity(0.05)))
-                        
-                        // Input Monitoring Status Badge
-                        HStack(spacing: 4) {
-                            Image(systemName: module.hasInputMonitoringPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .font(.system(size: 8))
-                                .foregroundColor(module.hasInputMonitoringPermission ? Color.green : Color.red)
-                            Text("Input Monitoring")
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.85))
+                            Spacer()
                             
-                            Button(action: { module.openInputMonitoringSettings() }) {
-                                Image(systemName: "arrow.up.forward.square")
-                                    .font(.system(size: 7.5))
-                                    .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
+                            // Master Request Button
+                            Button(action: { module.requestAllPermissions() }) {
+                                Text("Grant Permissions")
+                                    .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 4.5)
+                                    .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
                             }
-                            .buttonStyle(.plain)
-                            .help("Open Input Monitoring in System Settings")
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2.5)
-                        .background(Capsule().fill(Color.white.opacity(0.05)))
-                        
-                        Spacer()
-                        
-                        // Reveal in Finder & Copy Path for Easy Drag-and-Drop
-                        Button(action: { PermissionsHelper.revealAppInFinder() }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "folder.fill")
-                                    .font(.system(size: 7.5))
-                                Text("Reveal in Finder")
-                                    .font(.system(size: 8, weight: .bold))
-                            }
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2.5)
-                            .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
-                        }
-                        .buttonStyle(.spring)
-                        .help("Highlight NotchApp in Finder to drag directly into System Settings (+)")
+                            .buttonStyle(.spring)
+                            .help("Trigger system authorization dialogs and open settings panes")
 
-                        Button(action: { PermissionsHelper.copyAppPathToClipboard() }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 7))
-                                Text("Copy Path")
-                                    .font(.system(size: 8, weight: .medium))
+                            Button(action: {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                    module.dismissPermissionsNotice()
+                                }
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 7.5, weight: .bold))
+                                    .foregroundColor(Color.white.opacity(0.7))
+                                    .padding(3)
+                                    .background(Circle().fill(Color.white.opacity(0.12)))
                             }
-                            .foregroundColor(Color.white.opacity(0.85))
+                            .buttonStyle(.plain)
+                            .help("Dismiss notice")
+                        }
+                        
+                        // Detailed Permission Checklist Row with Reveal App in Finder
+                        HStack(spacing: 6) {
+                            // Accessibility Status Badge
+                            HStack(spacing: 4) {
+                                Image(systemName: module.hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(module.hasAccessibilityPermission ? Color.green : Color.red)
+                                Text("Accessibility")
+                                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                                    .foregroundColor(Color.white.opacity(0.85))
+                                
+                                Button(action: { module.openAccessibilitySettings() }) {
+                                    Image(systemName: "arrow.up.forward.square")
+                                        .font(.system(size: 7.5))
+                                        .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Open Accessibility in System Settings")
+                            }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2.5)
-                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                            .background(Capsule().fill(Color.white.opacity(0.05)))
+                            
+                            // Input Monitoring Status Badge
+                            HStack(spacing: 4) {
+                                Image(systemName: module.hasInputMonitoringPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(module.hasInputMonitoringPermission ? Color.green : Color.red)
+                                Text("Input Monitoring")
+                                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                                    .foregroundColor(Color.white.opacity(0.85))
+                                
+                                Button(action: { module.openInputMonitoringSettings() }) {
+                                    Image(systemName: "arrow.up.forward.square")
+                                        .font(.system(size: 7.5))
+                                        .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Open Input Monitoring in System Settings")
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(Capsule().fill(Color.white.opacity(0.05)))
+                            
+                            Spacer()
+                            
+                            // Reveal in Finder & Copy Path for Easy Drag-and-Drop
+                            Button(action: { PermissionsHelper.revealAppInFinder() }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 7.5))
+                                    Text("Reveal in Finder")
+                                        .font(.system(size: 8, weight: .bold))
+                                }
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2.5)
+                                .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
+                            }
+                            .buttonStyle(.spring)
+                            .help("Highlight NotchApp in Finder to drag directly into System Settings (+)")
+
+                            Button(action: { PermissionsHelper.copyAppPathToClipboard() }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 7))
+                                    Text("Copy Path")
+                                        .font(.system(size: 8, weight: .medium))
+                                }
+                                .foregroundColor(Color.white.opacity(0.85))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2.5)
+                                .background(Capsule().fill(Color.white.opacity(0.08)))
+                            }
+                            .buttonStyle(.spring)
+                            .help("Copy executable path: in Open File dialog press ⌘⇧G and paste")
                         }
-                        .buttonStyle(.spring)
-                        .help("Copy executable path: in Open File dialog press ⌘⇧G and paste")
                     }
+                    .padding(7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Color(red: 0.9, green: 0.6, blue: 0.1).opacity(0.14))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .strokeBorder(Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.35), lineWidth: 0.8)
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
-                .padding(7)
-                .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color(red: 0.9, green: 0.6, blue: 0.1).opacity(0.14))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.35), lineWidth: 0.8)
-                )
             } else {
-                // Sleek Authorized Pill
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 9))
-                        .foregroundColor(Color.green)
-                    Text("Full Typing Interception Authorized (Accessibility & Input Monitoring)")
-                        .font(.system(size: 8, weight: .medium, design: .rounded))
-                        .foregroundColor(Color.green.opacity(0.9))
-                    Spacer()
+                if !module.hasDismissedAuthorizedBanner {
+                    // Sleek Authorized Pill (with dismiss 'X' cross sign button)
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(Color.green)
+                        Text("Full Typing Interception Authorized (Accessibility & Input Monitoring)")
+                            .font(.system(size: 8, weight: .medium, design: .rounded))
+                            .foregroundColor(Color.green.opacity(0.9))
+                        Spacer()
+                        Button(action: {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                module.dismissAuthorizedBanner()
+                            }
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 7.5, weight: .bold))
+                                .foregroundColor(Color.green.opacity(0.85))
+                                .padding(3)
+                                .background(Circle().fill(Color.green.opacity(0.18)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Dismiss notification")
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(Color.green.opacity(0.1)))
+                    .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.7))
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3.5)
-                .background(Capsule().fill(Color.green.opacity(0.1)))
-                .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.7))
             }
             
             // Thock Missing / Auto-Setup Banner
-            if !module.isInstalled {
+            if !module.isInstalled && !module.hasDismissedInstallNotice {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 13, weight: .bold))
@@ -1290,12 +1302,27 @@ public struct ThockExpandedView: View {
                         }
                         .buttonStyle(.spring)
                         .help("Clone KeySound from GitHub and build thock-cli binary automatically")
+                        
+                        Button(action: {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                module.dismissInstallNotice()
+                            }
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(Color.white.opacity(0.7))
+                                .padding(3.5)
+                                .background(Circle().fill(Color.white.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Dismiss banner")
                     }
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.06)))
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(DesignSystem.accentColor.opacity(0.3), lineWidth: 0.8))
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
             
             // Top Controls Bar: Engine Power, Audition Sound & Key Sound Volume
@@ -1612,129 +1639,6 @@ public struct ThockExpandedView: View {
                 )
             }
             .frame(height: 52)
-        }
-    }
-    
-    // MARK: - Subsection 3: CLI Terminal View
-    private var terminalSectionView: some View {
-        VStack(spacing: 0) {
-            // Terminal Window Header Bar
-            HStack(spacing: 6) {
-                Circle().fill(Color(red: 1.0, green: 0.37, blue: 0.34)).frame(width: 7, height: 7)
-                Circle().fill(Color(red: 1.0, green: 0.74, blue: 0.18)).frame(width: 7, height: 7)
-                Circle().fill(Color(red: 0.15, green: 0.79, blue: 0.25)).frame(width: 7, height: 7)
-                
-                Text("thock-cli — interactive session")
-                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                    .foregroundColor(Color.white.opacity(0.6))
-                    .padding(.leading, 4)
-                
-                Spacer()
-                
-                Button(action: { module.clearTerminal() }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 7))
-                        Text("Clear")
-                            .font(.system(size: 7.5, weight: .medium))
-                    }
-                    .foregroundColor(Color.white.opacity(0.5))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.white.opacity(0.05)))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.white.opacity(0.04))
-            
-            // Console Output Log View
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: true) {
-                    LazyVStack(alignment: .leading, spacing: 2) {
-                        if module.terminalLogs.isEmpty {
-                            Text("thock-cli ready. Press 'Start Engine' in Key Sound tab to begin.")
-                                .font(.system(size: 8.5, design: .monospaced))
-                                .foregroundColor(Color.white.opacity(0.4))
-                                .padding(6)
-                        } else {
-                            ForEach(Array(module.terminalLogs.enumerated()), id: \.offset) { index, line in
-                                Text(line)
-                                    .font(.system(size: 8.5, weight: .regular, design: .monospaced))
-                                    .foregroundColor(terminalLineColor(for: line))
-                                    .textSelection(.enabled)
-                                    .id(index)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                }
-                .frame(height: 54)
-                .onChange(of: module.terminalLogs.count) { _, newCount in
-                    if newCount > 0 {
-                        withAnimation {
-                            proxy.scrollTo(newCount - 1, anchor: .bottom)
-                        }
-                    }
-                }
-            }
-            
-            // Terminal Input Prompt
-            HStack(spacing: 5) {
-                Text("thock ›")
-                    .font(.system(size: 8.5, weight: .bold, design: .monospaced))
-                    .foregroundColor(DesignSystem.accentColor)
-                
-                TextField("Type command (e.g. status, vol 80, asmr vol 50, help)...", text: $module.cliCommandInput)
-                    .font(.system(size: 8.5, design: .monospaced))
-                    .textFieldStyle(.plain)
-                    .foregroundColor(.white)
-                    .onSubmit {
-                        let cmd = module.cliCommandInput
-                        module.cliCommandInput = ""
-                        module.sendCommand(cmd)
-                    }
-                
-                if !module.cliCommandInput.isEmpty {
-                    Button(action: {
-                        let cmd = module.cliCommandInput
-                        module.cliCommandInput = ""
-                        module.sendCommand(cmd)
-                    }) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(DesignSystem.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.black.opacity(0.4))
-        }
-        .background(Color.black.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
-        )
-    }
-    
-    private func terminalLineColor(for line: String) -> Color {
-        if line.hasPrefix("thock ›") {
-            return DesignSystem.accentColor
-        } else if line.contains("✓") || line.contains("Running") || line.contains("Active") {
-            return Color(red: 0.35, green: 0.9, blue: 0.5)
-        } else if line.contains("❌") || line.contains("Error") || line.contains("missing") {
-            return Color(red: 1.0, green: 0.4, blue: 0.4)
-        } else if line.contains("★") || line.contains("Sound Packs") {
-            return Color(red: 1.0, green: 0.85, blue: 0.3)
-        } else if line.contains("───") {
-            return Color.white.opacity(0.2)
-        } else {
-            return Color.white.opacity(0.85)
         }
     }
 }

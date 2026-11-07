@@ -13,3 +13,8 @@ TIMESTAMP            PID      PPID     RSS (KB)     CPU %    COMMAND
 2026-11-07 12:14:21  23048    1        172800       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
 2026-11-07 12:14:51  23048    1        172752       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
 2026-11-07 12:15:22  23048    1        172752       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:15:52  23048    1        172720       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:16:22  23048    1        172720       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:16:52  23048    1        172720       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:17:22  23048    1        172720       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:17:52  23048    1        172720       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp

@@ -72,9 +72,9 @@
     "semantic_hash": "7f710767978501a5180ac500da201e27"
   },
   "Sources/Modules/Telegram/TelegramModule.swift": {
-    "mtime": 1794027622.169457,
-    "seen": 1794028366.8226292,
-    "ast_hash": "6e91503bebd12a33d1ee83c67db9955b",
+    "mtime": 1794057218.7079403,
+    "seen": 1794057440.4176772,
+    "ast_hash": "6d72903f73d74df85b84ceefb8b4c160",
     "semantic_hash": ""
   },
   "Sources/Notch/NotchGeometry.swift": {
@@ -150,9 +150,9 @@
     "semantic_hash": "5a163db27a75d4efa47a4546a43fcb23"
   },
   "Sources/Modules/Thock/ThockModule.swift": {
-    "mtime": 1794032708.6417909,
-    "seen": 1794033808.862655,
-    "ast_hash": "dab6e45cf799be690e983fe780ea3881",
+    "mtime": 1794057295.0180194,
+    "seen": 1794057440.417678,
+    "ast_hash": "806a2f43e1d444f9c43da2249ad21eef",
     "semantic_hash": ""
   },
   "Sources/Modules/Clock/ClockWidgetView.swift": {
@@ -240,15 +240,15 @@
     "semantic_hash": "3315a148ef18a53b482011a786ad2308"
   },
   "Sources/Core/KeychainHelper.swift": {
-    "mtime": 1794033542.4505322,
-    "seen": 1794033808.862643,
-    "ast_hash": "69eb4433246b2d57864ebd32303faa51",
+    "mtime": 1794056886.2242188,
+    "seen": 1794057440.417666,
+    "ast_hash": "176d0d7065619d0c2e02163e326e84c3",
     "semantic_hash": ""
   },
   "Sources/Modules/AI/AskAIService.swift": {
-    "mtime": 1794032518.9406898,
-    "seen": 1794033808.862645,
-    "ast_hash": "f0518ea994bcd143b887b9e1038d036b",
+    "mtime": 1794057238.033786,
+    "seen": 1794057440.417669,
+    "ast_hash": "fa7a581c61f7b9ded0532e3422bf002d",
     "semantic_hash": ""
   },
   "Sources/Modules/AI/AskAIWidgetView.swift": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "REPORT.md": {
-    "mtime": 1794031766.135881,
-    "seen": 1794033808.862669,
-    "ast_hash": "7d6932bbe3ceda88a9e4c4c1ebc38a04",
+    "mtime": 1794033915.924605,
+    "seen": 1794057440.417691,
+    "ast_hash": "ab27b7435e06be495273ecfab7f7336b",
     "semantic_hash": ""
   },
   "scripts/measure_telemetry.py": {
@@ -444,15 +444,21 @@
     "semantic_hash": ""
   },
   "measurements/rss_soak_collapsed.txt": {
-    "mtime": 1794033801.8585913,
-    "seen": 1794033808.8626719,
-    "ast_hash": "38fb2d2639756e2c7c4325edb3ed9b01",
+    "mtime": 1794034072.307078,
+    "seen": 1794057440.4176939,
+    "ast_hash": "c2831c20a81d1c6550ca94cef92ee4d8",
     "semantic_hash": ""
   },
   "measurements/thock_exit_proof.txt": {
-    "mtime": 1794033699.8953722,
-    "seen": 1794033808.8626728,
-    "ast_hash": "c64a0b4f715f774ca4469b981a380cc1",
+    "mtime": 1794057385.0681012,
+    "seen": 1794057440.417695,
+    "ast_hash": "f6860e4dea0ed85a599799e427e2cd75",
+    "semantic_hash": ""
+  },
+  "measurements/rss_soak_active.txt": {
+    "mtime": 1794034025.1424012,
+    "seen": 1794057440.4176939,
+    "ast_hash": "a8d9fec491a08bbea7e842d98c6aadeb",
     "semantic_hash": ""
   }
 }

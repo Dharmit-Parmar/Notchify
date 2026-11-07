@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import CryptoKit
+import LocalAuthentication
 
 // MARK: - KeychainHelper: Native Apple Keychain Secure Secret Vault
 /// Provides native macOS Keychain Services (`kSecClassGenericPassword`) for secure storage
@@ -10,6 +11,12 @@ public final class KeychainHelper: @unchecked Sendable {
     
     public let serviceName: String
     private let lock = NSLock()
+    
+    private func nonInteractiveContext() -> LAContext {
+        let ctx = LAContext()
+        ctx.interactionNotAllowed = true
+        return ctx
+    }
     
     public init(serviceName: String = "com.notch.NotchApp") {
         self.serviceName = serviceName
@@ -32,24 +39,17 @@ public final class KeychainHelper: @unchecked Sendable {
             return deleteSecretLocked(forKey: account)
         }
         
-        SecKeychainSetUserInteractionAllowed(false)
-        defer { SecKeychainSetUserInteractionAllowed(true) }
-        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
         ]
         SecItemDelete(query as CFDictionary)
         
         var newQuery = query
         newQuery[kSecValueData as String] = Data(trimmed.utf8)
         newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        
-        var access: SecAccess?
-        if SecAccessCreate(serviceName as CFString, nil, &access) == errSecSuccess, let acc = access {
-            newQuery[kSecAttrAccess as String] = acc
-        }
         
         let status = SecItemAdd(newQuery as CFDictionary, nil)
         return status == errSecSuccess
@@ -60,15 +60,13 @@ public final class KeychainHelper: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         
-        SecKeychainSetUserInteractionAllowed(false)
-        defer { SecKeychainSetUserInteractionAllowed(true) }
-        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
         ]
         
         var item: CFTypeRef?
@@ -91,7 +89,8 @@ public final class KeychainHelper: @unchecked Sendable {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
         ]
         let status = SecItemDelete(query as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound

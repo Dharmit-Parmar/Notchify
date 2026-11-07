@@ -345,10 +345,16 @@ public final class TelegramModule: NotchModule {
     
     @Published public var isDispatching: Bool = false
     @Published public var isAccessibilityGranted: Bool = DirectMessenger.isAccessibilityGranted
+    @Published public var hasDismissedAccessibilityBanner: Bool = UserDefaults.standard.bool(forKey: "telegram_accessibility_banner_dismissed")
     @Published public var lastDispatchStatus: String? = nil
     @Published public var isConfiguringBot: Bool = false
     @Published public var testBotStatus: String? = nil
     @Published public var isTestingBot: Bool = false
+    
+    public func dismissAccessibilityBanner() {
+        hasDismissedAccessibilityBanner = true
+        UserDefaults.standard.set(true, forKey: "telegram_accessibility_banner_dismissed")
+    }
     
     @Published public var botToken: String = "" {
         didSet {
@@ -766,7 +772,7 @@ public struct TelegramModuleExpandedView: View {
             }
             
             // Accessibility Guidance Banner (if not yet granted and not using bot)
-            if !module.isAccessibilityGranted && module.botToken.isEmpty {
+            if !module.isAccessibilityGranted && module.botToken.isEmpty && !module.hasDismissedAccessibilityBanner {
                 HStack(spacing: 6) {
                     Image(systemName: "hand.raised.fill")
                         .font(.system(size: 9))
@@ -783,10 +789,25 @@ public struct TelegramModuleExpandedView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                            module.dismissAccessibilityBanner()
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7.5, weight: .bold))
+                            .foregroundColor(.white.opacity(0.75))
+                            .padding(3)
+                            .background(Circle().fill(Color.white.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss notice")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.orange.opacity(0.20)))
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
             
             if module.isAddingContact {
