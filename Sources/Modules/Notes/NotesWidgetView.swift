@@ -26,21 +26,21 @@ public struct NotesWidgetView: View {
     @ObservedObject private var aiService = AskAIService.shared
     @ObservedObject private var store = SettingsStore.shared
     @StateObject private var uiState = NotesUIState()
-    
+
     public var span: Int // 1, 2, or 4 spaces
-    
+
     public init(span: Int = 1) {
         self.span = span
     }
-    
+
     private var wordCount: Int {
         noteStorage.text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
-    
+
     private var charCount: Int {
         noteStorage.text.count
     }
-    
+
     public var body: some View {
         Group {
             if span == 1 {
@@ -64,7 +64,7 @@ public struct NotesWidgetView: View {
             // Note: Mechanical key sounds persist while Notch is running so users can type anywhere in macOS
         }
     }
-    
+
     // MARK: - 1-Space Mode (Compact Tile)
     private var oneSpaceView: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -73,15 +73,15 @@ public struct NotesWidgetView: View {
                 Image(systemName: "note.text")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(red: 0.98, green: 0.72, blue: 0.20))
-                
+
                 Text("Notes")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                
+
                 Spacer()
-                
+
                 Text("\(wordCount)w")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundColor(DesignSystem.secondaryText)
@@ -91,7 +91,7 @@ public struct NotesWidgetView: View {
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color.white.opacity(0.08)))
             }
-            
+
             // Body: CustomTextEditor filling available height or AI panel
             ZStack(alignment: .topLeading) {
                 if uiState.showAIPanel && store.isNotesAIEnabled {
@@ -103,9 +103,9 @@ public struct NotesWidgetView: View {
                             .foregroundColor(DesignSystem.secondaryText)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
-                        
+
                         Spacer()
-                        
+
                         Button("Undo") {
                             undoClear()
                         }
@@ -122,7 +122,7 @@ public struct NotesWidgetView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            
+
             // Bottom Action Bar: Sound button on left, Spacer(), AI button, Copy button and Clear button on right
             HStack(spacing: 8) {
                 Button {
@@ -139,9 +139,9 @@ public struct NotesWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help(uiState.isThockRunning ? "Mechanical key sound active (persists while Notch is running)" : "Turn on typing sound")
-                
+
                 Spacer()
-                
+
                 // Ask AI Button & Provider Switcher (Gated by Notes AI Settings Toggle)
                 if store.isNotesAIEnabled {
                     Menu {
@@ -179,7 +179,7 @@ public struct NotesWidgetView: View {
                     .menuStyle(.borderlessButton)
                     .help("AI Copilot: \(uiState.selectedProvider.displayName). Tap to toggle panel, hold/click arrow to switch provider.")
                 }
-                
+
                 Button {
                     copyToClipboard()
                 } label: {
@@ -189,7 +189,7 @@ public struct NotesWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Copy notes")
-                
+
                 Button {
                     clearNotes()
                 } label: {
@@ -212,7 +212,7 @@ public struct NotesWidgetView: View {
                 )
         )
     }
-    
+
     // MARK: - 2-Space Mode (Tall Column)
     private var twoSpaceView: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -226,7 +226,7 @@ public struct NotesWidgetView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(red: 0.98, green: 0.72, blue: 0.20))
                 }
-                
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Quick Memo")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -235,9 +235,9 @@ public struct NotesWidgetView: View {
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
-                
+
                 Spacer()
-                
+
                 // Key Sound button
                 Button {
                     FeedbackManager.playClick()
@@ -255,7 +255,7 @@ public struct NotesWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help(uiState.isThockRunning ? "Mechanical key sound active (persists while Notch is running)" : "Turn on typing sound")
-                
+
                 // Ask AI Button
                 Button {
                     FeedbackManager.playClick()
@@ -271,7 +271,7 @@ public struct NotesWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Chat with AI (Siri, Gemini, GPT) using note")
-                
+
                 // Bullet point button
                 Button {
                     insertBullet()
@@ -284,7 +284,7 @@ public struct NotesWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Add bullet point")
-                
+
                 // Copy button
                 Button {
                     copyToClipboard()
@@ -297,7 +297,7 @@ public struct NotesWidgetView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Copy all text")
-                
+
                 // Clear button
                 Button {
                     clearNotes()
@@ -311,7 +311,7 @@ public struct NotesWidgetView: View {
                 .buttonStyle(.plain)
                 .help("Clear notepad")
             }
-            
+
             // Undo bar if active
             if uiState.showUndoClear {
                 HStack {
@@ -330,7 +330,7 @@ public struct NotesWidgetView: View {
                 .padding(.vertical, 5)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
             }
-            
+
             // Richer Editor or AI Panel
             ZStack(alignment: .topLeading) {
                 if uiState.showAIPanel {
@@ -352,7 +352,7 @@ public struct NotesWidgetView: View {
                 )
         )
     }
-    
+
     // MARK: - 4-Space Mode (Full Stage)
     private var fourSpaceView: some View {
         HStack(spacing: 12) {
@@ -366,14 +366,14 @@ public struct NotesWidgetView: View {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
-                
+
                 Text("Persistent scratchpad anchored directly to your MacBook hardware notch.")
                     .font(.system(size: 10.5))
                     .foregroundColor(DesignSystem.secondaryText)
                     .lineLimit(3)
-                
+
                 Divider().background(Color.white.opacity(0.12))
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text("TELEMETRY")
                         .font(.system(size: 9, weight: .bold))
@@ -382,9 +382,9 @@ public struct NotesWidgetView: View {
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                 }
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 8) {
                     Button {
                         FeedbackManager.playClick()
@@ -402,7 +402,7 @@ public struct NotesWidgetView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color.white.opacity(0.08)))
-                    
+
                     if store.isNotesAIEnabled {
                         HStack(spacing: 4) {
                             Button {
@@ -416,7 +416,7 @@ public struct NotesWidgetView: View {
                                     .foregroundColor(uiState.showAIPanel ? uiState.selectedProvider.tintColor : .white)
                             }
                             .buttonStyle(.plain)
-                            
+
                             Menu {
                                 ForEach(AIProvider.allCases) { provider in
                                     Button {
@@ -446,7 +446,7 @@ public struct NotesWidgetView: View {
                         .padding(.vertical, 4)
                         .background(Capsule().fill(uiState.showAIPanel ? uiState.selectedProvider.tintColor.opacity(0.2) : Color.white.opacity(0.08)))
                     }
-                    
+
                     Button {
                         insertBullet()
                     } label: {
@@ -457,7 +457,7 @@ public struct NotesWidgetView: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color.white.opacity(0.08)))
-                    
+
                     Button {
                         copyToClipboard()
                     } label: {
@@ -473,9 +473,9 @@ public struct NotesWidgetView: View {
             }
             .frame(width: 170)
             .padding(.trailing, 4)
-            
+
             Divider().background(Color.white.opacity(0.12))
-            
+
             // Right wide editor or AI Panel
             ZStack {
                 if uiState.showAIPanel && store.isNotesAIEnabled {
@@ -496,7 +496,7 @@ public struct NotesWidgetView: View {
                 )
         )
     }
-    
+
     // MARK: - Editor with Placeholder Helper
     @ViewBuilder
     private func editorWithPlaceholder(placeholder: String) -> some View {
@@ -512,7 +512,7 @@ public struct NotesWidgetView: View {
             CustomTextEditor(text: $noteStorage.text, placeholder: placeholder)
         }
     }
-    
+
     // MARK: - Actions
     private func copyToClipboard() {
         NSPasteboard.general.clearContents()
@@ -527,7 +527,7 @@ public struct NotesWidgetView: View {
             }
         }
     }
-    
+
     private func clearNotes() {
         guard !noteStorage.text.isEmpty else { return }
         uiState.previousTextBeforeClear = noteStorage.text
@@ -544,7 +544,7 @@ public struct NotesWidgetView: View {
             }
         }
     }
-    
+
     private func undoClear() {
         uiState.undoTimer?.invalidate()
         noteStorage.text = uiState.previousTextBeforeClear
@@ -554,7 +554,7 @@ public struct NotesWidgetView: View {
         }
         noteStorage.saveImmediately()
     }
-    
+
     private func insertBullet() {
         if noteStorage.text.isEmpty || noteStorage.text.hasSuffix("\n") {
             noteStorage.text += "• "
@@ -562,7 +562,7 @@ public struct NotesWidgetView: View {
             noteStorage.text += "\n• "
         }
     }
-    
+
     // MARK: - Notes AI Assistant Panel
     @ViewBuilder
     private func notesAIPanelView(compact: Bool) -> some View {
@@ -572,14 +572,14 @@ public struct NotesWidgetView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(uiState.selectedProvider.tintColor)
-                
+
                 Text("Ask AI with Note")
                     .font(.system(size: compact ? 10.5 : 11.5, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                
+
                 Spacer()
-                
+
                 // Provider pills
                 HStack(spacing: 3) {
                     ForEach(AIProvider.allCases) { provider in
@@ -600,7 +600,7 @@ public struct NotesWidgetView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                
+
                 Button {
                     withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
                         uiState.showAIPanel = false
@@ -613,7 +613,7 @@ public struct NotesWidgetView: View {
                 .buttonStyle(.plain)
                 .help("Close AI panel")
             }
-            
+
             // Quick Note Action Chips (Summarize, Action Items, Polish)
             HStack(spacing: 4) {
                 Button("Summarize") {
@@ -627,7 +627,7 @@ public struct NotesWidgetView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Capsule().fill(Color.white.opacity(0.08)))
-                
+
                 Button("To-Dos") {
                     runAIAction {
                         await AskAIService.shared.extractActionItems(noteText: noteStorage.text, provider: uiState.selectedProvider)
@@ -639,7 +639,7 @@ public struct NotesWidgetView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Capsule().fill(Color.white.opacity(0.08)))
-                
+
                 Button("Polish") {
                     runAIAction {
                         await AskAIService.shared.polishNotes(noteText: noteStorage.text, provider: uiState.selectedProvider)
@@ -652,7 +652,7 @@ public struct NotesWidgetView: View {
                 .padding(.vertical, 3)
                 .background(Capsule().fill(Color.white.opacity(0.08)))
             }
-            
+
             // Result Display or Empty Prompt State
             ZStack(alignment: .topLeading) {
                 if uiState.isAIGenerating {
@@ -677,7 +677,7 @@ public struct NotesWidgetView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .textSelection(.enabled)
                         }
-                        
+
                         // Action buttons
                         HStack(spacing: 6) {
                             Button {
@@ -691,7 +691,7 @@ public struct NotesWidgetView: View {
                                     .background(Capsule().fill(Color.white.opacity(0.08)))
                             }
                             .buttonStyle(.plain)
-                            
+
                             Button {
                                 replaceWithAIResponse()
                             } label: {
@@ -703,7 +703,7 @@ public struct NotesWidgetView: View {
                                     .background(Capsule().fill(Color.white.opacity(0.08)))
                             }
                             .buttonStyle(.plain)
-                            
+
                             Button {
                                 copyAIText()
                             } label: {
@@ -735,7 +735,7 @@ public struct NotesWidgetView: View {
                         Text(!store.connectedGoogleEmail.isEmpty ? "Connected via Google Antigravity. Enter Gemini key to enable cloud queries:" : "Sign in with Google to connect your Gemini account:")
                             .font(.system(size: 9))
                             .foregroundColor(DesignSystem.secondaryText)
-                        
+
                         HStack(spacing: 5) {
                             Button {
                                 AskAIService.shared.connectGoogleAccount()
@@ -751,7 +751,7 @@ public struct NotesWidgetView: View {
                                 .background(Capsule().fill(!store.connectedGoogleEmail.isEmpty ? Color.green.opacity(0.8) : AIProvider.gemini.tintColor))
                             }
                             .buttonStyle(.plain)
-                            
+
                             SecureField("Paste AIzaSy... key", text: $uiState.apiKeyInput)
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 9, design: .monospaced))
@@ -759,7 +759,7 @@ public struct NotesWidgetView: View {
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2.5)
                                 .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.12)))
-                            
+
                             Button("Save") {
                                 AskAIService.shared.saveGeminiKey(uiState.apiKeyInput)
                                 uiState.apiKeyInput = ""
@@ -788,7 +788,7 @@ public struct NotesWidgetView: View {
                         Text("Get an API key from OpenAI platform:")
                             .font(.system(size: 9))
                             .foregroundColor(DesignSystem.secondaryText)
-                        
+
                         HStack(spacing: 5) {
                             Button {
                                 AskAIService.shared.openOpenAIKeyPage()
@@ -804,7 +804,7 @@ public struct NotesWidgetView: View {
                                 .background(Capsule().fill(AIProvider.gpt.tintColor))
                             }
                             .buttonStyle(.plain)
-                            
+
                             SecureField("Paste sk-... key", text: $uiState.apiKeyInput)
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 9, design: .monospaced))
@@ -812,7 +812,7 @@ public struct NotesWidgetView: View {
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2.5)
                                 .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.12)))
-                            
+
                             Button("Save") {
                                 AskAIService.shared.saveOpenAIKey(uiState.apiKeyInput)
                                 uiState.apiKeyInput = ""
@@ -836,7 +836,7 @@ public struct NotesWidgetView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
+
             // Bottom Query Input
             HStack(spacing: 6) {
                 if uiState.selectedProvider == .siri {
@@ -857,7 +857,7 @@ public struct NotesWidgetView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                
+
                 TextField("Ask about note...", text: $uiState.aiQuery)
                     .textFieldStyle(.plain)
                     .font(.system(size: 10.5))
@@ -868,7 +868,7 @@ public struct NotesWidgetView: View {
                     .onSubmit {
                         submitNotesAIQuery()
                     }
-                
+
                 Button {
                     submitNotesAIQuery()
                 } label: {
@@ -892,7 +892,7 @@ public struct NotesWidgetView: View {
                 )
         )
     }
-    
+
     // MARK: - AI Action Helpers
     private func submitNotesAIQuery() {
         guard !uiState.aiQuery.isEmpty && !uiState.isAIGenerating else { return }
@@ -902,7 +902,7 @@ public struct NotesWidgetView: View {
             await AskAIService.shared.ask(prompt: q, context: noteStorage.text, provider: uiState.selectedProvider)
         }
     }
-    
+
     private func runAIAction(_ action: @escaping () async -> String) {
         FeedbackManager.playClick()
         uiState.aiTask?.cancel()
@@ -914,7 +914,7 @@ public struct NotesWidgetView: View {
             uiState?.isAIGenerating = false
         }
     }
-    
+
     private func appendAIResponse() {
         guard !uiState.aiResponse.isEmpty else { return }
         FeedbackManager.playClick()
@@ -929,7 +929,7 @@ public struct NotesWidgetView: View {
             self.uiState.isAIInserted = false
         }
     }
-    
+
     private func replaceWithAIResponse() {
         guard !uiState.aiResponse.isEmpty else { return }
         FeedbackManager.playClick()
@@ -940,11 +940,50 @@ public struct NotesWidgetView: View {
             uiState.showAIPanel = false
         }
     }
-    
+
     private func copyAIText() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(uiState.aiResponse, forType: .string)
         FeedbackManager.playClick()
+    }
+}
+final class FocusTextView: NSTextView {
+    private var focusRegistered = false
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKey()
+        window?.makeFirstResponder(self)
+        super.mouseDown(with: event)
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let ok = super.becomeFirstResponder()
+        if ok && !focusRegistered {
+            focusRegistered = true
+            NotchShellCoordinator.shared.registerPopoverOpened()
+        }
+        return ok
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let ok = super.resignFirstResponder()
+        if ok { releaseFocusHold() }
+        return ok
+    }
+
+    // Editor removed while focused (notch collapsed, tab switched)
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil { releaseFocusHold() }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    private func releaseFocusHold() {
+        guard focusRegistered else { return }
+        focusRegistered = false
+        NotchShellCoordinator.shared.registerPopoverClosed()
     }
 }
 
@@ -952,28 +991,35 @@ public struct NotesWidgetView: View {
 struct CustomTextEditor: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String = ""
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        guard let textView = scrollView.documentView as? NSTextView else {
-            return scrollView
-        }
-        
+        let scrollView = NSScrollView()
+        let textView = FocusTextView()
+
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                  height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        scrollView.documentView = textView
+
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
-        
+
         textView.delegate = context.coordinator
         textView.drawsBackground = false
         textView.font = NSFont.systemFont(ofSize: 11.5, weight: .regular)
-        textView.textColor = NSColor.white
-        textView.insertionPointColor = NSColor.white
+        textView.textColor = NSColor(DesignSystem.primaryText)
+        textView.insertionPointColor = NSColor(DesignSystem.primaryText)
         textView.isRichText = false
         textView.allowsUndo = true
         textView.isAutomaticTextCompletionEnabled = false
@@ -982,24 +1028,24 @@ struct CustomTextEditor: NSViewRepresentable {
         }
         textView.textContainerInset = NSSize(width: 0, height: 2)
         textView.string = text
-        
+
         return scrollView
     }
-    
+
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
         if textView.string != text {
             textView.string = text
         }
     }
-    
+
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CustomTextEditor
-        
+
         init(_ parent: CustomTextEditor) {
             self.parent = parent
         }
-        
+
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             if parent.text != textView.string {

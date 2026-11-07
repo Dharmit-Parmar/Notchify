@@ -197,12 +197,12 @@ public final class ThockModule: NotchModule {
             object: nil,
             queue: .main
         ) { _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 ThockModule.shared.terminateProcess()
             }
         }
     }
-    
+
     deinit {
         if let proc = spawnedProcess, proc.isRunning {
             proc.terminate()
@@ -224,7 +224,6 @@ public final class ThockModule: NotchModule {
     public func stop() {
         // Stop the heartbeat when notch collapses to conserve CPU & prevent thermal load!
         stopLightweightMonitor()
-        suspendChildProcess()
     }
     
     private var isChildSuspended = false
