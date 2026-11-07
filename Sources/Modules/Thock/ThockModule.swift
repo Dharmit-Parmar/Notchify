@@ -218,11 +218,27 @@ public final class ThockModule: NotchModule {
         checkAllPermissions()
         checkProcessStateZeroOverhead()
         startLightweightMonitor()
+        resumeChildProcess()
     }
     
     public func stop() {
         // Stop the heartbeat when notch collapses to conserve CPU & prevent thermal load!
         stopLightweightMonitor()
+        suspendChildProcess()
+    }
+    
+    private var isChildSuspended = false
+    
+    public func suspendChildProcess() {
+        guard let pid = self.spawnedPID ?? self.processPID, isRunning, !isChildSuspended else { return }
+        kill(pid, SIGSTOP)
+        isChildSuspended = true
+    }
+    
+    public func resumeChildProcess() {
+        guard let pid = self.spawnedPID ?? self.processPID, isRunning, isChildSuspended else { return }
+        kill(pid, SIGCONT)
+        isChildSuspended = false
     }
     
     // MARK: - Process Group & Orphan Hygiene

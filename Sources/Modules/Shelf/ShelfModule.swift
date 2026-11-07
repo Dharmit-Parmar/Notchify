@@ -133,6 +133,18 @@ public enum LeftStageMode {
 public final class ShelfModule: NotchModule {
     public static let shared = ShelfModule()
     
+    // Bounded Thumbnail Cache: Hard 10 MB cost limit, auto-evicted on collapse or memory pressure
+    public let thumbnailCache: NSCache<NSURL, NSImage> = {
+        let cache = NSCache<NSURL, NSImage>()
+        cache.totalCostLimit = 10 * 1024 * 1024 // 10 MB hard cap
+        cache.countLimit = 30
+        return cache
+    }()
+    
+    public func evictCaches() {
+        thumbnailCache.removeAllObjects()
+    }
+    
     nonisolated(unsafe) public static let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
@@ -171,7 +183,10 @@ public final class ShelfModule: NotchModule {
     }
     
     public func start() {}
-    public func stop() {}
+    public func stop() {
+        cleanStaleTempFiles(all: false)
+        evictCaches()
+    }
 
     public func cleanStaleTempFiles(all: Bool = false) {
         guard let files = try? FileManager.default.contentsOfDirectory(at: tempCacheDirectory, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }

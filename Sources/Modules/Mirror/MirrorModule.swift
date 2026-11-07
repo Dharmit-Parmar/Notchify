@@ -62,6 +62,8 @@ public final class CameraSessionManager: @unchecked Sendable {
             if let session = self.captureSession, session.isRunning {
                 session.stopRunning()
             }
+            self.captureSession = nil
+            self.isConfigured = false
             DispatchQueue.main.async {
                 completion()
             }
@@ -74,6 +76,8 @@ public final class CameraSessionManager: @unchecked Sendable {
             if let session = self.captureSession, session.isRunning {
                 session.stopRunning()
             }
+            self.captureSession = nil
+            self.isConfigured = false
         }
     }
 }

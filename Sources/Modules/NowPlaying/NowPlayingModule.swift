@@ -62,6 +62,21 @@ public final class NowPlayingModule: ObservableObject {
         observerTokens.append(wsToken)
     }
 
+    // Bounded Artwork Cache: 10 MB total cost limit
+    private static let artworkCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.totalCostLimit = 10 * 1024 * 1024
+        cache.countLimit = 10
+        return cache
+    }()
+
+    public func evictArtworkOnCollapse() {
+        if SettingsStore.shared.compactIndicatorStyle != .media {
+            self.artwork = nil
+            Self.artworkCache.removeAllObjects()
+        }
+    }
+
     public func teardown() {
         for token in observerTokens {
             NotificationCenter.default.removeObserver(token)
@@ -70,6 +85,7 @@ public final class NowPlayingModule: ObservableObject {
         observerTokens.removeAll()
         pendingRefreshWorkItem?.cancel()
         pendingRefreshWorkItem = nil
+        Self.artworkCache.removeAllObjects()
     }
     
     private var pendingRefreshWorkItem: DispatchWorkItem?

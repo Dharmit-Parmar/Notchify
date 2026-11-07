@@ -406,6 +406,8 @@ public final class NotchShellCoordinator: ObservableObject {
         }
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
         ModuleRegistry.shared.stopAll()
+        ModuleRegistry.shared.unloadInactiveModules()
+        NowPlayingModule.shared.evictArtworkOnCollapse()
         NoteStorageManager.shared.saveImmediately()
     }
     
@@ -425,6 +427,8 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.stopAll()
+            ModuleRegistry.shared.unloadInactiveModules()
+            NowPlayingModule.shared.evictArtworkOnCollapse()
         } else {
             panel?.updateFrame(for: .expanded, animated: false)
             startExpandedWatchdog()

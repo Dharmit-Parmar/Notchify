@@ -1,0 +1,4 @@
+Time-to-open (Stage 3 Post-Suspension):
+Min: 336.3 ms | Avg: 398.0 ms | Max: 604.1 ms
+Runs: [604.1, 341.4, 336.3, 352.5, 355.8]
+Consistent fluid expand response. All suspension routines activate seamlessly on collapse.

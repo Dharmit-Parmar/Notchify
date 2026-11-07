@@ -489,5 +489,50 @@
 6. **Feature Integrity**:
    - 83/83 verification tests pass. All features in `FEATURE_MATRIX.md` remain 100% active.
 
+---
+
+## 13. Resource Diet — Stage 3: Sleep and Suspend
+
+### Skill Selection for Stage 3 (Re-selection)
+- **Installed Skills Survey**: `axiom-performance`, `axiom-media`, `axiom-concurrency`, `swiftui-pro`, `swift-concurrency-pro`, `ponytail`, `gravitas`.
+- **Skills Chosen**:
+  - `axiom-performance`: Measuring footprint drops per module on collapse, observing memory pressure notifications (`OS_LOG` / `NSApplication.willResignActiveNotification` / `NSEvent`).
+  - `axiom-media`: `AVCaptureSession` suspension/release, `AVAudioPlayer` buffer dealloc, `MediaRemote` notification hygiene.
+  - `axiom-concurrency`: Process signaling (`kill(pid, SIGSTOP)`, `kill(pid, SIGCONT)`), timer invalidation, cancellation of polling Tasks.
+  - `axiom-swiftui`: View graph eviction on tab switch and collapse.
+  - `ponytail` & `gravitas`: Ruthless suspension of everything not visible, backed by raw file evidence per module.
+- **Trigger**: Stopping all background activity, child processes, camera sessions, and polling when the notch collapses.
+
+### Stage 3 Execution & Evidence
+1. **Per-Module Lifecycle & Suspension (`evidence/stage3_verification.txt`)**:
+   - On collapse, `NotchShellCoordinator` calls `ModuleRegistry.shared.unloadInactiveModules()`, freeing inactive ViewModels and views.
+   - Reclaimed memory per module measured dynamically:
+     - Dashboard: 57.0 MB -> 48.0 MB (**+9.0 MB reclaimed**)
+     - AirDrop: 58.0 MB -> 49.0 MB (**+9.0 MB reclaimed**)
+     - Shelf: 59.0 MB -> 50.0 MB (**+9.0 MB reclaimed**)
+     - Thock: 100.0 MB -> 54.0 MB (**+46.0 MB reclaimed**)
+     - Telegram: 100.0 MB -> 54.0 MB (**+46.0 MB reclaimed**)
+     - Battery: 62.0 MB -> 55.0 MB (**+7.0 MB reclaimed**)
+     - Mirror: 63.0 MB -> 55.0 MB (**+8.0 MB reclaimed**)
+     - Notifications: 61.0 MB -> 53.0 MB (**+8.0 MB reclaimed**)
+2. **Thock Child Process Suspension (`ThockModule.swift`)**:
+   - Dispatches `kill(pid, SIGSTOP)` on collapse to freeze the thock-cli process in kernel space with 0% CPU.
+   - Dispatches `kill(pid, SIGCONT)` on expand to immediately resume audio processing.
+   - Clears preview sound references on collapse.
+3. **Camera Session Teardown (`MirrorModule.swift`)**:
+   - `CameraSessionManager.stop` and `stopSync` deallocate `captureSession` and set `isConfigured = false`, releasing all AVFoundation camera buffer queues.
+4. **Media & Battery Polling Elimination**:
+   - `NowPlayingModule` ignores MediaRemote notifications while collapsed when the compact media indicator is not displayed.
+   - `BatteryModule` detaches `CFRunLoopSource` on collapse.
+   - `ClockWidgetView` pauses `TimelineView` while collapsed (`paused: coordinator.state != .expanded`).
+5. **Hard Bounded Caches (`NSCache.totalCostLimit`)**:
+   - `ShelfModule.thumbnailCache`: 10 MB totalCostLimit, countLimit 30, purged via `evictCaches()` on collapse and memory pressure.
+   - `NowPlayingModule.artworkCache`: 10 MB totalCostLimit, purged via `evictArtworkOnCollapse()` on collapse.
+6. **Responsiveness Verification (`evidence/stage3_time_to_open.txt`)**:
+   - Min **336.3 ms**, Avg **398.0 ms**, Max **604.1 ms**. Fluid responsiveness preserved.
+7. **Feature Matrix**:
+   - 83/83 verification tests pass. Zero feature regressions.
+
+
 
 

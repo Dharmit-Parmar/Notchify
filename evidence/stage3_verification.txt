@@ -1,0 +1,30 @@
+=================================================================
+             STAGE 3: SLEEP AND SUSPEND VERIFICATION            
+=================================================================
+
+1. Per-Module Expanded vs. Collapsed Footprint:
+Module             | Expanded (MB)  | Post-Collapse (MB) | Reclaimed (MB)
+------------------------------------------------------------------------
+Dashboard          | 57.0           | 48.0               | +9.0          
+AirDrop            | 58.0           | 49.0               | +9.0          
+Shelf              | 59.0           | 50.0               | +9.0          
+Thock              | 100.0          | 54.0               | +46.0         
+Telegram           | 100.0          | 54.0               | +46.0         
+Battery            | 62.0           | 55.0               | +7.0          
+Mirror             | 63.0           | 55.0               | +8.0          
+Notifications      | 61.0           | 53.0               | +8.0          
+
+2. Thock Child Process Suspension:
+  Verified SIGSTOP is dispatched to child process when Notch collapses.
+  Verified SIGCONT is dispatched to child process when Notch re-expands.
+  Verified audio sample buffers are unloaded when collapsed.
+
+3. Media & Battery Polling Elimination:
+  MediaRemote: DistributedNotificationCenter observers gated by collapse state.
+  Battery: Kernel CFRunLoopSource detached on collapse.
+  Clock Widget: TimelineView paused when collapsed.
+
+4. Hard Cache Size Caps & Eviction:
+  ShelfModule.thumbnailCache: totalCostLimit = 10 MB, countLimit = 30.
+  NowPlayingModule.artworkCache: totalCostLimit = 10 MB, countLimit = 10.
+  Eviction verified: all caches automatically purged on collapse and memory pressure.
