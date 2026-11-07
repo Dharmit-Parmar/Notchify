@@ -47,6 +47,144 @@ public final class SettingsNavigationState: ObservableObject {
     @Published public var selectedCategory: SettingsCategory = .dashboard
     @Published public var hasCopiedPath: Bool = false
     @Published public var showColorDiagnostics: Bool = false
+    @Published public var expandedAdvancedSections: Set<String> = []
+    
+    public func isAdvancedExpanded(_ id: String) -> Bool {
+        expandedAdvancedSections.contains(id)
+    }
+    
+    public func toggleAdvanced(_ id: String) {
+        if expandedAdvancedSections.contains(id) {
+            expandedAdvancedSections.remove(id)
+        } else {
+            expandedAdvancedSections.insert(id)
+        }
+    }
+}
+
+// MARK: - Pointer Cursor View Modifier
+public struct PointerCursorModifier: ViewModifier {
+    public func body(content: Content) -> some View {
+        content.onHover { inside in
+            if inside {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
+}
+
+public extension View {
+    func pointerHoverCursor() -> some View {
+        modifier(PointerCursorModifier())
+    }
+}
+
+// MARK: - Reusable Advanced Collapsible Settings Section
+public struct AdvancedSettingsSection<Content: View>: View {
+    public let sectionID: String
+    public let title: String
+    public let description: String
+    public let onReset: () -> Void
+    @ViewBuilder public let content: () -> Content
+    @ObservedObject private var nav = SettingsNavigationState.shared
+    
+    public init(
+        sectionID: String,
+        title: String,
+        description: String,
+        onReset: @escaping () -> Void,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.sectionID = sectionID
+        self.title = title
+        self.description = description
+        self.onReset = onReset
+        self.content = content
+    }
+    
+    public var body: some View {
+        let isExpanded = nav.isAdvancedExpanded(sectionID)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button {
+                    FeedbackManager.playClick()
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                        nav.toggleAdvanced(sectionID)
+                    }
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundColor(DesignSystem.secondaryText)
+                            .frame(width: 12)
+                        
+                        Text(title)
+                            .font(.system(size: 11.5, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text("Advanced")
+                            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(Color.orange.opacity(0.9))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.orange.opacity(0.14)))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                
+                Spacer()
+                
+                if isExpanded {
+                    Button {
+                        FeedbackManager.playClick()
+                        onReset()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 8))
+                            Text("Reset to recommended")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundColor(DesignSystem.accentColor)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.06)))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerHoverCursor()
+                    .help("Restore recommended defaults")
+                }
+            }
+            
+            Text(description)
+                .font(.system(size: 9.5))
+                .foregroundColor(DesignSystem.secondaryText)
+                .padding(.leading, 19)
+            
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider().background(Color.white.opacity(0.08))
+                    content()
+                }
+                .padding(.top, 4)
+                .padding(.leading, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.025))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.8)
+        )
+    }
 }
 
 public struct SettingsView: View {
@@ -180,8 +318,14 @@ public struct SettingsView: View {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
                             )
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .pointerHoverCursor()
+                        .focusable()
+                        .accessibilityLabel(category.rawValue)
+                        .accessibilityHint("Switches settings category to \(category.rawValue)")
+                        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -297,82 +441,6 @@ public struct SettingsView: View {
                     .foregroundColor(DesignSystem.secondaryText)
             }
             
-            // Real-Time Detection Status Line & Re-Detect Button
-            HStack(spacing: 8) {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(themeEngine.accentColor)
-                        .frame(width: 6, height: 6)
-                    Text(themeEngine.diagnostics.detectionStatus)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                Spacer()
-                Button(action: {
-                    FeedbackManager.playClick()
-                    themeEngine.redetectColors()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 8.5, weight: .semibold))
-                        Text("Re-detect")
-                            .font(.system(size: 9.5, weight: .medium))
-                    }
-                    .foregroundColor(DesignSystem.accentColor)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3.5)
-                    .background(Capsule().fill(Color.white.opacity(0.06)))
-                }
-                .buttonStyle(.spring)
-                .help("Re-sample desktop wallpaper and foreground application icon")
-                
-                Button(action: {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                        nav.showColorDiagnostics.toggle()
-                    }
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: nav.showColorDiagnostics ? "chevron.up.circle.fill" : "info.circle")
-                            .font(.system(size: 9))
-                        Text(nav.showColorDiagnostics ? "Hide" : "Diagnostics")
-                            .font(.system(size: 9, weight: .medium))
-                    }
-                    .foregroundColor(Color.white.opacity(0.6))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3.5)
-                    .background(Capsule().fill(Color.white.opacity(0.04)))
-                }
-                .buttonStyle(.spring)
-                .help("Show/hide real-time color detection telemetry readout")
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
-            
-            if nav.showColorDiagnostics {
-                VStack(alignment: .leading, spacing: 5) {
-                    diagnosticsDataRow(label: "Wallpaper Source", value: themeEngine.diagnostics.wallpaperPath)
-                    diagnosticsDataRow(label: "Screen & Notch", value: "\(themeEngine.diagnostics.targetScreenName) (\(themeEngine.diagnostics.targetScreenResolution)) • Notch: \(themeEngine.diagnostics.hasPhysicalNotch ? "Present" : "None")")
-                    diagnosticsDataRow(label: "Per-Space Status", value: themeEngine.diagnostics.activeSpaceNote)
-                    diagnosticsDataRow(label: "Frontmost App", value: "\(themeEngine.diagnostics.frontmostAppName) (\(themeEngine.diagnostics.frontmostBundleID))")
-                    if let iconRGB = themeEngine.diagnostics.frontmostAppIconColor {
-                        diagnosticsDataRow(label: "App Icon RGB", value: String(format: "(%.2f, %.2f, %.2f)", iconRGB.0, iconRGB.1, iconRGB.2))
-                    }
-                    if let wallRGB = themeEngine.diagnostics.sampledWallpaperRGB {
-                        diagnosticsDataRow(label: "Wallpaper RGB", value: String(format: "(%.2f, %.2f, %.2f)", wallRGB.0, wallRGB.1, wallRGB.2))
-                    }
-                    if let sysRGB = themeEngine.diagnostics.systemAccentRGB {
-                        diagnosticsDataRow(label: "System Accent", value: String(format: "(%.2f, %.2f, %.2f)", sysRGB.0, sysRGB.1, sysRGB.2))
-                    }
-                    diagnosticsDataRow(label: "Active Stage", value: themeEngine.diagnostics.activeFallbackStage)
-                    diagnosticsDataRow(label: "Last Sampled", value: themeEngine.diagnostics.lastUpdateTime.formatted(date: .omitted, time: .standard))
-                }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.35)))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 0.7))
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            }
-            
             // Sub-Section 1: Dynamic Living Themes
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -445,37 +513,14 @@ public struct SettingsView: View {
                             .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                         }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
+                        .focusable()
+                        .accessibilityLabel(theme.displayName)
+                        .accessibilityHint("Activates dynamic living theme: \(theme.subtitle)")
+                        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     }
                 }
             }
-            
-            // Dynamic Vibrancy Control
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Dynamic Color Vibrancy")
-                        .font(.system(size: 11.5, weight: .bold))
-                        .foregroundColor(.white)
-                    Spacer()
-                    Text("Scales saturation for dynamic glass")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                
-                Picker("", selection: Binding(
-                    get: { store.dynamicVibrancy },
-                    set: { newVib in
-                        store.dynamicVibrancy = newVib
-                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
-                    }
-                )) {
-                    ForEach(DynamicVibrancy.allCases) { vib in
-                        Text(vib.rawValue).tag(vib)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.03)))
             
             Divider()
                 .padding(.vertical, 2)
@@ -555,6 +600,11 @@ public struct SettingsView: View {
                             .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                         }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
+                        .focusable()
+                        .accessibilityLabel(theme.displayName)
+                        .accessibilityHint("Activates studio color preset: \(theme.subtitle)")
+                        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     }
                 }
             }
@@ -602,8 +652,14 @@ public struct SettingsView: View {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .strokeBorder(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
+                        .focusable()
+                        .accessibilityLabel(style.rawValue)
+                        .accessibilityHint(style.subtitle)
+                        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     }
                 }
             }
@@ -611,49 +667,192 @@ public struct SettingsView: View {
             Divider()
                 .padding(.vertical, 4)
             
-            // Corner Curvature & Specular Glow
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Image(systemName: "square.dashed")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(SettingsCategory.appearance.tintColor)
-                        Text("Corner Geometry")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    
-                    Picker("", selection: Binding(
-                        get: { store.cornerStyle },
-                        set: { newCorner in
-                            store.cornerStyle = newCorner
-                            NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
-                        }
-                    )) {
-                        ForEach(NotchCornerStyle.allCases) { corner in
-                            Text(corner.rawValue).tag(corner)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+            // Corner Curvature
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "square.dashed")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(SettingsCategory.appearance.tintColor)
+                    Text("Corner Geometry")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
                 }
                 
-                Toggle(isOn: Binding(
-                    get: { store.specularGlowEnabled },
-                    set: { newGlow in
-                        store.specularGlowEnabled = newGlow
+                Picker("", selection: Binding(
+                    get: { store.cornerStyle },
+                    set: { newCorner in
+                        store.cornerStyle = newCorner
                         NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
                     }
                 )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Specular Bevel Glow")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Dynamic accent reflection on hairline")
-                            .font(.system(size: 9.5))
-                            .foregroundColor(DesignSystem.secondaryText)
+                    ForEach(NotchCornerStyle.allCases) { corner in
+                        Text(corner.rawValue).tag(corner)
                     }
                 }
-                .toggleStyle(.switch)
-                .controlSize(.small)
+                .pickerStyle(.segmented)
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Collapsed Advanced Section: Specular & Color Telemetry
+            AdvancedSettingsSection(
+                sectionID: "appearance_advanced",
+                title: "Specular Glow & Color Telemetry",
+                description: "Dynamic saturation boost, specular hairline reflection, and real-time wallpaper detection diagnostics.",
+                onReset: {
+                    store.dynamicVibrancy = .balanced
+                    store.specularGlowEnabled = true
+                    NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                }
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Dynamic Vibrancy Control
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Dynamic Color Vibrancy")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: Balanced")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        
+                        Picker("", selection: Binding(
+                            get: { store.dynamicVibrancy },
+                            set: { newVib in
+                                store.dynamicVibrancy = newVib
+                                NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                            }
+                        )) {
+                            ForEach(DynamicVibrancy.allCases) { vib in
+                                Text(vib.rawValue).tag(vib)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                    
+                    // Specular Glow Toggle
+                    Button {
+                        store.specularGlowEnabled.toggle()
+                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Specular Bevel Glow")
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundColor(.white)
+                                    Text("Default: ON")
+                                        .font(.system(size: 8.5))
+                                        .foregroundColor(Color.green)
+                                }
+                                Text("Dynamic accent reflection along outer notch hairline")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { store.specularGlowEnabled },
+                                set: { newGlow in
+                                    store.specularGlowEnabled = newGlow
+                                    NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                                }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointerHoverCursor()
+                    .accessibilityLabel("Specular Bevel Glow")
+                    .accessibilityHint("Reflects dynamic accent specular lighting along the outer notch border.")
+                    
+                    // Real-Time Detection Status Line & Re-Detect Button
+                    HStack(spacing: 8) {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(themeEngine.accentColor)
+                                .frame(width: 6, height: 6)
+                            Text(themeEngine.diagnostics.detectionStatus)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                        Button(action: {
+                            FeedbackManager.playClick()
+                            themeEngine.redetectColors()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 8.5, weight: .semibold))
+                                Text("Re-detect")
+                                    .font(.system(size: 9.5, weight: .medium))
+                            }
+                            .foregroundColor(DesignSystem.accentColor)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3.5)
+                            .background(Capsule().fill(Color.white.opacity(0.06)))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .pointerHoverCursor()
+                        .help("Re-sample desktop wallpaper and foreground application icon")
+                        
+                        Button(action: {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                nav.showColorDiagnostics.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: nav.showColorDiagnostics ? "chevron.up.circle.fill" : "info.circle")
+                                    .font(.system(size: 9))
+                                Text(nav.showColorDiagnostics ? "Hide" : "Diagnostics")
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .foregroundColor(Color.white.opacity(0.6))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3.5)
+                            .background(Capsule().fill(Color.white.opacity(0.04)))
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .pointerHoverCursor()
+                        .help("Show/hide real-time color detection telemetry readout")
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                    
+                    if nav.showColorDiagnostics {
+                        VStack(alignment: .leading, spacing: 5) {
+                            diagnosticsDataRow(label: "Wallpaper Source", value: themeEngine.diagnostics.wallpaperPath)
+                            diagnosticsDataRow(label: "Screen & Notch", value: "\(themeEngine.diagnostics.targetScreenName) (\(themeEngine.diagnostics.targetScreenResolution)) • Notch: \(themeEngine.diagnostics.hasPhysicalNotch ? "Present" : "None")")
+                            diagnosticsDataRow(label: "Per-Space Status", value: themeEngine.diagnostics.activeSpaceNote)
+                            diagnosticsDataRow(label: "Frontmost App", value: "\(themeEngine.diagnostics.frontmostAppName) (\(themeEngine.diagnostics.frontmostBundleID))")
+                            if let iconRGB = themeEngine.diagnostics.frontmostAppIconColor {
+                                diagnosticsDataRow(label: "App Icon RGB", value: String(format: "(%.2f, %.2f, %.2f)", iconRGB.0, iconRGB.1, iconRGB.2))
+                            }
+                            if let wallRGB = themeEngine.diagnostics.sampledWallpaperRGB {
+                                diagnosticsDataRow(label: "Wallpaper RGB", value: String(format: "(%.2f, %.2f, %.2f)", wallRGB.0, wallRGB.1, wallRGB.2))
+                            }
+                            if let sysRGB = themeEngine.diagnostics.systemAccentRGB {
+                                diagnosticsDataRow(label: "System Accent", value: String(format: "(%.2f, %.2f, %.2f)", sysRGB.0, sysRGB.1, sysRGB.2))
+                            }
+                            diagnosticsDataRow(label: "Active Stage", value: themeEngine.diagnostics.activeFallbackStage)
+                            diagnosticsDataRow(label: "Last Sampled", value: themeEngine.diagnostics.lastUpdateTime.formatted(date: .omitted, time: .standard))
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.35)))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 0.7))
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
+                }
             }
         }
         .settingsCard()
@@ -674,79 +873,126 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Expanded Notch Width: \(Int(store.notchWidth)) pt")
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
                     Spacer()
+                    Text("Default: 620 pt")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.secondaryText)
                 }
                 Slider(value: $store.notchWidth, in: 480...800, step: 20) { editing in
                     if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
                 }
                 .tint(SettingsCategory.geometry.tintColor)
+                .accessibilityLabel("Expanded Notch Width")
+                .accessibilityHint("Adjusts the width of the expanded notch island from 480 to 800 points.")
             }
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text("Expanded Notch Height: \(Int(store.notchHeight)) pt")
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
                     Spacer()
+                    Text("Default: 330 pt")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.secondaryText)
                 }
                 Slider(value: $store.notchHeight, in: 310...420, step: 10) { editing in
                     if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
                 }
                 .tint(SettingsCategory.geometry.tintColor)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Hover Trigger Height: \(Int(store.hoverTriggerHeight)) pt (Near Camera)")
-                        .font(.system(size: 12))
-                    Spacer()
-                }
-                Slider(value: $store.hoverTriggerHeight, in: 24...54, step: 2) { editing in
-                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
-                }
-                .tint(SettingsCategory.geometry.tintColor)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Hover Trigger Width: \(Int(store.hoverTriggerWidth)) pt (Activation Zone)")
-                        .font(.system(size: 12))
-                    Spacer()
-                    Text("Physical: \(Int(NotchGeometry.current().physicalNotchWidth)) pt")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                Slider(value: $store.hoverTriggerWidth, in: 160...380, step: 10) { editing in
-                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
-                }
-                .tint(SettingsCategory.geometry.tintColor)
+                .accessibilityLabel("Expanded Notch Height")
+                .accessibilityHint("Adjusts the height of the expanded notch island from 310 to 420 points.")
             }
             
             Divider()
                 .padding(.vertical, 4)
             
-            Text("Internal Content Padding")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Horizontal Padding: \(Int(store.contentHorizontalPadding)) pt")
-                        .font(.system(size: 12))
-                    Spacer()
+            // Collapsed Advanced Geometry Section
+            AdvancedSettingsSection(
+                sectionID: "geometry_advanced",
+                title: "Hitbox & Inner Padding",
+                description: "Hover sensor activation hitbox and internal content edge margins.",
+                onReset: {
+                    store.hoverTriggerHeight = 34.0
+                    store.hoverTriggerWidth = 210.0
+                    store.contentHorizontalPadding = 16.0
+                    store.contentVerticalPadding = 12.0
+                    NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
                 }
-                Slider(value: $store.contentHorizontalPadding, in: 12...32, step: 2)
-                .tint(SettingsCategory.geometry.tintColor)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Vertical Padding: \(Int(store.contentVerticalPadding)) pt")
-                        .font(.system(size: 12))
-                    Spacer()
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Hover Trigger Height: \(Int(store.hoverTriggerHeight)) pt")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: 34 pt")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Slider(value: $store.hoverTriggerHeight, in: 24...54, step: 2) { editing in
+                            if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                        }
+                        .tint(SettingsCategory.geometry.tintColor)
+                        .accessibilityLabel("Hover Trigger Height")
+                        .accessibilityHint("Fine-tunes the height of the activation sensor below the camera.")
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Hover Trigger Width: \(Int(store.hoverTriggerWidth)) pt")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: 210 pt")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Slider(value: $store.hoverTriggerWidth, in: 160...380, step: 10) { editing in
+                            if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                        }
+                        .tint(SettingsCategory.geometry.tintColor)
+                        .accessibilityLabel("Hover Trigger Width")
+                        .accessibilityHint("Fine-tunes the width of the activation zone centered on the physical notch.")
+                    }
+                    
+                    Divider().background(Color.white.opacity(0.06))
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Horizontal Content Padding: \(Int(store.contentHorizontalPadding)) pt")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: 16 pt")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Slider(value: $store.contentHorizontalPadding, in: 12...32, step: 2)
+                        .tint(SettingsCategory.geometry.tintColor)
+                        .accessibilityLabel("Horizontal Content Padding")
+                        .accessibilityHint("Internal left and right margin spacing.")
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Vertical Content Padding: \(Int(store.contentVerticalPadding)) pt")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: 12 pt")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Slider(value: $store.contentVerticalPadding, in: 8...24, step: 2)
+                        .tint(SettingsCategory.geometry.tintColor)
+                        .accessibilityLabel("Vertical Content Padding")
+                        .accessibilityHint("Internal top and bottom margin spacing.")
+                    }
                 }
-                Slider(value: $store.contentVerticalPadding, in: 8...24, step: 2)
-                .tint(SettingsCategory.geometry.tintColor)
             }
         }
         .settingsCard()
@@ -791,74 +1037,148 @@ public struct SettingsView: View {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .strokeBorder(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(.spring)
+                    .pointerHoverCursor()
+                    .focusable()
+                    .accessibilityLabel(motion.rawValue)
+                    .accessibilityHint("Sets motion profile to \(motion.rawValue)")
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                 }
             }
             
             Divider()
                 .padding(.vertical, 4)
             
-            Text("Interactive Delays")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Hover Expand Delay: \(store.hoverDelay, specifier: "%.2f") sec")
-                        .font(.system(size: 12))
-                    Spacer()
+            VStack(spacing: 6) {
+                Button {
+                    store.keepOpenWhileSettingsActive.toggle()
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Keep Notch Open while Settings Active")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white)
+                            Text("Prevents notch from collapsing so you can preview changes live in real-time")
+                                .font(.system(size: 10))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $store.keepOpenWhileSettingsActive)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
+                    .contentShape(Rectangle())
                 }
-                Slider(value: $store.hoverDelay, in: 0...0.6, step: 0.05)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Auto-Collapse Exit Delay: \(store.autoCollapseDelay, specifier: "%.2f") sec")
-                        .font(.system(size: 12))
-                    Spacer()
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                .accessibilityLabel("Keep Notch Open while Settings Active")
+                .accessibilityHint("Prevents the notch island from collapsing while this settings window is visible.")
+                
+                Divider().background(Color.white.opacity(0.06))
+                
+                Button {
+                    store.closeOnOutsideClick.toggle()
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Close Notch on Outside Click")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white)
+                            Text("Automatically collapse the notch when clicking anywhere outside on the screen")
+                                .font(.system(size: 10))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $store.closeOnOutsideClick)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
+                    .contentShape(Rectangle())
                 }
-                Slider(value: $store.autoCollapseDelay, in: 0.10...0.80, step: 0.05)
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                .accessibilityLabel("Close Notch on Outside Click")
+                .accessibilityHint("Collapses the notch whenever you click outside its window.")
+                
+                Divider().background(Color.white.opacity(0.06))
+                
+                Button {
+                    store.closeOnEsc.toggle()
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Dismiss Notch on Esc Key")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.white)
+                            Text("Press Esc at any time to instantly collapse the notch back into the hardware bezel")
+                                .font(.system(size: 10))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $store.closeOnEsc)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                .accessibilityLabel("Dismiss Notch on Esc Key")
+                .accessibilityHint("Allows pressing Escape to instantly collapse the notch.")
             }
             
             Divider()
                 .padding(.vertical, 4)
             
-            Toggle(isOn: $store.keepOpenWhileSettingsActive) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Keep Notch Open while Settings Active")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("Prevents notch from collapsing so you can preview changes live in real-time")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
+            // Collapsed Advanced Motion Delays Section
+            AdvancedSettingsSection(
+                sectionID: "motion_advanced",
+                title: "Interactive Timing Delays",
+                description: "Fine-tune hover sensor trigger delays and auto-collapse grace periods.",
+                onReset: {
+                    store.hoverDelay = 0.10
+                    store.autoCollapseDelay = 0.25
+                }
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Hover Expand Delay: \(store.hoverDelay, specifier: "%.2f") sec")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: 0.10s")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Slider(value: $store.hoverDelay, in: 0...0.6, step: 0.05)
+                        .tint(SettingsCategory.motion.tintColor)
+                        .accessibilityLabel("Hover Expand Delay")
+                        .accessibilityHint("Amount of time the mouse must hover over the notch before expanding.")
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Auto-Collapse Exit Delay: \(store.autoCollapseDelay, specifier: "%.2f") sec")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Default: 0.25s")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Slider(value: $store.autoCollapseDelay, in: 0.10...0.80, step: 0.05)
+                        .tint(SettingsCategory.motion.tintColor)
+                        .accessibilityLabel("Auto-Collapse Exit Delay")
+                        .accessibilityHint("Grace period before collapsing after mouse exits the notch.")
+                    }
                 }
             }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            
-            Toggle(isOn: $store.closeOnOutsideClick) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Close Notch on Outside Click")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("Automatically collapse the notch when clicking anywhere outside on the screen")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            
-            Toggle(isOn: $store.closeOnEsc) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Dismiss Notch on Esc Key")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("Press Esc at any time to instantly collapse the notch back into the hardware bezel")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
         }
         .settingsCard()
     }
@@ -905,26 +1225,17 @@ public struct SettingsView: View {
                                     .strokeBorder(isSelected ? style.tintColor.opacity(0.85) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.7)
                             )
                             .foregroundColor(isSelected ? .white : DesignSystem.secondaryText)
+                            .contentShape(Capsule())
                         }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
+                        .focusable()
+                        .accessibilityLabel(style.rawValue)
+                        .accessibilityHint("Sets collapsed notch indicator to \(style.rawValue)")
+                        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     }
                 }
             }
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            Toggle(isOn: $store.showBreadcrumbs) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Show Navigation Breadcrumbs")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("Displays path ribbon (Dashboard > Module) inside secondary tools")
-                        .font(.system(size: 10))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
             
             Divider()
                 .padding(.vertical, 4)
@@ -937,28 +1248,44 @@ public struct SettingsView: View {
                 
                 ForEach(Array(registry.orderedModules.enumerated()), id: \.element.id) { index, module in
                     HStack(spacing: 8) {
-                        Toggle(isOn: Binding(
-                            get: { module.isEnabled },
-                            set: { newValue in
-                                if !newValue && registry.activeModuleId == module.id {
-                                    registry.returnToHome()
-                                }
-                                module.isEnabled = newValue
-                                store.setModuleEnabled(module.id, enabled: newValue)
+                        Button {
+                            let nextVal = !module.isEnabled
+                            if !nextVal && registry.activeModuleId == module.id {
+                                registry.returnToHome()
                             }
-                        )) {
+                            module.isEnabled = nextVal
+                            store.setModuleEnabled(module.id, enabled: nextVal)
+                        } label: {
                             HStack(spacing: 8) {
+                                Toggle("", isOn: Binding(
+                                    get: { module.isEnabled },
+                                    set: { newValue in
+                                        if !newValue && registry.activeModuleId == module.id {
+                                            registry.returnToHome()
+                                        }
+                                        module.isEnabled = newValue
+                                        store.setModuleEnabled(module.id, enabled: newValue)
+                                    }
+                                ))
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                                .labelsHidden()
+                                
                                 Image(systemName: module.iconName)
                                     .font(.system(size: 12))
                                     .foregroundColor(module.themeColor)
                                 Text(module.title)
-                                    .font(.system(size: 12))
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
                             }
+                            .contentShape(Rectangle())
                         }
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                        
-                        Spacer()
+                        .buttonStyle(.plain)
+                        .pointerHoverCursor()
+                        .accessibilityLabel("\(module.title) Module")
+                        .accessibilityHint("Toggles display of \(module.title) in the top dock tab bar.")
                         
                         HStack(spacing: 0) {
                             Button {
@@ -969,6 +1296,7 @@ public struct SettingsView: View {
                                     .frame(width: 24, height: 24)
                             }
                             .buttonStyle(.spring)
+                            .pointerHoverCursor()
                             .disabled(index == 0)
                             .help("Move \(module.title) up")
                             .accessibilityLabel("Move \(module.title) up")
@@ -981,6 +1309,7 @@ public struct SettingsView: View {
                                     .frame(width: 24, height: 24)
                             }
                             .buttonStyle(.spring)
+                            .pointerHoverCursor()
                             .disabled(index == registry.orderedModules.count - 1)
                             .help("Move \(module.title) down")
                             .accessibilityLabel("Move \(module.title) down")
@@ -989,38 +1318,83 @@ public struct SettingsView: View {
                         .background(Capsule().fill(DesignSystem.surfaceFill))
                         .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.7))
                     }
+                    .padding(.vertical, 2)
                 }
             }
             
             Divider()
                 .padding(.vertical, 4)
             
-            // Telegram Bot Direct Dispatch Configuration
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.cyan)
-                    Text("Telegram Direct Bot API (Zero Windows)")
-                        .font(.system(size: 12.5, weight: .bold))
-                        .foregroundColor(.white)
-                    Spacer()
-                    if let token = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token"), !token.isEmpty {
-                        Text("Active ✓")
-                            .font(.system(size: 9.5, weight: .bold))
-                            .foregroundColor(.green)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.green.opacity(0.15)))
-                    }
+            // Collapsed Advanced Module Controls Section
+            AdvancedSettingsSection(
+                sectionID: "modules_advanced",
+                title: "Advanced Module Controls",
+                description: "Navigation breadcrumbs ribbon and direct Telegram bot API configuration.",
+                onReset: {
+                    store.showBreadcrumbs = true
                 }
-                
-                Text("Enable 100% silent background message sending without opening or closing the Telegram app window.")
-                    .font(.system(size: 10))
-                    .foregroundColor(DesignSystem.secondaryText)
-                
-                if let tg = registry.module(for: "telegram") as? TelegramModule {
-                    TelegramSettingsBotRow(module: tg)
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Button {
+                        store.showBreadcrumbs.toggle()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Show Navigation Breadcrumbs")
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundColor(.white)
+                                    Text("Default: ON")
+                                        .font(.system(size: 8.5))
+                                        .foregroundColor(Color.green)
+                                }
+                                Text("Displays path ribbon (Dashboard > Module) inside secondary tools")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $store.showBreadcrumbs)
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                                .labelsHidden()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointerHoverCursor()
+                    .accessibilityLabel("Show Navigation Breadcrumbs")
+                    .accessibilityHint("Shows or hides the top navigation breadcrumbs trail.")
+                    
+                    Divider().background(Color.white.opacity(0.06))
+                    
+                    // Telegram Bot Direct Dispatch Configuration
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.cyan)
+                            Text("Telegram Direct Bot API (Zero Windows)")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            if let token = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token"), !token.isEmpty {
+                                Text("Active ✓")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.green.opacity(0.15)))
+                            }
+                        }
+                        
+                        Text("Enable 100% silent background message sending without opening or closing the Telegram app window.")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(DesignSystem.secondaryText)
+                        
+                        if let tg = registry.module(for: "telegram") as? TelegramModule {
+                            TelegramSettingsBotRow(module: tg)
+                        }
+                    }
                 }
             }
         }
@@ -1039,7 +1413,9 @@ public struct SettingsView: View {
                     .foregroundColor(.white)
             }
             
-            Toggle(isOn: $store.soundFeedbackEnabled) {
+            Button {
+                store.soundFeedbackEnabled.toggle()
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "speaker.wave.2.fill")
                         .foregroundColor(SettingsCategory.feedback.tintColor)
@@ -1047,16 +1423,29 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Sound Feedback")
                             .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
                         Text("Play soft clicks, pop on pin, and whoosh on sent messages")
                             .font(.system(size: 10))
                             .foregroundColor(DesignSystem.secondaryText)
                     }
+                    Spacer()
+                    Toggle("", isOn: $store.soundFeedbackEnabled)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .labelsHidden()
                 }
+                .contentShape(Rectangle())
             }
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .pointerHoverCursor()
+            .accessibilityLabel("Sound Feedback")
+            .accessibilityHint("Plays acoustic feedback sounds on interactive UI events.")
             
-            Toggle(isOn: $store.hapticFeedbackEnabled) {
+            Divider().background(Color.white.opacity(0.06))
+            
+            Button {
+                store.hapticFeedbackEnabled.toggle()
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "hand.tap.fill")
                         .foregroundColor(SettingsCategory.feedback.tintColor)
@@ -1064,14 +1453,23 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Haptic Feedback")
                             .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
                         Text("Tactile trackpad pulses on hover, snapping, and pinning")
                             .font(.system(size: 10))
                             .foregroundColor(DesignSystem.secondaryText)
                     }
+                    Spacer()
+                    Toggle("", isOn: $store.hapticFeedbackEnabled)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .labelsHidden()
                 }
+                .contentShape(Rectangle())
             }
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            .buttonStyle(.plain)
+            .pointerHoverCursor()
+            .accessibilityLabel("Haptic Feedback")
+            .accessibilityHint("Emits tactile trackpad feedback pulses on gestures and drop operations.")
             
             Divider()
                 .padding(.vertical, 4)
@@ -1084,18 +1482,23 @@ public struct SettingsView: View {
                 HStack(spacing: 8) {
                     Button("Click") { FeedbackManager.playClick() }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
                         .controlSize(.small)
                     Button("Pin") { FeedbackManager.playPin() }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
                         .controlSize(.small)
                     Button("Send") { FeedbackManager.playSend() }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
                         .controlSize(.small)
                     Button("Drop") { FeedbackManager.playDrop() }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
                         .controlSize(.small)
                     Button("Success") { FeedbackManager.playSuccess() }
                         .buttonStyle(.spring)
+                        .pointerHoverCursor()
                         .controlSize(.small)
                 }
             }
@@ -1108,29 +1511,39 @@ public struct SettingsView: View {
         VStack(alignment: .leading, spacing: 18) {
             // Master Activation Card
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .center, spacing: 10) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "pawprint.fill")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(Color(red: 1.00, green: 0.58, blue: 0.20))
-                        Text("Notch Companion (Bubu Mascot)")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white)
+                Button {
+                    store.isCompanionEnabled.toggle()
+                } label: {
+                    HStack(alignment: .center, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "pawprint.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(Color(red: 1.00, green: 0.58, blue: 0.20))
+                            Text("Notch Companion (Bubu Mascot)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Text("Zero-RAM when disabled")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundColor(Color.green)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.green.opacity(0.12)))
+                            .overlay(Capsule().strokeBorder(Color.green.opacity(0.28), lineWidth: 0.7))
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $store.isCompanionEnabled)
+                            .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                            .labelsHidden()
                     }
-                    
-                    Text("Zero-RAM when disabled")
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundColor(Color.green)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.green.opacity(0.12)))
-                        .overlay(Capsule().strokeBorder(Color.green.opacity(0.28), lineWidth: 0.7))
-                    
-                    Spacer()
-                    
-                    Toggle("", isOn: $store.isCompanionEnabled)
-                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                .accessibilityLabel("Notch Companion Bubu Mascot")
+                .accessibilityHint("Toggles the Bubu animated desktop companion around the notch.")
                 
                 Text("When turned off, 0 MB is loaded into RAM. Turn on to bring Bubu to life around your MacBook notch with cute animations.")
                     .font(.system(size: 11))
@@ -1147,30 +1560,39 @@ public struct SettingsView: View {
                             HStack(spacing: 8) {
                                 Button("Peek Left") { CompanionCoordinator.shared.triggerPeek(side: .left) }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Peek Right") { CompanionCoordinator.shared.triggerPeek(side: .right) }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Walk from Left") { CompanionCoordinator.shared.triggerWalking(from: .left) }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Walk from Right") { CompanionCoordinator.shared.triggerWalking(from: .right) }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Crawl (Limb)") { CompanionCoordinator.shared.triggerCrawling() }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Hang & Pull-Up") { CompanionCoordinator.shared.executeSlipSequence(force: true) }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Think & Track") { CompanionCoordinator.shared.triggerThinking() }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Type Mimic") { CompanionCoordinator.shared.triggerTypingMimic() }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                                 Button("Backflip") { CompanionCoordinator.shared.onCreatureClicked() }
                                     .buttonStyle(.spring)
+                                    .pointerHoverCursor()
                                     .controlSize(.small)
                             }
                         }
@@ -1246,134 +1668,212 @@ public struct SettingsView: View {
                                     RoundedRectangle(cornerRadius: 10)
                                         .strokeBorder(store.companionSkin == skin ? Color(red: 1.00, green: 0.58, blue: 0.20).opacity(0.5) : DesignSystem.cardBorder, lineWidth: 1)
                                 )
+                                .contentShape(RoundedRectangle(cornerRadius: 10))
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .pointerHoverCursor()
+                            .focusable()
+                            .accessibilityLabel(skin.displayName)
+                            .accessibilityHint("Selects \(skin.displayName) character skin: \(skin.subtitle)")
+                            .accessibilityAddTraits(store.companionSkin == skin ? [.isButton, .isSelected] : .isButton)
                         }
                     }
                 }
                 .settingsCard()
                 
-                // Activity Level Frequency
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Activity Frequency & Pacing")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Controls how frequently the creature emerges from the physical notch bezel")
-                                .font(.system(size: 10.5))
-                                .foregroundColor(DesignSystem.secondaryText)
-                        }
-                        Spacer()
+                // Collapsed Advanced Companion Behaviors & Rigging Section
+                AdvancedSettingsSection(
+                    sectionID: "companion_advanced",
+                    title: "Companion Behaviors & Rigging",
+                    description: "Activity frequency, ambient triggers, sleep rules, and kinematics bone overlay.",
+                    onReset: {
+                        store.companionActivityLevel = .balanced
+                        store.companionMimicTyping = true
+                        store.companionGrooveMusic = true
+                        store.companionAllowSlips = true
+                        store.companionSleepDuringDND = true
+                        store.companionDebugSkeleton = false
                     }
-                    
-                    Picker("", selection: $store.companionActivityLevel) {
-                        ForEach(CompanionActivityLevel.allCases) { level in
-                            Text(level.displayName).tag(level)
+                ) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Activity Level Frequency
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text("Activity Frequency & Pacing")
+                                            .font(.system(size: 11.5, weight: .bold))
+                                            .foregroundColor(.white)
+                                        Text("Default: Balanced")
+                                            .font(.system(size: 8.5))
+                                            .foregroundColor(Color.green)
+                                    }
+                                    Text("Controls how frequently the creature emerges from the physical notch bezel")
+                                        .font(.system(size: 9.5))
+                                        .foregroundColor(DesignSystem.secondaryText)
+                                }
+                                Spacer()
+                            }
+                            
+                            Picker("", selection: $store.companionActivityLevel) {
+                                ForEach(CompanionActivityLevel.allCases) { level in
+                                    Text(level.displayName).tag(level)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            
+                            HStack {
+                                Text(store.companionActivityLevel.description)
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                                Spacer()
+                            }
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    
-                    HStack {
-                        Text(store.companionActivityLevel.description)
-                            .font(.system(size: 10.5))
-                            .foregroundColor(DesignSystem.secondaryText)
-                        Spacer()
+                        
+                        Divider().background(Color.white.opacity(0.06))
+                        
+                        // Interactive Behaviors Toggles
+                        VStack(spacing: 10) {
+                            // Mimic typing
+                            Button {
+                                store.companionMimicTyping.toggle()
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Mimic Typing Cadence")
+                                            .font(.system(size: 11.5, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text("Whips out a miniature laptop and frantically taps paws while you type")
+                                            .font(.system(size: 9.5))
+                                            .foregroundColor(DesignSystem.secondaryText)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: $store.companionMimicTyping)
+                                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                                        .labelsHidden()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .pointerHoverCursor()
+                            .accessibilityLabel("Mimic Typing Cadence")
+                            .accessibilityHint("Plays cute typing animation when you type in any application.")
+                            
+                            Divider().background(Color.white.opacity(0.06))
+                            
+                            // Music Groove
+                            Button {
+                                store.companionGrooveMusic.toggle()
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Groove to Music & Audio")
+                                            .font(.system(size: 11.5, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text("Puts on tiny headphones and bobs head with floating notes when audio/video plays")
+                                            .font(.system(size: 9.5))
+                                            .foregroundColor(DesignSystem.secondaryText)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: $store.companionGrooveMusic)
+                                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                                        .labelsHidden()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .pointerHoverCursor()
+                            .accessibilityLabel("Groove to Music")
+                            .accessibilityHint("Reacts to playing media with headphones and head-bobbing animation.")
+                            
+                            Divider().background(Color.white.opacity(0.06))
+                            
+                            // Ledge Slip & Dangle
+                            Button {
+                                store.companionAllowSlips.toggle()
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Allow Ledge Slips & Dangles")
+                                            .font(.system(size: 11.5, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text("Occasionally slips off the bottom lip of the notch, dangles with kicking feet, and climbs back up")
+                                            .font(.system(size: 9.5))
+                                            .foregroundColor(DesignSystem.secondaryText)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: $store.companionAllowSlips)
+                                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                                        .labelsHidden()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .pointerHoverCursor()
+                            .accessibilityLabel("Allow Ledge Slips & Dangles")
+                            .accessibilityHint("Allows the creature to slip and hang from the bottom lip of the notch.")
+                            
+                            Divider().background(Color.white.opacity(0.06))
+                            
+                            // Sleep during DND
+                            Button {
+                                store.companionSleepDuringDND.toggle()
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Sleep During Focus & Do Not Disturb")
+                                            .font(.system(size: 11.5, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text("Curled up asleep under the camera with floating Zzz particles during focus sessions")
+                                            .font(.system(size: 9.5))
+                                            .foregroundColor(DesignSystem.secondaryText)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: $store.companionSleepDuringDND)
+                                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
+                                        .labelsHidden()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .pointerHoverCursor()
+                            .accessibilityLabel("Sleep During Focus & Do Not Disturb")
+                            .accessibilityHint("Puts the creature to sleep during active Do Not Disturb or Focus sessions.")
+                            
+                            Divider().background(Color.white.opacity(0.06))
+                            
+                            // Debug Skeleton Rig Overlay
+                            Button {
+                                store.companionDebugSkeleton.toggle()
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 6) {
+                                            Text("Debug Skeleton Rig Overlay")
+                                                .font(.system(size: 11.5, weight: .semibold))
+                                                .foregroundColor(.white)
+                                            Text("Dev Mode")
+                                                .font(.system(size: 8.5))
+                                                .foregroundColor(Color.orange)
+                                        }
+                                        Text("Render kinematic bone lines and joint dots in real-time to verify anchor connection")
+                                            .font(.system(size: 9.5))
+                                            .foregroundColor(DesignSystem.secondaryText)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: $store.companionDebugSkeleton)
+                                        .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.20, green: 0.85, blue: 0.40)))
+                                        .labelsHidden()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .pointerHoverCursor()
+                            .accessibilityLabel("Debug Skeleton Rig Overlay")
+                            .accessibilityHint("Draws skeletal joints and inverse kinematic vectors for animation verification.")
+                        }
                     }
                 }
-                .settingsCard()
-                
-                // Interactive Behaviors Card
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Interactive Ambient Behaviors")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    VStack(spacing: 12) {
-                        // Mimic typing
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Mimic Typing Cadence")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Whips out a miniature laptop and frantically taps paws while you type")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $store.companionMimicTyping)
-                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
-                        }
-                        
-                        Divider().background(Color.white.opacity(0.08))
-                        
-                        // Music Groove
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Groove to Music & Audio")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Puts on tiny headphones and bobs head with floating notes when audio/video plays")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $store.companionGrooveMusic)
-                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
-                        }
-                        
-                        Divider().background(Color.white.opacity(0.08))
-                        
-                        // Ledge Slip & Dangle
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Allow Ledge Slips & Dangles")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Occasionally slips off the bottom lip of the notch, dangles with kicking feet, and climbs back up")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $store.companionAllowSlips)
-                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
-                        }
-                        
-                        Divider().background(Color.white.opacity(0.08))
-                        
-                        // Sleep during DND
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Sleep During Focus & Do Not Disturb")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Curled up asleep under the camera with floating Zzz particles during focus sessions")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $store.companionSleepDuringDND)
-                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 1.00, green: 0.58, blue: 0.20)))
-                        }
-                        
-                        Divider().background(DesignSystem.cardBorder)
-                        
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Debug Skeleton Rig Overlay")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Render kinematic bone lines and joint dots in real-time to verify anchor connection")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                            }
-                            Spacer()
-                            Toggle("", isOn: $store.companionDebugSkeleton)
-                                .toggleStyle(SwitchToggleStyle(tint: Color(red: 0.20, green: 0.85, blue: 0.40)))
-                        }
-                    }
-                }
-                .settingsCard()
                 
                 // Zero Resource Footprint Guarantee Card
                 HStack(spacing: 12) {

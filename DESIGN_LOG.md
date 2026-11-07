@@ -173,3 +173,38 @@
   2. Ensure the entire surface area of every setting row is clickable with `.contentShape(Rectangle())`, pointer cursor, keyboard focus ring, and accessibility button traits.
   3. Ensure all toggles have explicit labels, semantic accessibility hints, and consistent hit targets.
   4. Move rarely used settings under collapsed "Advanced" disclosure groups with live previews, one-line descriptions, recommended defaults, and "Reset to recommended" buttons (Rule 0: zero feature deletions).
+
+
+### Phase 2 Execution & Findings
+- **Card & Tile Surface Clickability**:
+  - Attached `.contentShape(Rectangle())`, `.pointerHoverCursor()`, and `.focusable()` across sidebar category items, theme cards, glass styles, motion cards, compact mode styles, module toggle rows, dashboard slot cards, and widget palette cards.
+  - Removed narrow click targets: clicking anywhere across an option card or toggle row activates it.
+- **Accessible Toggles & Semantic Hints**:
+  - Standardized all toggles with explicit labels and `.accessibilityHint(...)` descriptions for VoiceOver.
+  - Added `.accessibilityAddTraits([.isButton, .isSelected])` on active cards.
+- **Collapsible "Advanced" Disclosure Groups (Rule 0 Guarded)**:
+  - Built `AdvancedSettingsSection`:
+    - **Appearance**: Specular Bevel Glow, Dynamic Color Vibrancy, and Real-Time Detection Telemetry Diagnostics drawer. Reset to recommended: `vibrancy = .balanced`, `specularGlow = true`.
+    - **Geometry**: Hover Trigger Height & Width, Horizontal & Vertical Content Padding. Reset to recommended: `(34, 210, 16, 12)`.
+    - **Motion**: Hover Expand Delay (0.10s) and Auto-Collapse Exit Delay (0.25s). Reset to recommended: `(0.10, 0.25)`.
+    - **Modules**: Breadcrumb path ribbon and Telegram Bot Direct API token row. Reset to recommended: `breadcrumbs = true`.
+    - **Companion**: Activity frequency pacing, Mimic typing, Music groove, Ledge slips, Sleep during DND, and Debug Skeleton Rig. Reset to recommended defaults.
+  - All features remain intact and functional; zero regressions.
+
+---
+
+## 6. Phase 3: Dashboard Slots Canvas: Draggable Widths
+
+### Skill Selection for Phase 3 (Re-selection)
+- **Skills active**: `swiftui-expert-skill`, `swiftui-pro`, `apple-design`, `emilkowalski-motion`, `axiom-accessibility`, `axiom-performance`, `ponytail`, `gravitas`.
+- **Trigger**: Direct manipulation live drag-resizing between adjacent slots, proportional ratio persistence, minimum width constraints, and "Focus (dominant + companion)" layout mode.
+- **Goals**:
+  1. Inspect `Sources/Notch/ModularDashboardView.swift` to document the exact architectural definition of 1-space vs 2-space slot spans.
+  2. Implement dotted vertical dividers between adjacent filled slots (zero dividers adjacent to empty slots).
+  3. Support live drag-resizing with left-right resize cursor (`NSCursor.resizeLeftRight`).
+  4. Snap to 1/3, 1/2, 2/3 ratios within 12 pt threshold accompanied by haptic tick (`FeedbackManager.playPin()`).
+  5. Enforce per-widget minimum usable widths without text ellipsis truncation.
+  6. Double-click divider to reset to 50/50 (1:1).
+  7. Keyboard & VoiceOver accessible: Left/Right arrow keys adjust width by 5% when divider has focus.
+  8. Persist customized ratios in `SettingsStore` across app restarts.
+  9. Add 4th layout flow option: "Focus (dominant + companion)" (70% primary + 30% companion) with conservative hidden-only companion auto-rotation (max once per 30s).

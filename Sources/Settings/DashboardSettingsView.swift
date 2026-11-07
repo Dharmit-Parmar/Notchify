@@ -996,35 +996,47 @@ struct SlotDropCard: View {
                     NSItemProvider(object: widget.rawValue as NSString)
                 }
             } else {
-                // Empty Slot Drop Placeholder
-                HStack(spacing: 6) {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.25))
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(title)
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundColor(targetState.isTargeted ? .white : DesignSystem.secondaryText)
-                            .lineLimit(1)
-                        Text("Drop widget here")
-                            .font(.system(size: 8.5))
-                            .foregroundColor(Color.white.opacity(0.3))
-                            .lineLimit(1)
+                // Empty Slot Drop Placeholder (Clickable to quick-assign or accept drop)
+                Button {
+                    if let firstUnplaced = DashboardWidgetType.allCases.first(where: { !store.dashboardSlots.contains($0) }) {
+                        FeedbackManager.playPin()
+                        store.setDashboardSlot(at: slotIndex, widget: firstUnplaced)
                     }
-                    
-                    Spacer()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.25))
+                        
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(title)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundColor(targetState.isTargeted ? .white : DesignSystem.secondaryText)
+                                .lineLimit(1)
+                            Text("Click or drop to assign")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(Color.white.opacity(0.3))
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(
+                                targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.15),
+                                style: StrokeStyle(lineWidth: targetState.isTargeted ? 1.5 : 1.0, dash: [4, 4])
+                            )
+                            .background(targetState.isTargeted ? DesignSystem.accentColor.opacity(0.08) : Color.clear)
+                    )
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(
-                            targetState.isTargeted ? DesignSystem.accentColor : Color.white.opacity(0.15),
-                            style: StrokeStyle(lineWidth: targetState.isTargeted ? 1.5 : 1.0, dash: [4, 4])
-                        )
-                        .background(targetState.isTargeted ? DesignSystem.accentColor.opacity(0.08) : Color.clear)
-                )
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                .accessibilityLabel("\(title) Empty Slot")
+                .accessibilityHint("Click to assign the first available widget, or drag and drop a widget here.")
             }
         }
         .frame(height: 50)
@@ -1055,36 +1067,54 @@ struct DraggableWidgetPaletteCard: View {
         let currentSpan = store.span(for: widget)
         
         HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(widget.tintColor.opacity(isPlaced ? 0.15 : 0.25))
-                    .frame(width: 26, height: 26)
-                Image(systemName: widget.icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(isPlaced ? widget.tintColor.opacity(0.6) : widget.tintColor)
-            }
-            
-            VStack(alignment: .leading, spacing: 1) {
-                Text(widget.title)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(isPlaced ? DesignSystem.secondaryText : .white)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: false, vertical: true)
-                
-                if isPlaced, let idx = placedSlotIndex {
-                    Text("In Slot \(idx + 1)")
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundColor(DesignSystem.accentColor)
-                        .lineLimit(1)
+            Button {
+                if isPlaced {
+                    FeedbackManager.playClick()
+                    let nextSpan = currentSpan == 1 ? 2 : 1
+                    store.setSpan(nextSpan, for: widget)
                 } else {
-                    Text(widget.subtitle)
-                        .font(.system(size: 8.5))
-                        .foregroundColor(DesignSystem.tertiaryText)
-                        .lineLimit(1)
+                    FeedbackManager.playPin()
+                    onQuickAssign()
                 }
+            } label: {
+                HStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(widget.tintColor.opacity(isPlaced ? 0.15 : 0.25))
+                            .frame(width: 26, height: 26)
+                        Image(systemName: widget.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(isPlaced ? widget.tintColor.opacity(0.6) : widget.tintColor)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(widget.title)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(isPlaced ? DesignSystem.secondaryText : .white)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        if isPlaced, let idx = placedSlotIndex {
+                            Text("In Slot \(idx + 1)")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(DesignSystem.accentColor)
+                                .lineLimit(1)
+                        } else {
+                            Text(widget.subtitle)
+                                .font(.system(size: 8.5))
+                                .foregroundColor(DesignSystem.tertiaryText)
+                                .lineLimit(1)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .contentShape(Rectangle())
             }
-            
-            Spacer()
+            .buttonStyle(.plain)
+            .pointerHoverCursor()
+            .accessibilityLabel("\(widget.title) Widget")
+            .accessibilityHint(isPlaced ? "Placed in slot. Click to toggle width." : "Click to assign to first available slot.")
             
             // Span selector pill
             Button {
@@ -1101,6 +1131,7 @@ struct DraggableWidgetPaletteCard: View {
                     .lineLimit(1)
             }
             .buttonStyle(.plain)
+            .pointerHoverCursor()
             .help("Set widget space: 1 space or 2 spaces")
             
             if isPlaced {
@@ -1114,6 +1145,7 @@ struct DraggableWidgetPaletteCard: View {
                         .padding(4)
                 }
                 .buttonStyle(.plain)
+                .pointerHoverCursor()
                 .help("Remove from slot")
             } else {
                 Button {
@@ -1127,6 +1159,7 @@ struct DraggableWidgetPaletteCard: View {
                         .background(Circle().fill(Color.white.opacity(0.12)))
                 }
                 .buttonStyle(.plain)
+                .pointerHoverCursor()
                 .help("Assign to first open slot")
             }
         }
@@ -1180,7 +1213,12 @@ struct PresetButton: View {
                             .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8)
                     )
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .pointerHoverCursor()
+        .focusable()
+        .accessibilityLabel(title)
+        .accessibilityHint("Applies preset layout: \(subtitle)")
     }
 }
