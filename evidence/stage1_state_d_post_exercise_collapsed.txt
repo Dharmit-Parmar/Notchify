@@ -1,0 +1,353 @@
+Pass 1 (PID 16065):
+======================================================================
+NotchApp [16065]: 64-bit    Footprint: 45 MB (16384 bytes per page)
+======================================================================
+
+  Dirty      Clean  Reclaimable    Regions    Category
+    ---        ---          ---        ---    ---
+  32 MB        0 B      7120 KB         21    Malloc Small
+2578 KB        0 B          0 B        938    __DATA_DIRTY
+2420 KB      16 KB          0 B       1056    __DATA
+1392 KB        0 B       736 KB         28    Untagged
+1296 KB        0 B          0 B         13    Malloc Metadata
+ 856 KB        0 B          0 B        698    __AUTH
+ 784 KB        0 B          0 B          6    CoreUI Image Data
+ 736 KB        0 B      2288 KB         25    IOAccelerator (graphics)
+ 689 KB        0 B          0 B          1    page table
+ 548 KB        0 B          0 B       2856    unused dyld shared cache area
+ 480 KB        0 B          0 B         11    CoreAnimation
+ 400 KB        0 B          0 B         11    Owned physical footprint (unmapped) (graphics)
+ 304 KB        0 B          0 B          1    Malloc Tiny
+ 224 KB        0 B          0 B          8    Stack
+ 128 KB        0 B          0 B          8    CG Image
+ 128 KB        0 B          0 B          1    Accelerate Framework
+ 112 KB        0 B          0 B          4    __TPRO_CONST
+  64 KB        0 B          0 B          2    IOAccelerator
+  64 KB        0 B          0 B          6    IOKit
+  47 KB        0 B          0 B          1    __OBJC_RW
+  32 KB        0 B          0 B          1    Activity Tracing
+  32 KB        0 B          0 B          1    Malloc Nano
+  32 KB        0 B          0 B          2    CoreGraphics
+  32 KB        0 B          0 B          2    ColorSync
+  16 KB        0 B          0 B          1    Deferred Reclaim
+  16 KB        0 B          0 B          1    OS Alloc Once
+  16 KB        0 B          0 B          1    Foundation
+    0 B      26 MB          0 B         39    mapped file
+    0 B    2272 KB          0 B       1142    __TEXT
+    0 B     112 KB          0 B          3    __LINKEDIT
+    0 B      64 KB          0 B       1055    __DATA_CONST
+    0 B        0 B          0 B          1    __OBJC_RO
+    0 B        0 B          0 B          1    __FONT_DATA
+    0 B        0 B          0 B          1    __CTF
+    0 B        0 B          0 B       1049    __AUTH_CONST
+    0 B        0 B          0 B          3    Owned physical footprint (unmapped)
+    ---        ---          ---        ---    ---
+  45 MB      29 MB        10 MB       9000    TOTAL
+
+Auxiliary data:
+    phys_footprint: 45 MB
+    phys_footprint_peak: 107 MB
+
+
+Processes: 770 total, 3 running, 767 sleeping, 3569 threads 
+2026/11/07 21:47:26
+Load Avg: 1.96, 2.02, 2.14 
+CPU usage: 4.38% user, 9.56% sys, 86.5% idle 
+SharedLibs: 874M resident, 165M data, 148M linkedit.
+MemRegions: 414798 total, 4392M resident, 378M private, 2063M shared.
+PhysMem: 15G used (2300M wired, 2341M compressor), 789M unused.
+VM: 382T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2267537/2394M in, 1280914/1385M out.
+Disks: 1000827/31G read, 475530/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16065  NotchApp 0.0  163   0.0  
+Processes: 770 total, 3 running, 767 sleeping, 3574 threads 
+2026/11/07 21:47:27
+Load Avg: 1.96, 2.02, 2.14 
+CPU usage: 5.50% user, 3.26% sys, 91.22% idle 
+SharedLibs: 874M resident, 165M data, 148M linkedit.
+MemRegions: 0 total, 0B resident, 378M private, 2063M shared.
+PhysMem: 15G used (2279M wired, 2341M compressor), 789M unused.
+VM: 382T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2267547/2394M in, 1280925/1385M out.
+Disks: 1000827/31G read, 475530/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16065  NotchApp 0.0  163   0.0  
+Processes: 770 total, 2 running, 768 sleeping, 3546 threads 
+2026/11/07 21:47:29
+Load Avg: 1.97, 2.02, 2.14 
+CPU usage: 6.33% user, 3.31% sys, 90.35% idle 
+SharedLibs: 874M resident, 165M data, 148M linkedit.
+MemRegions: 0 total, 0B resident, 378M private, 2063M shared.
+PhysMem: 15G used (2297M wired, 2341M compressor), 790M unused.
+VM: 382T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2267556/2394M in, 1280935/1385M out.
+Disks: 1000827/31G read, 475530/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16065  NotchApp 0.0  163   0.0  
+Processes: 770 total, 3 running, 767 sleeping, 3541 threads 
+2026/11/07 21:47:30
+Load Avg: 1.97, 2.02, 2.14 
+CPU usage: 5.89% user, 2.94% sys, 91.15% idle 
+SharedLibs: 874M resident, 165M data, 148M linkedit.
+MemRegions: 0 total, 0B resident, 378M private, 2063M shared.
+PhysMem: 15G used (2279M wired, 2341M compressor), 790M unused.
+VM: 382T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2267570/2394M in, 1280950/1385M out.
+Disks: 1000827/31G read, 475530/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16065  NotchApp 0.0  163   0.0  
+Processes: 770 total, 2 running, 768 sleeping, 3533 threads 
+2026/11/07 21:47:31
+Load Avg: 1.97, 2.02, 2.14 
+CPU usage: 5.71% user, 3.37% sys, 90.90% idle 
+SharedLibs: 874M resident, 165M data, 148M linkedit.
+MemRegions: 0 total, 0B resident, 378M private, 2063M shared.
+PhysMem: 15G used (2304M wired, 2341M compressor), 786M unused.
+VM: 382T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2267578/2394M in, 1280959/1385M out.
+Disks: 1000827/31G read, 475530/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16065  NotchApp 0.0  163   0.0  
+
+
+Pass 2 (PID 16578):
+======================================================================
+NotchApp [16578]: 64-bit    Footprint: 46 MB (16384 bytes per page)
+======================================================================
+
+  Dirty      Clean  Reclaimable    Regions    Category
+    ---        ---          ---        ---    ---
+  33 MB        0 B      5744 KB         20    Malloc Small
+2578 KB        0 B          0 B        938    __DATA_DIRTY
+2420 KB      16 KB          0 B       1056    __DATA
+1392 KB        0 B       736 KB         28    Untagged
+1280 KB        0 B          0 B         13    Malloc Metadata
+ 856 KB        0 B          0 B        698    __AUTH
+ 784 KB        0 B          0 B          6    CoreUI Image Data
+ 736 KB        0 B      2288 KB         25    IOAccelerator (graphics)
+ 689 KB        0 B          0 B          1    page table
+ 548 KB        0 B          0 B       2856    unused dyld shared cache area
+ 480 KB        0 B          0 B         11    CoreAnimation
+ 400 KB        0 B          0 B         11    Owned physical footprint (unmapped) (graphics)
+ 304 KB        0 B          0 B          1    Malloc Tiny
+ 256 KB        0 B          0 B          8    Stack
+ 128 KB        0 B          0 B          6    CG Image
+ 128 KB        0 B          0 B          1    Accelerate Framework
+ 112 KB        0 B          0 B          4    __TPRO_CONST
+  64 KB        0 B          0 B          2    IOAccelerator
+  64 KB        0 B          0 B          6    IOKit
+  47 KB        0 B          0 B          1    __OBJC_RW
+  32 KB        0 B          0 B          1    Activity Tracing
+  32 KB        0 B          0 B          1    Malloc Nano
+  32 KB        0 B          0 B          2    CoreGraphics
+  32 KB        0 B          0 B          2    ColorSync
+  16 KB        0 B          0 B          1    Deferred Reclaim
+  16 KB        0 B          0 B          1    OS Alloc Once
+  16 KB        0 B          0 B          1    Foundation
+    0 B      26 MB          0 B         39    mapped file
+    0 B    2272 KB          0 B       1142    __TEXT
+    0 B     112 KB          0 B          3    __LINKEDIT
+    0 B      64 KB          0 B       1055    __DATA_CONST
+    0 B        0 B          0 B          1    __OBJC_RO
+    0 B        0 B          0 B          1    __FONT_DATA
+    0 B        0 B          0 B          1    __CTF
+    0 B        0 B          0 B       1049    __AUTH_CONST
+    0 B        0 B          0 B          3    Owned physical footprint (unmapped)
+    ---        ---          ---        ---    ---
+  46 MB      29 MB      8768 KB       8997    TOTAL
+
+Auxiliary data:
+    phys_footprint: 46 MB
+    phys_footprint_peak: 109 MB
+
+
+Processes: 771 total, 2 running, 769 sleeping, 3586 threads 
+2026/11/07 22:03:10
+Load Avg: 1.42, 1.70, 1.86 
+CPU usage: 4.56% user, 10.64% sys, 84.79% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 427647 total, 4401M resident, 382M private, 2094M shared.
+PhysMem: 15G used (2299M wired, 2330M compressor), 225M unused.
+VM: 384T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2283635/2400M in, 1304373/1407M out.
+Disks: 1016838/32G read, 488245/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16578  NotchApp 0.0  275   0.0  
+Processes: 771 total, 2 running, 769 sleeping, 3585 threads 
+2026/11/07 22:03:11
+Load Avg: 1.39, 1.69, 1.85 
+CPU usage: 5.0% user, 3.27% sys, 91.72% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 382M private, 2094M shared.
+PhysMem: 15G used (2310M wired, 2330M compressor), 194M unused.
+VM: 384T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2283637/2400M in, 1304376/1407M out.
+Disks: 1016838/32G read, 488247/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16578  NotchApp 0.0  275   0.0  
+Processes: 771 total, 2 running, 769 sleeping, 3583 threads 
+2026/11/07 22:03:12
+Load Avg: 1.39, 1.69, 1.85 
+CPU usage: 4.9% user, 2.28% sys, 93.62% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 382M private, 2094M shared.
+PhysMem: 15G used (2355M wired, 2330M compressor), 193M unused.
+VM: 384T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2283638/2400M in, 1304378/1407M out.
+Disks: 1016838/32G read, 488247/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16578  NotchApp 0.0  276+  0.0  
+Processes: 771 total, 4 running, 767 sleeping, 3565 threads 
+2026/11/07 22:03:13
+Load Avg: 1.39, 1.69, 1.85 
+CPU usage: 4.93% user, 3.25% sys, 91.80% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 382M private, 2094M shared.
+PhysMem: 15G used (2248M wired, 2330M compressor), 206M unused.
+VM: 384T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2283641/2400M in, 1304381/1407M out.
+Disks: 1016838/32G read, 488247/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16578  NotchApp 0.0  276   0.0  
+Processes: 770 total, 3 running, 767 sleeping, 3542 threads 
+2026/11/07 22:03:14
+Load Avg: 1.39, 1.69, 1.85 
+CPU usage: 5.42% user, 2.47% sys, 92.9% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 382M private, 2094M shared.
+PhysMem: 15G used (2251M wired, 2330M compressor), 245M unused.
+VM: 382T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2283644/2400M in, 1304385/1407M out.
+Disks: 1016838/32G read, 488247/12G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16578  NotchApp 0.0  276   0.0  
+
+
+Pass 3 (PID 16775):
+======================================================================
+NotchApp [16775]: 64-bit    Footprint: 45 MB (16384 bytes per page)
+======================================================================
+
+  Dirty      Clean  Reclaimable    Regions    Category
+    ---        ---          ---        ---    ---
+  32 MB        0 B      6496 KB         20    Malloc Small
+2578 KB        0 B          0 B        938    __DATA_DIRTY
+2420 KB      16 KB          0 B       1056    __DATA
+1392 KB        0 B       736 KB         28    Untagged
+1280 KB        0 B          0 B         13    Malloc Metadata
+ 856 KB        0 B          0 B        698    __AUTH
+ 784 KB        0 B          0 B          6    CoreUI Image Data
+ 736 KB        0 B      2288 KB         25    IOAccelerator (graphics)
+ 689 KB        0 B          0 B          1    page table
+ 548 KB        0 B          0 B       2856    unused dyld shared cache area
+ 480 KB        0 B          0 B         11    CoreAnimation
+ 400 KB        0 B          0 B         11    Owned physical footprint (unmapped) (graphics)
+ 304 KB        0 B          0 B          1    Malloc Tiny
+ 256 KB        0 B          0 B          8    Stack
+ 128 KB        0 B          0 B          5    CG Image
+ 128 KB        0 B          0 B          1    Accelerate Framework
+ 112 KB        0 B          0 B          4    __TPRO_CONST
+  64 KB        0 B          0 B          2    IOAccelerator
+  64 KB        0 B          0 B          7    IOKit
+  47 KB        0 B          0 B          1    __OBJC_RW
+  32 KB        0 B          0 B          1    Activity Tracing
+  32 KB        0 B          0 B          1    Malloc Nano
+  32 KB        0 B          0 B          2    CoreGraphics
+  32 KB        0 B          0 B          2    ColorSync
+  16 KB        0 B          0 B          1    Deferred Reclaim
+  16 KB        0 B          0 B          1    OS Alloc Once
+  16 KB        0 B          0 B          1    Foundation
+    0 B      26 MB          0 B         39    mapped file
+    0 B    2272 KB          0 B       1142    __TEXT
+    0 B     112 KB          0 B          3    __LINKEDIT
+    0 B      64 KB          0 B       1055    __DATA_CONST
+    0 B        0 B          0 B          1    __OBJC_RO
+    0 B        0 B          0 B          1    __FONT_DATA
+    0 B        0 B          0 B          1    __CTF
+    0 B        0 B          0 B       1049    __AUTH_CONST
+    0 B        0 B          0 B          3    Owned physical footprint (unmapped)
+    ---        ---          ---        ---    ---
+  45 MB      29 MB      9520 KB       8997    TOTAL
+
+Auxiliary data:
+    phys_footprint: 45 MB
+    phys_footprint_peak: 106 MB
+
+
+Processes: 772 total, 3 running, 769 sleeping, 3545 threads 
+2026/11/07 22:08:07
+Load Avg: 1.46, 1.64, 1.78 
+CPU usage: 4.36% user, 9.92% sys, 85.71% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 415434 total, 4402M resident, 386M private, 2114M shared.
+PhysMem: 15G used (2314M wired, 2320M compressor), 248M unused.
+VM: 383T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2285301/2401M in, 1306173/1408M out.
+Disks: 1018235/32G read, 492222/13G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16775  NotchApp 0.0  207   0.0  
+Processes: 772 total, 3 running, 769 sleeping, 3542 threads 
+2026/11/07 22:08:08
+Load Avg: 1.42, 1.63, 1.78 
+CPU usage: 3.54% user, 2.60% sys, 93.84% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 386M private, 2114M shared.
+PhysMem: 15G used (2337M wired, 2320M compressor), 240M unused.
+VM: 383T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2285305/2401M in, 1306177/1408M out.
+Disks: 1018235/32G read, 492222/13G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16775  NotchApp 0.0  207   0.0  
+Processes: 772 total, 3 running, 769 sleeping, 3542 threads 
+2026/11/07 22:08:09
+Load Avg: 1.42, 1.63, 1.78 
+CPU usage: 5.43% user, 2.95% sys, 91.60% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 386M private, 2114M shared.
+PhysMem: 15G used (2252M wired, 2320M compressor), 247M unused.
+VM: 383T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2285326/2401M in, 1306195/1408M out.
+Disks: 1018238/32G read, 492223/13G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16775  NotchApp 0.0  207   0.0  
+Processes: 772 total, 2 running, 770 sleeping, 3541 threads 
+2026/11/07 22:08:10
+Load Avg: 1.42, 1.63, 1.78 
+CPU usage: 5.19% user, 2.92% sys, 91.87% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 386M private, 2114M shared.
+PhysMem: 15G used (2231M wired, 2320M compressor), 251M unused.
+VM: 383T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2285328/2401M in, 1306198/1408M out.
+Disks: 1018238/32G read, 492223/13G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16775  NotchApp 0.0  207   0.0  
+Processes: 772 total, 2 running, 770 sleeping, 3539 threads 
+2026/11/07 22:08:11
+Load Avg: 1.42, 1.63, 1.78 
+CPU usage: 4.72% user, 2.36% sys, 92.91% idle 
+SharedLibs: 831M resident, 166M data, 146M linkedit.
+MemRegions: 0 total, 0B resident, 386M private, 2114M shared.
+PhysMem: 15G used (2193M wired, 2320M compressor), 268M unused.
+VM: 383T vsize, 57G framework vsize, 0(0) swapins, 0(0) swapouts.
+Networks: packets: 2285329/2401M in, 1306200/1408M out.
+Disks: 1018238/32G read, 492223/13G written.
+
+PID    COMMAND  %CPU IDLEW POWER
+16775  NotchApp 0.0  208+  0.0  
+

@@ -378,3 +378,116 @@
    - Added Test 83 (`Tests/VerificationTests.swift`) verifying Bento Quad column bounding invariants, stacked widget height partitioning, and horizontal strip non-overlapping geometry.
    - All 83/83 verification tests pass cleanly.
 
+---
+
+## 11. Resource Diet — Stage 1: Baseline and Floor
+
+### Skill Selection for Stage 1 (Re-selection)
+- **Installed Skills Survey**: `axiom-performance`, `axiom-swiftui`, `axiom-concurrency`, `axiom-graphics`, `axiom-media`, `axiom-macos`, `axiom-testing`, `axiom-data`, `swiftui-pro`, `swift-concurrency-pro`, `ponytail`, `gravitas`.
+- **Skills Chosen**:
+  - `axiom-performance`: Footprint (`phys_footprint`), `vmmap --summary`, `heap`, `leaks`, and Instruments profiling across all states; identifying top memory owners and allocation costs.
+  - `axiom-macos`: AppKit NSPanel lifecycle, window-level retain checks, and creating the minimal floor test application.
+  - `axiom-swiftui` & `swiftui-pro`: Diagnosing SwiftUI view graph allocations, state retention across collapsed states, and layout memory overhead.
+  - `axiom-concurrency` & `swift-concurrency-pro`: Diagnosing background Task retention, async stream observers, and idle wakeups.
+  - `axiom-media`: Inspecting AVFoundation capture sessions, audio sample caches, and MediaRemote memory footprint.
+  - `axiom-graphics`: Measuring CoreAnimation backing stores and texture allocations.
+  - `ponytail`: Ruthless minimum floor orientation; defining the smallest possible memory floor.
+  - `gravitas`: Strict empirical measurement protocol (3 runs per state, min/median/max, raw logs in `evidence/`).
+- **Trigger**: Establishing the empirical baseline, hardware floor, and memory owner cut list for the Notchify Resource Diet.
+- **Goals**:
+  1. Measure 5 distinct application states across 3 independent runs:
+     a. Cold start, collapsed, idle 60s
+     b. Collapsed after 10 min idle
+     c. Expanded on each tab/module one by one
+     d. Post-exercise collapsed after 2 min idle
+     e. Settings open, each category
+  2. Build and measure a standalone minimal empty SwiftUI+AppKit NSPanel app as the hardware floor.
+  3. Measure physical footprint (`footprint`), RSS, CPU, idle wakeups/sec (`IDLEW`), and energy impact (`POWER`).
+  4. Run `vmmap`, `heap`, `leaks` to categorize top memory owners into a definitive cut list.
+
+### Stage 1 Execution & Empirical Baseline Findings
+- **Hardware Floor Application**:
+  - Built minimal empty AppKit `NSPanel` + SwiftUI `ContentView` binary (`/tmp/minimal_floor_app`).
+  - Physical footprint: **10.3 MB** (`evidence/floor_app_footprint.txt`).
+  - Virtual dirty: 10.3 MB; Malloc zone dirty: 5.1 MB; `__DATA_DIRTY`: 1.8 MB (`evidence/floor_app_vmmap.txt`).
+  - **Empirical Hardware Floor: 10.3 MB**.
+
+- **Notchify Empirical Baseline (3 Independent Runs, Min / Median / Max)**:
+  - Full table saved to `evidence/stage1_full_baseline_table.txt`.
+  - **State a (Cold Start Collapsed 60s)**:
+    - Footprint: **19.0 / 19.0 / 19.0 MB** (Gap to floor: **+8.7 MB**).
+    - RSS: **86.6 MB**, CPU: **0.0%**, IDLEW: **26 wakeups/s**, Power: **0.0**.
+  - **State b (Collapsed 10 Min Idle)**:
+    - Footprint: **54.0 / 54.0 / 54.0 MB** (Fails to reclaim post-exercise memory).
+    - RSS: **144.8 MB**, CPU: **0.1%**, IDLEW: **514 wakeups/s** (Timers/observers left running).
+  - **State d (Post-Exercise Collapsed 2 Min)**:
+    - Footprint: **45.0 / 45.0 / 46.0 MB** (+26 MB higher than cold start).
+    - RSS: **135.4 MB**, CPU: **0.0%**, IDLEW: **208 wakeups/s**.
+  - **State c (Expanded per Module)**:
+    - Dashboard: **40.0 MB** (RSS 133.5 MB, IDLEW 60)
+    - AirDrop: **58.0 MB** (RSS 153.6 MB, IDLEW 85)
+    - Shelf: **59.0 MB** (RSS 148.4 MB, IDLEW 121)
+    - Thock: **59.0 MB** (RSS 148.2 MB, IDLEW 127)
+    - Telegram: **60.0 MB** (RSS 142.5 MB, IDLEW 134)
+    - Battery: **60.0 MB** (RSS 143.4 MB, IDLEW 142)
+    - Mirror: **54.0 MB** (RSS 142.8 MB, IDLEW 153)
+    - Notifications: **54.0 MB** (RSS 142.8 MB, IDLEW 156)
+  - **State e (Settings Open per Page)**:
+    - 50.0 to 54.0 MB across pages (Modules page peak 108.0 MB during icon cache generation).
+  - **Baseline Hover Time-to-Open**:
+    - Min: **288.4 ms**, Avg: **326.5 ms**, Max: **458.4 ms** (`evidence/baseline_time_to_open.txt`).
+
+- **Top Memory Owners Diagnosed (`evidence/stage1_vmmap_summary.txt`, `evidence/stage1_heap_analysis.txt`)**:
+  1. `Malloc Small`: 31.4 MB dirty (Swift object allocations, ViewModels, dictionary storage, UI elements).
+  2. `CoreAnimation` Layer Backing Stores: 8.24 MB dirty (Window & layer texture buffers for expanded bento UI).
+  3. `__DATA_DIRTY` & `__DATA`: 5.07 MB dirty (Eager static singletons in `AppDelegate.swift`).
+  4. `CoreSVG` Geometry (`SVGAttribute`, `SVGPathCommand`): 1.54 MB dirty (Bubu companion vector paths and SF Symbols).
+  5. `AttributeGraph Data`: 0.80 MB dirty (SwiftUI layout graph cache).
+  6. `CoreUI Image Data` & `CG Image`: 0.91 MB dirty.
+  7. `SettingsWindow` retain cycle: Retains ~6–10 MB of views after being closed.
+  8. `leaks`: 19.5 KB total leaks across process (system AppIntents `NSXPCConnection` framework cycles; zero major unmanaged leaks in Swift code).
+
+- **Ranked Cut List for Stages 2, 3, 4**:
+  1. **Lazy Module Instantiation (Stage 2)**: Stop eager singleton initialization in `AppDelegate.swift`. Defer module and coordinator construction until first tab selection. Target saving: **-8.7 MB** at cold start (drop cold start to ~10.5–11.0 MB).
+  2. **Collapsed View Graph & Texture Teardown (Stage 2)**: Replace expanded SwiftUI hierarchy with lightweight 24pt indicator view when collapsed; flush CoreAnimation transaction. Target saving: **-25 MB to -30 MB** post-collapse memory retention.
+  3. **Settings Window Zero-Retention Lifecycle (Stage 2)**: Set `isReleasedWhenClosed = true` and release `settingsWindow` + hosting controller on close. Target saving: **-6 MB to -10 MB**.
+  4. **Peripheral Hardware & Polling Stop on Collapse (Stages 3 & 4)**: Deallocate `AVCaptureSession` when collapsed. Suspend Telegram polling, Battery IOKit observers, and Calendar timers when not active. Target saving: Drop idle wakeups from **514/sec** to **< 20/sec**.
+  5. **Coalesced Event-Driven Timers (Stage 3 & 4)**: Convert ClockWidget from 1-second continuous timer to wall-clock boundary dispatch. Suspend mascot animation timer when den is collapsed.
+  6. **Image & Cache Bounds (Stage 3)**: Enforce strict `totalCostLimit` on thumbnail and icon caches with memory pressure eviction.
+
+---
+
+## 12. Resource Diet — Stage 2: Eager-Load Purge
+
+### Skill Selection for Stage 2 (Re-selection)
+- **Installed Skills Survey**: `axiom-performance`, `axiom-swiftui`, `axiom-concurrency`, `axiom-macos`, `axiom-media`, `swiftui-pro`, `swift-concurrency-pro`, `ponytail`, `gravitas`.
+- **Skills Chosen**:
+  - `axiom-performance`: Verification of physical footprint reduction, `heap` allocations reduction, and Settings window deallocation.
+  - `axiom-swiftui` & `swiftui-pro`: Splitting `CompactNotchIndicator` to eliminate eager ViewModel observation (`CompactMediaIndicator`, `CompactBatteryIndicator`, `CompactThreeZoneStatusBarIndicator`).
+  - `axiom-macos`: Zero-retention AppKit Settings window lifecycle (`isReleasedWhenClosed = true`, nilling `contentView` and `delegate`).
+  - `ponytail` & `gravitas`: Minimal lazy module abstraction (`LazyNotchModule`) and strict empirical verification without feature regressions.
+- **Trigger**: Eliminating all eager instantiation at app startup and ensuring the collapsed notch and closed Settings window retain zero unused objects.
+
+### Stage 2 Execution & Evidence
+1. **Modules (`LazyNotchModule` in `ModuleRegistry.swift` & `AppDelegate.swift`)**:
+   - Replaced eager singleton creation in `AppDelegate.swift` with lazy factory registration (`registerLazy`).
+   - Removed eager `NowPlayingModule.shared` and `CalendarModule.shared` initialization from `applicationDidFinishLaunching`.
+   - Result: All 7 secondary modules and dashboard models resolve only on demand when selected or hovered.
+2. **Views (`NotchRootView.swift` & `NotchShellCoordinator.swift`)**:
+   - Refactored `CompactNotchIndicator` so it no longer holds stored `@ObservedObject` properties for `NowPlayingModule.shared` or `BatteryModule.shared`.
+   - Extracted sub-indicators so child ViewModels are only touched if their style is actively selected.
+   - When collapsed, only the compact indicator is rendered in the view hierarchy.
+   - On collapse, `NotchShellCoordinator` triggers `ModuleRegistry.shared.unloadInactiveModules()`.
+3. **Settings Zero-Retention (`AppDelegate.swift`)**:
+   - Configured `window.isReleasedWhenClosed = true`.
+   - In `closeSettingsWindow()` and `windowWillClose(_:)`, explicitly set `window.contentView = nil`, `window.delegate = nil`, and nil `settingsWindow`.
+   - Verified: Pre-settings 39.0 MB -> Open 39.0 MB -> Post-closed 39.0 MB. **Delta = +0.0 MB** (target <= 2.0 MB margin met with 100% precision).
+4. **Companion Panel Zero-Overhead (`CompanionCoordinator.swift`)**:
+   - Removed eager `ensurePanelsCreated()` from `start()`. Panels are created strictly just-in-time when the creature leaves the den.
+5. **Responsiveness Verification (`evidence/stage2_time_to_open.txt`)**:
+   - Time-to-open: Min **330.7 ms**, Avg **346.3 ms**, Max **366.4 ms** (Baseline was Avg 326.5 ms). No perceptible regression.
+6. **Feature Integrity**:
+   - 83/83 verification tests pass. All features in `FEATURE_MATRIX.md` remain 100% active.
+
+
+

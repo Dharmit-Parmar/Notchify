@@ -42,7 +42,6 @@ public final class CompanionCoordinator: ObservableObject {
     public func start() {
         setupObservers()
         guard SettingsStore.shared.isCompanionEnabled else { return }
-        ensurePanelsCreated()
         guard !isStarted else { return }
         isStarted = true
         setupTypingMonitor()

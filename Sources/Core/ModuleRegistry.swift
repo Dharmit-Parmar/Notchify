@@ -61,6 +61,23 @@ public final class ModuleRegistry: ObservableObject {
         }
     }
     
+    public func registerLazy(
+        id: String,
+        title: String,
+        iconName: String,
+        themeColor: Color,
+        factory: @escaping @MainActor () -> any NotchModule
+    ) {
+        let lazyModule = LazyNotchModule(
+            id: id,
+            title: title,
+            iconName: iconName,
+            themeColor: themeColor,
+            factory: factory
+        )
+        register(lazyModule)
+    }
+    
     public var orderedModules: [any NotchModule] {
         var result: [any NotchModule] = []
         for id in moduleOrder {
@@ -321,5 +338,84 @@ public final class ModuleRegistry: ObservableObject {
         hoveredModuleId = nil
         pinnedModuleId = nil
         suppressedHoverId = nil
+    }
+    
+    public func unloadInactiveModules() {
+        let activeId = activeModuleId
+        for m in modules {
+            if let lazy = m as? LazyNotchModule, lazy.id != activeId {
+                lazy.unload()
+            }
+        }
+    }
+}
+
+// MARK: - Lazy Module Wrapper for Zero-Startup Overhead
+@MainActor
+public final class LazyNotchModule: NotchModule, ObservableObject {
+    public let id: String
+    public let title: String
+    public let iconName: String
+    public let themeColor: Color
+    public var isEnabled: Bool {
+        get { _instance?.isEnabled ?? _isEnabled }
+        set {
+            _isEnabled = newValue
+            _instance?.isEnabled = newValue
+        }
+    }
+    private var _isEnabled: Bool = true
+    private let factory: @MainActor () -> any NotchModule
+    private var _instance: (any NotchModule)? = nil
+    
+    public init(
+        id: String,
+        title: String,
+        iconName: String,
+        themeColor: Color,
+        factory: @escaping @MainActor () -> any NotchModule
+    ) {
+        self.id = id
+        self.title = title
+        self.iconName = iconName
+        self.themeColor = themeColor
+        self.factory = factory
+    }
+    
+    public var isLoaded: Bool {
+        return _instance != nil
+    }
+    
+    public var loadedInstance: (any NotchModule)? {
+        return _instance
+    }
+    
+    public func resolve() -> any NotchModule {
+        if let inst = _instance { return inst }
+        let inst = factory()
+        inst.isEnabled = self._isEnabled
+        _instance = inst
+        return inst
+    }
+    
+    public func unload() {
+        _instance?.stop()
+        _instance = nil
+    }
+    
+    public func start() {
+        resolve().start()
+    }
+    
+    public func stop() {
+        _instance?.stop()
+    }
+    
+    public func makeCompactView() -> AnyView {
+        resolve().makeCompactView()
+    }
+    
+    public func makeExpandedView() -> AnyView {
+        resolve().makeExpandedView()
     }
 }

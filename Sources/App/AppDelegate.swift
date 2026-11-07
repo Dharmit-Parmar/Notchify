@@ -37,19 +37,58 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         // Sweep any stale orphaned thock-cli child processes left over from ungraceful terminations
         ThockModule.sweepOrphanProcesses()
         
-        // Load current media state; periodic polling starts only while the notch is expanded.
-        _ = NowPlayingModule.shared
-        _ = CalendarModule.shared
-        
-        // Register secondary feature modules for header tabs (AirDrop, File Studio, Thock, Messages, Battery, Mirror, Notifications)
+        // Zero-Startup Overhead: Register secondary feature modules as lazy factories.
+        // Instances and heavy resources are instantiated strictly on first user selection.
         let registry = ModuleRegistry.shared
-        registry.register(AirDropModule.shared)
-        registry.register(ShelfModule.shared)
-        registry.register(ThockModule.shared)
-        registry.register(TelegramModule())
-        registry.register(BatteryModule.shared)
-        registry.register(MirrorModule.shared)
-        registry.register(NotificationModule())
+        registry.registerLazy(
+            id: "airdrop",
+            title: "AirDrop",
+            iconName: "antenna.radiowaves.left.and.right",
+            themeColor: Color(red: 0.20, green: 0.60, blue: 1.00),
+            factory: { AirDropModule.shared }
+        )
+        registry.registerLazy(
+            id: "shelf",
+            title: "Shelf",
+            iconName: "tray.2.fill",
+            themeColor: Color(red: 0.98, green: 0.68, blue: 0.22),
+            factory: { ShelfModule.shared }
+        )
+        registry.registerLazy(
+            id: "thock",
+            title: "Thock",
+            iconName: "keyboard.fill",
+            themeColor: Color(red: 0.25, green: 0.85, blue: 0.58),
+            factory: { ThockModule.shared }
+        )
+        registry.registerLazy(
+            id: "telegram",
+            title: "Messages",
+            iconName: "message.fill",
+            themeColor: Color(red: 0.22, green: 0.76, blue: 0.98),
+            factory: { TelegramModule() }
+        )
+        registry.registerLazy(
+            id: "battery",
+            title: "Battery",
+            iconName: "battery.100.bolt",
+            themeColor: Color(red: 0.40, green: 0.88, blue: 0.45),
+            factory: { BatteryModule.shared }
+        )
+        registry.registerLazy(
+            id: "mirror",
+            title: "Mirror",
+            iconName: "camera.fill",
+            themeColor: Color(red: 0.98, green: 0.42, blue: 0.65),
+            factory: { MirrorModule.shared }
+        )
+        registry.registerLazy(
+            id: "notifications",
+            title: "Alerts",
+            iconName: "bell.fill",
+            themeColor: Color(red: 0.98, green: 0.56, blue: 0.24),
+            factory: { NotificationModule() }
+        )
         
         // Ensure standard /Applications and ~/Applications bundle discovery
         PermissionsHelper.ensureApplicationsSymlink()
@@ -184,7 +223,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         window.title = "Notch Island Preferences"
         window.contentView = NSHostingView(rootView: SettingsView())
-        window.isReleasedWhenClosed = false
+        window.isReleasedWhenClosed = true
         window.level = .statusBar + 1
         window.delegate = AppDelegate.sharedDelegate
         
@@ -197,9 +236,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     public static func closeSettingsWindow() {
         guard isSettingsOpen || settingsWindow != nil else { return }
         isSettingsOpen = false
-        let win = settingsWindow
-        settingsWindow = nil
-        win?.close()
+        if let win = settingsWindow {
+            settingsWindow = nil
+            win.contentView = nil
+            win.delegate = nil
+            win.close()
+        }
         
         if NotchShellCoordinator.shared.state == .expanded,
            !NotchShellCoordinator.shared.isLockedOpen,
@@ -214,6 +256,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
            closingWindow === AppDelegate.settingsWindow {
             AppDelegate.isSettingsOpen = false
             AppDelegate.settingsWindow = nil
+            closingWindow.contentView = nil
+            closingWindow.delegate = nil
             if NotchShellCoordinator.shared.state == .expanded,
                !NotchShellCoordinator.shared.isLockedOpen,
                let panel = NotchShellCoordinator.shared.panel,

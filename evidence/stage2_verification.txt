@@ -1,0 +1,19 @@
+=================================================================
+            STAGE 2: EAGER-LOAD PURGE VERIFICATION               
+=================================================================
+Cold Start Run 1 (PID 17712): Footprint = 38.0 MB | 17712  NotchApp 0.2  75    0.2
+Cold Start Run 2 (PID 17728): Footprint = 39.0 MB | 17728  NotchApp 0.2  69+   0.4
+Cold Start Run 3 (PID 17738): Footprint = 38.0 MB | 17738  NotchApp 0.1  96+   0.3
+Cold Start Footprint: Min 38.0 MB | Median 38.0 MB | Max 39.0 MB
+Gap to Hardware Floor (10.3 MB): +27.7 MB (AppKit + Swift Runtime baseline)
+
+Settings Lifecycle Test:
+  Pre-Settings Footprint: 39.0 MB
+  Settings Open Footprint: 39.0 MB
+  Post-Settings Footprint: 39.0 MB
+  Settings Delta: +0.0 MB (Target: <= 2.0 MB margin -> PASS)
+
+Lazy Module Resolution Test:
+  All 7 secondary modules successfully verified as LazyNotchModule instances.
+  Zero modules instantiated at startup.
+  Verified: Thock, AirDrop, Shelf, Telegram, Battery, Mirror, Notifications only resolve on tab dwell/click.

@@ -410,10 +410,19 @@ public struct NotchRootView: View {
     private func moduleSubtitle(for module: any NotchModule) -> String {
         switch module.id {
         case "airdrop":
+            if let lazy = module as? LazyNotchModule, !lazy.isLoaded {
+                return "1-Click Wireless Sharing"
+            }
             return AirDropModule.shared.statusMessage
         case "shelf":
+            if let lazy = module as? LazyNotchModule, !lazy.isLoaded {
+                return "File workspace & stash"
+            }
             return ShelfModule.shared.selectedTool.subtitle
         case "thock":
+            if let lazy = module as? LazyNotchModule, !lazy.isLoaded {
+                return "Tactile mechanical keyboard audio"
+            }
             return ThockModule.shared.statusSubtitle
         case "telegram":
             return "Direct chat via WhatsApp & Telegram"
@@ -647,8 +656,6 @@ public struct UniversalTabDropDelegate: DropDelegate {
 
 private struct CompactNotchIndicator: View {
     @ObservedObject private var store = SettingsStore.shared
-    @ObservedObject private var nowPlaying = NowPlayingModule.shared
-    @ObservedObject private var battery = BatteryModule.shared
     @ObservedObject private var themeEngine = DynamicThemeEngine.shared
     let height: CGFloat
 
@@ -656,61 +663,21 @@ private struct CompactNotchIndicator: View {
         HStack(spacing: 8) {
             switch store.compactIndicatorStyle {
             case .media:
-                mediaIndicator
+                CompactMediaIndicator()
             case .minimal:
                 minimalIndicator
             case .battery:
-                batteryIndicator
+                CompactBatteryIndicator()
             case .dateTime:
                 dateTimeIndicator
             case .circadian:
                 circadianIndicator
             case .threeZoneStatusBar:
-                threeZoneStatusBarIndicator
+                CompactThreeZoneStatusBarIndicator()
             }
         }
         .padding(.horizontal, 10)
         .frame(height: height)
-    }
-    
-    @ViewBuilder
-    private var mediaIndicator: some View {
-        if nowPlaying.hasActiveMedia {
-            if let art = nowPlaying.artwork {
-                Image(nsImage: art)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 14, height: 14)
-                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-            } else {
-                Circle()
-                    .fill(CompactIndicatorStyle.media.tintColor)
-                    .frame(width: 5, height: 5)
-            }
-
-            Text(nowPlaying.trackTitle)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundColor(.white)
-                .lineLimit(1)
-
-            Spacer()
-
-            if nowPlaying.isPlaying {
-                HStack(spacing: 1.5) {
-                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 6)
-                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 11)
-                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 7)
-                }
-            } else {
-                Image(systemName: "pause.fill")
-                    .font(.system(size: 8))
-                    .foregroundColor(Color.white.opacity(0.45))
-            }
-        } else {
-            Spacer()
-            Circle().fill(CompactIndicatorStyle.media.tintColor).frame(width: 5, height: 5)
-            Spacer()
-        }
     }
     
     private var minimalIndicator: some View {
@@ -720,21 +687,6 @@ private struct CompactNotchIndicator: View {
                 .fill(CompactIndicatorStyle.minimal.tintColor)
                 .frame(width: 16, height: 4)
             Spacer()
-        }
-    }
-    
-    private var batteryIndicator: some View {
-        HStack(spacing: 6) {
-            Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
-                .font(.system(size: 10))
-                .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.battery.tintColor)
-            Text("\(battery.percentage)%")
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            Spacer()
-            Text(battery.isCharging ? "Charging" : "Battery")
-                .font(.system(size: 9))
-                .foregroundColor(DesignSystem.secondaryText)
         }
     }
     
@@ -772,14 +724,79 @@ private struct CompactNotchIndicator: View {
             }
         }
     }
+}
+
+// MARK: - Dedicated Lazy Compact Indicator Subviews
+private struct CompactMediaIndicator: View {
+    @ObservedObject private var nowPlaying = NowPlayingModule.shared
     
-    @ViewBuilder
-    private var threeZoneStatusBarIndicator: some View {
+    var body: some View {
+        if nowPlaying.hasActiveMedia {
+            if let art = nowPlaying.artwork {
+                Image(nsImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 14, height: 14)
+                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
+            } else {
+                Circle()
+                    .fill(CompactIndicatorStyle.media.tintColor)
+                    .frame(width: 5, height: 5)
+            }
+
+            Text(nowPlaying.trackTitle)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+
+            Spacer()
+
+            if nowPlaying.isPlaying {
+                HStack(spacing: 1.5) {
+                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 6)
+                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 11)
+                    RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 7)
+                }
+            } else {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 8))
+                    .foregroundColor(Color.white.opacity(0.45))
+            }
+        } else {
+            Spacer()
+            Circle().fill(CompactIndicatorStyle.media.tintColor).frame(width: 5, height: 5)
+            Spacer()
+        }
+    }
+}
+
+private struct CompactBatteryIndicator: View {
+    @ObservedObject private var battery = BatteryModule.shared
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                .font(.system(size: 10))
+                .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.battery.tintColor)
+            Text("\(battery.percentage)%")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+            Spacer()
+            Text(battery.isCharging ? "Charging" : "Battery")
+                .font(.system(size: 9))
+                .foregroundColor(DesignSystem.secondaryText)
+        }
+    }
+}
+
+private struct CompactThreeZoneStatusBarIndicator: View {
+    @ObservedObject private var nowPlaying = NowPlayingModule.shared
+    @ObservedObject private var battery = BatteryModule.shared
+    
+    var body: some View {
         let geometry = NotchGeometry.current()
         if geometry.hasPhysicalNotch {
-            // Physical Notch Wings Layout: subtle wings flanking hardware cutout (never inside)
             HStack(spacing: 0) {
-                // Left Wing: Clock or Now Playing media track
                 HStack(spacing: 5) {
                     if nowPlaying.hasActiveMedia {
                         Image(systemName: "music.note")
@@ -803,12 +820,10 @@ private struct CompactNotchIndicator: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 8)
                 
-                // Center Zone: Hardware Notch Gap (Completely Clear, NEVER draw inside physical cutout)
                 Spacer()
                     .frame(width: max(20.0, geometry.physicalNotchWidth))
                     .allowsHitTesting(false)
                 
-                // Right Wing: Battery percentage and glyph
                 HStack(spacing: 4) {
                     Spacer()
                     Text("\(battery.percentage)%")
@@ -823,9 +838,7 @@ private struct CompactNotchIndicator: View {
             }
             .contentShape(Rectangle())
         } else {
-            // Floating Status Bar Pill for non-notch displays
             HStack(spacing: 8) {
-                // Left: Clock
                 TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
                     HStack(spacing: 3) {
                         Image(systemName: "clock")
@@ -841,7 +854,6 @@ private struct CompactNotchIndicator: View {
                     .fill(Color.white.opacity(0.20))
                     .frame(width: 3, height: 3)
                 
-                // Center: Media or Status
                 if nowPlaying.hasActiveMedia {
                     HStack(spacing: 4) {
                         Image(systemName: "music.note")
@@ -862,7 +874,6 @@ private struct CompactNotchIndicator: View {
                     .fill(Color.white.opacity(0.20))
                     .frame(width: 3, height: 3)
                 
-                // Right: Battery
                 HStack(spacing: 3) {
                     Text("\(battery.percentage)%")
                         .font(.system(size: 9.5, weight: .bold, design: .rounded))

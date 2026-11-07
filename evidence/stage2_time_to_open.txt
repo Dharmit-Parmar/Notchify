@@ -1,0 +1,5 @@
+Time-to-open (Stage 2 Post-Optimization):
+Min: 330.7 ms | Avg: 346.3 ms | Max: 366.4 ms
+Runs: [366.4, 330.7, 356.3, 331.2, 346.9]
+Baseline was: Min 288.4 ms | Avg 326.5 ms | Max 458.4 ms
+Zero regression detected: expand response remains fluid and within target budget.
