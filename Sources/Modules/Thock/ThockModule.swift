@@ -182,9 +182,10 @@ public final class ThockModule: NotchModule {
     private var activeHeartbeatTimer: AnyCancellable?
     
     public init() {
+        signal(SIGPIPE, SIG_IGN)
         // Fast, non-blocking synchronous file reads
-        loadPacksFromDisk()
         loadFavoritesFromDisk()
+        loadPacksFromDisk()
         loadSettingsFromDisk()
         checkAllPermissions()
         
@@ -382,6 +383,10 @@ public final class ThockModule: NotchModule {
         self.hasAccessibilityPermission = ax
         self.hasInputMonitoringPermission = hid
         self.isAccessibilityGranted = ax && hid
+        if !ax || !hid {
+            self.hasDismissedPermissionsNotice = false
+            UserDefaults.standard.set(false, forKey: "thock_permissions_notice_dismissed")
+        }
     }
     
     public func requestAllPermissions() {
@@ -499,33 +504,21 @@ public final class ThockModule: NotchModule {
     }
     
     public func loadSettingsFromDisk() {
-        struct Settings: Codable {
-            let volume: Double
-            let pack: String
-            var asmrVolume: Double?
-        }
-        if let data = try? Data(contentsOf: settingsURL),
-           let s = try? JSONDecoder().decode(Settings.self, from: data) {
-            self.keyVolume = s.volume
-            self.volume = s.volume
-            self.keyVolumeText = "\(Int(s.volume.rounded()))"
-            self.currentPack = s.pack
-            if let asmr = s.asmrVolume {
-                self.asmrVolume = asmr
-                self.asmrVolumeText = "\(Int(asmr.rounded()))"
-            }
-        }
+        struct Settings: Codable { var volume: Double?; var pack: String?; var asmrVolume: Double? }
+        guard let data = try? Data(contentsOf: settingsURL),
+              let s = try? JSONDecoder().decode(Settings.self, from: data) else { return }
+        if let v = s.volume { keyVolume = v; volume = v; keyVolumeText = "\(Int(v.rounded()))" }
+        if let p = s.pack, !p.isEmpty { currentPack = p }
+        if let a = s.asmrVolume { asmrVolume = a; asmrVolumeText = "\(Int(a.rounded()))" }
     }
     
     public func saveSettingsToDisk() {
-        struct Settings: Codable {
-            let volume: Double
-            let pack: String
-            let asmrVolume: Double
-        }
-        let s = Settings(volume: self.keyVolume, pack: self.currentPack, asmrVolume: self.asmrVolume)
-        if let data = try? JSONEncoder().encode(s) {
-            try? data.write(to: settingsURL)
+        struct Settings: Codable { let volume: Double; let pack: String; let asmrVolume: Double }
+        let kv = isKeyMuted ? preMuteKeyVolume : keyVolume
+        let av = isAsmrMuted ? preMuteAsmrVolume : asmrVolume
+        try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(Settings(volume: kv, pack: currentPack, asmrVolume: av)) {
+            try? data.write(to: settingsURL, options: .atomic)
         }
     }
     
@@ -728,15 +721,13 @@ public final class ThockModule: NotchModule {
         
         proc.terminationHandler = { [weak self] p in
             DispatchQueue.main.async {
-                self?.outPipe?.fileHandleForReading.readabilityHandler = nil
-                self?.inPipe = nil
-                self?.outPipe = nil
-                self?.process = nil
-                self?.spawnedProcess = nil
-                self?.spawnedPID = nil
-                self?.isRunning = false
-                self?.processPID = nil
-                self?.statusSubtitle = "Engine Stopped"
+                guard let self else { return }
+                guard self.spawnedProcess == nil || self.spawnedProcess === p else { return }
+                self.outPipe?.fileHandleForReading.readabilityHandler = nil
+                self.inPipe = nil; self.outPipe = nil; self.process = nil
+                self.spawnedProcess = nil; self.spawnedPID = nil; self.processPID = nil
+                self.isRunning = false
+                self.statusSubtitle = "Engine Stopped"
             }
         }
         
@@ -827,6 +818,7 @@ public final class ThockModule: NotchModule {
         let digits = text.filter { $0.isNumber }
         if let val = Double(digits) {
             let clamped = max(0, min(100, val))
+            guard clamped != keyVolume else { keyVolumeText = "\(Int(clamped))"; return }
             if isKeyMuted && clamped > 0 { isKeyMuted = false }
             self.keyVolume = clamped
             self.volume = clamped
@@ -841,6 +833,7 @@ public final class ThockModule: NotchModule {
         let digits = text.filter { $0.isNumber }
         if let val = Double(digits) {
             let clamped = max(0, min(100, val))
+            guard clamped != asmrVolume else { asmrVolumeText = "\(Int(clamped))"; return }
             if isAsmrMuted && clamped > 0 { isAsmrMuted = false }
             self.asmrVolume = clamped
             saveSettingsToDisk()
