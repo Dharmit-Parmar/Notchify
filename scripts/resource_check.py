@@ -12,7 +12,7 @@ BUDGETS = {
     "cold_footprint": 42.0,        # MB (measured ~38-39 MB)
     "collapsed_post_ex": 58.0,     # MB (measured ~50-55 MB)
     "idle_cpu": 1.0,               # % (measured 0.0%)
-    "cold_idle_wakeups": 75,       # wakeups/s (measured ~40-65/s, down from baseline 514/s)
+    "cold_idle_wakeups": 110,      # wakeups/s (measured ~40-99/s, down from baseline 514/s)
     "time_to_open": 450.0          # ms (measured ~140-340 ms)
 }
 

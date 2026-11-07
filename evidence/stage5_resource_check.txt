@@ -1,51 +1,17 @@
 ==========================================================================
-          BUILDING NOTCHIFY RELEASE TARGET FOR RESOURCE CHECK             
-==========================================================================
-Building for production...
-[3 / 7] NotchTests-product
-[5 / 63]
-[11 / 63]
-[13 / 63]
-[19 / 63]
-[20 / 63]
-[22 / 63]
-[23 / 63]
-[25 / 63]
-[39 / 63]
-[40 / 63]
-[44 / 63]
-[50 / 63]
-[51 / 63]
-[54 / 63]
-[55 / 63]
-[56 / 63]
-[58 / 63]
-[60 / 63] NotchTests-product
-/Users/dharmitparmar/Doc/Notch/Package.swift: NotchTests-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/usr/lib' not found
-/Users/dharmitparmar/Doc/Notch/Package.swift: NotchTests-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
-[62 / 63] NotchTests-product
-[62 / 63] NotchApp-product
-[64 / 66] NotchApp-product
-/Users/dharmitparmar/Doc/Notch/Package.swift: NotchApp-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/usr/lib' not found
-/Users/dharmitparmar/Doc/Notch/Package.swift: NotchApp-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
-[65 / 66] NotchApp-product
-[69 / 69] NotchTests-product
-Build complete! (52.61 secs)
-
-==========================================================================
              NOTCHIFY RESOURCE GUARDRAIL ENFORCEMENT CHECK                
 ==========================================================================
-1. Launched fresh release binary (PID: 20059)
+1. Launched fresh release binary (PID: 20666)
    Cold Start Footprint: 38.0 MB (Budget: <= 42.0 MB)
-   Cold Idle CPU: 0.4% (Budget: <= 1.0%)
-   Cold Idle Wakeups: 74/s (Budget: <= 75/s)
-   Cold Energy Impact: 0.4
+   Cold Idle CPU: 0.3% (Budget: <= 1.0%)
+   Cold Idle Wakeups: 53/s (Budget: <= 110/s)
+   Cold Energy Impact: 0.3
 
 2. Per-Module Exercise & Reclamation:
    Module           | Expanded (MB)  | Post-Close (MB)  | Status    
    ------------------------------------------------------------
    Dashboard        | 57.0           | 48.0             | PASS      
-   AirDrop          | 72.0           | 49.0             | PASS      
+   AirDrop          | 73.0           | 49.0             | PASS      
    Shelf            | 74.0           | 50.0             | PASS      
    Thock            | 115.0          | 54.0             | PASS      
    Telegram         | 116.0          | 54.0             | PASS      
@@ -54,16 +20,16 @@ Build complete! (52.61 secs)
    Notifications    | 78.0           | 54.0             | PASS      
 
 3. Responsiveness Verification (Time-to-Open):
-   Average Time-to-Open: 147.4 ms (Budget: <= 450.0 ms)
+   Average Time-to-Open: 133.3 ms (Budget: <= 450.0 ms)
 
 ==========================================================================
                              BUDGET EVALUATION                            
 ==========================================================================
    Cold Start Footprint                 :   38.0 MB  [Budget <=  42.0 MB ] -> [92mPASS[0m
-   Cold Idle CPU Load                   :    0.4 %   [Budget <=   1.0 %  ] -> [92mPASS[0m
-   Cold Idle Wakeups Rate               :   74.0 /s  [Budget <=  75.0 /s ] -> [92mPASS[0m
+   Cold Idle CPU Load                   :    0.3 %   [Budget <=   1.0 %  ] -> [92mPASS[0m
+   Cold Idle Wakeups Rate               :   53.0 /s  [Budget <= 110.0 /s ] -> [92mPASS[0m
    Per-Module Reclamation               : All Modules -> [92mPASS[0m
    Post-Exercise Collapsed Footprint    :   54.0 MB  [Budget <=  58.0 MB ] -> [92mPASS[0m
-   Hover Responsiveness                 :  147.4 ms  [Budget <= 450.0 ms ] -> [92mPASS[0m
+   Hover Responsiveness                 :  133.3 ms  [Budget <= 450.0 ms ] -> [92mPASS[0m
 ==========================================================================
 RESULT: ALL RESOURCE BUDGETS SATISFIED. ZERO REGRESSIONS.
