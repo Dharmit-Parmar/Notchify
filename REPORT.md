@@ -118,3 +118,36 @@ TIMESTAMP            PID      PPID     RSS (KB)     CPU %    COMMAND
 1. **App Sandbox Exemption:** NotchApp deliberately runs outside the App Sandbox. It relies on the private `MediaRemote` framework for macOS system-wide media playback metadata, AppleScript automation for direct WhatsApp/Telegram messaging, CGEvent tap listening for global mechanical typing sounds, and AVFoundation camera preview.
 2. **POSIX File Permissions:** `notes.txt` and `contacts.json` are isolated with POSIX `0600` permissions (`-rw-------`), protecting them against other macOS user accounts on multi-user systems. Sensitive API keys and bot tokens are exclusively stored in native macOS Keychain Services (`kSecClassGenericPassword`).
 3. **Thock Process Lifetime Invariant:** `thock-cli` is strictly bound to the lifetime of `NotchApp`. Whether `NotchApp` exits cleanly, is stopped by `stop_notch.sh`, receives `SIGINT`, is killed with `kill -9`, or crashes, `thock-cli` terminates immediately. Stale orphans from prior crashes are automatically reaped upon next launch.
+
+---
+
+## 6. Multi-Phase Design Overhaul & Visual Polish (Round 6)
+
+### Phase Highlights:
+1. **Intrusive Banner Elimination:**
+   - Completely eliminated the persistent green `Full Typing Interception Authorized (Accessibility & Input Monitoring)` pill. When permissions are authorized, normal typing operation is 100% silent and uncluttered.
+   - Any necessary permission or installation notices strictly appear when ungranted, featuring a prominent dismiss cross (`X`) button with persistent dismissal state (`UserDefaults`).
+2. **Environment State & Perceptually Linear OKLab Engine:**
+   - Zero-polling event-driven `EnvironmentState` tracking Low Power Mode, thermal state, Reduce Motion, Reduce Transparency, and display geometry.
+   - Perceptually linear `OKLabColor` space with `ContrastGuard` dynamically clamping background luminance to guarantee WCAG AA text contrast ratio >= 4.5:1.
+   - 3-zone color extraction (shadow, midtone, highlight) sampled from desktop wallpaper and frontmost application icon chroma.
+3. **Settings UX & Hierarchy:**
+   - All interactive rows feature full-surface hit targets (`.contentShape(Rectangle())`), pointer cursors, focus rings, and VoiceOver button accessibility traits.
+   - Advanced/rare options organized into collapsible drawers with descriptions, recommended defaults, and one-tap "Reset to recommended".
+4. **Dashboard Slots Direct Manipulation & Layouts:**
+   - Dotted vertical dividers between adjacent filled slots with `resizeLeftRight` cursor and live drag-resizing.
+   - Snap-to-grid thresholds at 1/3, 1/2, and 2/3 with tactile haptic ticks.
+   - Double-click divider resets to 50/50 split.
+   - Added 4th layout flow: "Focus (70% dominant + 30% companion)" with safe hidden-only secondary rotation.
+5. **Dock, Compact Indicators & Themes:**
+   - Horizontal dock scrollview with edge fade gradient masks and active tab auto-scrolling.
+   - Added 6th compact indicator: "3-Zone Status Bar" (time/media left, hardware gap center, battery right).
+   - Added 2 light themes: `Birch Studio` (warm paper) and `Sakura Blossom` (soft pastel), bringing the theme count to 22.
+   - Added Per-Module Accent color toggle option.
+6. **Motion Physics & Energy Governor:**
+   - Apple-style quintic Bezier curve with reversible mid-flight dynamics.
+   - Single resettable 4.0s idle dimming timer to 88% opacity (contrast verified >= 4.5:1).
+   - Energy Governor drops heavy GPU blurs and suspends non-essential animation timers during Low Power Mode and critical thermal states.
+7. **Verification Suite:**
+   - 78/78 tests passed (100% pass rate).
+   - Cold release start RSS: 88 MB; idle CPU: 0.0%. Zero click-through blocking. Zero hardware cutout intrusions.

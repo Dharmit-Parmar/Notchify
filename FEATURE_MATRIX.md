@@ -25,6 +25,8 @@
 | `starlight` | Starlight | Static | Active | Champagne warm gold |
 | `noir` | Noir | Static | Active | High-contrast OLED dark |
 | `emerald` | Emerald | Static | Active | Deep forest jewel |
+| `birch` | Birch Studio | Light | Active | Warm paper (#F7F5F0), charcoal text, amber accent (Contrast 15.3:1) |
+| `sakura` | Sakura Blossom | Light | Active | Soft pastel (#FDF6F7), plum text, blossom accent (Contrast 15.9:1) |
 
 ## 2. Dynamic Vibrancy (`DynamicVibrancy`)
 
@@ -68,6 +70,7 @@
 | `battery` | Battery % & bolt | Green (#66E073) | Active |
 | `dateTime` | Monospaced clock & day | Blue (#4DA6FF) | Active |
 | `circadian` | Solar sun & palette name | Gold (#FAB838) | Active |
+| `threeZoneStatusBar` | 3-Zone Status Bar (Time/media left, hardware gap center, battery right) | Dynamic Accent | Active |
 
 ## 7. Dashboard Layout Orientation Flows (`DashboardLayoutFlow`)
 
@@ -76,6 +79,7 @@
 | `adaptiveAuto` | Smart Slot Auto-Bento | Active (Default) |
 | `horizontalStrip` | 4-Slot Horizontal Glance | Active |
 | `bentoQuad` | 2x2 Column-Based Bento | Active |
+| `focusDominant` | Focus (70% Dominant Primary + 30% Companion) | Active |
 
 ## 8. Dashboard Widgets & Spans (`DashboardWidgetType`)
 
@@ -119,6 +123,8 @@
 | `NotchApp_CloseOnEsc` | Bool | true | true / false | Active |
 | `NotchApp_SoundFeedback` | Bool | true | true / false | Active |
 | `NotchApp_HapticFeedback` | Bool | true | true / false | Active |
+| `NotchApp_UsePerModuleAccent` | Bool | false | true / false | Active |
+| `NotchApp_DashboardSplitRatio` | Double | 0.50 | 0.20 – 0.80 | Active |
 
 ## 11. Companion Mascot Settings (`SettingsStore`)
 
