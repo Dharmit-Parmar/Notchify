@@ -313,3 +313,28 @@
   4. Measure RSS footprint and idle CPU to confirm the zero-leak and energy governor guarantees.
   5. Ensure all status tags/banners only appear when ungranted, with dismiss 'X' buttons, and never clutter normal authorized operations.
   6. Finalize `FEATURE_MATRIX.md`, `REPORT.md`, and commit Phase 6.
+
+---
+
+## 10. Stage A: Stop the Lag and Regressions
+
+### Skill Selection for Stage A (Re-selection)
+- **Installed Skills Survey**: `axiom-performance`, `axiom-macos`, `axiom-testing`, `axiom-tools`, `swiftui-pro`, `swiftui-expert-skill`, `swift-concurrency-pro`, `apple-design`, `emilkowalski-motion`, `ponytail`, `unslop`, `gravitas`.
+- **Skills Chosen**:
+  - `axiom-performance`: CPU profiling (`top`, `sample`, `xctrace Time Profiler`), 15-minute memory soak logging, identifying main-thread hangs and view invalidation spikes.
+  - `axiom-macos`: AppKit window coordinate handling, event-tap mechanics, CGEvent synthesis for headless hover benchmarks.
+  - `swiftui-pro` & `swiftui-expert-skill`: Root-cause diagnosis of SwiftUI view re-render cascades, `@Published` invalidations across large stores, `.focusable()` and hover tracking overhead, mask layering performance.
+  - `swift-concurrency-pro`: Task cancellation, thread safety, eliminating work per mouse-move event.
+  - `axiom-testing`: Scripted reproducible bisect benchmark harness, automated tests for hover responsiveness (< 350ms) and regressions.
+  - `ponytail`: Ruthless elimination of redundant work, zero-cost architecture per mouse-move event.
+  - `gravitas`: Strict empirical evidence requirements (raw files in `evidence/`), no unsubstantiated numbers.
+- **Trigger**: Identifying and eliminating hover lag, cursor stutter, main-thread blocking, and regressions across design-phase commits.
+- **Goals**:
+  1. Bisect commits from baseline (`0c19662`) through each design commit (`880920b`, `919b76f`, `3864f89`, `b6bac62`, `f774b33`, `ed5c708`, `9f55c72`, `10e4195`).
+  2. Run a scripted hover & navigation benchmark posting synthetic CGEvents into and across the notch, opening Settings, and switching tabs.
+  3. Record CPU via `top -l 3` (last sample) and main-thread stacks via `sample` into `evidence/`.
+  4. Isolate root causes: work per mouse move (e.g. `onContinuousHover` allocating timers), store re-render cascades, gradient masks, focus/hover tracking on every card.
+  5. Implement targeted fixes while preserving all features (Rule 0).
+  6. Verify regressions: idle CPU, 15-minute memory soak, Thock child cleanup, camera stop on collapse, test suite.
+  7. Add responsiveness and regression tests in `Tests/VerificationTests.swift`.
+
