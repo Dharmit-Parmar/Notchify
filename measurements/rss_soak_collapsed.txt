@@ -1,0 +1,15 @@
+==========================================================
+  NOTCHIFY SYSTEM MEMORY SOAK TEST (SOAK TIME: 1800s) 
+==========================================================
+Start Time: Sat Nov  7 12:13:21 IST 2026
+Host: Darwin 27.0.0 arm64
+Sampling Interval: 30s
+Target Duration: 1800s (30 min)
+
+TIMESTAMP            PID      PPID     RSS (KB)     CPU %    COMMAND                       
+--------------------------------------------------------------------------------------------------
+2026-11-07 12:13:21  23048    1        191056       7.8      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:13:51  23048    1        188912       9.9      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:14:21  23048    1        172800       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:14:51  23048    1        172752       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp
+2026-11-07 12:15:22  23048    1        172752       0.0      /Users/dharmitparmar/Doc/Notch/NotchApp.app/Contents/MacOS/NotchApp

@@ -184,9 +184,12 @@ public final class AskAIService: ObservableObject {
         self.isGenerating = true
         self.errorMessage = nil
         
-        // Append user message to history
+        // Append user message to history (capped at 40 messages to prevent memory growth)
         let userMsg = AIChatMessage(role: .user, content: trimmed, provider: p)
         self.messages.append(userMsg)
+        if self.messages.count > 40 {
+            self.messages.removeFirst(self.messages.count - 40)
+        }
         
         var responseText = ""
         
@@ -243,6 +246,9 @@ public final class AskAIService: ObservableObject {
         self.lastResponse = responseText
         let assistantMsg = AIChatMessage(role: .assistant, content: responseText, provider: p)
         self.messages.append(assistantMsg)
+        if self.messages.count > 40 {
+            self.messages.removeFirst(self.messages.count - 40)
+        }
         self.isGenerating = false
         
         return responseText

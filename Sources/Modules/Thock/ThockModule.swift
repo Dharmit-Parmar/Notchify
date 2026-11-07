@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import ApplicationServices
 import Combine
+import Darwin
 
 // MARK: - Subsections Enum
 public enum ThockSubSection: String, CaseIterable, Identifiable {
@@ -46,12 +47,18 @@ public final class ThockModule: NotchModule {
     public let id = "thock"
     public let title = "Thock"
     public let iconName = "keyboard"
-    @Published public var isEnabled: Bool = true
+    @Published public var isEnabled: Bool = true {
+        didSet {
+            if !isEnabled {
+                terminateProcess()
+            }
+        }
+    }
     
     nonisolated public static let pinnedKeySoundCommit = "264ef80f73c38b1d45a6c3e69fa127775b7a5e49"
     
     // Dynamic Portable Paths
-    public static func resolveKeySoundDirectory() -> URL {
+    nonisolated public static func resolveKeySoundDirectory() -> URL {
         let fm = FileManager.default
         let homeDir = URL(fileURLWithPath: NSHomeDirectory())
         
@@ -204,44 +211,85 @@ public final class ThockModule: NotchModule {
         stopLightweightMonitor()
     }
     
+    // MARK: - Process Group & Orphan Hygiene
+    nonisolated public static func sweepOrphanProcesses() {
+        let binaryPath = resolveKeySoundDirectory().appendingPathComponent("target/release/thock-cli").path
+        
+        var pids = [pid_t](repeating: 0, count: 2048)
+        let byteCount = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids, Int32(MemoryLayout<pid_t>.stride * pids.count))
+        guard byteCount > 0 else { return }
+        let count = Int(byteCount) / MemoryLayout<pid_t>.stride
+        
+        let myPid = getpid()
+        var pathBuffer = [CChar](repeating: 0, count: 4096)
+        
+        for i in 0..<count {
+            let pid = pids[i]
+            guard pid > 1 && pid != myPid else { continue }
+            
+            var bsdInfo = proc_bsdinfo()
+            let size = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsdInfo, Int32(MemoryLayout<proc_bsdinfo>.size))
+            guard size > 0 else { continue }
+            
+            // Only sweep orphaned processes reparented to launchd (ppid == 1)
+            guard bsdInfo.pbi_ppid == 1 else { continue }
+            
+            let pathLen = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
+            guard pathLen > 0 else { continue }
+            let execPath = pathBuffer.withUnsafeBufferPointer { ptr in
+                String(cString: ptr.baseAddress!)
+            }
+            
+            if execPath == binaryPath || execPath.hasSuffix("/thock-cli") {
+                // Orphaned thock-cli detected! Terminate it cleanly.
+                kill(-pid, SIGTERM)
+                kill(pid, SIGTERM)
+                usleep(20_000)
+                if kill(pid, 0) == 0 {
+                    kill(-pid, SIGKILL)
+                    kill(pid, SIGKILL)
+                }
+            }
+        }
+    }
+    
     public func terminateProcess() {
         stopLightweightMonitor()
         
-        // CRITICAL INVARIANT: Terminate ONLY the child process spawned by this instance of Notch!
-        // Never touch or kill external instances of thock-cli running in user terminals.
-        guard let proc = self.spawnedProcess, proc.isRunning else {
-            self.spawnedProcess = nil
-            self.spawnedPID = nil
-            self.process = nil
-            self.processPID = nil
-            self.isRunning = false
-            return
-        }
+        let targetPid = self.spawnedPID ?? self.processPID
         
-        // Try gentle exit command first
+        // Try gentle exit command on stdin first
         if let inPipe = self.inPipe {
             if let data = "exit\n".data(using: .utf8) {
                 try? inPipe.fileHandleForWriting.write(contentsOf: data)
             }
+            try? inPipe.fileHandleForWriting.close()
         }
         
-        // Terminate the spawned child process instance directly
-        proc.terminate()
-        
-        // Give up to 150ms for clean termination
-        let deadline = Date().addingTimeInterval(0.15)
-        while proc.isRunning && Date() < deadline {
-            usleep(5_000)
+        if let proc = self.spawnedProcess {
+            proc.terminate()
         }
         
-        // If still running after deadline, force terminate via SIGKILL strictly to the spawned PID
-        if proc.isRunning {
-            if let pid = self.spawnedPID {
+        if let pid = targetPid, pid > 1 {
+            // Signal process group and process
+            kill(-pid, SIGTERM)
+            kill(pid, SIGTERM)
+            
+            // Give up to 100ms for clean termination
+            let deadline = Date().addingTimeInterval(0.10)
+            while kill(pid, 0) == 0 && Date() < deadline {
+                usleep(5_000)
+            }
+            
+            // If still running after deadline, force terminate via SIGKILL strictly to spawned process & group
+            if kill(pid, 0) == 0 {
+                kill(-pid, SIGKILL)
                 kill(pid, SIGKILL)
             }
         }
         
         self.outPipe?.fileHandleForReading.readabilityHandler = nil
+        try? self.outPipe?.fileHandleForReading.close()
         self.inPipe = nil
         self.outPipe = nil
         self.process = nil
@@ -602,6 +650,9 @@ public final class ThockModule: NotchModule {
         guard !isRunning else { return }
         FeedbackManager.playClick()
         
+        // Sweep any stale orphan processes before launching a fresh engine
+        Self.sweepOrphanProcesses()
+        
         guard FileManager.default.fileExists(atPath: binaryURL.path) else {
             appendLog("❌ Binary missing at \(binaryURL.path). Build with 'cargo build --release' in KeySound.")
             return
@@ -665,12 +716,17 @@ public final class ThockModule: NotchModule {
         
         do {
             try proc.run()
+            let childPid = proc.processIdentifier
+            if childPid > 1 {
+                // Isolate child process in its own process group
+                setpgid(childPid, childPid)
+            }
             self.isRunning = true
-            self.spawnedPID = proc.processIdentifier
-            self.processPID = proc.processIdentifier
-            self.statusSubtitle = "Active · PID \(proc.processIdentifier)"
+            self.spawnedPID = childPid
+            self.processPID = childPid
+            self.statusSubtitle = "Active · PID \(childPid)"
             FeedbackManager.playSuccess()
-            appendLog("🚀 Thock CLI Engine launched [PID: \(proc.processIdentifier)]")
+            appendLog("🚀 Thock CLI Engine launched [PID: \(childPid)]")
             
             // Sync current volume and asmr state to spawned engine
             let kv = isKeyMuted ? 0 : Int(keyVolume.rounded())
@@ -693,36 +749,7 @@ public final class ThockModule: NotchModule {
     
     public func stopEngine() {
         FeedbackManager.playClick()
-        guard isRunning || spawnedProcess?.isRunning == true else {
-            outPipe?.fileHandleForReading.readabilityHandler = nil
-            inPipe = nil
-            outPipe = nil
-            process = nil
-            spawnedProcess = nil
-            spawnedPID = nil
-            processPID = nil
-            isRunning = false
-            statusSubtitle = "Engine Stopped"
-            return
-        }
-        
-        sendCommand("exit", echo: false)
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self = self else { return }
-            if let proc = self.spawnedProcess, proc.isRunning {
-                proc.terminate()
-            }
-            self.outPipe?.fileHandleForReading.readabilityHandler = nil
-            self.inPipe = nil
-            self.outPipe = nil
-            self.process = nil
-            self.spawnedProcess = nil
-            self.spawnedPID = nil
-            self.isRunning = false
-            self.processPID = nil
-            self.statusSubtitle = "Engine Stopped"
-        }
+        terminateProcess()
     }
     
     public func toggleEngine() {

@@ -34,6 +34,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             }
         }
         
+        // Sweep any stale orphaned thock-cli child processes left over from ungraceful terminations
+        ThockModule.sweepOrphanProcesses()
+        
         // Load current media state; periodic polling starts only while the notch is expanded.
         _ = NowPlayingModule.shared
         _ = CalendarModule.shared
@@ -56,6 +59,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         setupNotchPanel()
         CompanionCoordinator.shared.start()
         setupSettingsObserver()
+        
+        if ProcessInfo.processInfo.environment["NOTCH_AUTO_START_THOCK"] == "1" {
+            ThockModule.shared.startEngine()
+        }
     }
     
     private func setupMainMenu() {
@@ -216,7 +223,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
     }
     
-    public func applicationWillTerminate(_ notification: Notification) {
+    @MainActor
+    public static func performCleanShutdown(exitCode: Int32 = 0, fromSignal: Bool = false) {
         ThockModule.shared.terminateProcess()
         ShelfModule.shared.cleanStaleTempFiles(all: true)
         MirrorModule.shared.manager.stopSync()
@@ -224,5 +232,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         CompanionCoordinator.shared.stop()
         NoteStorageManager.shared.saveImmediately()
         NowPlayingModule.shared.teardown()
+        if fromSignal {
+            exit(exitCode)
+        }
+    }
+    
+    public func applicationWillTerminate(_ notification: Notification) {
+        AppDelegate.performCleanShutdown(exitCode: 0, fromSignal: false)
     }
 }

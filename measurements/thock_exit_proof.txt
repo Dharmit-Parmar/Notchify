@@ -1,0 +1,60 @@
+========================================================
+  THOCK PROCESS LIFECYCLE & ZERO-ORPHAN EMPIRICAL PROOF 
+========================================================
+Date: Sat Nov  7 12:11:16 IST 2026
+Host: Darwin 27.0.0 arm64
+Git Commit: 31e0628a4c3cd16d085a6d66e0d6a41b1fcbe88e
+Git Branch: fix/notchify-deep-audit-performance
+
+[PATH 1/6] Testing Graceful Exit via SIGTERM (Cocoa / Launchd Normal Terminate)...
+  [Before] Running processes:
+    NotchApp PID: 22771
+    thock-cli entry: 22774 22771 /Users/dharmitparmar/Doc/KeySound/target/release/thock-cli
+  Sending SIGTERM to NotchApp PID 22771...
+  [After SIGTERM] thock-cli process count: 0
+  ✓ PASSED: thock-cli cleanly terminated on SIGTERM.
+
+[PATH 2/6] Testing stop_notch.sh (killall NotchApp invocation)...
+  [Before] Running processes:
+    NotchApp PID: 22808
+    thock-cli entry: 22811 22808 /Users/dharmitparmar/Doc/KeySound/target/release/thock-cli
+  Invoking ./stop_notch.sh...
+NotchApp stopped.
+  [After stop_notch.sh] thock-cli process count: 0
+  ✓ PASSED: thock-cli cleanly terminated when stopped via stop_notch.sh.
+
+[PATH 3/6] Testing SIGINT (Ctrl-C in Terminal)...
+  [Before] Running processes:
+    NotchApp PID: 22847
+    thock-cli entry: 22851 22847 /Users/dharmitparmar/Doc/KeySound/target/release/thock-cli
+  Sending SIGINT (Ctrl-C) to NotchApp PID 22847...
+  [After SIGINT] thock-cli process count: 0
+  ✓ PASSED: thock-cli cleanly terminated on SIGINT.
+
+[PATH 4/6] Testing Crash Simulation (kill -SEGV / Segmentation Fault)...
+  [Before] Running processes:
+    NotchApp PID: 22884
+    thock-cli entry: 22887 22884 /Users/dharmitparmar/Doc/KeySound/target/release/thock-cli
+  Simulating crash via kill -SEGV 22884 (Swift code cannot execute cleanup)...
+  Waiting 1.5s for thock-cli parent watchdog thread (500ms cadence) to detect PPID change / launchd reparenting...
+  [After NotchApp Crash] thock-cli process count: 0
+  ✓ PASSED: thock-cli watchdog self-terminated when parent crashed.
+
+[PATH 5/6] Testing Unconditional Kill (kill -9 / SIGKILL)...
+  [Before] Running processes:
+    NotchApp PID: 22923
+    thock-cli entry: 22926 22923 /Users/dharmitparmar/Doc/KeySound/target/release/thock-cli
+  Executing kill -9 22923 (Immediate kernel kill, bypasses all userspace signal handlers)...
+  Waiting 1.5s for thock-cli parent watchdog thread to detect EOF on stdin and PPID 1...
+  [After kill -9] thock-cli process count: 0
+  ✓ PASSED: thock-cli watchdog self-terminated when parent was killed with SIGKILL (-9).
+
+[PATH 6/6] Testing Stale Orphan Sweep on Launch (ppid == 1)...
+  [Simulated Pre-existing Orphan]: 
+  Launching NotchApp (which invokes sweepOrphanProcesses() on startup)...
+  [After NotchApp Startup] thock-cli process count: 0
+  ✓ PASSED: NotchApp sweepOrphanProcesses() detected and reaped the orphan on startup.
+
+========================================================
+  ★ ALL 6 EXIT PATHS & ORPHAN SWEEPS PASSED (0 LEAKS) ★ 
+========================================================

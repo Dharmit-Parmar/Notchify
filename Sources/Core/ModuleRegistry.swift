@@ -28,7 +28,12 @@ public final class ModuleRegistry: ObservableObject {
             .sink { [weak self] enabledDict in
                 guard let self = self else { return }
                 for m in self.modules {
-                    m.isEnabled = enabledDict[m.id] ?? true
+                    let wasEnabled = m.isEnabled
+                    let isNowEnabled = enabledDict[m.id] ?? true
+                    m.isEnabled = isNowEnabled
+                    if wasEnabled && !isNowEnabled {
+                        m.stop()
+                    }
                 }
                 if let pinned = self.pinnedModuleId, pinned != "dashboard" && !(enabledDict[pinned] ?? true) {
                     self.pinnedModuleId = nil

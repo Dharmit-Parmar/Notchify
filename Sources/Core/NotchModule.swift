@@ -541,6 +541,7 @@ public class SettingsStore: ObservableObject {
     public func refreshAccessibility() {
         self.isAccessibilityGranted = AXIsProcessTrusted()
         self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
+        print("[SettingsStore] init end"); fflush(stdout)
     }
     
     public func isModuleEnabled(_ id: String) -> Bool {

@@ -32,6 +32,9 @@ public final class KeychainHelper: @unchecked Sendable {
             return deleteSecretLocked(forKey: account)
         }
         
+        SecKeychainSetUserInteractionAllowed(false)
+        defer { SecKeychainSetUserInteractionAllowed(true) }
+        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
@@ -43,6 +46,11 @@ public final class KeychainHelper: @unchecked Sendable {
         newQuery[kSecValueData as String] = Data(trimmed.utf8)
         newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         
+        var access: SecAccess?
+        if SecAccessCreate(serviceName as CFString, nil, &access) == errSecSuccess, let acc = access {
+            newQuery[kSecAttrAccess as String] = acc
+        }
+        
         let status = SecItemAdd(newQuery as CFDictionary, nil)
         return status == errSecSuccess
     }
@@ -51,6 +59,9 @@ public final class KeychainHelper: @unchecked Sendable {
     public func loadSecret(forKey account: String) -> String? {
         lock.lock()
         defer { lock.unlock() }
+        
+        SecKeychainSetUserInteractionAllowed(false)
+        defer { SecKeychainSetUserInteractionAllowed(true) }
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
