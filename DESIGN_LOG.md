@@ -208,3 +208,36 @@
   7. Keyboard & VoiceOver accessible: Left/Right arrow keys adjust width by 5% when divider has focus.
   8. Persist customized ratios in `SettingsStore` across app restarts.
   9. Add 4th layout flow option: "Focus (dominant + companion)" (70% primary + 30% companion) with conservative hidden-only companion auto-rotation (max once per 30s).
+
+
+### Phase 3 Execution & Findings
+- **Definition of "Spaces" in `ModularDashboardView.swift`**:
+  - In `horizontalStripView`: Spaces define relative column shares (`width = (span / totalSpan) * availableWidth`). With 4 widgets, each has 1 space (25%). With 3 widgets, a 2-space widget takes 50% and 1-space widgets take 25%.
+  - Inside each widget view, `span: 1` switches the component to a glanceable compact representation, while `span: 2` (or `4`) renders rich controls, seekbars, extended calendar lists, or notes editors.
+- **Dotted Vertical Dividers & Live Drag Resizing (`DottedDividerView`)**:
+  - Dotted vertical lines (`StrokeStyle(lineWidth: 1.0, dash: [3, 4])`) rendered strictly between adjacent filled slots (zero dividers next to empty slots).
+  - Hover triggers `NSCursor.resizeLeftRight`.
+  - Drag gesture updates `store.dashboardSplitRatio` in real-time.
+  - Snaps to 1/3 (~0.333), 1/2 (0.500), and 2/3 (~0.667) when within a 12 pt threshold, emitting a light haptic tick (`FeedbackManager.playPin()`). Does not fight the drag when pulling past the threshold.
+  - Enforces minimum usable width clamp (>= 140 pt) so content never collapses into truncated ellipses.
+  - Double-click on divider resets both columns to 50/50 (0.50).
+  - Keyboard & VoiceOver accessible: Left/Right arrow keys adjust ratio in 5% increments.
+  - Proportional ratio persists across app launches via `NotchApp_DashboardSplitRatio` in `SettingsStore`.
+- **4th Layout Flow: "Focus (Dominant + Companion)"**:
+  - Added `focusDominant` to `DashboardLayoutFlow` (70% dominant primary + 30% companion).
+  - Implemented `FocusCompanionRotationManager`: Auto companion rotation defaults to OFF; when enabled, it rotates secondary tools strictly while the notch is collapsed (`isExpanded == false`), never while expanded, with a 30-second cooldown throttle.
+- **Verification**: Test 76 passing, all 76 tests green.
+
+---
+
+## 7. Phase 4: Dock, Compact State, Themes
+
+### Skill Selection for Phase 4 (Re-selection)
+- **Skills active**: `swiftui-expert-skill`, `swiftui-pro`, `apple-design`, `ui-ux-pro-max`, `impeccable`, `axiom-accessibility`, `axiom-design`, `ponytail`, `gravitas`.
+- **Trigger**: Dock auto-scrolling with edge fade, 3-zone status bar (6th compact indicator), light theme additions (`Birch`, `Sakura`), and Global vs Per-module accent switch.
+- **Goals**:
+  1. Audit Dock scrolling: Active tab auto-scrolls into view with leading/trailing edge fade masks.
+  2. Dock popovers/menus keep the notch open while active; spring-loaded tab hover during external drag.
+  3. Implement 3-zone status bar as 6th compact indicator option (wings/pill below notch, never inside cutout, click-through, non-notch fallback).
+  4. Retain all 20 existing themes (Rule 0); add `Birch` (clean light wood/paper warm white) and `Sakura` (soft blossom light pastel) as extra themes; ensure text contrast >= 4.5:1; keep bezel strip dark if adjacent to physical cutout.
+  5. Add Global vs Per-Module Accent toggle in Settings.

@@ -44,8 +44,15 @@ public struct DashboardSettingsView: View {
                 
                 if store.dashboardLayoutFlow == .horizontalStrip {
                     // Single row horizontal strip representation
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         ForEach(0..<4, id: \.self) { index in
+                            if index > 0 && store.dashboardSlots[index - 1] != nil && store.dashboardSlots[index] != nil {
+                                Rectangle()
+                                    .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                    .frame(width: 1)
+                                    .padding(.vertical, 8)
+                            }
+                            
                             SlotDropCard(
                                 slotIndex: index,
                                 title: "Slot \(index + 1)",
@@ -55,10 +62,43 @@ public struct DashboardSettingsView: View {
                             )
                         }
                     }
+                } else if store.dashboardLayoutFlow == .focusDominant {
+                    // Focus Dominant (70% Primary Dominant Slot + 30% Companion Slot)
+                    HStack(spacing: 8) {
+                        SlotDropCard(
+                            slotIndex: 0,
+                            title: "Slot 1 (Dominant 70%)",
+                            widget: store.dashboardSlots[0],
+                            onDrop: { widget in store.setDashboardSlot(at: 0, widget: widget) },
+                            onClear: { store.setDashboardSlot(at: 0, widget: nil) }
+                        )
+                        .frame(maxWidth: .infinity)
+                        
+                        // Dotted divider between adjacent filled slots
+                        if store.dashboardSlots[0] != nil && store.dashboardSlots[1] != nil {
+                            Rectangle()
+                                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
+                                .frame(width: 1)
+                                .padding(.vertical, 8)
+                        }
+                        
+                        SlotDropCard(
+                            slotIndex: 1,
+                            title: "Slot 2 (Companion 30%)",
+                            widget: store.dashboardSlots[1],
+                            onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
+                            onClear: { store.setDashboardSlot(at: 1, widget: nil) }
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
                 } else {
-                    // 2x2 Quad Grid representation
-                    VStack(spacing: 10) {
-                        HStack(spacing: 10) {
+                    // 2x2 Quad Grid representation with dotted vertical divider between filled columns
+                    let leftHasFilled = (store.dashboardSlots[0] != nil || store.dashboardSlots[2] != nil)
+                    let rightHasFilled = (store.dashboardSlots[1] != nil || store.dashboardSlots[3] != nil)
+                    
+                    HStack(spacing: 10) {
+                        // Left Column (Slot 1 & 3)
+                        VStack(spacing: 10) {
                             SlotDropCard(
                                 slotIndex: 0,
                                 title: "Slot 1 (Top Left)",
@@ -68,21 +108,30 @@ public struct DashboardSettingsView: View {
                             )
                             
                             SlotDropCard(
-                                slotIndex: 1,
-                                title: "Slot 2 (Top Right)",
-                                widget: store.dashboardSlots[1],
-                                onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
-                                onClear: { store.setDashboardSlot(at: 1, widget: nil) }
-                            )
-                        }
-                        
-                        HStack(spacing: 10) {
-                            SlotDropCard(
                                 slotIndex: 2,
                                 title: "Slot 3 (Bottom Left)",
                                 widget: store.dashboardSlots[2],
                                 onDrop: { widget in store.setDashboardSlot(at: 2, widget: widget) },
                                 onClear: { store.setDashboardSlot(at: 2, widget: nil) }
+                            )
+                        }
+                        
+                        // Dotted vertical divider only between adjacent FILLED columns (none next to empty slots)
+                        if leftHasFilled && rightHasFilled {
+                            Rectangle()
+                                .stroke(Color.white.opacity(0.35), style: StrokeStyle(lineWidth: 1.0, dash: [3, 4]))
+                                .frame(width: 1)
+                                .padding(.vertical, 8)
+                        }
+                        
+                        // Right Column (Slot 2 & 4)
+                        VStack(spacing: 10) {
+                            SlotDropCard(
+                                slotIndex: 1,
+                                title: "Slot 2 (Top Right)",
+                                widget: store.dashboardSlots[1],
+                                onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
+                                onClear: { store.setDashboardSlot(at: 1, widget: nil) }
                             )
                             
                             SlotDropCard(
@@ -395,7 +444,45 @@ public struct DashboardSettingsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .pointerHoverCursor()
+                    .focusable()
+                    .accessibilityLabel(flow.title)
+                    .accessibilityAddTraits(store.dashboardLayoutFlow == flow ? [.isButton, .isSelected] : .isButton)
                 }
+            }
+            
+            if store.dashboardLayoutFlow == .focusDominant {
+                Button {
+                    store.autoRotateCompanion.toggle()
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("Auto-Rotate Companion Widget")
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Default: OFF")
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(Color.orange)
+                            }
+                            Text("Cycles through secondary tools every 30s only while the notch is collapsed.")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $store.autoRotateCompanion)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointerHoverCursor()
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+                .accessibilityLabel("Auto-Rotate Companion Widget")
+                .accessibilityHint("When enabled, periodically cycles the companion widget every 30 seconds only while the notch is hidden.")
             }
         }
     }
@@ -431,6 +518,19 @@ public struct DashboardSettingsView: View {
                                     .fill(colorForSlot(i).opacity(0.75))
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
+                        }
+                    } else if store.dashboardLayoutFlow == .focusDominant {
+                        // Focus Dominant (70% dominant + 30% companion with dotted line)
+                        HStack(spacing: 3) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(DesignSystem.accentColor.opacity(0.85))
+                                .frame(maxWidth: .infinity)
+                            Rectangle()
+                                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                                .frame(width: 1)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.orange.opacity(0.75))
+                                .frame(width: 32)
                         }
                     } else if store.dashboardLayoutFlow == .bentoQuad || store.dashboardLayoutFlow == .adaptiveAuto {
                         if activeCount == 1 {
@@ -538,6 +638,9 @@ public struct DashboardSettingsView: View {
     }
     
     private func stretchExplanationText(_ count: Int) -> String {
+        if store.dashboardLayoutFlow == .focusDominant {
+            return "70% primary dominant widget + 30% companion glance widget. Live draggable divider."
+        }
         if store.dashboardLayoutFlow == .horizontalStrip {
             return "Active widgets display side-by-side in a horizontal strip, auto-weighted by span."
         }

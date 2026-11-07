@@ -105,6 +105,7 @@ public enum DashboardLayoutFlow: String, Codable, CaseIterable, Identifiable {
     case adaptiveAuto = "adaptiveAuto"
     case horizontalStrip = "horizontalStrip"
     case bentoQuad = "bentoQuad"
+    case focusDominant = "focusDominant"
     
     public var id: String { rawValue }
     public var title: String {
@@ -112,6 +113,7 @@ public enum DashboardLayoutFlow: String, Codable, CaseIterable, Identifiable {
         case .adaptiveAuto: return "Smart Adaptive"
         case .horizontalStrip: return "4 Side-by-Side (Strip)"
         case .bentoQuad: return "2×2 Bento Grid"
+        case .focusDominant: return "Focus (Dominant + Companion)"
         }
     }
     public var icon: String {
@@ -119,6 +121,7 @@ public enum DashboardLayoutFlow: String, Codable, CaseIterable, Identifiable {
         case .adaptiveAuto: return "sparkles.square.filled.on.square"
         case .horizontalStrip: return "rectangle.split.3x1"
         case .bentoQuad: return "square.grid.2x2"
+        case .focusDominant: return "rectangle.righthalf.inset.filled"
         }
     }
 }
@@ -138,6 +141,21 @@ public class SettingsStore: ObservableObject {
     // Dashboard Layout Orientation Flow
     @Published public var dashboardLayoutFlow: DashboardLayoutFlow = .adaptiveAuto {
         didSet { UserDefaults.standard.set(dashboardLayoutFlow.rawValue, forKey: "NotchApp_DashboardLayoutFlow") }
+    }
+    
+    // Live Drag Proportional Split Ratio (0.20 ... 0.80, default 0.50)
+    @Published public var dashboardSplitRatio: CGFloat = 0.50 {
+        didSet { UserDefaults.standard.set(Double(dashboardSplitRatio), forKey: "NotchApp_DashboardSplitRatio") }
+    }
+    
+    // Auto-Rotate Companion Widget for Focus Layout (default: false, max once per 30s while collapsed)
+    @Published public var autoRotateCompanion: Bool = false {
+        didSet { UserDefaults.standard.set(autoRotateCompanion, forKey: "NotchApp_AutoRotateCompanion") }
+    }
+    
+    // Primary Dominant Slot Index for Focus Layout (default: 0)
+    @Published public var focusDominantSlotIndex: Int = 0 {
+        didSet { UserDefaults.standard.set(focusDominantSlotIndex, forKey: "NotchApp_FocusDominantSlotIndex") }
     }
     
     // Per-Widget Custom Spans (1 or 2 spaces)
@@ -414,6 +432,16 @@ public class SettingsStore: ObservableObject {
         if let savedFlow = UserDefaults.standard.string(forKey: "NotchApp_DashboardLayoutFlow"),
            let flow = DashboardLayoutFlow(rawValue: savedFlow) {
             self.dashboardLayoutFlow = flow
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_DashboardSplitRatio") != nil {
+            let ratio = CGFloat(UserDefaults.standard.double(forKey: "NotchApp_DashboardSplitRatio"))
+            self.dashboardSplitRatio = min(0.80, max(0.20, ratio))
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_AutoRotateCompanion") != nil {
+            self.autoRotateCompanion = UserDefaults.standard.bool(forKey: "NotchApp_AutoRotateCompanion")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_FocusDominantSlotIndex") != nil {
+            self.focusDominantSlotIndex = UserDefaults.standard.integer(forKey: "NotchApp_FocusDominantSlotIndex")
         }
         if let savedSpans = UserDefaults.standard.dictionary(forKey: "NotchApp_WidgetSpans") as? [String: Int] {
             self.widgetSpans.merge(savedSpans, uniquingKeysWith: { _, saved in saved })

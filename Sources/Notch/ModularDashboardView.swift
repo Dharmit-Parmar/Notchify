@@ -1,5 +1,187 @@
 import SwiftUI
 
+// MARK: - Dotted Vertical Divider for Live Drag-Resizing
+public struct DottedDividerView: View {
+    @ObservedObject private var store = SettingsStore.shared
+    let totalWidth: CGFloat
+    @State private var isHovered: Bool = false
+    @State private var isDragging: Bool = false
+    @State private var lastHapticSnap: CGFloat? = nil
+    
+    public init(totalWidth: CGFloat) {
+        self.totalWidth = totalWidth
+    }
+    
+    public var body: some View {
+        ZStack {
+            // Invisible wider hit-target area (16pt wide) for easy grabbing
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: 16)
+                .contentShape(Rectangle())
+            
+            // Dotted vertical line
+            LineShape()
+                .stroke(
+                    isDragging ? DesignSystem.accentColor : (isHovered ? Color.white.opacity(0.65) : Color.white.opacity(0.25)),
+                    style: StrokeStyle(lineWidth: isDragging ? 1.5 : 1.0, lineCap: .round, dash: [3, 4])
+                )
+                .frame(width: 2)
+            
+            // Small grab handle pill on hover/drag
+            if isHovered || isDragging {
+                Capsule()
+                    .fill(isDragging ? DesignSystem.accentColor : Color.white.opacity(0.85))
+                    .frame(width: 4, height: 26)
+                    .shadow(color: Color.black.opacity(0.4), radius: 2)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: 16)
+        .frame(maxHeight: .infinity)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+            if hovering {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(
+            DragGesture(coordinateSpace: .named("DashboardContainer"))
+                .onChanged { value in
+                    isDragging = true
+                    let x = value.location.x
+                    guard totalWidth > 0 else { return }
+                    var rawRatio = x / totalWidth
+                    
+                    // Clamp to min/max ratio ensuring minimum widget usable width of 140 pt
+                    let minAllowedRatio = max(0.20, 140.0 / totalWidth)
+                    let maxAllowedRatio = min(0.80, 1.0 - (140.0 / totalWidth))
+                    rawRatio = min(maxAllowedRatio, max(minAllowedRatio, rawRatio))
+                    
+                    // Snap to 1/3 (~0.333), 1/2 (0.500), 2/3 (~0.667) within 12pt threshold
+                    let snapTargets: [CGFloat] = [1.0 / 3.0, 0.50, 2.0 / 3.0]
+                    var snappedRatio = rawRatio
+                    let thresholdRatio = 12.0 / totalWidth
+                    
+                    for target in snapTargets {
+                        if abs(rawRatio - target) <= thresholdRatio {
+                            snappedRatio = target
+                            if lastHapticSnap != target {
+                                FeedbackManager.playPin()
+                                lastHapticSnap = target
+                            }
+                            break
+                        }
+                    }
+                    if snapTargets.allSatisfy({ abs(rawRatio - $0) > thresholdRatio }) {
+                        lastHapticSnap = nil
+                    }
+                    
+                    store.dashboardSplitRatio = snappedRatio
+                }
+                .onEnded { _ in
+                    isDragging = false
+                    lastHapticSnap = nil
+                }
+        )
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                FeedbackManager.playClick()
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                    store.dashboardSplitRatio = 0.50
+                }
+            }
+        )
+        .focusable()
+        .onKeyPress(.leftArrow) {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.9)) {
+                let newRatio = max(0.20, store.dashboardSplitRatio - 0.05)
+                store.dashboardSplitRatio = newRatio
+            }
+            FeedbackManager.playClick()
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.9)) {
+                let newRatio = min(0.80, store.dashboardSplitRatio + 0.05)
+                store.dashboardSplitRatio = newRatio
+            }
+            FeedbackManager.playClick()
+            return .handled
+        }
+        .accessibilityLabel("Dashboard Slot Resize Divider")
+        .accessibilityValue("\(Int(store.dashboardSplitRatio * 100)) percent left, \(Int((1.0 - store.dashboardSplitRatio) * 100)) percent right")
+        .accessibilityHint("Drag or use left and right arrow keys to resize columns. Double-click to reset to 50/50.")
+    }
+}
+
+// Vertical line shape for dotted divider
+struct LineShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY + 6))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY - 6))
+        return path
+    }
+}
+
+// MARK: - Auto-Rotate Companion Manager for Focus Mode
+@MainActor
+public final class FocusCompanionRotationManager: ObservableObject {
+    public static let shared = FocusCompanionRotationManager()
+    private var lastRotationDate: Date = .distantPast
+    private var timer: Timer?
+    
+    private init() {
+        startTimer()
+    }
+    
+    public func startTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.evaluateRotation()
+            }
+        }
+    }
+    
+    public func evaluateRotation() {
+        let store = SettingsStore.shared
+        guard store.dashboardLayoutFlow == .focusDominant, store.autoRotateCompanion else { return }
+        
+        // Strict guard: NEVER change while expanded! Only while HIDDEN (collapsed)
+        guard !NotchShellCoordinator.shared.isExpanded else { return }
+        
+        // Strict guard: at most once every 30 seconds
+        let now = Date()
+        guard now.timeIntervalSince(lastRotationDate) >= 30.0 else { return }
+        
+        let allWidgets = DashboardWidgetType.allCases
+        let dominantSlot = store.focusDominantSlotIndex
+        let dominantWidget = store.dashboardSlots.indices.contains(dominantSlot) ? store.dashboardSlots[dominantSlot] : store.dashboardSlots.compactMap({ $0 }).first
+        
+        let candidates = allWidgets.filter { $0 != dominantWidget }
+        guard !candidates.isEmpty else { return }
+        
+        let companionSlotIndex = (dominantSlot == 0) ? 1 : 0
+        let currentCompanion = store.dashboardSlots.indices.contains(companionSlotIndex) ? store.dashboardSlots[companionSlotIndex] : nil
+        
+        let nextIndex: Int
+        if let current = currentCompanion, let idx = candidates.firstIndex(of: current) {
+            nextIndex = (idx + 1) % candidates.count
+        } else {
+            nextIndex = 0
+        }
+        
+        store.setDashboardSlot(at: companionSlotIndex, widget: candidates[nextIndex])
+        lastRotationDate = now
+    }
+}
+
 public struct ModularDashboardView: View {
     @ObservedObject private var store = SettingsStore.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,6 +202,8 @@ public struct ModularDashboardView: View {
                     bentoQuadView(activeWidgets)
                 case .adaptiveAuto:
                     adaptiveAutoView(activeWidgets)
+                case .focusDominant:
+                    focusDominantView(activeWidgets)
                 }
             }
         }
@@ -27,6 +211,9 @@ public struct ModularDashboardView: View {
         .transition(.opacity.combined(with: .scale(scale: 0.99)))
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88), value: store.dashboardSlots)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88), value: store.dashboardLayoutFlow)
+        .onAppear {
+            FocusCompanionRotationManager.shared.startTimer()
+        }
     }
     
     // MARK: - Render Widget by Type and Span
@@ -132,14 +319,71 @@ public struct ModularDashboardView: View {
         }
         
         return AnyView(
-            HStack(alignment: .top, spacing: 10) {
-                // Left Column (Slot 0 top, Slot 2 bottom)
-                renderColumnView(widgets: leftCol, oppositeCount: rightCol.count)
+            GeometryReader { geo in
+                let totalWidth = geo.size.width
+                let dividerWidth: CGFloat = 16.0
+                let availableWidth = max(0, totalWidth - dividerWidth)
+                let leftWidth = max(140, min(availableWidth - 140, availableWidth * store.dashboardSplitRatio))
+                let rightWidth = max(140, availableWidth - leftWidth)
                 
-                // Right Column (Slot 1 top, Slot 3 bottom)
-                renderColumnView(widgets: rightCol, oppositeCount: leftCol.count)
+                HStack(alignment: .top, spacing: 0) {
+                    // Left Column (Slot 0 top, Slot 2 bottom)
+                    renderColumnView(widgets: leftCol, oppositeCount: rightCol.count)
+                        .frame(width: leftWidth, height: geo.size.height)
+                    
+                    // Dotted divider between adjacent filled slots
+                    DottedDividerView(totalWidth: totalWidth)
+                    
+                    // Right Column (Slot 1 top, Slot 3 bottom)
+                    renderColumnView(widgets: rightCol, oppositeCount: leftCol.count)
+                        .frame(width: rightWidth, height: geo.size.height)
+                }
+                .coordinateSpace(name: "DashboardContainer")
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         )
+    }
+    
+    // MARK: - Layout Flow 4: Focus (Dominant 70% + Companion 30%)
+    private func focusDominantView(_ widgets: [DashboardWidgetType]) -> some View {
+        GeometryReader { geo in
+            let totalWidth = geo.size.width
+            let dividerWidth: CGFloat = 16.0
+            let availableWidth = max(0, totalWidth - dividerWidth)
+            
+            // In focus mode, default ratio is 0.70 unless customized
+            let ratio = store.dashboardSplitRatio
+            let dominantWidth = max(180, min(availableWidth - 130, availableWidth * ratio))
+            let companionWidth = max(130, availableWidth - dominantWidth)
+            
+            let dominantWidget: DashboardWidgetType = {
+                if let slotDom = store.dashboardSlots.first(where: { $0 != nil }) as? DashboardWidgetType {
+                    return slotDom
+                }
+                return widgets.first ?? .nowPlaying
+            }()
+            
+            let companionWidget: DashboardWidgetType? = {
+                widgets.first(where: { $0 != dominantWidget })
+            }()
+            
+            HStack(spacing: 0) {
+                // Dominant Primary Widget (span: 2)
+                Self.renderWidget(type: dominantWidget, span: companionWidget == nil ? 4 : 2)
+                    .frame(width: companionWidget == nil ? totalWidth : dominantWidth, height: geo.size.height)
+                
+                if let companion = companionWidget {
+                    // Dotted divider between filled slots
+                    DottedDividerView(totalWidth: totalWidth)
+                    
+                    // Companion Widget (span: 1)
+                    Self.renderWidget(type: companion, span: 1)
+                        .frame(width: companionWidth, height: geo.size.height)
+                }
+            }
+            .coordinateSpace(name: "DashboardContainer")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     @ViewBuilder
