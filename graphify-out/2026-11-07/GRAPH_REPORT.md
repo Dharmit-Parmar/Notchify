@@ -1,84 +1,95 @@
-# Graph Report - Notch  (2026-11-06)
+# Graph Report - Notch  (2026-11-07)
 
 ## Corpus Check
-- 64 files · ~212,642 words
+- 54 files · ~214,578 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1425 nodes · 3387 edges · 69 communities (52 shown, 17 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 194 edges (avg confidence: 0.82)
-- Token cost: 12,000 input · 1,500 output
+- 1447 nodes · 3406 edges · 75 communities (54 shown, 21 thin omitted)
+- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 195 edges (avg confidence: 0.82)
+- Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `e4811252`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- PDF Processing & Document Pipeline
-- Drag & Drop Shelf Interactions
-- Drag & Drop Shelf Interactions
-- Desktop Companion Coordinator
-- Kinematic Limb Verification
-- Kinematic Limb Verification
-- Desktop Companion Coordinator
-- Process Management & Signal Isolation
-- Drag & Drop Shelf Interactions
-- Clock & Chronometer Widgets
-- Mascot Vector Rendering & Skins
-- Kinematic Limb Verification
-- Clock & Chronometer Widgets
-- EventKit Calendar & Agenda
-- Theme System & Visual Palettes
-- Hashable Subsystem
-- PDF Processing & Document Pipeline
-- NotesUIState Subsystem
-- MediaRemote Playback Bridge
-- macOS App Lifecycle & Status Bar
-- NSControl Subsystem
-- Theme System & Visual Palettes
-- MediaRemote Playback Bridge
-- Camera Hardware & Mirror Preview
-- Hardware Secret Vault & Cryptography
-- Desktop Companion Coordinator
-- MediaRemote Playback Bridge
-- NotificationModule.swift Subsystem
-- Configuration Subsystem
-- Mechanical Keyboard Thock Engine
-- Ask AI & Multi-Provider Engine
-- Modular Bento Dashboard System
-- PermissionsHelper.swift Subsystem
-- CFRunLoopSource Subsystem
-- Ask AI & Multi-Provider Engine
-- Camera Hardware & Mirror Preview
-- DynamicThemeEngine Subsystem
-- Mechanical Keyboard Thock Engine
-- CompactIndicatorStyle Subsystem
-- PDF Processing & Document Pipeline
-- LinearGradient Subsystem
-- DirectMessenger Subsystem
-- CompactNotchIndicator Subsystem
-- Desktop Companion Coordinator
-- Camera Hardware & Mirror Preview
-- Modular Bento Dashboard System
-- Modular Bento Dashboard System
-- GlassMaterialStyle Subsystem
-- MotionPhysicsStyle Subsystem
-- NotchCornerStyle Subsystem
-- Climb-Over Animation Strip Subsystem
-- MediaRemote Playback Bridge
-- Bool Subsystem
-- CompanionFrameStripGenerator.swift Subsystem
-- Desktop Companion Coordinator
-- Companion Rigidity & Settings Lifecycle Analysis Subsystem
-- Package.swift Subsystem
-- run_notch.sh Subsystem
-- security-audit.sh Subsystem
-- CGFloat Subsystem
-- stop_notch.sh Subsystem
-- Crawl Animation Strip Subsystem
-- Hanging Idle Animation Strip Subsystem
-- Clean Hang Animation Strip Subsystem
-- Left-Peek Animation Strip Subsystem
-- Pull-Up Animation Strip Subsystem
-- Standard Walk Cycle Strip Subsystem
-- Right Walk Animation Strip Subsystem
-- Desktop Companion Coordinator
+- ShelfModule
+- ModuleRegistry
+- AppDelegate
+- KinematicEngine
+- SkeletonPose
+- SkeletonPose
+- CompanionSkin
+- ThockModule
+- AirDropModule
+- View
+- SettingsStore
+- CGPoint
+- Identifiable
+- CalendarModule
+- AppTheme
+- TelegramModule
+- String
+- .playClick
+- MediaRemoteBridge
+- SwiftUI
+- CompanionBehaviorState
+- DesignSystem
+- NowPlayingModule
+- MirrorModule
+- NotchShellCoordinator
+- .init
+- DashboardWidgetType
+- NotificationModule
+- DesignSystem.swift
+- .init
+- AIProvider
+- SettingsCategory
+- PermissionsHelper
+- BatteryModule
+- .twoSpaceView
+- NoteStorageManager
+- DynamicThemeEngine
+- ThockPackMeta
+- CompactIndicatorStyle
+- VerificationTests.swift
+- 2. Bugs Found (Grouped by Root Cause) & Resolutions
+- .sendCommand
+- CompactNotchIndicator
+- CompanionFrameStripStubs.swift
+- NotchPanel
+- Notch Animated Desktop Companion
+- .init
+- GlassMaterialStyle
+- CompanionActivityLevel
+- SettingsView
+- Notch Cartoon Companion Specifications
+- Equatable
+- NotchHostingView
+- ScreenRouteStage
+- Creature Analytical IK & Kinematics Fixes
+- Companion Rigidity & Settings Lifecycle Analysis
+- Package.swift
+- run_notch.sh
+- security-audit.sh
+- NotchGeometry
+- stop_notch.sh
+- Crawl Animation Strip
+- Hanging Idle Animation Strip
+- Clean Hang Animation Strip
+- Left-Peek Animation Strip
+- Pull-Up Animation Strip
+- Standard Walk Cycle Strip
+- Right Walk Animation Strip
+- Creature Animation Rigidity Analysis
+- .startEngine
+- ThockExpandedView
+- .keySoundSectionView
+- .updateFrame
+- SpringDamper
+- run-tests.sh
 
 ## God Nodes (most connected - your core abstractions)
 1. `SettingsStore` - 74 edges
@@ -108,238 +119,246 @@
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Notch Ambient Companion Architecture** — notch_creature_mvp_companion, notch_creature_mvp_state_machine, notch_creature_mvp_vector_engine, notch_creature_mvp_privacy_invariants [EXTRACTED 1.00]
 - **Bubu Mascot Motion Capture & Kinematics Library** — companion_strip_climb_over, companion_strip_monkey_bar, companion_strip_peek_left_clean, companion_strip_sleep_clean, companion_strip_walk_right_clean [EXTRACTED 1.00]
+- **Notch Ambient Companion Architecture** — notch_creature_mvp_companion, notch_creature_mvp_state_machine, notch_creature_mvp_vector_engine, notch_creature_mvp_privacy_invariants [EXTRACTED 1.00]
 
-## Communities (69 total, 17 thin omitted)
+## Communities (75 total, 21 thin omitted)
 
-### Community 0 - "PDF Processing & Document Pipeline"
+### Community 0 - "ShelfModule"
 Cohesion: 0.06
-Nodes (52): ByteCountFormatter, CIContext, Int64, PDFDocument, PDFPage, AirDropDropTargetCapsule, .body, FileStudioTool (+44 more)
+Nodes (51): ByteCountFormatter, CIContext, Int64, PDFDocument, PDFPage, AirDropDropTargetCapsule, .body, FileStudioTool (+43 more)
 
-### Community 1 - "Drag & Drop Shelf Interactions"
+### Community 1 - "ModuleRegistry"
 Cohesion: 0.06
 Nodes (47): AnyObject, DropDelegate, NSDragOperation, ObservableObject, ScrollViewProxy, ModuleRegistry, .activeModule, .activeModuleId (+39 more)
 
-### Community 2 - "Drag & Drop Shelf Interactions"
-Cohesion: 0.05
-Nodes (43): Animation, Content, NSApplicationDelegate, NSMenu, NSStatusItem, NSTrackingArea, NSWindowDelegate, SettingsStore (+35 more)
+### Community 2 - "AppDelegate"
+Cohesion: 0.10
+Nodes (13): NSApplicationDelegate, NSMenu, NSStatusItem, NSWindowDelegate, Selector, AppDelegate, .sharedDelegate, Bool (+5 more)
 
-### Community 3 - "Desktop Companion Coordinator"
+### Community 3 - "KinematicEngine"
+Cohesion: 0.09
+Nodes (24): CompanionPanel, CompanionCoordinator, .creatureInteractiveRectInWindow, PeekSide, left, right, Any, Bool (+16 more)
+
+### Community 4 - "SkeletonPose"
 Cohesion: 0.06
-Nodes (38): CompanionPanel, Never, CompanionCoordinator, .creatureInteractiveRectInWindow, PeekSide, left, right, Any (+30 more)
+Nodes (54): LimbBones, CompanionProductionPoseChecks, CGFloat, CGPoint, LimbBones, MouthShape, gasp, neutral (+46 more)
 
-### Community 4 - "Kinematic Limb Verification"
-Cohesion: 0.06
-Nodes (55): CGContext, LimbBones, CompanionProductionPoseChecks, CGFloat, CGPoint, LimbBones, MouthShape, gasp (+47 more)
+### Community 5 - "SkeletonPose"
+Cohesion: 0.10
+Nodes (20): SkeletonPose, .chest, .head, .leftElbow, .leftFoot, .leftFootPlanted, .leftHand, .leftHandPlanted (+12 more)
 
-### Community 5 - "Kinematic Limb Verification"
-Cohesion: 0.05
-Nodes (52): CoreGraphics, Equatable, ScreenRouteStage, approachNotch, climbOntoRightLedge, farCornerPeek, leftWalk, lowerToHang (+44 more)
-
-### Community 6 - "Desktop Companion Coordinator"
+### Community 6 - "CompanionSkin"
 Cohesion: 0.12
 Nodes (35): CGAffineTransform, Gradient, GraphicsContext, CompanionSkin, .accentColor, boba, .bodyColor, bubu (+27 more)
 
-### Community 7 - "Process Management & Signal Isolation"
-Cohesion: 0.08
-Nodes (24): AnyCancellable, convention, NSRegularExpression, pid_t, AnyView, Double, Int32, Set (+16 more)
+### Community 7 - "ThockModule"
+Cohesion: 0.10
+Nodes (18): AnyCancellable, convention, NSRegularExpression, pid_t, Int32, Set, URL, ThockModule (+10 more)
 
-### Community 8 - "Drag & Drop Shelf Interactions"
+### Community 8 - "AirDropModule"
 Cohesion: 0.06
 Nodes (30): Error, NSObject, NSScrollView, NSSharingService, NSSharingServiceDelegate, NSTextViewDelegate, NSViewRepresentable, NSVisualEffectView (+22 more)
 
-### Community 9 - "Clock & Chronometer Widgets"
-Cohesion: 0.13
-Nodes (22): AnalogClockFace, .body, ClockFormatters, ClockWidgetView, .body, .isSweepingAnalog, .minimumInterval, .timeZoneAbbreviation (+14 more)
+### Community 9 - "View"
+Cohesion: 0.12
+Nodes (23): Configuration, AnalogClockFace, .body, ClockFormatters, ClockWidgetView, .body, .isSweepingAnalog, .minimumInterval (+15 more)
 
-### Community 10 - "Mascot Vector Rendering & Skins"
+### Community 10 - "SettingsStore"
 Cohesion: 0.05
-Nodes (41): SettingsStore, .activeDashboardWidgets, .aiDefaultProvider, .aiSystemPrompt, .autoCollapseDelay, .clockDialStyle, .clockIs24Hour, .clockShowSeconds (+33 more)
+Nodes (43): SettingsStore, .activeDashboardWidgets, .aiDefaultProvider, .aiSystemPrompt, .autoCollapseDelay, .clockDialStyle, .clockIs24Hour, .clockShowSeconds (+35 more)
 
-### Community 11 - "Kinematic Limb Verification"
+### Community 11 - "CGPoint"
 Cohesion: 0.21
-Nodes (9): KinematicEngine, .ledgeY, .walkLedgeY, Bool, CGFloat, CGPoint, Double, Int (+1 more)
+Nodes (14): CoreGraphics, CGPoint, LimbBones, Result, Bool, CGFloat, TorsoBones, .leftHipAnchor (+6 more)
 
-### Community 12 - "Clock & Chronometer Widgets"
-Cohesion: 0.07
-Nodes (33): CaseIterable, ClosedRange, Codable, Identifiable, ClockDialStyle, analog, digital, .id (+25 more)
+### Community 12 - "Identifiable"
+Cohesion: 0.08
+Nodes (30): CaseIterable, Identifiable, ClockDialStyle, analog, digital, .id, .title, CalendarSubsection (+22 more)
 
-### Community 13 - "EventKit Calendar & Agenda"
+### Community 13 - "CalendarModule"
 Cohesion: 0.12
 Nodes (22): EventKit, CalendarAdaptiveWidgetView, .body, CalendarCellData, CalendarEventItem, .color, CalendarHomeCardView, .body (+14 more)
 
-### Community 14 - "Theme System & Visual Palettes"
+### Community 14 - "AppTheme"
 Cohesion: 0.06
 Nodes (33): AppTheme, .accentColor, activeApp, adaptive, amethyst, aurora, .baseAccentRGB, .baseCanvasRGB (+25 more)
 
-### Community 15 - "Hashable Subsystem"
-Cohesion: 0.15
-Nodes (16): Hashable, ChatContact, ChatMessage, ContactSafetyValidator, AnyView, Bool, DateFormatter, String (+8 more)
+### Community 15 - "TelegramModule"
+Cohesion: 0.05
+Nodes (44): Codable, GitHub Security & Sensitive Data Hardening Audit, Hardware-Bound AES-256-GCM Vault Architecture, Hashable, NSControl, NSTextField, NSTextFieldDelegate, NSTextView (+36 more)
 
-### Community 16 - "PDF Processing & Document Pipeline"
-Cohesion: 0.18
-Nodes (9): AskAIService, .currentLoginBadgeText, .hasAnyCloudLogin, .isCurrentProviderAuthenticated, Bool, .oneSpaceView, .twoSpaceView, .aiAssistantCustomizationSection (+1 more)
+### Community 16 - "String"
+Cohesion: 0.26
+Nodes (6): AskAIService, .currentLoginBadgeText, .hasAnyCloudLogin, .isCurrentProviderAuthenticated, Bool, String
 
-### Community 17 - "NotesUIState Subsystem"
-Cohesion: 0.18
-Nodes (13): NotesUIState, .selectedProvider, NotesWidgetView, .body, .charCount, .fourSpaceView, .oneSpaceView, .twoSpaceView (+5 more)
-
-### Community 18 - "MediaRemote Playback Bridge"
-Cohesion: 0.12
-Nodes (14): MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction, MRMediaRemoteGetNowPlayingApplicationPIDFunction, MRMediaRemoteGetNowPlayingArtworkFunction, MRMediaRemoteGetNowPlayingClientFunction, MRMediaRemoteGetNowPlayingInfoFunction, MRMediaRemoteRegisterFunction, MRMediaRemoteSendCommandFunction, MediaRemoteBridge (+6 more)
-
-### Community 19 - "macOS App Lifecycle & Status Bar"
-Cohesion: 0.15
-Nodes (7): AppKit, ApplicationServices, Combine, Foundation, IOKit.ps, SwiftUI, UniformTypeIdentifiers
-
-### Community 20 - "NSControl Subsystem"
-Cohesion: 0.12
-Nodes (14): NSControl, NSTextField, NSTextFieldDelegate, NSTextView, Selector, Coordinator, CustomPasteableNSTextField, PasteableTextField (+6 more)
-
-### Community 21 - "Theme System & Visual Palettes"
-Cohesion: 0.12
-Nodes (19): SettingsView, .appearanceSection, .companionSection, .detailHeaderBar, .footerBar, .motionSection, .sidebarNavigation, DesignSystem (+11 more)
-
-### Community 22 - "MediaRemote Playback Bridge"
-Cohesion: 0.17
-Nodes (15): NowPlayingAdaptiveWidgetView, .body, NowPlayingCompactTileView, .body, NowPlayingHomeCardView, .body, NowPlayingModule, .progress (+7 more)
-
-### Community 23 - "Camera Hardware & Mirror Preview"
-Cohesion: 0.17
-Nodes (12): CameraLivePreview, MirrorAdaptiveWidgetView, .body, MirrorCompactTileView, .body, MirrorContainerView, .body, MirrorModule (+4 more)
-
-### Community 24 - "Hardware Secret Vault & Cryptography"
+### Community 17 - ".playClick"
 Cohesion: 0.20
-Nodes (10): GitHub Security & Sensitive Data Hardening Audit, Hardware-Bound AES-256-GCM Vault Architecture, KeychainHelper, Bool, String, URL, .connectedGoogleEmail, .geminiApiKey (+2 more)
+Nodes (12): NotesUIState, .selectedProvider, NotesWidgetView, .body, .charCount, .fourSpaceView, .oneSpaceView, .twoSpaceView (+4 more)
 
-### Community 25 - "Desktop Companion Coordinator"
+### Community 18 - "MediaRemoteBridge"
+Cohesion: 0.13
+Nodes (15): MRMediaRemoteGetNowPlayingApplicationIsPlayingFunction, MRMediaRemoteGetNowPlayingApplicationPIDFunction, MRMediaRemoteGetNowPlayingArtworkFunction, MRMediaRemoteGetNowPlayingClientFunction, MRMediaRemoteGetNowPlayingInfoFunction, MRMediaRemoteRegisterFunction, MRMediaRemoteSendCommandFunction, Sendable (+7 more)
+
+### Community 19 - "SwiftUI"
+Cohesion: 0.18
+Nodes (6): AppKit, ApplicationServices, Combine, IOKit.ps, SwiftUI, UniformTypeIdentifiers
+
+### Community 20 - "CompanionBehaviorState"
+Cohesion: 0.10
+Nodes (17): CompanionBehaviorState, celebrating, crawling, curious, dangling, inDen, musicGroove, peekingLeft (+9 more)
+
+### Community 21 - "DesignSystem"
+Cohesion: 0.14
+Nodes (15): LinearGradient, DesignSystem, .accentColor, .canvasColor, .cardFill, .cardGradient, .currentTheme, .defaultHoverCollapseDelay (+7 more)
+
+### Community 22 - "NowPlayingModule"
+Cohesion: 0.14
+Nodes (16): NowPlayingAdaptiveWidgetView, .body, NowPlayingCompactTileView, .body, NowPlayingHomeCardView, .body, NowPlayingModule, .progress (+8 more)
+
+### Community 23 - "MirrorModule"
+Cohesion: 0.09
+Nodes (21): AVCaptureSession, AVCaptureVideoPreviewLayer, NSCoder, NSView, CameraHostingNSView, CameraLivePreview, CameraSessionManager, MirrorAdaptiveWidgetView (+13 more)
+
+### Community 24 - "NotchShellCoordinator"
+Cohesion: 0.22
+Nodes (10): Animation, NotchShellCoordinator, .state, .transitionAnimation, Bool, DispatchWorkItem, NSObjectProtocol, NSRect (+2 more)
+
+### Community 25 - ".init"
 Cohesion: 0.16
 Nodes (12): NSHostingView, NSPanel, CompanionClickPanel, CompanionPanel, CreatureClickTargetView, .body, CreatureContainerView, .body (+4 more)
 
-### Community 26 - "MediaRemote Playback Bridge"
+### Community 26 - "DashboardWidgetType"
 Cohesion: 0.11
 Nodes (16): DashboardWidgetType, askAI, calendar, clock, .icon, .id, mirror, notes (+8 more)
 
-### Community 27 - "NotificationModule.swift Subsystem"
+### Community 27 - "NotificationModule"
 Cohesion: 0.18
 Nodes (9): NotificationItem, NotificationModule, NotificationModuleExpandedView, .body, AnyView, Bool, Date, String (+1 more)
 
-### Community 28 - "Configuration Subsystem"
-Cohesion: 0.23
-Nodes (11): Configuration, ButtonStyle, .spring, LiveEqualizerIndicator, .body, NotchGlassBackground, SpringButtonStyle, Bool (+3 more)
+### Community 28 - "DesignSystem.swift"
+Cohesion: 0.21
+Nodes (13): ImageIO, Shape, ButtonStyle, .spring, CustomNotchShape, LiveEqualizerIndicator, .body, NotchGlassBackground (+5 more)
 
-### Community 29 - "Mechanical Keyboard Thock Engine"
-Cohesion: 0.17
-Nodes (3): Pipe, Process, .body
-
-### Community 30 - "Ask AI & Multi-Provider Engine"
+### Community 30 - "AIProvider"
 Cohesion: 0.14
 Nodes (17): AIChatMessage, AIProvider, .displayName, gemini, gpt, .icon, .id, .shortName (+9 more)
 
-### Community 31 - "Modular Bento Dashboard System"
+### Community 31 - "SettingsCategory"
 Cohesion: 0.13
 Nodes (15): SettingsCategory, appearance, companion, dashboard, feedback, geometry, .icon, .id (+7 more)
 
-### Community 32 - "PermissionsHelper.swift Subsystem"
+### Community 32 - "PermissionsHelper"
 Cohesion: 0.20
 Nodes (8): PermissionsHelper, .appBundleURL, .dynamicProjectDirectory, .executableURL, .standardAppPath, String, URL, .permissionsSection
 
-### Community 33 - "CFRunLoopSource Subsystem"
+### Community 33 - "BatteryModule"
 Cohesion: 0.22
 Nodes (7): CFRunLoopSource, BatteryModule, AnyView, Bool, Int, String, .description
 
-### Community 34 - "Ask AI & Multi-Provider Engine"
+### Community 34 - ".twoSpaceView"
+Cohesion: 0.14
+Nodes (12): AskAIWidgetUIState, AskAIWidgetView, .body, .fourSpaceView, .oneSpaceView, .twoSpaceView, Bool, Int (+4 more)
+
+### Community 35 - "NoteStorageManager"
+Cohesion: 0.16
+Nodes (10): Never, NoteStorageManager, .storageURL, .text, Bool, NSObjectProtocol, String, URL (+2 more)
+
+### Community 36 - "DynamicThemeEngine"
 Cohesion: 0.19
-Nodes (8): AskAIWidgetUIState, AskAIWidgetView, .body, .fourSpaceView, Bool, Int, String, Void
+Nodes (10): CGContext, .dynamicVibrancy, .appearanceSection, DynamicThemeEngine, CGRect, NSImage, NSObjectProtocol, Path (+2 more)
 
-### Community 35 - "Camera Hardware & Mirror Preview"
-Cohesion: 0.25
-Nodes (6): AVCaptureVideoPreviewLayer, NSCoder, NSView, CameraHostingNSView, Context, NSRect
-
-### Community 36 - "DynamicThemeEngine Subsystem"
-Cohesion: 0.27
-Nodes (7): .dynamicVibrancy, DynamicThemeEngine, CGRect, NSImage, NSObjectProtocol, Set, URL
-
-### Community 37 - "Mechanical Keyboard Thock Engine"
-Cohesion: 0.20
+### Community 37 - "ThockPackMeta"
+Cohesion: 0.22
 Nodes (7): AsmrLayerCard, .body, Bool, Color, Void, ThockPackMeta, .id
 
-### Community 38 - "CompactIndicatorStyle Subsystem"
+### Community 38 - "CompactIndicatorStyle"
 Cohesion: 0.22
 Nodes (9): CompactIndicatorStyle, battery, circadian, dateTime, .icon, .id, media, minimal (+1 more)
 
-### Community 39 - "PDF Processing & Document Pipeline"
-Cohesion: 0.29
-Nodes (6): AVFoundation, CoreImage, CryptoKit, IOKit, PDFKit, Security
+### Community 39 - "VerificationTests.swift"
+Cohesion: 0.15
+Nodes (8): AVFoundation, CoreImage, CryptoKit, Foundation, IOKit, PDFKit, Security, TestOutputAccumulator
 
-### Community 40 - "LinearGradient Subsystem"
-Cohesion: 0.25
-Nodes (6): LinearGradient, Shape, CustomNotchShape, .cardGradient, .body, Path
+### Community 40 - "2. Bugs Found (Grouped by Root Cause) & Resolutions"
+Cohesion: 0.13
+Nodes (14): 1. Executive Summary, 2. Bugs Found (Grouped by Root Cause) & Resolutions, 3. Before and After Metrics, 4. Verification Evidence, 5. Items Left Open, Category A: Swift Compilation & Test Suite Execution, Category B: Security Vulnerabilities (from `SECURITY_AUDIT_REPORT.md`), Category C: Lifecycle & Memory Management (+6 more)
 
-### Community 41 - "DirectMessenger Subsystem"
-Cohesion: 0.39
-Nodes (4): DirectMessenger, .isAccessibilityGranted, MainActor, Sendable
-
-### Community 42 - "CompactNotchIndicator Subsystem"
+### Community 42 - "CompactNotchIndicator"
 Cohesion: 0.25
 Nodes (8): CompactNotchIndicator, .batteryIndicator, .body, .circadianIndicator, .dateTimeIndicator, .mediaIndicator, .minimalIndicator, CGFloat
 
-### Community 43 - "Desktop Companion Coordinator"
+### Community 43 - "CompanionFrameStripStubs.swift"
 Cohesion: 0.32
 Nodes (6): CompanionClickPanel, CompanionPanel, .screen, .shared, NSScreen, SkeletonPose
 
-### Community 44 - "Camera Hardware & Mirror Preview"
-Cohesion: 0.48
-Nodes (4): AVCaptureSession, Sendable, CameraSessionManager, MainActor
+### Community 44 - "NotchPanel"
+Cohesion: 0.19
+Nodes (11): SettingsStore, NotchState, collapsed, expanded, NotchPanel, .canBecomeKey, .canBecomeMain, .isolated (+3 more)
 
-### Community 45 - "Modular Bento Dashboard System"
+### Community 45 - "Notch Animated Desktop Companion"
 Cohesion: 0.29
 Nodes (7): Comprehensive Codebase Analysis Report, Notch Animated Desktop Companion, Zero-Overhead & 100% Privacy Invariants, Companion Behavior State Machine, Procedural SwiftUI Vector Animation Engine, Modular 4-Slot Bento Dashboard, Notchify macOS System Hub
 
-### Community 46 - "Modular Bento Dashboard System"
-Cohesion: 0.29
-Nodes (7): DashboardLayoutFlow, adaptiveAuto, bentoQuad, horizontalStrip, .icon, .id, .title
+### Community 46 - ".init"
+Cohesion: 0.12
+Nodes (15): DashboardLayoutFlow, adaptiveAuto, bentoQuad, horizontalStrip, .icon, .id, .title, CGFloat (+7 more)
 
-### Community 47 - "GlassMaterialStyle Subsystem"
+### Community 47 - "GlassMaterialStyle"
 Cohesion: 0.29
 Nodes (7): GlassMaterialStyle, crystal, deepOLED, frosted, .id, luminous, .subtitle
 
-### Community 48 - "MotionPhysicsStyle Subsystem"
-Cohesion: 0.29
-Nodes (7): MotionPhysicsStyle, appleFluid, .damping, gentle, .id, .response, snappy
+### Community 48 - "CompanionActivityLevel"
+Cohesion: 0.20
+Nodes (9): ClosedRange, CompanionActivityLevel, balanced, calm, .displayName, .id, .intervalRange, playful (+1 more)
 
-### Community 49 - "NotchCornerStyle Subsystem"
+### Community 49 - "SettingsView"
 Cohesion: 0.29
-Nodes (7): NotchCornerStyle, .bottomRadius, compact, continuous, deep, .id, .topRadius
+Nodes (7): SettingsView, .companionSection, .detailHeaderBar, .feedbackSection, .geometrySection, .motionSection, .sidebarNavigation
 
-### Community 50 - "Climb-Over Animation Strip Subsystem"
+### Community 50 - "Notch Cartoon Companion Specifications"
 Cohesion: 0.33
 Nodes (6): Climb-Over Animation Strip, Monkey-Bar Traversal Animation Strip, Clean Left-Peek Animation Strip, Clean Den Sleep Animation Strip, Clean Right Walk Animation Strip, Notch Cartoon Companion Specifications
 
-### Community 51 - "MediaRemote Playback Bridge"
-Cohesion: 0.40
-Nodes (4): ImageIO, Bool, Double, SystemMediaTrack
+### Community 51 - "Equatable"
+Cohesion: 0.20
+Nodes (10): Equatable, MouthShape, gasp, neutral, openW, sigh, smile, Bool (+2 more)
+
+### Community 52 - "NotchHostingView"
+Cohesion: 0.33
+Nodes (4): Content, NSTrackingArea, NotchHostingView, NSEvent
+
+### Community 53 - "ScreenRouteStage"
+Cohesion: 0.22
+Nodes (9): ScreenRouteStage, approachNotch, climbOntoRightLedge, farCornerPeek, leftWalk, lowerToHang, monkeyBarTraversal, rightWalk (+1 more)
+
+### Community 59 - "NotchGeometry"
+Cohesion: 0.32
+Nodes (5): NotchGeometry, Bool, CGFloat, CGRect, NSScreen
+
+### Community 70 - "ThockExpandedView"
+Cohesion: 0.33
+Nodes (3): AnyView, ThockExpandedView, .terminalSectionView
 
 ## Knowledge Gaps
-- **361 isolated node(s):** `PackageDescription`, `.sharedDelegate`, `.isDashboardPinned`, `.themeColor`, `nowPlaying` (+356 more)
+- **375 isolated node(s):** `PackageDescription`, `.sharedDelegate`, `.isDashboardPinned`, `.themeColor`, `nowPlaying` (+370 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **21 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `SettingsStore` connect `Mascot Vector Rendering & Skins` to `Drag & Drop Shelf Interactions`, `DynamicThemeEngine Subsystem`, `Mechanical Keyboard Thock Engine`, `Desktop Companion Coordinator`, `CompactIndicatorStyle Subsystem`, `Clock & Chronometer Widgets`, `Modular Bento Dashboard System`, `Theme System & Visual Palettes`, `GlassMaterialStyle Subsystem`, `MotionPhysicsStyle Subsystem`, `NotchCornerStyle Subsystem`, `macOS App Lifecycle & Status Bar`, `Bool Subsystem`, `PDF Processing & Document Pipeline`, `Hardware Secret Vault & Cryptography`, `MediaRemote Playback Bridge`, `CGFloat Subsystem`, `Ask AI & Multi-Provider Engine`?**
-  _High betweenness centrality (0.107) - this node is a cross-community bridge._
-- **Why does `View` connect `Clock & Chronometer Widgets` to `PDF Processing & Document Pipeline`, `Drag & Drop Shelf Interactions`, `Ask AI & Multi-Provider Engine`, `Mechanical Keyboard Thock Engine`, `Desktop Companion Coordinator`, `Process Management & Signal Isolation`, `Drag & Drop Shelf Interactions`, `CompactNotchIndicator Subsystem`, `EventKit Calendar & Agenda`, `Hashable Subsystem`, `NotesUIState Subsystem`, `Theme System & Visual Palettes`, `MediaRemote Playback Bridge`, `Camera Hardware & Mirror Preview`, `Desktop Companion Coordinator`, `NotificationModule.swift Subsystem`, `Configuration Subsystem`, `Modular Bento Dashboard System`?**
+- **Why does `View` connect `View` to `ShelfModule`, `ModuleRegistry`, `.twoSpaceView`, `ThockPackMeta`, `CompanionSkin`, `ThockExpandedView`, `AirDropModule`, `CompactNotchIndicator`, `CalendarModule`, `TelegramModule`, `.playClick`, `SettingsView`, `NowPlayingModule`, `MirrorModule`, `.init`, `NotificationModule`, `DesignSystem.swift`, `SettingsCategory`?**
+  _High betweenness centrality (0.112) - this node is a cross-community bridge._
+- **Why does `SettingsStore` connect `SettingsStore` to `ModuleRegistry`, `DynamicThemeEngine`, `CompanionSkin`, `CompactIndicatorStyle`, `Identifiable`, `.init`, `TelegramModule`, `CompanionActivityLevel`, `AppTheme`, `GlassMaterialStyle`, `SwiftUI`, `String`, `DashboardWidgetType`, `AIProvider`?**
   _High betweenness centrality (0.100) - this node is a cross-community bridge._
-- **Why does `SwiftUI` connect `macOS App Lifecycle & Status Bar` to `PDF Processing & Document Pipeline`, `Drag & Drop Shelf Interactions`, `Kinematic Limb Verification`, `PDF Processing & Document Pipeline`, `Clock & Chronometer Widgets`, `Desktop Companion Coordinator`, `Clock & Chronometer Widgets`, `EventKit Calendar & Agenda`, `Hashable Subsystem`, `CompanionFrameStripGenerator.swift Subsystem`, `MediaRemote Playback Bridge`, `Camera Hardware & Mirror Preview`, `Desktop Companion Coordinator`, `NotificationModule.swift Subsystem`, `Configuration Subsystem`, `Modular Bento Dashboard System`?**
-  _High betweenness centrality (0.076) - this node is a cross-community bridge._
+- **Why does `SwiftUI` connect `SwiftUI` to `ShelfModule`, `ModuleRegistry`, `VerificationTests.swift`, `View`, `CGPoint`, `CompanionFrameStripStubs.swift`, `CalendarModule`, `TelegramModule`, `CompanionActivityLevel`, `NowPlayingModule`, `MirrorModule`, `.init`, `NotificationModule`, `DesignSystem.swift`, `SettingsCategory`?**
+  _High betweenness centrality (0.081) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `ThockModule` (e.g. with `.keySoundSectionView` and `.terminalSectionView`) actually correct?**
   _`ThockModule` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 3 inferred relationships involving `ShelfModule` (e.g. with `.body` and `.canRunActiveTool`) actually correct?**
   _`ShelfModule` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `PackageDescription`, `.sharedDelegate`, `.isDashboardPinned` to the rest of the system?**
-  _361 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `PDF Processing & Document Pipeline` be split into smaller, more focused modules?**
-  _Cohesion score 0.05613951266125179 - nodes in this community are weakly interconnected._
+  _375 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `ShelfModule` be split into smaller, more focused modules?**
+  _Cohesion score 0.0568986568986569 - nodes in this community are weakly interconnected._

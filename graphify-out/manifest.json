@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "Sources/App/AppDelegate.swift": {
-    "mtime": 1794027611.107411,
-    "seen": 1794028366.822614,
-    "ast_hash": "974e260e3220dd9d83b9b60a4709d354",
+    "mtime": 1794028620.585282,
+    "seen": 1794029151.456752,
+    "ast_hash": "c5109ae4d4818b6680926cd07e53b765",
     "semantic_hash": ""
   },
   "Sources/App/Main.swift": {
@@ -36,16 +36,16 @@
     "semantic_hash": "b07f2364080c403c2f83af30809b63cd"
   },
   "Sources/Modules/Calendar/CalendarModule.swift": {
-    "mtime": 1793530193.7280614,
-    "seen": 1793540059.448289,
-    "ast_hash": "6f43de3d1d8e38b25e00db19e9755037",
-    "semantic_hash": "6f43de3d1d8e38b25e00db19e9755037"
+    "mtime": 1794028961.9865992,
+    "seen": 1794029151.456759,
+    "ast_hash": "20933b104bf56dcabd07c3c19de3e83e",
+    "semantic_hash": ""
   },
   "Sources/Modules/Mirror/MirrorModule.swift": {
-    "mtime": 1793535843.4569964,
-    "seen": 1793540059.44829,
-    "ast_hash": "345726964e9af8927a70b6d0e6cfa021",
-    "semantic_hash": "345726964e9af8927a70b6d0e6cfa021"
+    "mtime": 1794028608.2437823,
+    "seen": 1794029151.4567628,
+    "ast_hash": "30c80cb97059e6db4f20d437a1eac825",
+    "semantic_hash": ""
   },
   "Sources/Modules/Notifications/NotificationModule.swift": {
     "mtime": 1793454897.464005,
@@ -84,10 +84,10 @@
     "semantic_hash": "1e2a4f4865b00363b1e232643242a98a"
   },
   "Sources/Notch/NotchRootView.swift": {
-    "mtime": 1793821098.9299192,
-    "seen": 1793987242.14611,
-    "ast_hash": "2ee6c1cdc51bec0925422f6543827fa5",
-    "semantic_hash": "2ee6c1cdc51bec0925422f6543827fa5"
+    "mtime": 1794028747.0107913,
+    "seen": 1794029151.456768,
+    "ast_hash": "56eecca8bcf5b3a2aa238f2226f2fbd7",
+    "semantic_hash": ""
   },
   "Sources/Notch/NotchShellCoordinator.swift": {
     "mtime": 1794027894.3556285,
@@ -96,10 +96,10 @@
     "semantic_hash": ""
   },
   "Sources/Notch/NotchWindow.swift": {
-    "mtime": 1793534362.1420257,
-    "seen": 1793540059.4482958,
-    "ast_hash": "6d5261e36c294f57d796125ee1120da8",
-    "semantic_hash": "6d5261e36c294f57d796125ee1120da8"
+    "mtime": 1794028632.9460995,
+    "seen": 1794029151.456768,
+    "ast_hash": "807d01ad422fdcea2307ac7a7862a568",
+    "semantic_hash": ""
   },
   "Sources/Settings/SettingsView.swift": {
     "mtime": 1794027746.7240481,
@@ -150,9 +150,9 @@
     "semantic_hash": "5a163db27a75d4efa47a4546a43fcb23"
   },
   "Sources/Modules/Thock/ThockModule.swift": {
-    "mtime": 1794026344.441159,
-    "seen": 1794028366.8226292,
-    "ast_hash": "f81bd305717c7dd330610a95215969bc",
+    "mtime": 1794028776.3895829,
+    "seen": 1794029151.456766,
+    "ast_hash": "917e5f2b7ed080e7dbf0aa48f93b9d3f",
     "semantic_hash": ""
   },
   "Sources/Modules/Clock/ClockWidgetView.swift": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "Sources/Modules/Notes/NotesWidgetView.swift": {
-    "mtime": 1794027696.4961379,
-    "seen": 1794028366.822627,
-    "ast_hash": "58caedcddcd960a9f3650d9fab3d997a",
+    "mtime": 1794028665.3476546,
+    "seen": 1794029151.456764,
+    "ast_hash": "ecc0a82856c33f8deaf558f12cf1e628",
     "semantic_hash": ""
   },
   "Sources/Notch/ModularDashboardView.swift": {
@@ -192,10 +192,10 @@
     "semantic_hash": "b82cdd2f886439d08aec57e817127f26"
   },
   "Sources/Modules/Companion/CompanionCoordinator.swift": {
-    "mtime": 1793748779.630865,
-    "seen": 1793987242.146104,
-    "ast_hash": "edebf950bdca296e601e159ed2cb7f59",
-    "semantic_hash": "edebf950bdca296e601e159ed2cb7f59"
+    "mtime": 1794028793.1775625,
+    "seen": 1794029151.4567602,
+    "ast_hash": "fefa482daa9a9cbaa9531e8dd5ffb40b",
+    "semantic_hash": ""
   },
   "Sources/Modules/Companion/CompanionTypes.swift": {
     "mtime": 1793560651.9535728,
@@ -252,9 +252,9 @@
     "semantic_hash": ""
   },
   "Sources/Modules/AI/AskAIWidgetView.swift": {
-    "mtime": 1794027807.0981207,
-    "seen": 1794028366.8226209,
-    "ast_hash": "770420542b38ca595c2ae0dfc1b17034",
+    "mtime": 1794028700.0540855,
+    "seen": 1794029151.456757,
+    "ast_hash": "382ec51858ad8774d9ebc53afc3f0899",
     "semantic_hash": ""
   },
   "Tests/CompanionFrameStripGenerator.swift": {

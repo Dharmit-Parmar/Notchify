@@ -26,7 +26,7 @@ public struct CalendarEventItem: Identifiable, Sendable {
     public var color: Color {
         switch colorName {
         case "blue": return .blue
-        case "purple": return .purple
+        case "indigo", "purple": return .indigo
         case "green": return .green
         default: return .orange
         }
@@ -125,7 +125,7 @@ public final class CalendarModule: ObservableObject {
             title: "Design Review",
             timeString: "2:30 PM",
             date: today,
-            colorName: "purple"
+            colorName: "indigo"
         )
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let event3 = CalendarEventItem(
@@ -334,6 +334,20 @@ public struct CalendarHomeCardView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3.5)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.06)))
+                .transition(.opacity)
+            } else {
+                HStack(spacing: 5) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 9))
+                        .foregroundColor(DesignSystem.secondaryText)
+                    Text("No events scheduled")
+                        .font(.system(size: 9, weight: .regular))
+                        .foregroundColor(DesignSystem.secondaryText)
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3.5)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.04)))
                 .transition(.opacity)
             }
         }

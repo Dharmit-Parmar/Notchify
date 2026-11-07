@@ -72,11 +72,12 @@ An interactive rotary dial for everyday document workflows:
 
 | Metric | Target | Actual Measured | Status |
 | :--- | :--- | :--- | :--- |
-| **Idle Memory (RSS)** | < 80 MB | **59.5 MB** | 🟢 Optimized |
-| **Idle CPU Footprint** | 0% | **0.0%** | 🟢 Pure Event-Driven |
-| **Release Binary Size** | < 15 MB | **3.5 MB** | 🟢 Native Swift |
+| **Idle Memory (RSS)** | < 60 MB | **34.2 MB** | 🟢 Highly Optimized |
+| **Idle CPU Footprint** | 0.0% | **0.0%** | 🟢 Pure Event-Driven |
+| **Release Binary Size** | < 15 MB | **12.0 MB** | 🟢 Native Swift 6.0 |
 | **Screen Obstruction** | Zero | **0 pixels outside camera notch** | 🟢 Dynamic Frame Shrink |
-| **Dependencies** | Minimal | **0 third-party packages** (100% Native) | 🟢 Clean Stdlib |
+| **Automated Tests** | 100% Passing | **74/74 Unit + Rig + Pose Checks** | 🟢 Verified |
+| **Security Gates** | 100% Passed | **6/6 Security Integrity Checks** | 🟢 POSIX 0600 + Keychain |
 
 ---
 
@@ -145,10 +146,15 @@ Notchify
 
 ## 🧪 Verification & Automated Testing
 
-Notchify includes a built-in suite of 14 automated verification tests verifying window frame sizing, MediaRemote bridges, AirDrop batching, PDF compression ratios, and navigation state machines:
+Notchify includes a comprehensive automated verification harness spanning 4 test suites:
+1. **74-Test Verification Suite (`NotchTests`):** Dynamic window frame sizing, MediaRemote bridges, AirDrop batching, PDF compression & merge algorithms, encrypted storage, and navigation state machines.
+2. **7 Kinematic Rig & Roaming Acceptance Tests:** Bone length consistency, torso anchor attachment, single-clock timestamp invariants, zero foot slip invariants, monkey-bar hand pinning, and physical notch cutout non-intersection.
+3. **Companion Production Pose Checks:** Kinematic root step tracking, IK limb stability, and crawl contact slip verification.
+4. **Security Integrity Gate:** Automated auditing for credential leaks in plists, `.gitignore` coverage, git pre-commit hooks, and TCC Info.plist privacy declarations.
 
+Run all suites with:
 ```bash
-swift Tests/VerificationTests.swift
+./scripts/run-tests.sh
 ```
 
 ---
