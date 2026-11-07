@@ -18,6 +18,10 @@ public final class NotchShellCoordinator: ObservableObject {
             } else if state == .collapsed {
                 stopExpandedWatchdog()
                 MirrorModule.shared.stop()
+                ModuleRegistry.shared.stopAll()
+                ModuleRegistry.shared.unloadInactiveModules()
+                NowPlayingModule.shared.evictArtworkOnCollapse()
+                NoteStorageManager.shared.saveImmediately()
             }
         }
     }
@@ -27,6 +31,7 @@ public final class NotchShellCoordinator: ObservableObject {
     @Published public var isFileDragTargeted = false
     @Published public var isFileDraggingActive = false
     @Published public var isMenuOrPopoverOpen: Bool = false
+    private var popoverCount = 0
     public var fileDropWasAccepted = false
     @Published public var geometry: NotchGeometry = NotchGeometry.current()
     
@@ -110,6 +115,14 @@ public final class NotchShellCoordinator: ObservableObject {
     /// Provides visual feedback when appearance settings change by smoothly opening and closing the notch
     public func triggerAppearancePropagationPreview() {
         guard !isFileDraggingActive else { return }
+        if let panel = self.panel {
+            cachedExpandedRect = NotchPanel.calculateFrame(
+                for: .expanded,
+                store: SettingsStore.shared,
+                screen: panel.currentScreen
+            )
+        }
+        if AppDelegate.isSettingsOpen { return }
         appearancePreviewWorkItem?.cancel()
         isAppearancePreviewActive = true
         
@@ -125,15 +138,12 @@ public final class NotchShellCoordinator: ObservableObject {
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             self.isAppearancePreviewActive = false
-            self.isHovered = false
-            guard !self.isLockedOpen && !self.isFileDraggingActive else { return }
+            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive,
+                  !self.isMenuOrPopoverOpen else { return }
             self.stopExpandedWatchdog()
-            self.idleDimWorkItem?.cancel()
-            self.idleDimWorkItem = nil
+            self.idleDimWorkItem?.cancel(); self.idleDimWorkItem = nil
             self.isIdleDimmed = false
-            withAnimation(self.transitionAnimation) {
-                self.state = .collapsed
-            }
+            withAnimation(self.transitionAnimation) { self.state = .collapsed }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
         }
         appearancePreviewWorkItem = item
@@ -155,7 +165,7 @@ public final class NotchShellCoordinator: ObservableObject {
         let item = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             self.isAppearancePreviewActive = false
-            guard !self.isHovered && !self.isLockedOpen && !self.isFileDraggingActive else { return }
+            guard !self.isHovered && !self.isLockedOpen && !self.isFileDraggingActive && !self.isMenuOrPopoverOpen else { return }
             self.stopExpandedWatchdog()
             self.idleDimWorkItem?.cancel()
             self.idleDimWorkItem = nil
@@ -230,6 +240,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.state = .expanded
             }
             self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+            MirrorModule.shared.resumeIfViewed()
         }
         if ModuleRegistry.shared.activeModuleId == nil {
             ModuleRegistry.shared.selectFileDropTarget()
@@ -240,7 +251,9 @@ public final class NotchShellCoordinator: ObservableObject {
         isFileDraggingActive = false
         if !isHovered && !isLockedOpen {
             let item = DispatchWorkItem { [weak self] in
-                guard let self = self, !self.isFileDraggingActive else { return }
+                guard let self = self else { return }
+                self.collapseWorkItem = nil
+                guard !self.isFileDraggingActive else { return }
                 self.stopExpandedWatchdog()
                 withAnimation(self.transitionAnimation) {
                     self.state = .collapsed
@@ -259,7 +272,9 @@ public final class NotchShellCoordinator: ObservableObject {
         // Allow user to see what was dropped, then schedule normal hover collapse if mouse left
         if !isHovered && !isLockedOpen {
             let item = DispatchWorkItem { [weak self] in
-                guard let self = self, !self.isHovered, !self.isLockedOpen else { return }
+                guard let self = self else { return }
+                self.collapseWorkItem = nil
+                guard !self.isHovered, !self.isLockedOpen else { return }
                 self.collapseImmediately()
             }
             collapseWorkItem = item
@@ -302,6 +317,7 @@ public final class NotchShellCoordinator: ObservableObject {
             self.resetIdleTimer()
             NowPlayingModule.shared.refreshMediaState()
             ModuleRegistry.shared.activeModule?.start()
+            MirrorModule.shared.resumeIfViewed()
             if self.expandedWatchdog == nil && !self.isLockedOpen {
                 self.startExpandedWatchdog()
             }
@@ -311,13 +327,11 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func onMouseExit() {
+        if SettingsStore.shared.keepOpenWhileSettingsActive && AppDelegate.isSettingsOpen { return }
+        
         if let panel = self.panel {
             let mouseLoc = NSEvent.mouseLocation
-            let expandedRect = NotchPanel.calculateFrame(
-                for: .expanded,
-                store: SettingsStore.shared,
-                screen: panel.currentScreen
-            )
+            let expandedRect = cachedExpandedRect
             let effectiveBounds = (state == .expanded)
                 ? panel.frame.union(expandedRect).insetBy(dx: -24, dy: -14)
                 : panel.frame.insetBy(dx: -20, dy: -10)
@@ -340,11 +354,7 @@ public final class NotchShellCoordinator: ObservableObject {
             self.collapseWorkItem = nil
             if let panel = self.panel {
                 let mouseLoc = NSEvent.mouseLocation
-                let expandedRect = NotchPanel.calculateFrame(
-                    for: .expanded,
-                    store: SettingsStore.shared,
-                    screen: panel.currentScreen
-                )
+                let expandedRect = self.cachedExpandedRect
                 let effectiveBounds = (self.state == .expanded)
                     ? panel.frame.union(expandedRect).insetBy(dx: -24, dy: -14)
                     : panel.frame.insetBy(dx: -20, dy: -10)
@@ -374,12 +384,14 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func registerPopoverOpened() {
+        popoverCount += 1
         isMenuOrPopoverOpen = true
-        collapseWorkItem?.cancel()
-        collapseWorkItem = nil
+        collapseWorkItem?.cancel(); collapseWorkItem = nil
     }
     
     public func registerPopoverClosed() {
+        popoverCount = max(0, popoverCount - 1)
+        guard popoverCount == 0 else { return }
         isMenuOrPopoverOpen = false
         onMouseExit()
     }
@@ -389,6 +401,7 @@ public final class NotchShellCoordinator: ObservableObject {
             isLockedOpen = false
             isFileDraggingActive = false
             isMenuOrPopoverOpen = false
+            popoverCount = 0
         }
         isAppearancePreviewActive = false
         stopExpandedWatchdog()
@@ -423,6 +436,7 @@ public final class NotchShellCoordinator: ObservableObject {
             }
             panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
             ModuleRegistry.shared.activeModule?.start()
+            MirrorModule.shared.resumeIfViewed()
         } else if !isHovered {
             stopExpandedWatchdog()
             withAnimation(transitionAnimation) {

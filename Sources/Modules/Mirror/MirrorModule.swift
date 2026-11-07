@@ -30,16 +30,31 @@ public final class CameraSessionManager: @unchecked Sendable {
                     return discovery.devices.first(where: { $0.position == .front }) ?? discovery.devices.first
                 }()
                 
-                if let dev = device,
-                   let input = try? AVCaptureDeviceInput(device: dev),
-                   session.canAddInput(input) {
-                    session.addInput(input)
-                    session.commitConfiguration()
-                    self.isConfigured = true
-                } else {
+                guard let dev = device else {
                     session.commitConfiguration()
                     DispatchQueue.main.async {
-                        completion(false, "No camera found or camera in use by another application.")
+                        completion(false, "No camera device found.")
+                    }
+                    return
+                }
+                
+                do {
+                    let input = try AVCaptureDeviceInput(device: dev)
+                    if session.canAddInput(input) {
+                        session.addInput(input)
+                        session.commitConfiguration()
+                        self.isConfigured = true
+                    } else {
+                        session.commitConfiguration()
+                        DispatchQueue.main.async {
+                            completion(false, "Cannot add camera input to session.")
+                        }
+                        return
+                    }
+                } catch {
+                    session.commitConfiguration()
+                    DispatchQueue.main.async {
+                        completion(false, error.localizedDescription)
                     }
                     return
                 }
@@ -95,12 +110,32 @@ public final class MirrorModule: NotchModule {
     @Published public var isUserPaused: Bool = false
     @Published public var hasPermission: Bool = false
     @Published public var errorMessage: String? = nil
+    @Published public private(set) var session: AVCaptureSession?
     
     public let manager = CameraSessionManager()
     private var isActive = false
+    var viewers = 0
     
     public init() {
         checkPermission()
+    }
+    
+    public func resumeIfViewed() {
+        if viewers > 0 { start() }
+    }
+    
+    public func acquire() {
+        viewers += 1
+        errorMessage = nil
+        start()
+    }
+    
+    public func release() {
+        viewers = max(0, viewers - 1)
+        if viewers == 0 {
+            isUserPaused = false
+            stop()
+        }
     }
     
     public func start() {
@@ -113,6 +148,7 @@ public final class MirrorModule: NotchModule {
         guard isActive || isRunning else { return }
         isActive = false
         manager.stop { [weak self] in
+            self?.session = nil
             self?.isRunning = false
         }
     }
@@ -133,10 +169,12 @@ public final class MirrorModule: NotchModule {
     }
     
     private func checkPermissionAndStart() {
+        errorMessage = nil
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             hasPermission = true
             manager.start { [weak self] running, error in
+                self?.session = self?.manager.captureSession
                 self?.isRunning = running
                 self?.errorMessage = error
             }
@@ -148,6 +186,7 @@ public final class MirrorModule: NotchModule {
                     self.hasPermission = granted
                     if granted {
                         self.manager.start { [weak self] running, error in
+                            self?.session = self?.manager.captureSession
                             self?.isRunning = running
                             self?.errorMessage = error
                         }
@@ -214,7 +253,7 @@ public struct MirrorContainerView: View {
                     .fill(Color.black.opacity(0.85))
                     .frame(height: 140)
                 
-                CameraLivePreview(session: module.manager.captureSession)
+                CameraLivePreview(session: module.session)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .frame(height: 140)
                     .opacity(module.isRunning ? 1 : 0)
@@ -242,10 +281,10 @@ public struct MirrorContainerView: View {
             }
         }
         .onAppear {
-            module.start()
+            module.acquire()
         }
         .onDisappear {
-            module.stop()
+            module.release()
         }
     }
 }
@@ -281,7 +320,7 @@ public struct MirrorCompactTileView: View {
                     .fill(Color.black.opacity(0.85))
                     .frame(width: 76, height: 76)
                 
-                CameraLivePreview(session: module.manager.captureSession)
+                CameraLivePreview(session: module.session)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .frame(width: 76, height: 76)
                     .opacity(module.isRunning ? 1 : 0)
@@ -327,8 +366,8 @@ public struct MirrorCompactTileView: View {
                         .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.9)
                 )
         )
-        .onAppear { module.start() }
-        .onDisappear { module.stop() }
+        .onAppear { module.acquire() }
+        .onDisappear { module.release() }
     }
 }
 
@@ -377,31 +416,31 @@ public struct CameraLivePreview: NSViewRepresentable {
 }
 
 public final class CameraHostingNSView: NSView {
-    private var previewLayer: AVCaptureVideoPreviewLayer?
-    
+    private let previewLayer = AVCaptureVideoPreviewLayer()
+
     public override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        let layer = AVCaptureVideoPreviewLayer()
-        layer.videoGravity = .resizeAspectFill
-        layer.connection?.automaticallyAdjustsVideoMirroring = false
-        layer.connection?.isVideoMirrored = true
-        self.previewLayer = layer
-        self.layer?.addSublayer(layer)
+        previewLayer.videoGravity = .resizeAspectFill
+        layer?.addSublayer(previewLayer)
     }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
     public func setSession(_ session: AVCaptureSession?) {
-        if previewLayer?.session !== session {
-            previewLayer?.session = session
+        guard previewLayer.session !== session else { return }
+        previewLayer.session = session
+        if let c = previewLayer.connection, c.isVideoMirroringSupported {
+            c.automaticallyAdjustsVideoMirroring = false
+            c.isVideoMirrored = true
         }
     }
-    
+
     public override func layout() {
         super.layout()
-        previewLayer?.frame = bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        previewLayer.frame = bounds
+        CATransaction.commit()
     }
 }
