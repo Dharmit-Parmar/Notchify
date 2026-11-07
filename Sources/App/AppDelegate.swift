@@ -223,7 +223,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         window.title = "Notch Island Preferences"
         window.contentView = NSHostingView(rootView: SettingsView())
-        window.isReleasedWhenClosed = true
+        window.isReleasedWhenClosed = false
         window.level = .statusBar + 1
         window.delegate = AppDelegate.sharedDelegate
         
@@ -238,8 +238,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         isSettingsOpen = false
         if let win = settingsWindow {
             settingsWindow = nil
-            win.contentView = nil
-            win.delegate = nil
             win.close()
         }
         
@@ -256,8 +254,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
            closingWindow === AppDelegate.settingsWindow {
             AppDelegate.isSettingsOpen = false
             AppDelegate.settingsWindow = nil
-            closingWindow.contentView = nil
-            closingWindow.delegate = nil
+            
             if NotchShellCoordinator.shared.state == .expanded,
                !NotchShellCoordinator.shared.isLockedOpen,
                let panel = NotchShellCoordinator.shared.panel,
