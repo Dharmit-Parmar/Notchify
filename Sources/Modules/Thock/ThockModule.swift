@@ -520,6 +520,9 @@ public final class ThockModule: NotchModule {
                 do {
                     try cloneProc.run()
                     cloneProc.waitUntilExit()
+                    guard cloneProc.terminationStatus == 0 else {
+                        throw NSError(domain: "GitClone", code: Int(cloneProc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "git clone exited with code \(cloneProc.terminationStatus)"])
+                    }
                     
                     let checkoutProc = Process()
                     checkoutProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
@@ -527,6 +530,9 @@ public final class ThockModule: NotchModule {
                     checkoutProc.currentDirectoryURL = targetDir
                     try checkoutProc.run()
                     checkoutProc.waitUntilExit()
+                    guard checkoutProc.terminationStatus == 0 else {
+                        throw NSError(domain: "GitCheckout", code: Int(checkoutProc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "git checkout exited with code \(checkoutProc.terminationStatus)"])
+                    }
                 } catch {
                     Task { @MainActor [weak self] in
                         self?.isInstalling = false
@@ -563,6 +569,9 @@ public final class ThockModule: NotchModule {
                 do {
                     try cargoProc.run()
                     cargoProc.waitUntilExit()
+                    guard cargoProc.terminationStatus == 0 else {
+                        throw NSError(domain: "CargoBuild", code: Int(cargoProc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "cargo build exited with code \(cargoProc.terminationStatus)"])
+                    }
                 } catch {
                     Task { @MainActor [weak self] in
                         self?.isInstalling = false

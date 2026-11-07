@@ -7,6 +7,7 @@ final class AskAIWidgetUIState: ObservableObject {
     @Published var isCopied: Bool = false
     @Published var insertedIntoNotes: Bool = false
     @Published var apiKeyInput: String = ""
+    var queryTask: Task<Void, Never>? = nil
 }
 
 public struct AskAIWidgetView: View {
@@ -31,6 +32,10 @@ public struct AskAIWidgetView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onDisappear {
+            uiState.queryTask?.cancel()
+            uiState.queryTask = nil
+        }
     }
     
     // MARK: - 1-Space Mode (Compact Tile)
@@ -319,17 +324,20 @@ public struct AskAIWidgetView: View {
             // Quick Action Chips
             HStack(spacing: 5) {
                 quickChip(title: "Summarize Note", icon: "doc.text.magnifyingglass") {
-                    Task {
+                    uiState.queryTask?.cancel()
+                    uiState.queryTask = Task {
                         _ = await aiService.summarizeNotes(noteText: store.quickNotesText)
                     }
                 }
                 quickChip(title: "Action Items", icon: "checklist") {
-                    Task {
+                    uiState.queryTask?.cancel()
+                    uiState.queryTask = Task {
                         _ = await aiService.extractActionItems(noteText: store.quickNotesText)
                     }
                 }
                 quickChip(title: "Polish Note", icon: "wand.and.stars") {
-                    Task {
+                    uiState.queryTask?.cancel()
+                    uiState.queryTask = Task {
                         _ = await aiService.polishNotes(noteText: store.quickNotesText)
                     }
                 }
@@ -916,7 +924,8 @@ public struct AskAIWidgetView: View {
         uiState.inputPrompt = ""
         FeedbackManager.playClick()
         
-        Task {
+        uiState.queryTask?.cancel()
+        uiState.queryTask = Task { @MainActor in
             _ = await aiService.ask(prompt: promptToSend, context: store.quickNotesText)
         }
     }

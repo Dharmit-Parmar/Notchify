@@ -56,7 +56,7 @@ public final class CameraSessionManager: @unchecked Sendable {
         }
     }
     
-    public func stop(completion: @escaping @MainActor @Sendable () -> Void) {
+    public func stop(completion: @escaping @MainActor @Sendable () -> Void = {}) {
         queue.async { [weak self] in
             guard let self = self else { return }
             if let session = self.captureSession, session.isRunning {
@@ -64,6 +64,15 @@ public final class CameraSessionManager: @unchecked Sendable {
             }
             DispatchQueue.main.async {
                 completion()
+            }
+        }
+    }
+
+    public func stopSync() {
+        queue.sync { [weak self] in
+            guard let self = self else { return }
+            if let session = self.captureSession, session.isRunning {
+                session.stopRunning()
             }
         }
     }
@@ -97,7 +106,7 @@ public final class MirrorModule: NotchModule {
     }
     
     public func stop() {
-        guard isActive else { return }
+        guard isActive || isRunning else { return }
         isActive = false
         manager.stop { [weak self] in
             self?.isRunning = false

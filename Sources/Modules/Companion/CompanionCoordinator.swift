@@ -64,13 +64,7 @@ public final class CompanionCoordinator: ObservableObject {
         schedulerTimer = nil
         actionDurationTimer?.invalidate()
         actionDurationTimer = nil
-        typingDecayTimer?.invalidate()
-        typingDecayTimer = nil
-        
-        if let km = keyMonitor {
-            NSEvent.removeMonitor(km)
-            keyMonitor = nil
-        }
+        stopTypingMonitor()
         
         panel?.teardown()
         clickPanel?.teardown()
@@ -152,16 +146,45 @@ public final class CompanionCoordinator: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        // 5. Observe Mimic Typing Setting Toggle
+        SettingsStore.shared.$companionMimicTyping
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self = self else { return }
+                if enabled && SettingsStore.shared.isCompanionEnabled {
+                    self.setupTypingMonitor()
+                } else {
+                    self.stopTypingMonitor()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Passive Typing Cadence Monitor
     private func setupTypingMonitor() {
+        guard SettingsStore.shared.isCompanionEnabled,
+              SettingsStore.shared.companionMimicTyping else {
+            stopTypingMonitor()
+            return
+        }
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.registerTypingCadence()
             }
         }
+    }
+
+    private func stopTypingMonitor() {
+        if let km = keyMonitor {
+            NSEvent.removeMonitor(km)
+            keyMonitor = nil
+        }
+        typingDecayTimer?.invalidate()
+        typingDecayTimer = nil
+        recentKeystrokes = 0
     }
     
     private func registerTypingCadence() {

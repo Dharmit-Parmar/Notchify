@@ -18,6 +18,7 @@ final class NotesUIState: ObservableObject {
     @Published var apiKeyInput: String = ""
     var previousTextBeforeClear: String = ""
     var undoTimer: Timer? = nil
+    var aiTask: Task<Void, Never>? = nil
 }
 
 public struct NotesWidgetView: View {
@@ -56,6 +57,8 @@ public struct NotesWidgetView: View {
         .onDisappear {
             uiState.undoTimer?.invalidate()
             uiState.undoTimer = nil
+            uiState.aiTask?.cancel()
+            uiState.aiTask = nil
             // Immediate save when collapsing or navigating away
             noteStorage.saveImmediately()
             // Note: Mechanical key sounds persist while Notch is running so users can type anywhere in macOS
@@ -902,13 +905,13 @@ public struct NotesWidgetView: View {
     
     private func runAIAction(_ action: @escaping () async -> String) {
         FeedbackManager.playClick()
+        uiState.aiTask?.cancel()
         uiState.isAIGenerating = true
-        Task {
+        uiState.aiTask = Task { @MainActor [weak uiState] in
             let res = await action()
-            Task { @MainActor in
-                self.uiState.aiResponse = res
-                self.uiState.isAIGenerating = false
-            }
+            guard !Task.isCancelled else { return }
+            uiState?.aiResponse = res
+            uiState?.isAIGenerating = false
         }
     }
     

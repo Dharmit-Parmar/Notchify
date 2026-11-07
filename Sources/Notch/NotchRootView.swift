@@ -198,6 +198,7 @@ public struct NotchRootView: View {
                             .padding(.horizontal, 2)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Scroll tabs left")
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 5) {
@@ -227,6 +228,7 @@ public struct NotchRootView: View {
                             .padding(.horizontal, 2)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Scroll tabs right")
                 }
             }
             
@@ -248,6 +250,7 @@ public struct NotchRootView: View {
             }
             .buttonStyle(.spring)
             .help(coordinator.isLockedOpen ? "Lock Open (Active)" : "Lock Notch Open")
+            .accessibilityLabel(coordinator.isLockedOpen ? "Unlock Notch Island" : "Lock Notch Island Open")
             
             // Settings Cog
             Button(action: {
@@ -265,6 +268,7 @@ public struct NotchRootView: View {
             }
             .buttonStyle(.spring)
             .help("Open Preferences & Themes")
+            .accessibilityLabel("Preferences and Themes")
             
             // Dedicated Close / Collapse Notch Button
             Button(action: {
@@ -282,6 +286,7 @@ public struct NotchRootView: View {
             }
             .buttonStyle(.spring)
             .help("Collapse Notch (Esc)")
+            .accessibilityLabel("Collapse Notch Island")
         }
     }
     
@@ -428,6 +433,9 @@ public struct DraggableTabChip: View {
         )
         .scaleEffect(uiState.isTargeted ? 1.08 : (uiState.isHovered ? 1.02 : 1.0))
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: uiState.isTargeted)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("\(module.title) Tab\(isPinned ? ", Pinned" : "")")
         .contentShape(Rectangle())
         .onTapGesture {
             registry.togglePin(module.id)
