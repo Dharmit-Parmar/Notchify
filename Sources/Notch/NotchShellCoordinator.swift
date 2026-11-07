@@ -17,6 +17,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 startExpandedWatchdog()
             } else if state == .collapsed {
                 stopExpandedWatchdog()
+                MirrorModule.shared.stop()
             }
         }
     }

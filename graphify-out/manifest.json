@@ -90,9 +90,9 @@
     "semantic_hash": ""
   },
   "Sources/Notch/NotchShellCoordinator.swift": {
-    "mtime": 1794027894.3556285,
-    "seen": 1794028366.822631,
-    "ast_hash": "82d29da0745391a2d10733882c3169dd",
+    "mtime": 1794029290.5281084,
+    "seen": 1794029368.994546,
+    "ast_hash": "75f1febf78df0353b61a3f4015833ba1",
     "semantic_hash": ""
   },
   "Sources/Notch/NotchWindow.swift": {
@@ -132,10 +132,10 @@
     "semantic_hash": "07c426bc56614479060722fb7f47bb2b"
   },
   "README.md": {
-    "mtime": 1793454897.4624007,
-    "seen": 1793525341.070467,
-    "ast_hash": "5e1160626050da6d83bb0f7ddfe87876",
-    "semantic_hash": "5e1160626050da6d83bb0f7ddfe87876"
+    "mtime": 1794029186.950656,
+    "seen": 1794029368.994556,
+    "ast_hash": "0cc4c99c2f7f4b94624abfda97c95203",
+    "semantic_hash": ""
   },
   "Sources/Modules/AirDrop/AirDropModule.swift": {
     "mtime": 1793478749.2600803,
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "REPORT.md": {
-    "mtime": 1794028045.6985931,
-    "seen": 1794028366.822641,
-    "ast_hash": "aa681babdb266053908c011dbb9de98a",
+    "mtime": 1794029215.485274,
+    "seen": 1794029368.994556,
+    "ast_hash": "429121cf5698615702aa9bcc7bb312ec",
     "semantic_hash": ""
   }
 }

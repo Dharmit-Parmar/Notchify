@@ -361,69 +361,17 @@
       "source_location": "L126"
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_coordinator",
-      "label": "Coordinator",
+      "id": "sources_modules_battery_batterymodule_batterymodule",
+      "label": "BatteryModule",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "coordinator",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L996"
-    },
-    {
-      "id": "sources_modules_notes_noteswidgetview_customtexteditor",
-      "label": "CustomTextEditor",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": "customtexteditor",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L952"
-    },
-    {
-      "id": "sources_ui_designsystem_visualeffectblur",
-      "label": "VisualEffectBlur",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": "visualeffectblur",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L969"
-    },
-    {
-      "id": "sources_core_notchmodule_clockdialstyle",
-      "label": "ClockDialStyle",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "clockdialstyle",
-      "source_file": "Sources/Core/NotchModule.swift",
-      "source_location": "L91"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarsubsection",
-      "label": "CalendarSubsection",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "calendarsubsection",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L5"
+      "norm_label": "batterymodule",
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L6"
     },
     {
       "id": "sources_ui_designsystem_compactindicatorstyle",
@@ -452,69 +400,17 @@
       "source_location": "L200"
     },
     {
-      "id": "sources_ui_designsystem_glassmaterialstyle",
-      "label": "GlassMaterialStyle",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "glassmaterialstyle",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L217"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendaradaptivewidgetview",
-      "label": "CalendarAdaptiveWidgetView",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "calendaradaptivewidgetview",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L490"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarcelldata",
-      "label": "CalendarCellData",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "calendarcelldata",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L36"
-    },
-    {
       "id": "sources_modules_calendar_calendarmodule_calendareventitem",
       "label": "CalendarEventItem",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": "calendareventitem",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L12"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview",
-      "label": "CalendarHomeCardView",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "calendarhomecardview",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L174"
     },
     {
       "id": "sources_modules_calendar_calendarmodule_calendarminiglanceview",
@@ -523,37 +419,11 @@
       "_callable_class": true,
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": "calendarminiglanceview",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L369"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule",
-      "label": "CalendarModule",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "calendarmodule",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L45"
-    },
-    {
-      "id": "sources_modules_thock_thockmodule_thocksubsection",
-      "label": "ThockSubSection",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "thocksubsection",
-      "source_file": "Sources/Modules/Thock/ThockModule.swift",
-      "source_location": "L7"
     },
     {
       "id": "sources_ui_designsystem_apptheme",
@@ -751,19 +621,6 @@
       "source_location": "L8"
     },
     {
-      "id": "sources_notch_notchrootview_compactnotchindicator",
-      "label": "CompactNotchIndicator",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": "compactnotchindicator",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L579"
-    },
-    {
       "id": "tests_companionframestripgenerator_companionframestripgenerator",
       "label": "CompanionFrameStripGenerator",
       "_callable": true,
@@ -866,32 +723,6 @@
       "norm_label": "mainapp",
       "source_file": "Sources/App/Main.swift",
       "source_location": "L3"
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_batterymodule",
-      "label": "BatteryModule",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "batterymodule",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L6"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel",
-      "label": "CompanionActivityLevel",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "companionactivitylevel",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L90"
     },
     {
       "id": "sources_modules_companion_companiontypes_companionbehaviorstate",
@@ -1609,6 +1440,58 @@
       "source_location": "L20"
     },
     {
+      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview",
+      "label": "CalendarHomeCardView",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": "calendarhomecardview",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L174"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule",
+      "label": "CalendarModule",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": "calendarmodule",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L45"
+    },
+    {
+      "id": "sources_core_notchmodule_clockdialstyle",
+      "label": "ClockDialStyle",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "clockdialstyle",
+      "source_file": "Sources/Core/NotchModule.swift",
+      "source_location": "L91"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarsubsection",
+      "label": "CalendarSubsection",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "calendarsubsection",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L5"
+    },
+    {
       "id": "sources_notch_notchshellcoordinator_notchstate",
       "label": "NotchState",
       "_callable": true,
@@ -1672,6 +1555,58 @@
       "norm_label": "springbuttonstyle",
       "source_file": "Sources/UI/DesignSystem.swift",
       "source_location": "L358"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel",
+      "label": "CompanionActivityLevel",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": "companionactivitylevel",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L90"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendaradaptivewidgetview",
+      "label": "CalendarAdaptiveWidgetView",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "calendaradaptivewidgetview",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L490"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarcelldata",
+      "label": "CalendarCellData",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "calendarcelldata",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L36"
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator",
+      "label": "CompactNotchIndicator",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": "compactnotchindicator",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L579"
     },
     {
       "id": "sources_modules_companion_kinematicengine_screenroutestage",
@@ -1791,6 +1726,19 @@
       "source_location": "L31"
     },
     {
+      "id": "sources_ui_designsystem_glassmaterialstyle",
+      "label": "GlassMaterialStyle",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": "glassmaterialstyle",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L217"
+    },
+    {
       "id": "sources_notch_notchwindow_notchhostingview",
       "label": "NotchHostingView",
       "_callable": true,
@@ -1802,6 +1750,19 @@
       "norm_label": "notchhostingview",
       "source_file": "Sources/Notch/NotchWindow.swift",
       "source_location": "L161"
+    },
+    {
+      "id": "sources_modules_thock_thockmodule_thocksubsection",
+      "label": "ThockSubSection",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "ThockSubSection",
+      "file_type": "code",
+      "norm_label": "thocksubsection",
+      "source_file": "Sources/Modules/Thock/ThockModule.swift",
+      "source_location": "L7"
     },
     {
       "id": "sources_notch_notchgeometry_notchgeometry",
@@ -1919,6 +1880,45 @@
       "norm_label": "airdropsharingdelegate",
       "source_file": "Sources/Modules/AirDrop/AirDropModule.swift",
       "source_location": "L6"
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_coordinator",
+      "label": "Coordinator",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "coordinator",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L996"
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_customtexteditor",
+      "label": "CustomTextEditor",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "customtexteditor",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L952"
+    },
+    {
+      "id": "sources_ui_designsystem_visualeffectblur",
+      "label": "VisualEffectBlur",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "visualeffectblur",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L969"
     },
     {
       "id": "sources_modules_clock_clockwidgetview_analogclockface",
@@ -2419,18 +2419,6 @@
       "source_location": "L1487"
     },
     {
-      "id": "sources_ui_designsystem_feedbackmanager_playdelete",
-      "label": ".playDelete()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "ShelfModule",
-      "file_type": "code",
-      "norm_label": ".playdelete()",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L820"
-    },
-    {
       "id": "sources_ui_designsystem_feedbackmanager_playdrop",
       "label": ".playDrop()",
       "_callable": true,
@@ -2899,100 +2887,76 @@
       "source_location": "L541"
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_coordinator_init",
+      "id": "sources_modules_battery_batterymodule_batterymodule_init",
       "label": ".init()",
       "_callable": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
       "norm_label": ".init()",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L999"
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L20"
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_coordinator_textdidchange",
-      "label": ".textDidChange()",
+      "id": "sources_modules_battery_batterymodule_batterymodule_makecompactview",
+      "label": ".makeCompactView()",
       "_callable": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": ".textdidchange()",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L1003"
+      "norm_label": ".makecompactview()",
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L65"
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_customtexteditor_makecoordinator",
-      "label": ".makeCoordinator()",
+      "id": "sources_modules_battery_batterymodule_batterymodule_makeexpandedview",
+      "label": ".makeExpandedView()",
       "_callable": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": ".makecoordinator()",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L956"
+      "norm_label": ".makeexpandedview()",
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L78"
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_customtexteditor_makensview",
-      "label": ".makeNSView()",
+      "id": "sources_modules_battery_batterymodule_batterymodule_refresh",
+      "label": ".refresh()",
       "_callable": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": ".makensview()",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L960"
+      "norm_label": ".refresh()",
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L45"
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_customtexteditor_updatensview",
-      "label": ".updateNSView()",
+      "id": "sources_modules_battery_batterymodule_batterymodule_start",
+      "label": ".start()",
       "_callable": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": ".updatensview()",
-      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
-      "source_location": "L989"
+      "norm_label": ".start()",
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L24"
     },
     {
-      "id": "sources_ui_designsystem_visualeffectblur_init",
-      "label": ".init()",
+      "id": "sources_modules_battery_batterymodule_batterymodule_stop",
+      "label": ".stop()",
       "_callable": true,
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": ".init()",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L973"
-    },
-    {
-      "id": "sources_ui_designsystem_visualeffectblur_makensview",
-      "label": ".makeNSView()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": ".makensview()",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L979"
-    },
-    {
-      "id": "sources_ui_designsystem_visualeffectblur_updatensview",
-      "label": ".updateNSView()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": ".updatensview()",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L987"
+      "norm_label": ".stop()",
+      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
+      "source_location": "L38"
     },
     {
       "id": "sources_core_notchmodule_settingsstore_init",
@@ -3007,40 +2971,16 @@
       "source_location": "L324"
     },
     {
-      "id": "sources_modules_calendar_calendarmodule_calendaradaptivewidgetview_init",
-      "label": ".init()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".init()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L493"
-    },
-    {
       "id": "sources_modules_calendar_calendarmodule_calendareventitem_init",
       "label": ".init()",
       "_callable": true,
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".init()",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L19"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_changemonth",
-      "label": ".changeMonth()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".changemonth()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L145"
     },
     {
       "id": "sources_modules_calendar_calendarmodule_calendarmodule_events",
@@ -3048,35 +2988,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".events()",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L140"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_init",
-      "label": ".init()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".init()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L59"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_loadevents",
-      "label": ".loadEvents()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".loadevents()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L114"
     },
     {
       "id": "sources_modules_calendar_calendarmodule_calendarmodule_opencalendarapp",
@@ -3084,59 +3000,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".opencalendarapp()",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L165"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_snaptotoday",
-      "label": ".snapToToday()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".snaptotoday()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L155"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_start",
-      "label": ".start()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".start()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L64"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_stop",
-      "label": ".stop()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".stop()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L69"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarmodule_updategridcells",
-      "label": ".updateGridCells()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".updategridcells()",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L71"
     },
     {
       "id": "sources_modules_telegram_telegrammodule_chatcontact_init",
@@ -3473,6 +3341,18 @@
       "norm_label": ".testbotconnection()",
       "source_file": "Sources/Modules/Telegram/TelegramModule.swift",
       "source_location": "L387"
+    },
+    {
+      "id": "sources_ui_designsystem_feedbackmanager_playdelete",
+      "label": ".playDelete()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 15,
+      "community_name": "TelegramModule",
+      "file_type": "code",
+      "norm_label": ".playdelete()",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L820"
     },
     {
       "id": "sources_ui_designsystem_feedbackmanager_playsend",
@@ -4039,78 +3919,6 @@
       "source_location": "L65"
     },
     {
-      "id": "sources_modules_battery_batterymodule_batterymodule_init",
-      "label": ".init()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".init()",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L20"
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_batterymodule_makecompactview",
-      "label": ".makeCompactView()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".makecompactview()",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L65"
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_batterymodule_makeexpandedview",
-      "label": ".makeExpandedView()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".makeexpandedview()",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L78"
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_batterymodule_refresh",
-      "label": ".refresh()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".refresh()",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L45"
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_batterymodule_start",
-      "label": ".start()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".start()",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L24"
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_batterymodule_stop",
-      "label": ".stop()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".stop()",
-      "source_file": "Sources/Modules/Battery/BatteryModule.swift",
-      "source_location": "L38"
-    },
-    {
       "id": "tests_companionframestripstubs_companioncoordinator_companionroutedidadvance",
       "label": ".companionRouteDidAdvance()",
       "_callable": true,
@@ -4675,18 +4483,6 @@
       "source_location": "L293"
     },
     {
-      "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_collapseimmediately",
-      "label": ".collapseImmediately()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "NotchShellCoordinator",
-      "file_type": "code",
-      "norm_label": ".collapseimmediately()",
-      "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L313"
-    },
-    {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_onfiledragentered",
       "label": ".onFileDragEntered()",
       "_callable": true,
@@ -4696,7 +4492,7 @@
       "file_type": "code",
       "norm_label": ".onfiledragentered()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L165"
+      "source_location": "L166"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_onfiledragexited",
@@ -4708,7 +4504,7 @@
       "file_type": "code",
       "norm_label": ".onfiledragexited()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L184"
+      "source_location": "L185"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_onfiledropfinished",
@@ -4720,7 +4516,7 @@
       "file_type": "code",
       "norm_label": ".onfiledropfinished()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L201"
+      "source_location": "L202"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_onmouseexit",
@@ -4732,7 +4528,7 @@
       "file_type": "code",
       "norm_label": ".onmouseexit()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L256"
+      "source_location": "L257"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_previewdashboard",
@@ -4744,7 +4540,7 @@
       "file_type": "code",
       "norm_label": ".previewdashboard()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L92"
+      "source_location": "L93"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_startexpandedwatchdog",
@@ -4756,7 +4552,7 @@
       "file_type": "code",
       "norm_label": ".startexpandedwatchdog()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L117"
+      "source_location": "L118"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_stopexpandedwatchdog",
@@ -4768,7 +4564,7 @@
       "file_type": "code",
       "norm_label": ".stopexpandedwatchdog()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L160"
+      "source_location": "L161"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_togglelock",
@@ -4780,7 +4576,7 @@
       "file_type": "code",
       "norm_label": ".togglelock()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L337"
+      "source_location": "L338"
     },
     {
       "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_triggerappearancepropagationpreview",
@@ -4792,31 +4588,7 @@
       "file_type": "code",
       "norm_label": ".triggerappearancepropagationpreview()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L62"
-    },
-    {
-      "id": "sources_notch_notchwindow_notchpanel_setoutsideclickmonitorenabled",
-      "label": ".setOutsideClickMonitorEnabled()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "NotchShellCoordinator",
-      "file_type": "code",
-      "norm_label": ".setoutsideclickmonitorenabled()",
-      "source_file": "Sources/Notch/NotchWindow.swift",
-      "source_location": "L53"
-    },
-    {
-      "id": "sources_notch_notchwindow_notchpanel_updateframe",
-      "label": ".updateFrame()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "NotchShellCoordinator",
-      "file_type": "code",
-      "norm_label": ".updateframe()",
-      "source_file": "Sources/Notch/NotchWindow.swift",
-      "source_location": "L137"
+      "source_location": "L63"
     },
     {
       "id": "sources_modules_companion_companionwindow_companionclickpanel_init",
@@ -6739,6 +6511,102 @@
       "source_location": "L842"
     },
     {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_changemonth",
+      "label": ".changeMonth()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".changemonth()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L145"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_init",
+      "label": ".init()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".init()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L59"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_loadevents",
+      "label": ".loadEvents()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".loadevents()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L114"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_snaptotoday",
+      "label": ".snapToToday()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".snaptotoday()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L155"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_start",
+      "label": ".start()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".start()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L64"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_stop",
+      "label": ".stop()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".stop()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L69"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarmodule_updategridcells",
+      "label": ".updateGridCells()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".updategridcells()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L71"
+    },
+    {
+      "id": "sources_notch_notchshellcoordinator_notchshellcoordinator_collapseimmediately",
+      "label": ".collapseImmediately()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "NotchPanel",
+      "file_type": "code",
+      "norm_label": ".collapseimmediately()",
+      "source_file": "Sources/Notch/NotchShellCoordinator.swift",
+      "source_location": "L314"
+    },
+    {
       "id": "sources_notch_notchwindow_notchpanel_calculateframe",
       "label": ".calculateFrame()",
       "_callable": true,
@@ -6763,6 +6631,30 @@
       "source_location": "L10"
     },
     {
+      "id": "sources_notch_notchwindow_notchpanel_setoutsideclickmonitorenabled",
+      "label": ".setOutsideClickMonitorEnabled()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "NotchPanel",
+      "file_type": "code",
+      "norm_label": ".setoutsideclickmonitorenabled()",
+      "source_file": "Sources/Notch/NotchWindow.swift",
+      "source_location": "L53"
+    },
+    {
+      "id": "sources_notch_notchwindow_notchpanel_updateframe",
+      "label": ".updateFrame()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "NotchPanel",
+      "file_type": "code",
+      "norm_label": ".updateframe()",
+      "source_file": "Sources/Notch/NotchWindow.swift",
+      "source_location": "L137"
+    },
+    {
       "id": "sources_ui_designsystem_buttonstyle_spring",
       "label": ".spring",
       "_callable": true,
@@ -6785,6 +6677,30 @@
       "norm_label": ".init()",
       "source_file": "Sources/UI/DesignSystem.swift",
       "source_location": "L365"
+    },
+    {
+      "id": "sources_ui_designsystem_springbuttonstyle_makebody",
+      "label": ".makeBody()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 46,
+      "community_name": "DesignSystem.swift",
+      "file_type": "code",
+      "norm_label": ".makebody()",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L371"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendaradaptivewidgetview_init",
+      "label": ".init()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": ".init()",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L493"
     },
     {
       "id": "sources_modules_companion_kinematicskeleton_cgpoint_distance",
@@ -6892,7 +6808,7 @@
       "file_type": "code",
       "norm_label": ".onmouseenter()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L215"
+      "source_location": "L216"
     },
     {
       "id": "sources_notch_notchwindow_notchhostingview_mouseentered",
@@ -6976,7 +6892,7 @@
       "file_type": "code",
       "norm_label": ".init()",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L38"
+      "source_location": "L39"
     },
     {
       "id": "sources_modules_companion_creaturerigview_creaturerigview_drawbubuface",
@@ -7591,6 +7507,102 @@
       "source_location": "L10"
     },
     {
+      "id": "sources_modules_notes_noteswidgetview_coordinator_init",
+      "label": ".init()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".init()",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L999"
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_coordinator_textdidchange",
+      "label": ".textDidChange()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".textdidchange()",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L1003"
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_customtexteditor_makecoordinator",
+      "label": ".makeCoordinator()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".makecoordinator()",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L956"
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_customtexteditor_makensview",
+      "label": ".makeNSView()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".makensview()",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L960"
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_customtexteditor_updatensview",
+      "label": ".updateNSView()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".updatensview()",
+      "source_file": "Sources/Modules/Notes/NotesWidgetView.swift",
+      "source_location": "L989"
+    },
+    {
+      "id": "sources_ui_designsystem_visualeffectblur_init",
+      "label": ".init()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".init()",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L973"
+    },
+    {
+      "id": "sources_ui_designsystem_visualeffectblur_makensview",
+      "label": ".makeNSView()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".makensview()",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L979"
+    },
+    {
+      "id": "sources_ui_designsystem_visualeffectblur_updatensview",
+      "label": ".updateNSView()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": ".updatensview()",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L987"
+    },
+    {
       "id": "sources_modules_clock_clockwidgetview_clockwidgetview_ampmstring",
       "label": ".amPmString()",
       "_callable": true,
@@ -7841,18 +7853,6 @@
       "norm_label": ".slotbasedbentoview()",
       "source_file": "Sources/Notch/ModularDashboardView.swift",
       "source_location": "L107"
-    },
-    {
-      "id": "sources_ui_designsystem_springbuttonstyle_makebody",
-      "label": ".makeBody()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "View",
-      "file_type": "code",
-      "norm_label": ".makebody()",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L371"
     },
     {
       "id": "bytecountformatter",
@@ -8284,17 +8284,6 @@
       "source_location": ""
     },
     {
-      "id": "sources_settings_settingsview_settingsview_feedbacksection",
-      "label": ".feedbackSection",
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "ShelfModule",
-      "file_type": "code",
-      "norm_label": ".feedbacksection",
-      "source_file": "Sources/Settings/SettingsView.swift",
-      "source_location": "L940"
-    },
-    {
       "id": "anyobject",
       "label": "AnyObject",
       "_origin": "ast",
@@ -8436,6 +8425,17 @@
       "norm_label": ".themecolor",
       "source_file": "Sources/Core/NotchModule.swift",
       "source_location": "L20"
+    },
+    {
+      "id": "sources_notch_notchrootview",
+      "label": "NotchRootView.swift",
+      "_origin": "ast",
+      "community": 1,
+      "community_name": "ModuleRegistry",
+      "file_type": "code",
+      "norm_label": "notchrootview.swift",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L1"
     },
     {
       "id": "sources_notch_notchrootview_draggabletabchip_body",
@@ -8700,6 +8700,18 @@
       "norm_label": ".modulessection",
       "source_file": "Sources/Settings/SettingsView.swift",
       "source_location": "L776"
+    },
+    {
+      "id": "uniformtypeidentifiers",
+      "label": "UniformTypeIdentifiers",
+      "_origin": "ast",
+      "community": 1,
+      "community_name": "ModuleRegistry",
+      "file_type": "code",
+      "norm_label": "uniformtypeidentifiers",
+      "source_file": "Sources/Settings/DashboardSettingsView.swift",
+      "source_location": "L2",
+      "type": "module"
     },
     {
       "id": "sources_core_notchmodule_settingsstore_activedashboardwidgets",
@@ -9142,158 +9154,70 @@
       "source_location": ""
     },
     {
-      "id": "nsscrollview",
-      "label": "NSScrollView",
+      "id": "cfrunloopsource",
+      "label": "CFRunLoopSource",
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "nsscrollview",
+      "norm_label": "cfrunloopsource",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "nstextviewdelegate",
-      "label": "NSTextViewDelegate",
+      "id": "sources_modules_battery_batterymodule_swift_anyview",
+      "label": "AnyView",
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "nstextviewdelegate",
+      "norm_label": "anyview",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "nsviewrepresentable",
-      "label": "NSViewRepresentable",
+      "id": "sources_modules_battery_batterymodule_swift_bool",
+      "label": "Bool",
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "nsviewrepresentable",
+      "norm_label": "bool",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "nsvisualeffectview",
-      "label": "NSVisualEffectView",
+      "id": "sources_modules_battery_batterymodule_swift_int",
+      "label": "Int",
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "nsvisualeffectview",
+      "norm_label": "int",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_swift_context",
-      "label": "Context",
+      "id": "sources_modules_battery_batterymodule_swift_string",
+      "label": "String",
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "context",
+      "norm_label": "string",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "sources_modules_notes_noteswidgetview_swift_coordinator",
-      "label": "Coordinator",
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_description",
+      "label": ".description",
       "_origin": "ast",
       "community": 11,
-      "community_name": "CustomTextEditor",
+      "community_name": "BatteryModule",
       "file_type": "code",
-      "norm_label": "coordinator",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_notes_noteswidgetview_swift_notification",
-      "label": "Notification",
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": "notification",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_ui_designsystem_swift_context",
-      "label": "Context",
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": "context",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_ui_designsystem_swift_nsview",
-      "label": "NSView",
-      "_origin": "ast",
-      "community": 11,
-      "community_name": "CustomTextEditor",
-      "file_type": "code",
-      "norm_label": "nsview",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "caseiterable",
-      "label": "CaseIterable",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "caseiterable",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_core_notchmodule_clockdialstyle_analog",
-      "label": "analog",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "analog",
-      "source_file": "Sources/Core/NotchModule.swift",
-      "source_location": "L92"
-    },
-    {
-      "id": "sources_core_notchmodule_clockdialstyle_digital",
-      "label": "digital",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "digital",
-      "source_file": "Sources/Core/NotchModule.swift",
-      "source_location": "L93"
-    },
-    {
-      "id": "sources_core_notchmodule_clockdialstyle_id",
-      "label": ".id",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": ".id",
-      "source_file": "Sources/Core/NotchModule.swift",
-      "source_location": "L95"
-    },
-    {
-      "id": "sources_core_notchmodule_clockdialstyle_title",
-      "label": ".title",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": ".title",
-      "source_file": "Sources/Core/NotchModule.swift",
-      "source_location": "L96"
+      "norm_label": ".description",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L105"
     },
     {
       "id": "sources_core_notchmodule_swift_cgfloat",
@@ -9305,39 +9229,6 @@
       "norm_label": "cgfloat",
       "source_file": "",
       "source_location": ""
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarsubsection_calendar",
-      "label": "calendar",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "calendar",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L6"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarsubsection_id",
-      "label": ".id",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": ".id",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L9"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarsubsection_schedule",
-      "label": "schedule",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "schedule",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L7"
     },
     {
       "id": "sources_ui_designsystem_compactindicatorstyle_battery",
@@ -9483,166 +9374,22 @@
       "source_location": "L201"
     },
     {
-      "id": "sources_ui_designsystem_glassmaterialstyle_crystal",
-      "label": "crystal",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "crystal",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L221"
-    },
-    {
-      "id": "sources_ui_designsystem_glassmaterialstyle_deepoled",
-      "label": "deepOLED",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "deepoled",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L219"
-    },
-    {
-      "id": "sources_ui_designsystem_glassmaterialstyle_frosted",
-      "label": "frosted",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "frosted",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L218"
-    },
-    {
-      "id": "sources_ui_designsystem_glassmaterialstyle_id",
-      "label": ".id",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": ".id",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L223"
-    },
-    {
-      "id": "sources_ui_designsystem_glassmaterialstyle_luminous",
-      "label": "luminous",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": "luminous",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L220"
-    },
-    {
-      "id": "sources_ui_designsystem_glassmaterialstyle_subtitle",
-      "label": ".subtitle",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": ".init",
-      "file_type": "code",
-      "norm_label": ".subtitle",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L225"
-    },
-    {
-      "id": "eventkit",
-      "label": "EventKit",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "eventkit",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L2",
-      "type": "module"
-    },
-    {
-      "id": "identifiable",
-      "label": "Identifiable",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "identifiable",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule",
-      "label": "CalendarModule.swift",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "calendarmodule.swift",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L1"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendaradaptivewidgetview_body",
-      "label": ".body",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".body",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L497"
-    },
-    {
       "id": "sources_modules_calendar_calendarmodule_calendareventitem_color",
       "label": ".color",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".color",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L26"
     },
     {
-      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview_body",
-      "label": ".body",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".body",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L190"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview_monthyeartitle",
-      "label": ".monthYearTitle",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".monthyeartitle",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L180"
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview_weekdays",
-      "label": ".weekDays",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".weekdays",
-      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
-      "source_location": "L184"
-    },
-    {
       "id": "sources_modules_calendar_calendarmodule_calendarminiglanceview_body",
       "label": ".body",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".body",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
@@ -9653,7 +9400,7 @@
       "label": ".dayNumber",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".daynumber",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
@@ -9664,7 +9411,7 @@
       "label": ".monthAbbrev",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".monthabbrev",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
@@ -9675,7 +9422,7 @@
       "label": ".nextEvent",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".nextevent",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
@@ -9686,7 +9433,7 @@
       "label": ".todayDate",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".todaydate",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
@@ -9697,29 +9444,18 @@
       "label": ".weekdayAbbrev",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": ".weekdayabbrev",
       "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L386"
     },
     {
-      "id": "sources_modules_calendar_calendarmodule_swift_bool",
-      "label": "Bool",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "bool",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
       "id": "sources_modules_calendar_calendarmodule_swift_color",
       "label": "Color",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": "color",
       "source_file": "",
@@ -9730,77 +9466,11 @@
       "label": "Date",
       "_origin": "ast",
       "community": 13,
-      "community_name": "Identifiable",
+      "community_name": "CalendarEventItem",
       "file_type": "code",
       "norm_label": "date",
       "source_file": "",
       "source_location": ""
-    },
-    {
-      "id": "sources_modules_calendar_calendarmodule_swift_int",
-      "label": "Int",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "int",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_thock_thockmodule_thocksubsection_asmr",
-      "label": "asmr",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "asmr",
-      "source_file": "Sources/Modules/Thock/ThockModule.swift",
-      "source_location": "L9"
-    },
-    {
-      "id": "sources_modules_thock_thockmodule_thocksubsection_icon",
-      "label": ".icon",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".icon",
-      "source_file": "Sources/Modules/Thock/ThockModule.swift",
-      "source_location": "L14"
-    },
-    {
-      "id": "sources_modules_thock_thockmodule_thocksubsection_id",
-      "label": ".id",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": ".id",
-      "source_file": "Sources/Modules/Thock/ThockModule.swift",
-      "source_location": "L12"
-    },
-    {
-      "id": "sources_modules_thock_thockmodule_thocksubsection_keysound",
-      "label": "keySound",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "keysound",
-      "source_file": "Sources/Modules/Thock/ThockModule.swift",
-      "source_location": "L8"
-    },
-    {
-      "id": "sources_modules_thock_thockmodule_thocksubsection_terminal",
-      "label": "terminal",
-      "_origin": "ast",
-      "community": 13,
-      "community_name": "Identifiable",
-      "file_type": "code",
-      "norm_label": "terminal",
-      "source_file": "Sources/Modules/Thock/ThockModule.swift",
-      "source_location": "L10"
     },
     {
       "id": "sources_ui_designsystem_apptheme_accentcolor",
@@ -10184,17 +9854,6 @@
       "community_name": "TelegramModule",
       "file_type": "code",
       "norm_label": "nscontrol",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "nsobject",
-      "label": "NSObject",
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "TelegramModule",
-      "file_type": "code",
-      "norm_label": "nsobject",
       "source_file": "",
       "source_location": ""
     },
@@ -10764,6 +10423,18 @@
       "type": "module"
     },
     {
+      "id": "coregraphics",
+      "label": "CoreGraphics",
+      "_origin": "ast",
+      "community": 19,
+      "community_name": "SwiftUI",
+      "file_type": "code",
+      "norm_label": "coregraphics",
+      "source_file": "Tests/KinematicAcceptanceTests.swift",
+      "source_location": "L2",
+      "type": "module"
+    },
+    {
       "id": "coreimage",
       "label": "CoreImage",
       "_origin": "ast",
@@ -10947,6 +10618,17 @@
       "source_location": "L1"
     },
     {
+      "id": "sources_modules_companion_kinematicengine",
+      "label": "KinematicEngine.swift",
+      "_origin": "ast",
+      "community": 19,
+      "community_name": "SwiftUI",
+      "file_type": "code",
+      "norm_label": "kinematicengine.swift",
+      "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
+      "source_location": "L1"
+    },
+    {
       "id": "sources_modules_notes_notestoragemanager",
       "label": "NoteStorageManager.swift",
       "_origin": "ast",
@@ -11000,94 +10682,6 @@
       "norm_label": "notchgeometry.swift",
       "source_file": "Sources/Notch/NotchGeometry.swift",
       "source_location": "L1"
-    },
-    {
-      "id": "sources_notch_notchrootview",
-      "label": "NotchRootView.swift",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": "notchrootview.swift",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L1"
-    },
-    {
-      "id": "sources_notch_notchrootview_compactnotchindicator_batteryindicator",
-      "label": ".batteryIndicator",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": ".batteryindicator",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L655"
-    },
-    {
-      "id": "sources_notch_notchrootview_compactnotchindicator_body",
-      "label": ".body",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": ".body",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L586"
-    },
-    {
-      "id": "sources_notch_notchrootview_compactnotchindicator_circadianindicator",
-      "label": ".circadianIndicator",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": ".circadianindicator",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L687"
-    },
-    {
-      "id": "sources_notch_notchrootview_compactnotchindicator_datetimeindicator",
-      "label": ".dateTimeIndicator",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": ".datetimeindicator",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L670"
-    },
-    {
-      "id": "sources_notch_notchrootview_compactnotchindicator_mediaindicator",
-      "label": ".mediaIndicator",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": ".mediaindicator",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L605"
-    },
-    {
-      "id": "sources_notch_notchrootview_compactnotchindicator_minimalindicator",
-      "label": ".minimalIndicator",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": ".minimalindicator",
-      "source_file": "Sources/Notch/NotchRootView.swift",
-      "source_location": "L645"
-    },
-    {
-      "id": "sources_notch_notchrootview_swift_cgfloat",
-      "label": "CGFloat",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": "cgfloat",
-      "source_file": "",
-      "source_location": ""
     },
     {
       "id": "sources_notch_notchshellcoordinator",
@@ -11212,18 +10806,6 @@
       "source_location": "L1"
     },
     {
-      "id": "uniformtypeidentifiers",
-      "label": "UniformTypeIdentifiers",
-      "_origin": "ast",
-      "community": 19,
-      "community_name": "SwiftUI",
-      "file_type": "code",
-      "norm_label": "uniformtypeidentifiers",
-      "source_file": "Sources/Settings/DashboardSettingsView.swift",
-      "source_location": "L2",
-      "type": "module"
-    },
-    {
       "id": "nsapplicationdelegate",
       "label": "NSApplicationDelegate",
       "_origin": "ast",
@@ -11343,160 +10925,6 @@
       "norm_label": ".emptydashboardview",
       "source_file": "Sources/Notch/ModularDashboardView.swift",
       "source_location": "L179"
-    },
-    {
-      "id": "cfrunloopsource",
-      "label": "CFRunLoopSource",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "cfrunloopsource",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "closedrange",
-      "label": "ClosedRange",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "closedrange",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_swift_anyview",
-      "label": "AnyView",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "anyview",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_swift_bool",
-      "label": "Bool",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "bool",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_swift_int",
-      "label": "Int",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "int",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_battery_batterymodule_swift_string",
-      "label": "String",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "string",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_modules_companion_companiontypes",
-      "label": "CompanionTypes.swift",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "companiontypes.swift",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L1"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_balanced",
-      "label": "balanced",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "balanced",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L92"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_calm",
-      "label": "calm",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "calm",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L91"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_description",
-      "label": ".description",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".description",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L105"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_displayname",
-      "label": ".displayName",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".displayname",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L97"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_id",
-      "label": ".id",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".id",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L95"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_intervalrange",
-      "label": ".intervalRange",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": ".intervalrange",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L113"
-    },
-    {
-      "id": "sources_modules_companion_companiontypes_companionactivitylevel_playful",
-      "label": "playful",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "playful",
-      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
-      "source_location": "L93"
     },
     {
       "id": "sources_modules_companion_companiontypes_companionbehaviorstate_celebrating",
@@ -11653,17 +11081,6 @@
       "source_location": "L127"
     },
     {
-      "id": "sources_modules_companion_companiontypes_swift_double",
-      "label": "Double",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "CompanionBehaviorState",
-      "file_type": "code",
-      "norm_label": "double",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
       "id": "tests_companionframestripstubs_swift_bool",
       "label": "Bool",
       "_origin": "ast",
@@ -11675,15 +11092,15 @@
       "source_location": ""
     },
     {
-      "id": "lineargradient",
-      "label": "LinearGradient",
+      "id": "sources_settings_settingsview_settingsview_appearancesection",
+      "label": ".appearanceSection",
       "_origin": "ast",
       "community": 21,
       "community_name": "DesignSystem",
       "file_type": "code",
-      "norm_label": "lineargradient",
-      "source_file": "",
-      "source_location": ""
+      "norm_label": ".appearancesection",
+      "source_file": "Sources/Settings/SettingsView.swift",
+      "source_location": "L260"
     },
     {
       "id": "sources_settings_settingsview_settingsview_companionsection",
@@ -11706,6 +11123,17 @@
       "norm_label": ".detailheaderbar",
       "source_file": "Sources/Settings/SettingsView.swift",
       "source_location": "L215"
+    },
+    {
+      "id": "sources_settings_settingsview_settingsview_feedbacksection",
+      "label": ".feedbackSection",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "DesignSystem",
+      "file_type": "code",
+      "norm_label": ".feedbacksection",
+      "source_file": "Sources/Settings/SettingsView.swift",
+      "source_location": "L940"
     },
     {
       "id": "sources_settings_settingsview_settingsview_footerbar",
@@ -11772,17 +11200,6 @@
       "norm_label": ".cardfill",
       "source_file": "Sources/UI/DesignSystem.swift",
       "source_location": "L761"
-    },
-    {
-      "id": "sources_ui_designsystem_designsystem_cardgradient",
-      "label": ".cardGradient",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "DesignSystem",
-      "file_type": "code",
-      "norm_label": ".cardgradient",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L762"
     },
     {
       "id": "sources_ui_designsystem_designsystem_currenttheme",
@@ -11860,17 +11277,6 @@
       "norm_label": ".structurecolor",
       "source_file": "Sources/UI/DesignSystem.swift",
       "source_location": "L752"
-    },
-    {
-      "id": "sources_ui_designsystem_notchglassbackground_body",
-      "label": ".body",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": "DesignSystem",
-      "file_type": "code",
-      "norm_label": ".body",
-      "source_file": "Sources/UI/DesignSystem.swift",
-      "source_location": "L897"
     },
     {
       "id": "sources_ui_designsystem_swift_int",
@@ -12409,7 +11815,7 @@
       "file_type": "code",
       "norm_label": ".transitionanimation",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L52"
+      "source_location": "L53"
     },
     {
       "id": "sources_notch_notchshellcoordinator_swift_bool",
@@ -12474,17 +11880,6 @@
       "community_name": "NotchShellCoordinator",
       "file_type": "code",
       "norm_label": "timer",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "sources_notch_notchwindow_swift_bool",
-      "label": "Bool",
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "NotchShellCoordinator",
-      "file_type": "code",
-      "norm_label": "bool",
       "source_file": "",
       "source_location": ""
     },
@@ -12830,6 +12225,17 @@
       "source_location": ""
     },
     {
+      "id": "lineargradient",
+      "label": "LinearGradient",
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "CGFloat",
+      "file_type": "code",
+      "norm_label": "lineargradient",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "shape",
       "label": "Shape",
       "_origin": "ast",
@@ -12841,6 +12247,17 @@
       "source_location": ""
     },
     {
+      "id": "sources_ui_designsystem_designsystem_cardgradient",
+      "label": ".cardGradient",
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "CGFloat",
+      "file_type": "code",
+      "norm_label": ".cardgradient",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L762"
+    },
+    {
       "id": "sources_ui_designsystem_liveequalizerindicator_body",
       "label": ".body",
       "_origin": "ast",
@@ -12850,6 +12267,17 @@
       "norm_label": ".body",
       "source_file": "Sources/UI/DesignSystem.swift",
       "source_location": "L330"
+    },
+    {
+      "id": "sources_ui_designsystem_notchglassbackground_body",
+      "label": ".body",
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "CGFloat",
+      "file_type": "code",
+      "norm_label": ".body",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L897"
     },
     {
       "id": "sources_ui_designsystem_swift_bool",
@@ -13831,17 +13259,6 @@
       "source_location": "L255"
     },
     {
-      "id": "sources_settings_settingsview_settingsview_appearancesection",
-      "label": ".appearanceSection",
-      "_origin": "ast",
-      "community": 36,
-      "community_name": "DynamicThemeEngine",
-      "file_type": "code",
-      "norm_label": ".appearancesection",
-      "source_file": "Sources/Settings/SettingsView.swift",
-      "source_location": "L260"
-    },
-    {
       "id": "sources_ui_designsystem_swift_cgrect",
       "label": "CGRect",
       "_origin": "ast",
@@ -14514,14 +13931,14 @@
       "source_location": "L1"
     },
     {
-      "id": "report_1_executive_summary",
-      "label": "1. Executive Summary",
+      "id": "report_1_skill_execution_table",
+      "label": "1. Skill Execution Table",
       "_origin": "ast",
       "community": 40,
       "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "1. executive summary",
+      "norm_label": "1. skill execution table",
       "source_file": "REPORT.md",
       "source_location": "L7"
     },
@@ -14535,19 +13952,19 @@
       "node_kind": "heading",
       "norm_label": "2. bugs found (grouped by root cause) & resolutions",
       "source_file": "REPORT.md",
-      "source_location": "L17"
+      "source_location": "L19"
     },
     {
-      "id": "report_3_before_and_after_metrics",
-      "label": "3. Before and After Metrics",
+      "id": "report_3_before_and_after_performance_metrics",
+      "label": "3. Before and After Performance Metrics",
       "_origin": "ast",
       "community": 40,
       "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "3. before and after metrics",
+      "norm_label": "3. before and after performance metrics",
       "source_file": "REPORT.md",
-      "source_location": "L92"
+      "source_location": "L89"
     },
     {
       "id": "report_4_verification_evidence",
@@ -14559,7 +13976,7 @@
       "node_kind": "heading",
       "norm_label": "4. verification evidence",
       "source_file": "REPORT.md",
-      "source_location": "L108"
+      "source_location": "L104"
     },
     {
       "id": "report_5_items_left_open",
@@ -14571,79 +13988,31 @@
       "node_kind": "heading",
       "norm_label": "5. items left open",
       "source_file": "REPORT.md",
-      "source_location": "L158"
+      "source_location": "L160"
     },
     {
-      "id": "report_category_a_swift_compilation_test_suite_execution",
-      "label": "Category A: Swift Compilation & Test Suite Execution",
+      "id": "report_automated_test_suites_output_scripts_run_tests_sh",
+      "label": "Automated Test Suites Output (`./scripts/run-tests.sh`)",
       "_origin": "ast",
       "community": 40,
       "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "category a: swift compilation & test suite execution",
+      "norm_label": "automated test suites output (`./scripts/run-tests.sh`)",
       "source_file": "REPORT.md",
-      "source_location": "L19"
+      "source_location": "L106"
     },
     {
-      "id": "report_category_b_security_vulnerabilities_from_security_audit_report_md",
-      "label": "Category B: Security Vulnerabilities (from `SECURITY_AUDIT_REPORT.md`)",
+      "id": "report_bundle_signing_entitlements",
+      "label": "Bundle Signing & Entitlements",
       "_origin": "ast",
       "community": 40,
       "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "category b: security vulnerabilities (from `security_audit_report.md`)",
+      "norm_label": "bundle signing & entitlements",
       "source_file": "REPORT.md",
-      "source_location": "L29"
-    },
-    {
-      "id": "report_category_c_lifecycle_memory_management",
-      "label": "Category C: Lifecycle & Memory Management",
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "category c: lifecycle & memory management",
-      "source_file": "REPORT.md",
-      "source_location": "L51"
-    },
-    {
-      "id": "report_category_d_performance_overheating",
-      "label": "Category D: Performance & Overheating",
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "category d: performance & overheating",
-      "source_file": "REPORT.md",
-      "source_location": "L70"
-    },
-    {
-      "id": "report_category_e_user_interface_state_feedback",
-      "label": "Category E: User Interface & State Feedback",
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "category e: user interface & state feedback",
-      "source_file": "REPORT.md",
-      "source_location": "L83"
-    },
-    {
-      "id": "report_code_signing_verification",
-      "label": "Code Signing Verification",
-      "_origin": "ast",
-      "community": 40,
-      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
-      "file_type": "document",
-      "node_kind": "heading",
-      "norm_label": "code signing verification",
-      "source_file": "REPORT.md",
-      "source_location": "L145"
+      "source_location": "L148"
     },
     {
       "id": "report_comprehensive_verification_security_lifecycle_performance_ui_report",
@@ -14658,28 +14027,76 @@
       "source_location": "L1"
     },
     {
-      "id": "report_live_process_measurement",
-      "label": "Live Process Measurement",
+      "id": "report_live_process_telemetry",
+      "label": "Live Process Telemetry",
       "_origin": "ast",
       "community": 40,
       "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "live process measurement",
+      "norm_label": "live process telemetry",
       "source_file": "REPORT.md",
-      "source_location": "L139"
+      "source_location": "L142"
     },
     {
-      "id": "report_test_suite_execution_output",
-      "label": "Test Suite Execution Output",
+      "id": "report_root_cause_1_concurrency_task_cancellation_event_monitor_lifecycles",
+      "label": "Root Cause 1: Concurrency, Task Cancellation & Event Monitor Lifecycles",
       "_origin": "ast",
       "community": 40,
       "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "test suite execution output",
+      "norm_label": "root cause 1: concurrency, task cancellation & event monitor lifecycles",
       "source_file": "REPORT.md",
-      "source_location": "L110"
+      "source_location": "L21"
+    },
+    {
+      "id": "report_root_cause_2_appkit_swiftui_window_lifecycles_hardware_teardown",
+      "label": "Root Cause 2: AppKit / SwiftUI Window Lifecycles & Hardware Teardown",
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "root cause 2: appkit / swiftui window lifecycles & hardware teardown",
+      "source_file": "REPORT.md",
+      "source_location": "L37"
+    },
+    {
+      "id": "report_root_cause_3_security_storage_sandboxing",
+      "label": "Root Cause 3: Security & Storage Sandboxing",
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "root cause 3: security & storage sandboxing",
+      "source_file": "REPORT.md",
+      "source_location": "L50"
+    },
+    {
+      "id": "report_root_cause_4_ui_design_accessibility_hig_compliance",
+      "label": "Root Cause 4: UI Design, Accessibility & HIG Compliance",
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "root cause 4: ui design, accessibility & hig compliance",
+      "source_file": "REPORT.md",
+      "source_location": "L69"
+    },
+    {
+      "id": "report_root_cause_5_swift_6_test_harness_architecture",
+      "label": "Root Cause 5: Swift 6 Test Harness Architecture",
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "2. Bugs Found (Grouped by Root Cause) & Resolutions",
+      "file_type": "document",
+      "node_kind": "heading",
+      "norm_label": "root cause 5: swift 6 test harness architecture",
+      "source_file": "REPORT.md",
+      "source_location": "L82"
     },
     {
       "id": "sources_modules_thock_thockmodule_swift_double",
@@ -14702,6 +14119,127 @@
       "norm_label": ".asmrsectionview",
       "source_file": "Sources/Modules/Thock/ThockModule.swift",
       "source_location": "L1468"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview_body",
+      "label": ".body",
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".body",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L190"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview_monthyeartitle",
+      "label": ".monthYearTitle",
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".monthyeartitle",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L180"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarhomecardview_weekdays",
+      "label": ".weekDays",
+      "_origin": "ast",
+      "community": 42,
+      "community_name": "CalendarModule",
+      "file_type": "code",
+      "norm_label": ".weekdays",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L184"
+    },
+    {
+      "id": "caseiterable",
+      "label": "CaseIterable",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "caseiterable",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_core_notchmodule_clockdialstyle_analog",
+      "label": "analog",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "analog",
+      "source_file": "Sources/Core/NotchModule.swift",
+      "source_location": "L92"
+    },
+    {
+      "id": "sources_core_notchmodule_clockdialstyle_digital",
+      "label": "digital",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "digital",
+      "source_file": "Sources/Core/NotchModule.swift",
+      "source_location": "L93"
+    },
+    {
+      "id": "sources_core_notchmodule_clockdialstyle_id",
+      "label": ".id",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": ".id",
+      "source_file": "Sources/Core/NotchModule.swift",
+      "source_location": "L95"
+    },
+    {
+      "id": "sources_core_notchmodule_clockdialstyle_title",
+      "label": ".title",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": ".title",
+      "source_file": "Sources/Core/NotchModule.swift",
+      "source_location": "L96"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarsubsection_calendar",
+      "label": "calendar",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "calendar",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L6"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarsubsection_id",
+      "label": ".id",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": ".id",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L9"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendarsubsection_schedule",
+      "label": "schedule",
+      "_origin": "ast",
+      "community": 43,
+      "community_name": "CaseIterable",
+      "file_type": "code",
+      "norm_label": "schedule",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L7"
     },
     {
       "id": "settingsstore",
@@ -14781,6 +14319,17 @@
       "source_location": ""
     },
     {
+      "id": "sources_notch_notchwindow_swift_bool",
+      "label": "Bool",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "NotchPanel",
+      "file_type": "code",
+      "norm_label": "bool",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "sources_notch_notchwindow_swift_nsrect",
       "label": "NSRect",
       "_origin": "ast",
@@ -14799,6 +14348,17 @@
       "community_name": "NotchPanel",
       "file_type": "code",
       "norm_label": "nsscreen",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "configuration",
+      "label": "Configuration",
+      "_origin": "ast",
+      "community": 46,
+      "community_name": "DesignSystem.swift",
+      "file_type": "code",
+      "norm_label": "configuration",
       "source_file": "",
       "source_location": ""
     },
@@ -14903,16 +14463,247 @@
       "source_location": ""
     },
     {
-      "id": "coregraphics",
-      "label": "CoreGraphics",
+      "id": "closedrange",
+      "label": "ClosedRange",
       "_origin": "ast",
-      "community": 5,
-      "community_name": "SkeletonPose",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
       "file_type": "code",
-      "norm_label": "coregraphics",
-      "source_file": "Tests/KinematicAcceptanceTests.swift",
+      "norm_label": "closedrange",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_modules_companion_companiontypes",
+      "label": "CompanionTypes.swift",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": "companiontypes.swift",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L1"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_balanced",
+      "label": "balanced",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": "balanced",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L92"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_calm",
+      "label": "calm",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": "calm",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L91"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_displayname",
+      "label": ".displayName",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": ".displayname",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L97"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_id",
+      "label": ".id",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": ".id",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L95"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_intervalrange",
+      "label": ".intervalRange",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": ".intervalrange",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L113"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_companionactivitylevel_playful",
+      "label": "playful",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": "playful",
+      "source_file": "Sources/Modules/Companion/CompanionTypes.swift",
+      "source_location": "L93"
+    },
+    {
+      "id": "sources_modules_companion_companiontypes_swift_double",
+      "label": "Double",
+      "_origin": "ast",
+      "community": 47,
+      "community_name": "CompanionActivityLevel",
+      "file_type": "code",
+      "norm_label": "double",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "eventkit",
+      "label": "EventKit",
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "eventkit",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
       "source_location": "L2",
       "type": "module"
+    },
+    {
+      "id": "identifiable",
+      "label": "Identifiable",
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "identifiable",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule",
+      "label": "CalendarModule.swift",
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "calendarmodule.swift",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L1"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_calendaradaptivewidgetview_body",
+      "label": ".body",
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": ".body",
+      "source_file": "Sources/Modules/Calendar/CalendarModule.swift",
+      "source_location": "L497"
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_swift_bool",
+      "label": "Bool",
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "bool",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_modules_calendar_calendarmodule_swift_int",
+      "label": "Int",
+      "_origin": "ast",
+      "community": 48,
+      "community_name": "Identifiable",
+      "file_type": "code",
+      "norm_label": "int",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator_batteryindicator",
+      "label": ".batteryIndicator",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": ".batteryindicator",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L655"
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator_body",
+      "label": ".body",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": ".body",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L586"
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator_circadianindicator",
+      "label": ".circadianIndicator",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": ".circadianindicator",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L687"
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator_datetimeindicator",
+      "label": ".dateTimeIndicator",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": ".datetimeindicator",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L670"
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator_mediaindicator",
+      "label": ".mediaIndicator",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": ".mediaindicator",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L605"
+    },
+    {
+      "id": "sources_notch_notchrootview_compactnotchindicator_minimalindicator",
+      "label": ".minimalIndicator",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": ".minimalindicator",
+      "source_file": "Sources/Notch/NotchRootView.swift",
+      "source_location": "L645"
+    },
+    {
+      "id": "sources_notch_notchrootview_swift_cgfloat",
+      "label": "CGFloat",
+      "_origin": "ast",
+      "community": 49,
+      "community_name": "CompactNotchIndicator",
+      "file_type": "code",
+      "norm_label": "cgfloat",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "equatable",
@@ -14924,17 +14715,6 @@
       "norm_label": "equatable",
       "source_file": "",
       "source_location": ""
-    },
-    {
-      "id": "sources_modules_companion_kinematicengine",
-      "label": "KinematicEngine.swift",
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "SkeletonPose",
-      "file_type": "code",
-      "norm_label": "kinematicengine.swift",
-      "source_file": "Sources/Modules/Companion/KinematicEngine.swift",
-      "source_location": "L1"
     },
     {
       "id": "sources_modules_companion_kinematicengine_screenroutestage_approachnotch",
@@ -15399,6 +15179,72 @@
       "source_location": "L146"
     },
     {
+      "id": "sources_ui_designsystem_glassmaterialstyle_crystal",
+      "label": "crystal",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": "crystal",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L221"
+    },
+    {
+      "id": "sources_ui_designsystem_glassmaterialstyle_deepoled",
+      "label": "deepOLED",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": "deepoled",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L219"
+    },
+    {
+      "id": "sources_ui_designsystem_glassmaterialstyle_frosted",
+      "label": "frosted",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": "frosted",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L218"
+    },
+    {
+      "id": "sources_ui_designsystem_glassmaterialstyle_id",
+      "label": ".id",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": ".id",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L223"
+    },
+    {
+      "id": "sources_ui_designsystem_glassmaterialstyle_luminous",
+      "label": "luminous",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": "luminous",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L220"
+    },
+    {
+      "id": "sources_ui_designsystem_glassmaterialstyle_subtitle",
+      "label": ".subtitle",
+      "_origin": "ast",
+      "community": 51,
+      "community_name": "GlassMaterialStyle",
+      "file_type": "code",
+      "norm_label": ".subtitle",
+      "source_file": "Sources/UI/DesignSystem.swift",
+      "source_location": "L225"
+    },
+    {
       "id": "content",
       "label": "Content",
       "_origin": "ast",
@@ -15441,6 +15287,61 @@
       "norm_label": "nsevent",
       "source_file": "",
       "source_location": ""
+    },
+    {
+      "id": "sources_modules_thock_thockmodule_thocksubsection_asmr",
+      "label": "asmr",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "ThockSubSection",
+      "file_type": "code",
+      "norm_label": "asmr",
+      "source_file": "Sources/Modules/Thock/ThockModule.swift",
+      "source_location": "L9"
+    },
+    {
+      "id": "sources_modules_thock_thockmodule_thocksubsection_icon",
+      "label": ".icon",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "ThockSubSection",
+      "file_type": "code",
+      "norm_label": ".icon",
+      "source_file": "Sources/Modules/Thock/ThockModule.swift",
+      "source_location": "L14"
+    },
+    {
+      "id": "sources_modules_thock_thockmodule_thocksubsection_id",
+      "label": ".id",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "ThockSubSection",
+      "file_type": "code",
+      "norm_label": ".id",
+      "source_file": "Sources/Modules/Thock/ThockModule.swift",
+      "source_location": "L12"
+    },
+    {
+      "id": "sources_modules_thock_thockmodule_thocksubsection_keysound",
+      "label": "keySound",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "ThockSubSection",
+      "file_type": "code",
+      "norm_label": "keysound",
+      "source_file": "Sources/Modules/Thock/ThockModule.swift",
+      "source_location": "L8"
+    },
+    {
+      "id": "sources_modules_thock_thockmodule_thocksubsection_terminal",
+      "label": "terminal",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "ThockSubSection",
+      "file_type": "code",
+      "norm_label": "terminal",
+      "source_file": "Sources/Modules/Thock/ThockModule.swift",
+      "source_location": "L10"
     },
     {
       "id": "package",
@@ -16246,6 +16147,28 @@
       "source_location": ""
     },
     {
+      "id": "nsobject",
+      "label": "NSObject",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "nsobject",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "nsscrollview",
+      "label": "NSScrollView",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "nsscrollview",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "nssharingservice",
       "label": "NSSharingService",
       "_origin": "ast",
@@ -16264,6 +16187,39 @@
       "community_name": "AirDropModule",
       "file_type": "code",
       "norm_label": "nssharingservicedelegate",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "nstextviewdelegate",
+      "label": "NSTextViewDelegate",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "nstextviewdelegate",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "nsviewrepresentable",
+      "label": "NSViewRepresentable",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "nsviewrepresentable",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "nsvisualeffectview",
+      "label": "NSVisualEffectView",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "nsvisualeffectview",
       "source_file": "",
       "source_location": ""
     },
@@ -16378,6 +16334,61 @@
       "source_location": ""
     },
     {
+      "id": "sources_modules_notes_noteswidgetview_swift_context",
+      "label": "Context",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "context",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_swift_coordinator",
+      "label": "Coordinator",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "coordinator",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_modules_notes_noteswidgetview_swift_notification",
+      "label": "Notification",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "notification",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_ui_designsystem_swift_context",
+      "label": "Context",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "context",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "sources_ui_designsystem_swift_nsview",
+      "label": "NSView",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "AirDropModule",
+      "file_type": "code",
+      "norm_label": "nsview",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
       "id": "unsafemutablepointer",
       "label": "UnsafeMutablePointer",
       "_origin": "ast",
@@ -16385,17 +16396,6 @@
       "community_name": "AirDropModule",
       "file_type": "code",
       "norm_label": "unsafemutablepointer",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "configuration",
-      "label": "Configuration",
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "View",
-      "file_type": "code",
-      "norm_label": "configuration",
       "source_file": "",
       "source_location": ""
     },
@@ -27070,7 +27070,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0
     },
     {
@@ -27082,7 +27082,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L319",
+      "source_location": "L320",
       "weight": 1.0
     },
     {
@@ -27094,7 +27094,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L333",
+      "source_location": "L334",
       "weight": 1.0
     },
     {
@@ -27106,7 +27106,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L334",
+      "source_location": "L335",
       "weight": 1.0
     },
     {
@@ -27118,7 +27118,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L46",
+      "source_location": "L47",
       "weight": 1.0
     },
     {
@@ -27130,7 +27130,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L180",
+      "source_location": "L181",
       "weight": 1.0
     },
     {
@@ -27142,7 +27142,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L187",
+      "source_location": "L188",
       "weight": 1.0
     },
     {
@@ -27154,7 +27154,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L189",
+      "source_location": "L190",
       "weight": 1.0
     },
     {
@@ -27166,7 +27166,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L194",
+      "source_location": "L195",
       "weight": 1.0
     },
     {
@@ -27178,7 +27178,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L206",
+      "source_location": "L207",
       "weight": 1.0
     },
     {
@@ -27190,7 +27190,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L208",
+      "source_location": "L209",
       "weight": 1.0
     },
     {
@@ -27202,7 +27202,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0
     },
     {
@@ -27214,7 +27214,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L239",
+      "source_location": "L240",
       "weight": 1.0
     },
     {
@@ -27226,7 +27226,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L246",
+      "source_location": "L247",
       "weight": 1.0
     },
     {
@@ -27238,7 +27238,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L259",
+      "source_location": "L260",
       "weight": 1.0
     },
     {
@@ -27250,7 +27250,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L281",
+      "source_location": "L282",
       "weight": 1.0
     },
     {
@@ -27262,7 +27262,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L301",
+      "source_location": "L302",
       "weight": 1.0
     },
     {
@@ -27274,7 +27274,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L306",
+      "source_location": "L307",
       "weight": 1.0
     },
     {
@@ -27286,7 +27286,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L101",
+      "source_location": "L102",
       "weight": 1.0
     },
     {
@@ -27298,7 +27298,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L103",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -27310,7 +27310,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L107",
+      "source_location": "L108",
       "weight": 1.0
     },
     {
@@ -27322,7 +27322,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L118",
+      "source_location": "L119",
       "weight": 1.0
     },
     {
@@ -27334,7 +27334,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L122",
+      "source_location": "L123",
       "weight": 1.0
     },
     {
@@ -27346,7 +27346,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L130",
+      "source_location": "L131",
       "weight": 1.0
     },
     {
@@ -27358,7 +27358,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L144",
+      "source_location": "L145",
       "weight": 1.0
     },
     {
@@ -27386,6 +27386,18 @@
       "weight": 1.0
     },
     {
+      "source": "sources_notch_notchshellcoordinator_notchshellcoordinator_state",
+      "target": "sources_modules_mirror_mirrormodule_mirrormodule_stop",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "Sources/Notch/NotchShellCoordinator.swift",
+      "source_location": "L20",
+      "weight": 1.0
+    },
+    {
       "source": "sources_notch_notchshellcoordinator_notchshellcoordinator_togglelock",
       "target": "sources_notch_notchshellcoordinator_notchshellcoordinator_stopexpandedwatchdog",
       "relation": "calls",
@@ -27394,7 +27406,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L340",
+      "source_location": "L341",
       "weight": 1.0
     },
     {
@@ -27406,7 +27418,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L352",
+      "source_location": "L353",
       "weight": 1.0
     },
     {
@@ -27418,7 +27430,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L355",
+      "source_location": "L356",
       "weight": 1.0
     },
     {
@@ -27430,7 +27442,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L74",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -27442,7 +27454,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L76",
+      "source_location": "L77",
       "weight": 1.0
     },
     {
@@ -27454,7 +27466,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L81",
+      "source_location": "L82",
       "weight": 1.0
     },
     {
@@ -32494,7 +32506,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L28",
+      "source_location": "L29",
       "weight": 1.0
     },
     {
@@ -32506,7 +32518,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L30",
+      "source_location": "L31",
       "weight": 1.0
     },
     {
@@ -32518,7 +32530,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -32530,7 +32542,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L35",
+      "source_location": "L36",
       "weight": 1.0
     },
     {
@@ -32542,7 +32554,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0
     },
     {
@@ -32554,7 +32566,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -32566,7 +32578,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L58",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -32578,7 +32590,7 @@
       "confidence_score": 1.0,
       "context": "field",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -38506,7 +38518,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L313",
+      "source_location": "L314",
       "weight": 1.0
     },
     {
@@ -38518,7 +38530,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L92",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -41832,90 +41844,90 @@
     },
     {
       "source": "report_2_bugs_found_grouped_by_root_cause_resolutions",
-      "target": "report_category_a_swift_compilation_test_suite_execution",
+      "target": "report_root_cause_1_concurrency_task_cancellation_event_monitor_lifecycles",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L19",
+      "source_location": "L21",
       "weight": 1.0
     },
     {
       "source": "report_2_bugs_found_grouped_by_root_cause_resolutions",
-      "target": "report_category_b_security_vulnerabilities_from_security_audit_report_md",
+      "target": "report_root_cause_2_appkit_swiftui_window_lifecycles_hardware_teardown",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L29",
+      "source_location": "L37",
       "weight": 1.0
     },
     {
       "source": "report_2_bugs_found_grouped_by_root_cause_resolutions",
-      "target": "report_category_c_lifecycle_memory_management",
+      "target": "report_root_cause_3_security_storage_sandboxing",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L51",
+      "source_location": "L50",
       "weight": 1.0
     },
     {
       "source": "report_2_bugs_found_grouped_by_root_cause_resolutions",
-      "target": "report_category_d_performance_overheating",
+      "target": "report_root_cause_4_ui_design_accessibility_hig_compliance",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L70",
+      "source_location": "L69",
       "weight": 1.0
     },
     {
       "source": "report_2_bugs_found_grouped_by_root_cause_resolutions",
-      "target": "report_category_e_user_interface_state_feedback",
+      "target": "report_root_cause_5_swift_6_test_harness_architecture",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L83",
+      "source_location": "L82",
       "weight": 1.0
     },
     {
       "source": "report_4_verification_evidence",
-      "target": "report_test_suite_execution_output",
+      "target": "report_automated_test_suites_output_scripts_run_tests_sh",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L110",
+      "source_location": "L106",
       "weight": 1.0
     },
     {
       "source": "report_4_verification_evidence",
-      "target": "report_live_process_measurement",
+      "target": "report_live_process_telemetry",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L139",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
       "source": "report_4_verification_evidence",
-      "target": "report_code_signing_verification",
+      "target": "report_bundle_signing_entitlements",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L145",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -41926,7 +41938,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L108",
+      "source_location": "L104",
       "weight": 1.0
     },
     {
@@ -41937,7 +41949,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L158",
+      "source_location": "L160",
       "weight": 1.0
     },
     {
@@ -41948,12 +41960,12 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L17",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
       "source": "report_comprehensive_verification_security_lifecycle_performance_ui_report",
-      "target": "report_1_executive_summary",
+      "target": "report_1_skill_execution_table",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -41964,13 +41976,13 @@
     },
     {
       "source": "report_comprehensive_verification_security_lifecycle_performance_ui_report",
-      "target": "report_3_before_and_after_metrics",
+      "target": "report_3_before_and_after_performance_metrics",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "REPORT.md",
-      "source_location": "L92",
+      "source_location": "L89",
       "weight": 1.0
     },
     {
@@ -52706,7 +52718,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L117",
+      "source_location": "L118",
       "weight": 1.0
     },
     {
@@ -52728,7 +52740,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L160",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
@@ -52739,7 +52751,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L165",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -52750,7 +52762,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L184",
+      "source_location": "L185",
       "weight": 1.0
     },
     {
@@ -52761,7 +52773,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L201",
+      "source_location": "L202",
       "weight": 1.0
     },
     {
@@ -52772,7 +52784,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L215",
+      "source_location": "L216",
       "weight": 1.0
     },
     {
@@ -52783,7 +52795,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L256",
+      "source_location": "L257",
       "weight": 1.0
     },
     {
@@ -52794,7 +52806,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L313",
+      "source_location": "L314",
       "weight": 1.0
     },
     {
@@ -52805,7 +52817,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L337",
+      "source_location": "L338",
       "weight": 1.0
     },
     {
@@ -52816,7 +52828,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L38",
+      "source_location": "L39",
       "weight": 1.0
     },
     {
@@ -52827,7 +52839,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -52838,7 +52850,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L62",
+      "source_location": "L63",
       "weight": 1.0
     },
     {
@@ -52849,7 +52861,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L92",
+      "source_location": "L93",
       "weight": 1.0
     },
     {
@@ -54983,7 +54995,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L332",
+      "source_location": "L333",
       "weight": 1.0
     },
     {
@@ -54995,7 +55007,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L47",
+      "source_location": "L48",
       "weight": 1.0
     },
     {
@@ -55007,7 +55019,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L177",
+      "source_location": "L178",
       "weight": 1.0
     },
     {
@@ -55019,7 +55031,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L193",
+      "source_location": "L194",
       "weight": 1.0
     },
     {
@@ -55031,7 +55043,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L245",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -55043,7 +55055,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L305",
+      "source_location": "L306",
       "weight": 1.0
     },
     {
@@ -55055,7 +55067,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L100",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -55067,7 +55079,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L344",
+      "source_location": "L345",
       "weight": 1.0
     },
     {
@@ -55079,7 +55091,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L71",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -55775,7 +55787,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L265",
+      "source_location": "L266",
       "weight": 1.0
     },
     {
@@ -55787,7 +55799,7 @@
       "confidence_score": 0.8,
       "context": "call",
       "source_file": "Sources/Notch/NotchShellCoordinator.swift",
-      "source_location": "L139",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -56707,5 +56719,5 @@
       "source_file": "NOTCH_CREATURE_MVP.md"
     }
   ],
-  "built_at_commit": "19d86a4e4bed9c3ff9ff8e8742b4b58a79a14b0e"
+  "built_at_commit": "251dc5ef4af4540e84c5c5d4038f80452401f278"
 }
