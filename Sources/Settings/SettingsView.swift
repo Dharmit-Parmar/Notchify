@@ -46,6 +46,7 @@ public final class SettingsNavigationState: ObservableObject {
     public static let shared = SettingsNavigationState()
     @Published public var selectedCategory: SettingsCategory = .dashboard
     @Published public var hasCopiedPath: Bool = false
+    @Published public var showColorDiagnostics: Bool = false
 }
 
 public struct SettingsView: View {
@@ -257,6 +258,20 @@ public struct SettingsView: View {
     }
     
     // MARK: - Section 1: Appearance & Glass Style
+    private func diagnosticsDataRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                .foregroundColor(Color.white.opacity(0.6))
+                .frame(width: 125, alignment: .leading)
+            Text(value)
+                .font(.system(size: 9.5, weight: .regular, design: .monospaced))
+                .foregroundColor(.white)
+                .lineLimit(2)
+            Spacer()
+        }
+    }
+
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             // Header
@@ -280,6 +295,82 @@ public struct SettingsView: View {
                 Text(store.currentTheme.subtitle)
                     .font(.system(size: 11))
                     .foregroundColor(DesignSystem.secondaryText)
+            }
+            
+            // Real-Time Detection Status Line & Re-Detect Button
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(themeEngine.accentColor)
+                        .frame(width: 6, height: 6)
+                    Text(themeEngine.diagnostics.detectionStatus)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                Spacer()
+                Button(action: {
+                    FeedbackManager.playClick()
+                    themeEngine.redetectColors()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 8.5, weight: .semibold))
+                        Text("Re-detect")
+                            .font(.system(size: 9.5, weight: .medium))
+                    }
+                    .foregroundColor(DesignSystem.accentColor)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(Color.white.opacity(0.06)))
+                }
+                .buttonStyle(.spring)
+                .help("Re-sample desktop wallpaper and foreground application icon")
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                        nav.showColorDiagnostics.toggle()
+                    }
+                }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: nav.showColorDiagnostics ? "chevron.up.circle.fill" : "info.circle")
+                            .font(.system(size: 9))
+                        Text(nav.showColorDiagnostics ? "Hide" : "Diagnostics")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundColor(Color.white.opacity(0.6))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(Color.white.opacity(0.04)))
+                }
+                .buttonStyle(.spring)
+                .help("Show/hide real-time color detection telemetry readout")
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.03)))
+            
+            if nav.showColorDiagnostics {
+                VStack(alignment: .leading, spacing: 5) {
+                    diagnosticsDataRow(label: "Wallpaper Source", value: themeEngine.diagnostics.wallpaperPath)
+                    diagnosticsDataRow(label: "Screen & Notch", value: "\(themeEngine.diagnostics.targetScreenName) (\(themeEngine.diagnostics.targetScreenResolution)) • Notch: \(themeEngine.diagnostics.hasPhysicalNotch ? "Present" : "None")")
+                    diagnosticsDataRow(label: "Per-Space Status", value: themeEngine.diagnostics.activeSpaceNote)
+                    diagnosticsDataRow(label: "Frontmost App", value: "\(themeEngine.diagnostics.frontmostAppName) (\(themeEngine.diagnostics.frontmostBundleID))")
+                    if let iconRGB = themeEngine.diagnostics.frontmostAppIconColor {
+                        diagnosticsDataRow(label: "App Icon RGB", value: String(format: "(%.2f, %.2f, %.2f)", iconRGB.0, iconRGB.1, iconRGB.2))
+                    }
+                    if let wallRGB = themeEngine.diagnostics.sampledWallpaperRGB {
+                        diagnosticsDataRow(label: "Wallpaper RGB", value: String(format: "(%.2f, %.2f, %.2f)", wallRGB.0, wallRGB.1, wallRGB.2))
+                    }
+                    if let sysRGB = themeEngine.diagnostics.systemAccentRGB {
+                        diagnosticsDataRow(label: "System Accent", value: String(format: "(%.2f, %.2f, %.2f)", sysRGB.0, sysRGB.1, sysRGB.2))
+                    }
+                    diagnosticsDataRow(label: "Active Stage", value: themeEngine.diagnostics.activeFallbackStage)
+                    diagnosticsDataRow(label: "Last Sampled", value: themeEngine.diagnostics.lastUpdateTime.formatted(date: .omitted, time: .standard))
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.35)))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 0.7))
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
             
             // Sub-Section 1: Dynamic Living Themes

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ImageIO
+import AVFoundation
 
 public enum AppTheme: String, CaseIterable, Identifiable, Codable {
     case adaptive = "Dynamic Wallpaper & App Glass"
@@ -392,6 +393,27 @@ extension ButtonStyle where Self == SpringButtonStyle {
     public static func spring(scale: CGFloat) -> SpringButtonStyle { SpringButtonStyle(scaleAmount: scale) }
 }
 
+// MARK: - Color Detection Diagnostics & Telemetry
+public struct ColorDetectionDiagnostics: Sendable {
+    public var wallpaperURL: URL? = nil
+    public var wallpaperPath: String = "None"
+    public var wallpaperModDate: Date? = nil
+    public var targetScreenName: String = "None"
+    public var targetScreenResolution: String = "0x0"
+    public var hasPhysicalNotch: Bool = false
+    public var activeSpaceNote: String = "Active Space Tracking"
+    public var frontmostAppName: String = "None"
+    public var frontmostBundleID: String = "None"
+    public var frontmostAppIconColor: (CGFloat, CGFloat, CGFloat)? = nil
+    public var sampledWallpaperRGB: (CGFloat, CGFloat, CGFloat)? = nil
+    public var systemAccentRGB: (CGFloat, CGFloat, CGFloat)? = nil
+    public var activeFallbackStage: String = "Initializing"
+    public var detectionStatus: String = "Idle"
+    public var lastUpdateTime: Date = Date()
+    
+    public init() {}
+}
+
 @MainActor
 public final class DynamicThemeEngine: ObservableObject {
     public static let shared = DynamicThemeEngine()
@@ -401,8 +423,10 @@ public final class DynamicThemeEngine: ObservableObject {
     @Published public var accentColor: Color = Color(red: 0.22, green: 0.62, blue: 1.0)
     @Published public var secondaryTextColor: Color = Color(red: 0.75, green: 0.82, blue: 0.92)
     @Published public var paletteSource = "Wallpaper"
+    @Published public var diagnostics = ColorDetectionDiagnostics()
     
     private var sampledWallpaperURL: URL?
+    private var sampledWallpaperModDate: Date?
     private var sampledWallpaperColor: (CGFloat, CGFloat, CGFloat)?
     private var sampledAppColors: [String: (CGFloat, CGFloat, CGFloat)] = [:]
     private var samplingAppBundleIDs: Set<String> = []
@@ -414,6 +438,35 @@ public final class DynamicThemeEngine: ObservableObject {
     private init() {
         DispatchQueue.main.async { [weak self] in
             self?.refreshColors()
+        }
+    }
+    
+    public func redetectColors() {
+        sampledWallpaperURL = nil
+        sampledWallpaperModDate = nil
+        sampledWallpaperColor = nil
+        sampledAppColors.removeAll()
+        refreshColors()
+    }
+    
+    public static func systemAccentRGB() -> (CGFloat, CGFloat, CGFloat) {
+        let accent = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
+        return (accent.redComponent, accent.greenComponent, accent.blueComponent)
+    }
+    
+    public static func timeOfDaySolarRGB() -> (CGFloat, CGFloat, CGFloat) {
+        let cal = Calendar.current
+        let hour = cal.component(.hour, from: Date())
+        let minute = cal.component(.minute, from: Date())
+        let timeFrac = Double(hour) + Double(minute) / 60.0
+        if timeFrac >= 5.0 && timeFrac < 8.5 {
+            return (0.95, 0.45, 0.35)
+        } else if timeFrac >= 8.5 && timeFrac < 17.0 {
+            return (0.25, 0.65, 0.95)
+        } else if timeFrac >= 17.0 && timeFrac < 20.5 {
+            return (0.96, 0.65, 0.22)
+        } else {
+            return (0.45, 0.55, 0.85)
         }
     }
     
@@ -508,29 +561,50 @@ public final class DynamicThemeEngine: ObservableObject {
             }
         }
 
-        let screen = NSScreen.main ?? NSScreen.screens.first
+        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+        let screenFrame = screen.frame
+        let hasNotch = screen.safeAreaInsets.top > 0
         
-        var hue: CGFloat = 0.60
-        var saturation: CGFloat = 0.72
+        var d = self.diagnostics
+        d.targetScreenName = screen.localizedName
+        d.targetScreenResolution = "\(Int(screenFrame.width))x\(Int(screenFrame.height))"
+        d.hasPhysicalNotch = hasNotch
+        d.activeSpaceNote = "Space tracking active"
+        d.systemAccentRGB = Self.systemAccentRGB()
+        d.lastUpdateTime = Date()
+        
+        var hue: CGFloat = 0.58
+        var saturation: CGFloat = 0.65
         var sourceName = "Dynamic"
-        var avgR: CGFloat = 0.14
-        var avgG: CGFloat = 0.15
-        var avgB: CGFloat = 0.18
+        var activeStage = "Initializing"
         
-        if let imageURL = screen.flatMap({ NSWorkspace.shared.desktopImageURL(for: $0) }),
-           sampledWallpaperURL != imageURL, !isSamplingWallpaper {
+        let imageURL = NSWorkspace.shared.desktopImageURL(for: screen)
+        d.wallpaperURL = imageURL
+        d.wallpaperPath = imageURL?.path ?? "None (Dynamic or Aerial Video)"
+        
+        let fileModDate = imageURL.flatMap { (try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate }
+        d.wallpaperModDate = fileModDate
+        
+        let isCacheValid = (imageURL != nil && sampledWallpaperURL == imageURL && sampledWallpaperModDate == fileModDate && sampledWallpaperColor != nil)
+        
+        if let imageURL = imageURL, !isCacheValid, !isSamplingWallpaper {
             isSamplingWallpaper = true
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 let color = Self.sampleWallpaperColor(at: imageURL)
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self = self else { return }
                     self.isSamplingWallpaper = false
                     self.sampledWallpaperURL = imageURL
+                    self.sampledWallpaperModDate = fileModDate
                     self.sampledWallpaperColor = color
-                    if SettingsStore.shared.currentTheme == .adaptive || SettingsStore.shared.currentTheme == .activeApp { self.refreshColors() }
+                    if SettingsStore.shared.currentTheme == .adaptive || SettingsStore.shared.currentTheme == .activeApp {
+                        self.refreshColors()
+                    }
                 }
             }
         }
+        
+        d.sampledWallpaperRGB = sampledWallpaperColor
 
         switch theme {
         case .circadian:
@@ -541,22 +615,16 @@ public final class DynamicThemeEngine: ObservableObject {
             let timeFrac = Double(hour) + Double(minute) / 60.0
             
             if timeFrac >= 5.0 && timeFrac < 8.5 {
-                hue = 0.98
-                saturation = 0.65
-                sourceName = "Solar Dawn"
+                hue = 0.98; saturation = 0.65; sourceName = "Solar Dawn"
             } else if timeFrac >= 8.5 && timeFrac < 17.0 {
-                hue = 0.58
-                saturation = 0.70
-                sourceName = "Daylight Sky"
+                hue = 0.58; saturation = 0.70; sourceName = "Daylight Sky"
             } else if timeFrac >= 17.0 && timeFrac < 20.5 {
-                hue = 0.08
-                saturation = 0.82
-                sourceName = "Golden Hour"
+                hue = 0.08; saturation = 0.82; sourceName = "Golden Hour"
             } else {
-                hue = 0.62
-                saturation = 0.55
-                sourceName = "Starlight Night"
+                hue = 0.62; saturation = 0.55; sourceName = "Starlight Night"
             }
+            activeStage = "Circadian Solar Phase (\(sourceName))"
+            d.detectionStatus = "✓ Circadian Solar Active"
             
         case .musicReactive:
             if let art = NowPlayingModule.shared.artwork,
@@ -565,82 +633,116 @@ public final class DynamicThemeEngine: ObservableObject {
                 var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 1
                 nsColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
                 if s >= 0.12 {
-                    hue = h
-                    saturation = max(0.40, s)
-                    sourceName = "Now Playing Aura"
+                    hue = h; saturation = max(0.40, s); sourceName = "Now Playing Aura"
                 } else {
-                    hue = 0.58
-                    saturation = 0.65
-                    sourceName = "Now Playing (Ambient)"
+                    hue = 0.58; saturation = 0.65; sourceName = "Now Playing (Ambient)"
                 }
             } else if NowPlayingModule.shared.hasActiveMedia {
-                hue = 0.80
-                saturation = 0.75
-                sourceName = "Now Playing"
+                hue = 0.80; saturation = 0.75; sourceName = "Now Playing"
             } else {
-                hue = 0.58
-                saturation = 0.60
-                sourceName = "Music Aura"
+                hue = 0.58; saturation = 0.60; sourceName = "Music Aura"
             }
+            activeStage = "Media Artwork Aura (\(sourceName))"
+            d.detectionStatus = "✓ Music Reactive Active"
             
         case .adaptive, .activeApp:
-            let followsActiveApp = theme == .activeApp
-            if let sampledWallpaperColor {
-                (avgR, avgG, avgB) = sampledWallpaperColor
+            let followsActiveApp = (theme == .activeApp)
+            
+            // STAGE 1: Sampled Wallpaper File
+            if let sampled = sampledWallpaperColor {
+                let wallpaper = NSColor(red: sampled.0, green: sampled.1, blue: sampled.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
+                var wallHue: CGFloat = 0, wallSat: CGFloat = 0, wallBri: CGFloat = 0, wallAlpha: CGFloat = 1
+                wallpaper.getHue(&wallHue, saturation: &wallSat, brightness: &wallBri, alpha: &wallAlpha)
+                if wallSat >= 0.12 && wallBri >= 0.08 {
+                    hue = wallHue
+                    saturation = wallSat
+                    sourceName = "Wallpaper"
+                    activeStage = "Wallpaper File Extraction"
+                }
             }
-            let wallpaper = NSColor(red: avgR, green: avgG, blue: avgB, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
-            var wallHue: CGFloat = 0, wallSat: CGFloat = 0, wallBri: CGFloat = 0, wallAlpha: CGFloat = 1
-            wallpaper.getHue(&wallHue, saturation: &wallSat, brightness: &wallBri, alpha: &wallAlpha)
-            hue = wallHue
-            saturation = wallSat
-            sourceName = "Wallpaper"
-
-        if followsActiveApp || saturation < 0.16 {
-            let app = NSWorkspace.shared.frontmostApplication
-            let bundleID = app?.bundleIdentifier
-            let appColor: (CGFloat, CGFloat, CGFloat)?
-            if let bundleID, let cached = sampledAppColors[bundleID] {
-                appColor = cached
-            } else {
-                appColor = nil
-                if let bundleID, let icon = app?.icon, !samplingAppBundleIDs.contains(bundleID) {
+            
+            // STAGE 2: Frontmost App Icon (if activeApp theme OR wallpaper is desaturated/gray)
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            let bundleID = frontmost?.bundleIdentifier ?? ""
+            d.frontmostAppName = frontmost?.localizedName ?? "None"
+            d.frontmostBundleID = bundleID
+            
+            let isOwnApp = bundleID.isEmpty || bundleID == Bundle.main.bundleIdentifier || bundleID.contains("NotchApp") || bundleID == "com.apple.dock"
+            
+            if !isOwnApp {
+                let appRGB = sampledAppColors[bundleID]
+                if appRGB == nil, let icon = frontmost?.icon, !samplingAppBundleIDs.contains(bundleID) {
                     samplingAppBundleIDs.insert(bundleID)
                     DispatchQueue.global(qos: .utility).async { [weak self] in
                         let color = Self.sampleImageColor(icon)
                         Task { @MainActor [weak self] in
-                            guard let self else { return }
+                            guard let self = self else { return }
                             self.samplingAppBundleIDs.remove(bundleID)
                             if self.sampledAppColors.count > 50 { self.sampledAppColors.removeAll() }
-                            if let color { self.sampledAppColors[bundleID] = color }
-                            if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID,
-                               SettingsStore.shared.currentTheme == .activeApp || SettingsStore.shared.currentTheme == .adaptive {
+                            if let color = color { self.sampledAppColors[bundleID] = color }
+                            if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID {
                                 self.refreshColors()
                             }
                         }
                     }
                 }
-            }
-
-            if let appColor {
-                let appImageColor = NSColor(red: appColor.0, green: appColor.1, blue: appColor.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
-                var appHue: CGFloat = 0, appSaturation: CGFloat = 0, appBrightness: CGFloat = 0, appAlpha: CGFloat = 1
-                appImageColor.getHue(&appHue, saturation: &appSaturation, brightness: &appBrightness, alpha: &appAlpha)
-                if appSaturation >= 0.16 {
-                    hue = appHue
-                    saturation = appSaturation
-                    sourceName = app?.localizedName ?? "Application"
+                
+                d.frontmostAppIconColor = appRGB
+                
+                if (followsActiveApp || activeStage == "Initializing"), let appColor = appRGB {
+                    let nsApp = NSColor(red: appColor.0, green: appColor.1, blue: appColor.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
+                    var aH: CGFloat = 0, aS: CGFloat = 0, aB: CGFloat = 0, aA: CGFloat = 1
+                    nsApp.getHue(&aH, saturation: &aS, brightness: &aB, alpha: &aA)
+                    if aS >= 0.14 && aB >= 0.10 {
+                        hue = aH
+                        saturation = aS
+                        sourceName = frontmost?.localizedName ?? "Application"
+                        activeStage = "Frontmost App Icon (\(sourceName))"
+                    }
                 }
             }
-        }
-
-            if saturation < 0.16 {
-                hue = 0.60
-                saturation = 0.72
-                sourceName = "Default"
+            
+            // STAGE 3: macOS System Accent Color Fallback
+            if activeStage == "Initializing" {
+                let sysAccent = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
+                var sH: CGFloat = 0, sS: CGFloat = 0, sB: CGFloat = 0, sA: CGFloat = 1
+                sysAccent.getHue(&sH, saturation: &sS, brightness: &sB, alpha: &sA)
+                if sS >= 0.10 && sB >= 0.12 {
+                    hue = sH
+                    saturation = sS
+                    sourceName = "System Accent"
+                    activeStage = "macOS System Accent Fallback"
+                }
             }
+            
+            // STAGE 4: Circadian Solar Time-of-Day Fallback
+            if activeStage == "Initializing" {
+                let cal = Calendar.current
+                let now = Date()
+                let hour = cal.component(.hour, from: now)
+                let minute = cal.component(.minute, from: now)
+                let timeFrac = Double(hour) + Double(minute) / 60.0
+                if timeFrac >= 5.0 && timeFrac < 8.5 {
+                    hue = 0.98; saturation = 0.65; sourceName = "Solar Dawn"
+                } else if timeFrac >= 8.5 && timeFrac < 17.0 {
+                    hue = 0.58; saturation = 0.70; sourceName = "Daylight Sky"
+                } else if timeFrac >= 17.0 && timeFrac < 20.5 {
+                    hue = 0.08; saturation = 0.82; sourceName = "Golden Hour"
+                } else {
+                    hue = 0.62; saturation = 0.55; sourceName = "Starlight Night"
+                }
+                activeStage = "Time-of-Day Circadian Fallback"
+            }
+            
+            d.detectionStatus = "✓ Active: \(activeStage)"
+            
         default:
-            break
+            activeStage = "Static Preset (\(theme.displayName))"
+            d.detectionStatus = "Static Theme Selected"
         }
+        
+        d.activeFallbackStage = activeStage
+        self.diagnostics = d
 
         let vibrancy = SettingsStore.shared.dynamicVibrancy.factor
         saturation = min(0.95, saturation * vibrancy)
@@ -696,7 +798,18 @@ public final class DynamicThemeEngine: ObservableObject {
     }
 
     nonisolated private static func sampleWallpaperColor(at imageURL: URL) -> (CGFloat, CGFloat, CGFloat)? {
-        autoreleasepool {
+        let ext = imageURL.pathExtension.lowercased()
+        if ["mov", "mp4", "m4v"].contains(ext) {
+            let asset = AVURLAsset(url: imageURL)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 64, height: 64)
+            if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
+                return sampleCGImageTopCenter(cgImage)
+            }
+        }
+        
+        return autoreleasepool { () -> (CGFloat, CGFloat, CGFloat)? in
             let sourceOpts: [CFString: Any] = [
                 kCGImageSourceShouldCache: false,
                 kCGImageSourceShouldCacheImmediately: false
@@ -705,39 +818,71 @@ public final class DynamicThemeEngine: ObservableObject {
             let options: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
                 kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: 32,
+                kCGImageSourceThumbnailMaxPixelSize: 64,
                 kCGImageSourceShouldCache: false
             ]
             guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-            
-            let size = CGSize(width: 16, height: 16)
-            var rawData = [UInt8](repeating: 0, count: 16 * 16 * 4)
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-            guard let ctx = CGContext(
-                data: &rawData,
-                width: 16,
-                height: 16,
-                bitsPerComponent: 8,
-                bytesPerRow: 16 * 4,
-                space: colorSpace,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else { return nil }
-            
-            ctx.draw(thumbnail, in: CGRect(origin: .zero, size: size))
-            
-            var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0, count: CGFloat = 0
-            for i in stride(from: 0, to: 16 * 16 * 4, by: 4) {
-                let a = CGFloat(rawData[i + 3]) / 255.0
+            return sampleCGImageTopCenter(thumbnail)
+        }
+    }
+    
+    nonisolated private static func sampleCGImageTopCenter(_ cgImage: CGImage) -> (CGFloat, CGFloat, CGFloat)? {
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0 && height > 0 else { return nil }
+        
+        let size = CGSize(width: width, height: height)
+        var rawData = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &rawData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        
+        ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
+        
+        // Sample top-center notch region (X: 30% to 70%, Y: top 35% of image)
+        let xStart = Int(Double(width) * 0.30)
+        let xEnd = max(xStart + 1, Int(Double(width) * 0.70))
+        let yStart = 0
+        let yEnd = max(1, Int(Double(height) * 0.35))
+        
+        var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0, count: CGFloat = 0
+        for y in yStart..<yEnd {
+            for x in xStart..<xEnd {
+                let offset = (y * width + x) * 4
+                guard offset + 3 < rawData.count else { continue }
+                let a = CGFloat(rawData[offset + 3]) / 255.0
                 if a > 0.15 {
-                    totalR += (CGFloat(rawData[i]) / 255.0) / a
-                    totalG += (CGFloat(rawData[i + 1]) / 255.0) / a
-                    totalB += (CGFloat(rawData[i + 2]) / 255.0) / a
+                    totalR += (CGFloat(rawData[offset]) / 255.0) / a
+                    totalG += (CGFloat(rawData[offset + 1]) / 255.0) / a
+                    totalB += (CGFloat(rawData[offset + 2]) / 255.0) / a
                     count += 1
                 }
             }
-            guard count > 0 else { return nil }
+        }
+        
+        if count > 0 {
             return (totalR / count, totalG / count, totalB / count)
         }
+        
+        // Fallback to full thumbnail average if top-center was transparent
+        for i in stride(from: 0, to: rawData.count, by: 4) {
+            let a = CGFloat(rawData[i + 3]) / 255.0
+            if a > 0.15 {
+                totalR += (CGFloat(rawData[i]) / 255.0) / a
+                totalG += (CGFloat(rawData[i + 1]) / 255.0) / a
+                totalB += (CGFloat(rawData[i + 2]) / 255.0) / a
+                count += 1
+            }
+        }
+        guard count > 0 else { return nil }
+        return (totalR / count, totalG / count, totalB / count)
     }
 }
 
