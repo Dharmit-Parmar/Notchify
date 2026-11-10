@@ -12,6 +12,7 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 | 2026-11-11 01:00 | Batch B1 Execution | Data and crash safety (Keychain, Tests, MediaRemote, CompanionPanel) | `axiom-security`, `axiom-data`, `axiom-concurrency`, `axiom-testing` | Dropped UI-specific styling skills for B1 |
 | 2026-11-11 01:15 | Batch B2 Execution | Lag and responsiveness (SettingsStore fan-out, TimelineView, hover) | `axiom-performance`, `axiom-swiftui`, `apple-design`, `emilkowalski-motion` | Retained concurrency & performance |
 | 2026-11-11 01:30 | Batch B3 Execution | Correctness (ModuleRegistry, Toggle double-flip, keyboard focus, Thock generation guard) | `axiom-macos`, `axiom-concurrency`, `swift-concurrency-pro`, `swiftui-pro`, `axiom-swiftui` | Retained all previous skills |
+| 2026-11-11 01:45 | Batch B4 Execution | Look and layout (Panel clipping, adaptive height, light theme contrast, distinct glass, window leveling) | `axiom-design`, `axiom-accessibility`, `apple-design`, `axiom-macos` | Retained design & macOS windowing |
 
 ---
 
@@ -54,3 +55,16 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 - **Pre-Mortem Result:** Verified that `allOrderedModules` does not expose disabled modules to the live dock bar (which still consumes `orderedModules`), verified that global Esc monitoring does not trigger while Settings window is active, and verified that Thock processes terminate cleanly on app shutdown.
 - **Complaints Addressed:** C1, C8, C9.
 - **Evidence File:** `fix/evidence/b3_test_output.txt` (83/83 verification tests passed, 0 compiler errors).
+
+## Batch B4 Entry: Look & Layout
+- **Batch ID:** B4
+- **Files Modified:**
+  - `Sources/Notch/NotchWindow.swift:28, 137-165` (Lowered `NotchPanel.level` to `.floating`, added adaptive content-height calculation for secondary modules and 1-row dashboards)
+  - `Sources/Notch/NotchRootView.swift:70-80` (Added continuous squircle `.clipShape` matching active corner style, preventing any child element overflow)
+  - `Sources/UI/DesignSystem.swift:1349-1395` (Calibrated 4 distinct glass styles in `NotchGlassBackground`)
+  - `Sources/Settings/SettingsView.swift:420, 531, 618, 2317` (High-contrast theme labels, active badges, and Done button tint for Sakura/Birch)
+  - `Sources/App/AppDelegate.swift:195, 229, 243, 260` (Set `SettingsWindow.level = .floating + 1`, dynamically switched activation policy to `.regular` while Settings is open and `.accessory` when closed)
+- **Why:** Prevent elements from bleeding outside the notch panel squircle, eliminate giant empty bottom space on compact content, ensure Sakura and Birch light themes are readable, make glass styles visually distinct, and allow Settings window to minimize to the Dock without occlusion.
+- **Pre-Mortem Result:** Verified that `.floating + 1` permanently keeps Settings above the notch panel, and switching activation policy restores native Dock minimization behavior while cleanly returning to accessory mode on close.
+- **Complaints Addressed:** C2, C3, C4, C5.
+- **Evidence File:** `fix/evidence/b4_test_output.txt` (83/83 verification tests passed, 0 compiler errors).

@@ -192,6 +192,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             NotchShellCoordinator.shared.collapseImmediately()
         }
         
+        NSApp.setActivationPolicy(.regular)
+        
         if let window = settingsWindow {
             isSettingsOpen = true
             if window.isMiniaturized {
@@ -226,7 +228,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         window.title = "Notch Island Preferences"
         window.contentView = NSHostingView(rootView: SettingsView())
         window.isReleasedWhenClosed = false
-        window.level = .statusBar + 1
+        window.level = .floating + 1
         window.delegate = AppDelegate.sharedDelegate
         
         isSettingsOpen = true
@@ -242,6 +244,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             settingsWindow = nil
             win.close()
         }
+        NSApp.setActivationPolicy(.accessory)
         
         if NotchShellCoordinator.shared.state == .expanded,
            !NotchShellCoordinator.shared.isLockedOpen,
@@ -256,6 +259,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
            closingWindow === AppDelegate.settingsWindow {
             AppDelegate.isSettingsOpen = false
             AppDelegate.settingsWindow = nil
+            NSApp.setActivationPolicy(.accessory)
             
             if NotchShellCoordinator.shared.state == .expanded,
                !NotchShellCoordinator.shared.isLockedOpen,

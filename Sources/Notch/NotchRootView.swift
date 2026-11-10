@@ -67,6 +67,17 @@ public struct NotchRootView: View {
                 }
             }
         }
+        .clipShape(
+            UnevenRoundedRectangle(
+                cornerRadii: RectangleCornerRadii(
+                    topLeading: isExpanded ? store.cornerStyle.topRadius : 4,
+                    bottomLeading: isExpanded ? store.cornerStyle.bottomRadius : 14,
+                    bottomTrailing: isExpanded ? store.cornerStyle.bottomRadius : 14,
+                    topTrailing: isExpanded ? store.cornerStyle.topRadius : 4
+                ),
+                style: .continuous
+            )
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: store.currentTheme)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: themeEngine.canvasColor)

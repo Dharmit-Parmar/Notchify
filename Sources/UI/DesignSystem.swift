@@ -1350,16 +1350,16 @@ public struct NotchGlassBackground: View {
                     switch glassStyle {
                     case .frosted: return .hudWindow
                     case .deepOLED: return .underWindowBackground
-                    case .luminous: return .menu
+                    case .luminous: return .popover
                     case .crystal: return .headerView
                     }
                 }()
                 let canvasOpacity: Double = {
                     switch glassStyle {
-                    case .frosted: return 0.50
-                    case .deepOLED: return 0.94
-                    case .luminous: return 0.30
-                    case .crystal: return 0.10
+                    case .frosted: return 0.55
+                    case .deepOLED: return 0.96
+                    case .luminous: return 0.25
+                    case .crystal: return 0.08
                     }
                 }()
                 
@@ -1373,19 +1373,32 @@ public struct NotchGlassBackground: View {
                         Group {
                             if glassStyle == .deepOLED {
                                 CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-                                    .fill(Color.black.opacity(0.35))
+                                    .fill(Color.black.opacity(0.85))
                             }
                             if glassStyle == .luminous {
                                 CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
                                     .fill(
                                         LinearGradient(
                                             colors: [
-                                                themeEngine.accentColor.opacity(0.24),
-                                                themeEngine.accentColor.opacity(0.04),
+                                                themeEngine.accentColor.opacity(0.35),
+                                                themeEngine.accentColor.opacity(0.08),
                                                 Color.clear
                                             ],
                                             startPoint: .top,
                                             endPoint: .bottom
+                                        )
+                                    )
+                            }
+                            if glassStyle == .crystal {
+                                CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.20),
+                                                Color.clear
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .center
                                         )
                                     )
                             }

@@ -26,7 +26,7 @@ public final class NotchPanel: NSPanel {
         )
         
         self.isFloatingPanel = true
-        self.level = .screenSaver
+        self.level = .floating
         self.collectionBehavior = [
             .canJoinAllSpaces,
             .fullScreenAuxiliary,
@@ -140,7 +140,39 @@ public final class NotchPanel: NSPanel {
             } else {
                 targetWidth = store.notchWidth
             }
-            targetHeight = store.notchHeight
+            
+            // Adaptive target height based on active module and dashboard widget count
+            if let activeId = ModuleRegistry.shared.activeModuleId {
+                switch activeId {
+                case "battery":
+                    targetHeight = min(store.notchHeight, 220.0)
+                case "airdrop":
+                    targetHeight = min(store.notchHeight, 240.0)
+                case "notifications":
+                    targetHeight = min(store.notchHeight, 260.0)
+                default:
+                    targetHeight = store.notchHeight
+                }
+            } else {
+                let activeWidgets = store.activeDashboardWidgets
+                if activeWidgets.isEmpty {
+                    targetHeight = 180.0
+                } else if store.dashboardLayoutFlow == .horizontalStrip {
+                    targetHeight = min(store.notchHeight, 225.0)
+                } else if store.dashboardLayoutFlow == .bentoQuad {
+                    let s2 = store.dashboardSlots.indices.contains(2) ? store.dashboardSlots[2] : nil
+                    let s3 = store.dashboardSlots.indices.contains(3) ? store.dashboardSlots[3] : nil
+                    if s2 == nil && s3 == nil {
+                        targetHeight = min(store.notchHeight, 225.0)
+                    } else {
+                        targetHeight = store.notchHeight
+                    }
+                } else if store.dashboardLayoutFlow == .focusDominant && activeWidgets.count <= 2 {
+                    targetHeight = min(store.notchHeight, 230.0)
+                } else {
+                    targetHeight = store.notchHeight
+                }
+            }
         } else {
             let baseWidth = geometry.physicalNotchWidth + 24.0
             if store.compactIndicatorStyle == .threeZoneStatusBar {

@@ -419,7 +419,7 @@ public struct SettingsView: View {
                     .frame(width: 7, height: 7)
                 Text(store.currentTheme.displayName)
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundColor(themeEngine.accentColor)
+                    .foregroundColor(DesignSystem.isLightTheme ? SettingsInk.primary : themeEngine.accentColor)
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
@@ -530,7 +530,7 @@ public struct SettingsView: View {
                                         .lineLimit(1)
                                     Text(isSelected ? "Active" : theme.subtitle)
                                         .font(.system(size: 9))
-                                        .foregroundColor(isSelected ? DesignSystem.accentColor : SettingsInk.tint(0.4))
+                                        .foregroundColor(isSelected ? (DesignSystem.isLightTheme ? SettingsInk.primary : DesignSystem.accentColor) : SettingsInk.secondary)
                                 }
                                 Spacer()
                             }
@@ -617,7 +617,7 @@ public struct SettingsView: View {
                                         .lineLimit(1)
                                     Text(isSelected ? "Active" : theme.subtitle)
                                         .font(.system(size: 9))
-                                        .foregroundColor(isSelected ? theme.accentColor : SettingsInk.tint(0.4))
+                                        .foregroundColor(isSelected ? (theme.isLight ? SettingsInk.primary : theme.accentColor) : SettingsInk.secondary)
                                 }
                                 Spacer()
                             }
@@ -2320,6 +2320,7 @@ public struct SettingsView: View {
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent)
+            .tint(DesignSystem.isLightTheme ? DesignSystem.primaryText : DesignSystem.accentColor)
             .controlSize(.regular)
         }
         .padding(.horizontal, 20)
