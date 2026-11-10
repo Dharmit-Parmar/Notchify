@@ -63,40 +63,43 @@ public struct DashboardSettingsView: View {
                         }
                     }
                 } else if store.dashboardLayoutFlow == .focusDominant {
-                    // Focus Dominant (70% Primary Dominant Slot + 30% Companion Slot)
-                    HStack(spacing: 8) {
+                    // Focus Dominant (Primary Dominant Slot + Companion Slot)
+                    let hasBoth = store.dashboardSlots[0] != nil && store.dashboardSlots[1] != nil
+                    
+                    HStack(spacing: 0) {
                         SlotDropCard(
                             slotIndex: 0,
-                            title: "Slot 1 (Dominant 70%)",
+                            title: "Slot 1 (Dominant)",
                             widget: store.dashboardSlots[0],
                             onDrop: { widget in store.setDashboardSlot(at: 0, widget: widget) },
                             onClear: { store.setDashboardSlot(at: 0, widget: nil) }
                         )
                         .frame(maxWidth: .infinity)
                         
-                        // Dotted divider between adjacent filled slots
-                        if store.dashboardSlots[0] != nil && store.dashboardSlots[1] != nil {
-                            Rectangle()
-                                .stroke(SettingsInk.tint(0.4), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
-                                .frame(width: 1)
-                                .padding(.vertical, 8)
+                        // Interactive dotted draggable divider only between adjacent FILLED slots
+                        if hasBoth {
+                            DottedDividerView(totalWidth: 500)
+                                .frame(height: 52)
+                        } else {
+                            Spacer().frame(width: 8)
                         }
                         
                         SlotDropCard(
                             slotIndex: 1,
-                            title: "Slot 2 (Companion 30%)",
+                            title: "Slot 2 (Companion)",
                             widget: store.dashboardSlots[1],
                             onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
                             onClear: { store.setDashboardSlot(at: 1, widget: nil) }
                         )
                         .frame(maxWidth: .infinity)
                     }
+                    .coordinateSpace(name: "DashboardContainer")
                 } else {
-                    // 2x2 Quad Grid representation with dotted vertical divider between filled columns
+                    // 2x2 Quad Grid representation with dotted draggable vertical divider between filled columns
                     let leftHasFilled = (store.dashboardSlots[0] != nil || store.dashboardSlots[2] != nil)
                     let rightHasFilled = (store.dashboardSlots[1] != nil || store.dashboardSlots[3] != nil)
                     
-                    HStack(spacing: 10) {
+                    HStack(spacing: 0) {
                         // Left Column (Slot 1 & 3)
                         VStack(spacing: 10) {
                             SlotDropCard(
@@ -115,13 +118,14 @@ public struct DashboardSettingsView: View {
                                 onClear: { store.setDashboardSlot(at: 2, widget: nil) }
                             )
                         }
+                        .frame(maxWidth: .infinity)
                         
-                        // Dotted vertical divider only between adjacent FILLED columns (none next to empty slots)
+                        // Dotted draggable vertical divider only between adjacent FILLED columns
                         if leftHasFilled && rightHasFilled {
-                            Rectangle()
-                                .stroke(SettingsInk.tint(0.35), style: StrokeStyle(lineWidth: 1.0, dash: [3, 4]))
-                                .frame(width: 1)
-                                .padding(.vertical, 8)
+                            DottedDividerView(totalWidth: 500)
+                                .frame(height: 120)
+                        } else {
+                            Spacer().frame(width: 10)
                         }
                         
                         // Right Column (Slot 2 & 4)
@@ -142,7 +146,9 @@ public struct DashboardSettingsView: View {
                                 onClear: { store.setDashboardSlot(at: 3, widget: nil) }
                             )
                         }
+                        .frame(maxWidth: .infinity)
                     }
+                    .coordinateSpace(name: "DashboardContainer")
                 }
             }
             .padding(14)

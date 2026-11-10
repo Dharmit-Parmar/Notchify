@@ -13,6 +13,7 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 | 2026-11-11 01:15 | Batch B2 Execution | Lag and responsiveness (SettingsStore fan-out, TimelineView, hover) | `axiom-performance`, `axiom-swiftui`, `apple-design`, `emilkowalski-motion` | Retained concurrency & performance |
 | 2026-11-11 01:30 | Batch B3 Execution | Correctness (ModuleRegistry, Toggle double-flip, keyboard focus, Thock generation guard) | `axiom-macos`, `axiom-concurrency`, `swift-concurrency-pro`, `swiftui-pro`, `axiom-swiftui` | Retained all previous skills |
 | 2026-11-11 01:45 | Batch B4 Execution | Look and layout (Panel clipping, adaptive height, light theme contrast, distinct glass, window leveling) | `axiom-design`, `axiom-accessibility`, `apple-design`, `axiom-macos` | Retained design & macOS windowing |
+| 2026-11-11 02:00 | Batch B5 Execution | Interactions (Slot dividers restricted to Settings canvas, direct dock tab reordering) | `apple-design`, `emilkowalski-motion`, `axiom-swiftui`, `swiftui-pro` | Retained UI gesture & animation skills |
 
 ---
 
@@ -68,3 +69,13 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 - **Pre-Mortem Result:** Verified that `.floating + 1` permanently keeps Settings above the notch panel, and switching activation policy restores native Dock minimization behavior while cleanly returning to accessory mode on close.
 - **Complaints Addressed:** C2, C3, C4, C5.
 - **Evidence File:** `fix/evidence/b4_test_output.txt` (83/83 verification tests passed, 0 compiler errors).
+
+## Batch B5 Entry: Interactions & Dividers
+- **Batch ID:** B5
+- **Files Modified:**
+  - `Sources/Settings/DashboardSettingsView.swift:65-150` (Integrated interactive `DottedDividerView` between adjacent filled slots in Settings Canvas with drag resizing and snap points)
+  - `Sources/Notch/NotchRootView.swift:571-665` (Implemented direct tab drag-to-reorder in dock chips with native drag operations, spring animations, and drop completion)
+- **Why:** Restrict interactive slot dividers exclusively to Settings -> Dashboard Slots Canvas (C6) while keeping live notch clean and static; enable direct drag-and-drop tab reordering in the live notch dock (C7).
+- **Pre-Mortem Result:** Verified that tab reorder drag operations do not intercept or conflict with external file drop operations (UTType.fileURL), and verified that live notch cleanly respects the ratio saved via Settings canvas without exposing drag gestures.
+- **Complaints Addressed:** C6, C7.
+- **Evidence File:** `fix/evidence/b5_test_output.txt` (83/83 verification tests passed, 0 compiler errors).

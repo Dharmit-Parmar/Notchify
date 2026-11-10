@@ -569,6 +569,9 @@ public struct UniversalTabDropDelegate: DropDelegate {
     }
     
     public func dropUpdated(info: DropInfo) -> NSDragOperation? {
+        if info.hasItemsConforming(to: [.text]) && !info.hasItemsConforming(to: [.fileURL, .image, .pdf]) {
+            return .move
+        }
         return .copy
     }
     
@@ -576,6 +579,31 @@ public struct UniversalTabDropDelegate: DropDelegate {
         isTargeted = false
         SpringLoadManager.shared.cancel()
         let targetId = moduleId
+        
+        // 1. Tab Reordering drop completion
+        if let provider = info.itemProviders(for: [.text]).first,
+           !info.hasItemsConforming(to: [.fileURL, .pdf, .image, .movie, .audio, .archive]) {
+            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, _) in
+                var foundStr: String? = nil
+                if let data = item as? Data {
+                    foundStr = String(data: data, encoding: .utf8)
+                } else if let str = item as? String {
+                    foundStr = str
+                }
+                if let text = foundStr, text.hasPrefix("tab:") {
+                    let sourceId = String(text.dropFirst(4))
+                    if sourceId != targetId {
+                        DispatchQueue.main.async {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                self.registry.moveModule(from: sourceId, to: targetId)
+                            }
+                            FeedbackManager.playDrop()
+                        }
+                    }
+                }
+            }
+            return true
+        }
         
         let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
         var handled = false
@@ -640,7 +668,10 @@ public struct UniversalTabDropDelegate: DropDelegate {
                     let sourceId = String(text.dropFirst(4))
                     if sourceId != targetId {
                         DispatchQueue.main.async {
-                            self.registry.moveModule(from: sourceId, to: targetId)
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                self.registry.moveModule(from: sourceId, to: targetId)
+                            }
+                            FeedbackManager.playHover()
                         }
                     }
                 }
