@@ -11,6 +11,7 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 | 2026-11-11 00:50 | Phase 0 & 1 Setup | Initial audit & question bank ingestion | `ponytail`, `gravitas`, `graphify`, `swiftui-pro`, `swiftui-expert-skill`, `swift-concurrency-pro`, `axiom-performance`, `axiom-security`, `axiom-data` | Retained all foundational skills |
 | 2026-11-11 01:00 | Batch B1 Execution | Data and crash safety (Keychain, Tests, MediaRemote, CompanionPanel) | `axiom-security`, `axiom-data`, `axiom-concurrency`, `axiom-testing` | Dropped UI-specific styling skills for B1 |
 | 2026-11-11 01:15 | Batch B2 Execution | Lag and responsiveness (SettingsStore fan-out, TimelineView, hover) | `axiom-performance`, `axiom-swiftui`, `apple-design`, `emilkowalski-motion` | Retained concurrency & performance |
+| 2026-11-11 01:30 | Batch B3 Execution | Correctness (ModuleRegistry, Toggle double-flip, keyboard focus, Thock generation guard) | `axiom-macos`, `axiom-concurrency`, `swift-concurrency-pro`, `swiftui-pro`, `axiom-swiftui` | Retained all previous skills |
 
 ---
 
@@ -38,3 +39,18 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 - **Pre-Mortem Result:** Verified that wake-up on expand or behavior change restores `.animation` mode without delay. Verified that background orphan sweep cleanly cleans up stale processes without thread contention.
 - **Complaints Addressed:** C1 (lag/heavy), C10 (old idle CPU bugs).
 - **Evidence File:** `fix/evidence/b2_test_output.txt` (83/83 verification tests passed, 0 compiler errors).
+
+## Batch B3 Entry: Correctness
+- **Batch ID:** B3
+- **Files Modified:**
+  - `Sources/Core/ModuleRegistry.swift:81-105` (Added `allOrderedModules` so disabled modules remain visible in Settings)
+  - `Sources/Settings/SettingsView.swift:1156-1216, 1338-1406` (Added `.allowsHitTesting(false)` on inner toggles to prevent double-flip event cancellation; switched module management to `allOrderedModules`)
+  - `Sources/Notch/NotchWindow.swift:6-9, 44-98` (Added global Esc monitor so pressing Esc collapses expanded notch reliably)
+  - `Sources/Notch/NotchShellCoordinator.swift:33, 125, 194-215, 345-375` (Added `isTypingInWidget` flag inhibiting expanded watchdog and mouse-exit auto-collapse while typing; unblocked appearance preview)
+  - `Sources/Modules/Notes/NotesWidgetView.swift:962-985, 1050-1065` (Hooked `isTypingInWidget` to `FocusTextView` and editor coordinator)
+  - `Sources/Modules/AI/AskAIWidgetView.swift:18, 30-38, 255, 631, 829, 935` (Hooked `isTypingInWidget` and key window activation to Ask AI text fields)
+  - `Sources/Modules/Thock/ThockModule.swift:183, 287, 672-740` (Added `processGeneration` guard so stale process termination handlers cannot overwrite new engine state)
+- **Why:** Resolve module vanishing bug in Settings, prevent toggle double-click bugs, guarantee keyboard focus and prevent auto-collapse during text entry, and eliminate Thock process lifecycle races.
+- **Pre-Mortem Result:** Verified that `allOrderedModules` does not expose disabled modules to the live dock bar (which still consumes `orderedModules`), verified that global Esc monitoring does not trigger while Settings window is active, and verified that Thock processes terminate cleanly on app shutdown.
+- **Complaints Addressed:** C1, C8, C9.
+- **Evidence File:** `fix/evidence/b3_test_output.txt` (83/83 verification tests passed, 0 compiler errors).

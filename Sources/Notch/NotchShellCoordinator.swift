@@ -31,6 +31,7 @@ public final class NotchShellCoordinator: ObservableObject {
     @Published public var isFileDragTargeted = false
     @Published public var isFileDraggingActive = false
     @Published public var isMenuOrPopoverOpen: Bool = false
+    @Published public var isTypingInWidget: Bool = false
     private var popoverCount = 0
     public var fileDropWasAccepted = false
     @Published public var geometry: NotchGeometry = NotchGeometry.current()
@@ -122,7 +123,6 @@ public final class NotchShellCoordinator: ObservableObject {
                 screen: panel.currentScreen
             )
         }
-        if AppDelegate.isSettingsOpen { return }
         appearancePreviewWorkItem?.cancel()
         isAppearancePreviewActive = true
         
@@ -195,8 +195,10 @@ public final class NotchShellCoordinator: ObservableObject {
         let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self = self else { return }
-                guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive else {
-                    self.stopExpandedWatchdog()
+                guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive, !self.isTypingInWidget else {
+                    if !self.isTypingInWidget && (self.state != .expanded || self.isLockedOpen || self.isFileDraggingActive) {
+                        self.stopExpandedWatchdog()
+                    }
                     return
                 }
                 guard let panel = self.panel else { return }
@@ -205,7 +207,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 let containsMouse = effectiveBounds.contains(mouseLoc)
                 
                 if !containsMouse {
-                    if self.isHovered || self.collapseWorkItem == nil {
+                    if !self.isTypingInWidget && (self.isHovered || self.collapseWorkItem == nil) {
                         self.onMouseExit()
                     }
                 } else {
@@ -345,7 +347,7 @@ public final class NotchShellCoordinator: ObservableObject {
         hoverWorkItem = nil
         isHovered = false
         
-        guard !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen, state != .collapsed else { return }
+        guard !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen, !isTypingInWidget, state != .collapsed else { return }
         
         if collapseWorkItem != nil { return }
         
@@ -363,7 +365,7 @@ public final class NotchShellCoordinator: ObservableObject {
                     return
                 }
             }
-            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen else { return }
+            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen, !self.isTypingInWidget else { return }
             
             self.stopExpandedWatchdog()
             self.idleDimWorkItem?.cancel()

@@ -6,6 +6,7 @@ public final class NotchPanel: NSPanel {
     public private(set) var currentScreen: NSScreen
     private var outsideClickMonitor: Any?
     private var localKeyMonitor: Any?
+    private var globalKeyMonitor: Any?
     
     public init(screen: NSScreen = NSScreen.main ?? NSScreen.screens[0]) {
         self.currentScreen = screen
@@ -48,6 +49,9 @@ public final class NotchPanel: NSPanel {
         if let keyMon = localKeyMonitor {
             NSEvent.removeMonitor(keyMon)
         }
+        if let gKeyMon = globalKeyMonitor {
+            NSEvent.removeMonitor(gKeyMon)
+        }
     }
     
     private func setOutsideClickMonitorEnabled(_ enabled: Bool) {
@@ -85,6 +89,17 @@ public final class NotchPanel: NSPanel {
                 }
                 return event
             }
+            globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { _ in
+                Task { @MainActor in
+                    if AppDelegate.isSettingsOpen { return }
+                    if SettingsStore.shared.closeOnEsc,
+                       NotchShellCoordinator.shared.state == .expanded,
+                       !NotchShellCoordinator.shared.isLockedOpen,
+                       !NotchShellCoordinator.shared.isAppearancePreviewActive {
+                        NotchShellCoordinator.shared.collapseImmediately(force: true)
+                    }
+                }
+            }
         } else if !enabled {
             if let monitor = outsideClickMonitor {
                 NSEvent.removeMonitor(monitor)
@@ -93,6 +108,10 @@ public final class NotchPanel: NSPanel {
             if let keyMon = localKeyMonitor {
                 NSEvent.removeMonitor(keyMon)
                 localKeyMonitor = nil
+            }
+            if let gKeyMon = globalKeyMonitor {
+                NSEvent.removeMonitor(gKeyMon)
+                globalKeyMonitor = nil
             }
         }
     }

@@ -961,26 +961,36 @@ final class FocusTextView: NSTextView {
 
     override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
-        if ok && !focusRegistered {
-            focusRegistered = true
-            NotchShellCoordinator.shared.registerPopoverOpened()
+        if ok {
+            NotchShellCoordinator.shared.isTypingInWidget = true
+            if !focusRegistered {
+                focusRegistered = true
+                NotchShellCoordinator.shared.registerPopoverOpened()
+            }
         }
         return ok
     }
 
     override func resignFirstResponder() -> Bool {
         let ok = super.resignFirstResponder()
-        if ok { releaseFocusHold() }
+        if ok {
+            NotchShellCoordinator.shared.isTypingInWidget = false
+            releaseFocusHold()
+        }
         return ok
     }
 
     // Editor removed while focused (notch collapsed, tab switched)
     override func viewWillMove(toWindow newWindow: NSWindow?) {
-        if newWindow == nil { releaseFocusHold() }
+        if newWindow == nil {
+            NotchShellCoordinator.shared.isTypingInWidget = false
+            releaseFocusHold()
+        }
         super.viewWillMove(toWindow: newWindow)
     }
 
     private func releaseFocusHold() {
+        NotchShellCoordinator.shared.isTypingInWidget = false
         guard focusRegistered else { return }
         focusRegistered = false
         NotchShellCoordinator.shared.registerPopoverClosed()
@@ -1044,6 +1054,14 @@ struct CustomTextEditor: NSViewRepresentable {
 
         init(_ parent: CustomTextEditor) {
             self.parent = parent
+        }
+
+        func textDidBeginEditing(_ notification: Notification) {
+            NotchShellCoordinator.shared.isTypingInWidget = true
+        }
+
+        func textDidEndEditing(_ notification: Notification) {
+            NotchShellCoordinator.shared.isTypingInWidget = false
         }
 
         func textDidChange(_ notification: Notification) {

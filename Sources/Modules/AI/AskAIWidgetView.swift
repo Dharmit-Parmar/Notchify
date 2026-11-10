@@ -16,6 +16,7 @@ public struct AskAIWidgetView: View {
     @ObservedObject private var aiService = AskAIService.shared
     @ObservedObject private var store = SettingsStore.shared
     @StateObject private var uiState = AskAIWidgetUIState()
+    @FocusState private var isFieldFocused: Bool
     
     public init(span: Int = 1) {
         self.span = span
@@ -32,7 +33,18 @@ public struct AskAIWidgetView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: isFieldFocused) { _, focused in
+            NotchShellCoordinator.shared.isTypingInWidget = focused
+            if focused {
+                NSApp.activate(ignoringOtherApps: true)
+                NotchShellCoordinator.shared.panel?.makeKey()
+            }
+        }
         .onDisappear {
+            if isFieldFocused {
+                isFieldFocused = false
+                NotchShellCoordinator.shared.isTypingInWidget = false
+            }
             uiState.queryTask?.cancel()
             uiState.queryTask = nil
         }
@@ -241,6 +253,7 @@ public struct AskAIWidgetView: View {
                 }
                 
                 TextField(aiService.activeProvider == .siri ? "Query..." : "Ask...", text: $uiState.inputPrompt)
+                    .focused($isFieldFocused)
                     .textFieldStyle(.plain)
                     .font(.system(size: 10.5))
                     .foregroundColor(.white)
@@ -616,6 +629,7 @@ public struct AskAIWidgetView: View {
                 }
                 
                 TextField("Ask anything...", text: $uiState.inputPrompt)
+                    .focused($isFieldFocused)
                     .textFieldStyle(.plain)
                     .font(.system(size: 11))
                     .foregroundColor(.white)
@@ -814,6 +828,7 @@ public struct AskAIWidgetView: View {
                 // Prompt Bar
                 HStack(spacing: 8) {
                     TextField("Ask \(aiService.activeProvider.displayName)...", text: $uiState.inputPrompt)
+                        .focused($isFieldFocused)
                         .textFieldStyle(.plain)
                         .font(.system(size: 11.5))
                         .foregroundColor(.white)
@@ -922,6 +937,8 @@ public struct AskAIWidgetView: View {
         guard !uiState.inputPrompt.isEmpty && !aiService.isGenerating else { return }
         let promptToSend = uiState.inputPrompt
         uiState.inputPrompt = ""
+        isFieldFocused = false
+        NotchShellCoordinator.shared.isTypingInWidget = false
         FeedbackManager.playClick()
         
         uiState.queryTask?.cancel()

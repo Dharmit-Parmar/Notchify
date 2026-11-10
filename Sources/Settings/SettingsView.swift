@@ -1157,6 +1157,7 @@ public struct SettingsView: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
+                            .allowsHitTesting(false)
                     }
                     .contentShape(Rectangle())
                 }
@@ -1184,6 +1185,7 @@ public struct SettingsView: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
+                            .allowsHitTesting(false)
                     }
                     .contentShape(Rectangle())
                 }
@@ -1211,6 +1213,7 @@ public struct SettingsView: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .labelsHidden()
+                            .allowsHitTesting(false)
                     }
                     .contentShape(Rectangle())
                 }
@@ -1335,7 +1338,7 @@ public struct SettingsView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(SettingsInk.primary)
                 
-                ForEach(Array(registry.orderedModules.enumerated()), id: \.element.id) { index, module in
+                ForEach(Array(registry.allOrderedModules.enumerated()), id: \.element.id) { index, module in
                     HStack(spacing: 8) {
                         Button {
                             let nextVal = !module.isEnabled
@@ -1359,6 +1362,7 @@ public struct SettingsView: View {
                                 .toggleStyle(.switch)
                                 .controlSize(.small)
                                 .labelsHidden()
+                                .allowsHitTesting(false)
                                 
                                 Image(systemName: module.iconName)
                                     .font(.system(size: 12))
@@ -1378,7 +1382,7 @@ public struct SettingsView: View {
                         
                         HStack(spacing: 0) {
                             Button {
-                                registry.moveModule(from: module.id, to: registry.orderedModules[index - 1].id)
+                                registry.moveModule(from: module.id, to: registry.allOrderedModules[index - 1].id)
                             } label: {
                                 Image(systemName: "chevron.up")
                                     .font(.system(size: 9, weight: .semibold))
@@ -1391,7 +1395,7 @@ public struct SettingsView: View {
                             .accessibilityLabel("Move \(module.title) up")
                             
                             Button {
-                                registry.moveModule(from: module.id, to: registry.orderedModules[index + 1].id)
+                                registry.moveModule(from: module.id, to: registry.allOrderedModules[index + 1].id)
                             } label: {
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 9, weight: .semibold))
@@ -1399,7 +1403,7 @@ public struct SettingsView: View {
                             }
                             .buttonStyle(.spring)
                             .pointerHoverCursor()
-                            .disabled(index == registry.orderedModules.count - 1)
+                            .disabled(index == registry.allOrderedModules.count - 1)
                             .help("Move \(module.title) down")
                             .accessibilityLabel("Move \(module.title) down")
                         }

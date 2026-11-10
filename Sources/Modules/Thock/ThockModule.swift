@@ -180,6 +180,7 @@ public final class ThockModule: NotchModule {
     private var inPipe: Pipe?
     private var outPipe: Pipe?
     private var activeHeartbeatTimer: AnyCancellable?
+    private var processGeneration: Int = 0
     
     public init() {
         signal(SIGPIPE, SIG_IGN)
@@ -284,6 +285,7 @@ public final class ThockModule: NotchModule {
     }
     
     public func terminateProcess() {
+        processGeneration += 1
         stopLightweightMonitor()
         
         let targetPid = self.spawnedPID ?? self.processPID
@@ -672,6 +674,9 @@ public final class ThockModule: NotchModule {
         guard !isRunning else { return }
         FeedbackManager.playClick()
         
+        processGeneration += 1
+        let currentGen = processGeneration
+        
         // Sweep any stale orphan processes in background before launching a fresh engine
         DispatchQueue.global(qos: .utility).async {
             Self.sweepOrphanProcesses()
@@ -724,7 +729,8 @@ public final class ThockModule: NotchModule {
         proc.terminationHandler = { [weak self] p in
             DispatchQueue.main.async {
                 guard let self else { return }
-                guard self.spawnedProcess == nil || self.spawnedProcess === p else { return }
+                guard self.processGeneration == currentGen else { return }
+                guard self.spawnedProcess === p else { return }
                 self.outPipe?.fileHandleForReading.readabilityHandler = nil
                 self.inPipe = nil; self.outPipe = nil; self.process = nil
                 self.spawnedProcess = nil; self.spawnedPID = nil; self.processPID = nil

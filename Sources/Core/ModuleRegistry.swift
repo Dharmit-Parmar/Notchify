@@ -93,6 +93,21 @@ public final class ModuleRegistry: ObservableObject {
         return result
     }
     
+    public var allOrderedModules: [any NotchModule] {
+        var result: [any NotchModule] = []
+        for id in moduleOrder {
+            if let m = modules.first(where: { $0.id == id }) {
+                result.append(m)
+            }
+        }
+        for m in modules {
+            if !result.contains(where: { $0.id == m.id }) {
+                result.append(m)
+            }
+        }
+        return result
+    }
+    
     // Active Module ID: nil means HOME DASHBOARD!
     public var activeModuleId: String? {
         if pinnedModuleId == "dashboard" {
