@@ -11,7 +11,7 @@
 [![Memory Footprint](https://img.shields.io/badge/Idle%20RAM-~88%20MB%20(0.5%25)-34C759?style=for-the-badge)](https://github.com)
 [![CPU Usage](https://img.shields.io/badge/Idle%20CPU-0.0%25-34C759?style=for-the-badge)](https://github.com)
 [![Themes](https://img.shields.io/badge/Themes-22%20Calibrated-blue?style=for-the-badge)](https://github.com)
-[![Verification](https://img.shields.io/badge/Tests-78%2F78%20Passed-brightgreen?style=for-the-badge)](https://github.com)
+[![Verification](https://img.shields.io/badge/Tests-83%2F83%20Passed-brightgreen?style=for-the-badge)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br/>
@@ -72,8 +72,9 @@ An interactive rotary dial for everyday document workflows:
 - **Physical Bezel Blend:** Blends top camera margin for physical notch screens to avoid white halos.
 
 ### 📐 Draggable Dashboard Slots Canvas & Focus Layout
-- **Live Drag Resizing:** Dotted vertical dividers between adjacent filled slots with `resizeLeftRight` cursor and real-time width adjustments.
+- **Live Drag Resizing (Settings Canvas):** Dotted vertical dividers between adjacent filled slots in Settings -> Dashboard Slots Canvas with `resizeLeftRight` cursor and real-time width adjustments.
 - **Haptic Snapping:** Snaps to 1/3, 1/2, and 2/3 ratios with tactile ticks. Double-click resets to 50/50.
+- **Direct Dock Tab Reordering:** Drag-and-drop dock tabs directly in the live notch to reorder tabs on the fly with fluid spring animations.
 - **Focus Flow:** 4th dashboard layout paradigm providing a 70% primary stage with a 30% companion slot.
 - **3-Zone Compact Status Bar:** 6th collapsed indicator option with time/media left, camera cutout clearance center, and battery right.
 
@@ -87,7 +88,7 @@ An interactive rotary dial for everyday document workflows:
 | **Idle CPU Footprint** | 0.0% | **0.0%** | 🟢 Event-Driven (No Polling) |
 | **Release Binary Size** | < 15 MB | **14.0 MB** | 🟢 Native Swift 6.0 |
 | **Screen Obstruction** | Zero | **0 pixels outside camera notch** | 🟢 Dynamic Frame Shrink |
-| **Automated Tests** | 100% Passing | **78/78 Unit & Verification Tests** | 🟢 Verified |
+| **Automated Tests** | 100% Passing | **83/83 Unit & Verification Tests** | 🟢 Verified |
 | **Security Gates** | 100% Passed | **6/6 Security Integrity Checks** | 🟢 POSIX 0600 + Keychain |
 
 ---
