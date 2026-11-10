@@ -14,6 +14,7 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 | 2026-11-11 01:30 | Batch B3 Execution | Correctness (ModuleRegistry, Toggle double-flip, keyboard focus, Thock generation guard) | `axiom-macos`, `axiom-concurrency`, `swift-concurrency-pro`, `swiftui-pro`, `axiom-swiftui` | Retained all previous skills |
 | 2026-11-11 01:45 | Batch B4 Execution | Look and layout (Panel clipping, adaptive height, light theme contrast, distinct glass, window leveling) | `axiom-design`, `axiom-accessibility`, `apple-design`, `axiom-macos` | Retained design & macOS windowing |
 | 2026-11-11 02:00 | Batch B5 Execution | Interactions (Slot dividers restricted to Settings canvas, direct dock tab reordering) | `apple-design`, `emilkowalski-motion`, `axiom-swiftui`, `swiftui-pro` | Retained UI gesture & animation skills |
+| 2026-11-11 02:15 | Batch B6 Execution | Cleanup & proposals (Redundant teardown removal, permissions symlink safety) | `ponytail`, `axiom-performance`, `axiom-security`, `axiom-testing` | Retained all testing & safety skills |
 
 ---
 
@@ -79,3 +80,13 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 - **Pre-Mortem Result:** Verified that tab reorder drag operations do not intercept or conflict with external file drop operations (UTType.fileURL), and verified that live notch cleanly respects the ratio saved via Settings canvas without exposing drag gestures.
 - **Complaints Addressed:** C6, C7.
 - **Evidence File:** `fix/evidence/b5_test_output.txt` (83/83 verification tests passed, 0 compiler errors).
+
+## Batch B6 Entry: Cleanup & Verification
+- **Batch ID:** B6
+- **Files Modified:**
+  - `Sources/Notch/NotchShellCoordinator.swift:378-381, 426-429, 448-450` (Removed redundant duplicate teardown calls, establishing `state.didSet` as single source of truth)
+  - `Sources/Core/PermissionsHelper.swift:49-65` (Guarded `/Applications` system symlink operations with `fm.isWritableFile` check)
+- **Why:** Eliminate double teardown churn on every notch collapse and prevent root-permission filesystem errors.
+- **Pre-Mortem Result:** Verified that all module teardown tasks execute exactly once in `state.didSet`, and verified that permissions checks run cleanly without console errors.
+- **Complaints Addressed:** C1, C10.
+- **Evidence File:** `fix/evidence/b6_test_output.txt` (83/83 verification tests passed, 0 compiler errors).

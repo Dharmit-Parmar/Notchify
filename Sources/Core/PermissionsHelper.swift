@@ -46,20 +46,22 @@ public struct PermissionsHelper {
         let bundleURL = projectDir.appendingPathComponent("NotchApp.app")
         guard fm.fileExists(atPath: bundleURL.path) else { return }
         
-        // 1. Ensure System /Applications symlinks (/Applications/Notch.app & /Applications/NotchApp.app)
-        let systemTargets = [
-            "/Applications/Notch.app",
-            "/Applications/NotchApp.app"
-        ]
-        
-        for sysAppPath in systemTargets {
-            if let dest = try? fm.destinationOfSymbolicLink(atPath: sysAppPath) {
-                if dest != bundleURL.path {
-                    try? fm.removeItem(atPath: sysAppPath)
+        // 1. Ensure System /Applications symlinks (/Applications/Notch.app & /Applications/NotchApp.app) if writable
+        if fm.isWritableFile(atPath: "/Applications") {
+            let systemTargets = [
+                "/Applications/Notch.app",
+                "/Applications/NotchApp.app"
+            ]
+            
+            for sysAppPath in systemTargets {
+                if let dest = try? fm.destinationOfSymbolicLink(atPath: sysAppPath) {
+                    if dest != bundleURL.path {
+                        try? fm.removeItem(atPath: sysAppPath)
+                        try? fm.createSymbolicLink(atPath: sysAppPath, withDestinationPath: bundleURL.path)
+                    }
+                } else if !fm.fileExists(atPath: sysAppPath) {
                     try? fm.createSymbolicLink(atPath: sysAppPath, withDestinationPath: bundleURL.path)
                 }
-            } else if !fm.fileExists(atPath: sysAppPath) {
-                try? fm.createSymbolicLink(atPath: sysAppPath, withDestinationPath: bundleURL.path)
             }
         }
         

@@ -375,10 +375,6 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.state = .collapsed
             }
             self.panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
-            ModuleRegistry.shared.stopAll()
-            ModuleRegistry.shared.unloadInactiveModules()
-            NowPlayingModule.shared.evictArtworkOnCollapse()
-            NoteStorageManager.shared.saveImmediately()
         }
         collapseWorkItem = item
         let collapseDelay = AppDelegate.isSettingsOpen ? 0.30 : SettingsStore.shared.autoCollapseDelay
@@ -423,10 +419,6 @@ public final class NotchShellCoordinator: ObservableObject {
             self.state = .collapsed
         }
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
-        ModuleRegistry.shared.stopAll()
-        ModuleRegistry.shared.unloadInactiveModules()
-        NowPlayingModule.shared.evictArtworkOnCollapse()
-        NoteStorageManager.shared.saveImmediately()
     }
     
     public func toggleLock() {
@@ -445,9 +437,6 @@ public final class NotchShellCoordinator: ObservableObject {
                 state = .collapsed
             }
             panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
-            ModuleRegistry.shared.stopAll()
-            ModuleRegistry.shared.unloadInactiveModules()
-            NowPlayingModule.shared.evictArtworkOnCollapse()
         } else {
             panel?.updateFrame(for: .expanded, animated: false)
             startExpandedWatchdog()
