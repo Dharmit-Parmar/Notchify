@@ -33,6 +33,14 @@ public final class KeychainHelper: @unchecked Sendable {
         return saveSecretLocked(secret, forKey: account)
     }
     
+    /// Asynchronously saves a secret off the main actor to eliminate keystroke lag in UI bindings.
+    public func saveSecretAsync(_ secret: String, forKey account: String) {
+        let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task.detached(priority: .utility) { [weak self] in
+            self?.saveSecret(trimmed, forKey: account)
+        }
+    }
+    
     private func saveSecretLocked(_ secret: String, forKey account: String) -> Bool {
         let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {

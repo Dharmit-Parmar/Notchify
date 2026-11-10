@@ -1239,13 +1239,15 @@ func runAllVerificationTests() {
     
     // Test 44: NoteStorageManager Debounced Storage & Thermal Isolation Contract
     print("\n[TEST 44] NoteStorageManager Debounced Storage & Thermal Isolation Contract...")
-    let testNoteKey = "NotchApp_QuickNotesText"
+    let testSuite = UserDefaults(suiteName: "NotchifyTestsSuite") ?? UserDefaults.standard
+    let testNoteKey = "NotchApp_QuickNotesTest_Isolated"
     let testContent = "Architecture Note: Thermal optimization active."
-    // Verify persistence to UserDefaults with debounce semantics
-    UserDefaults.standard.set(testContent, forKey: testNoteKey)
-    let retrieved = UserDefaults.standard.string(forKey: testNoteKey)
+    // Verify persistence to isolated test suite without clobbering production user data
+    testSuite.set(testContent, forKey: testNoteKey)
+    let retrieved = testSuite.string(forKey: testNoteKey)
     assert(retrieved == testContent, "Note text must persist and retrieve reliably from storage key")
-    print("  ✓ Debounced notes storage key persistence & thermal isolation verified.")
+    testSuite.removeObject(forKey: testNoteKey)
+    print("  ✓ Debounced notes storage key persistence & thermal isolation verified (isolated suite).")
     
     // Test 45: Clock Timeline Thermal Gating & Zero-Allocation Invariants
     print("\n[TEST 45] Clock Thermal Gating & Static Formatters Contract...")

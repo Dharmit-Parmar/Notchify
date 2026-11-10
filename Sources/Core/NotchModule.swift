@@ -196,13 +196,13 @@ public class SettingsStore: ObservableObject {
     }
     // Secure Hardware-Backed Storage for AI Credentials (Keychain AES-256)
     @Published public var geminiApiKey: String = "" {
-        didSet { KeychainHelper.shared.saveSecret(geminiApiKey, forKey: "gemini_api_key") }
+        didSet { KeychainHelper.shared.saveSecretAsync(geminiApiKey, forKey: "gemini_api_key") }
     }
     @Published public var openAIApiKey: String = "" {
-        didSet { KeychainHelper.shared.saveSecret(openAIApiKey, forKey: "openai_api_key") }
+        didSet { KeychainHelper.shared.saveSecretAsync(openAIApiKey, forKey: "openai_api_key") }
     }
     @Published public var connectedGoogleEmail: String = "" {
-        didSet { KeychainHelper.shared.saveSecret(connectedGoogleEmail, forKey: "google_account_email") }
+        didSet { KeychainHelper.shared.saveSecretAsync(connectedGoogleEmail, forKey: "google_account_email") }
     }
     @Published public var geminiModel: String = "gemini-1.5-flash" {
         didSet { UserDefaults.standard.set(geminiModel, forKey: "NotchApp_GeminiModel") }

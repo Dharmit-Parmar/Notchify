@@ -39,8 +39,11 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     private var cachedArtworkHash: Int = 0
     private var cachedArtworkImage: NSImage?
     private var appIconCache: [String: NSImage] = [:]
+    private let cacheLock = NSLock()
     
     public func clearCachedArtwork() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
         cachedArtworkHash = 0
         cachedArtworkImage = nil
         cachedAppIcon = nil
@@ -140,11 +143,13 @@ public final class MediaRemoteBridge: @unchecked Sendable {
             var directArt: NSImage? = nil
             if let artData = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data, !artData.isEmpty {
                 let artHash = artData.count ^ (artData.prefix(32).hashValue)
+                self.cacheLock.lock()
                 if self.cachedArtworkHash != artHash {
                     self.cachedArtworkHash = artHash
                     self.cachedArtworkImage = Self.makeArtworkImage(from: artData)
                 }
                 directArt = self.cachedArtworkImage
+                self.cacheLock.unlock()
             }
             
             let bundleId = self.cachedBundleId ?? self.findActiveMediaAppBundleId()
@@ -197,11 +202,13 @@ public final class MediaRemoteBridge: @unchecked Sendable {
                        let data = obj.value(forKey: "imageData") as? Data,
                        !data.isEmpty {
                         let artHash = data.count ^ (data.prefix(32).hashValue)
+                        self.cacheLock.lock()
                         if self.cachedArtworkHash != artHash {
                             self.cachedArtworkHash = artHash
                             self.cachedArtworkImage = Self.makeArtworkImage(from: data)
                         }
                         retrievedImage = self.cachedArtworkImage
+                        self.cacheLock.unlock()
                     }
                     DispatchQueue.main.async {
                         assembleTrack(retrievedImage)
@@ -258,16 +265,22 @@ public final class MediaRemoteBridge: @unchecked Sendable {
     }
     
     public func iconForBundle(_ bundleId: String) -> NSImage? {
+        cacheLock.lock()
         if let cached = appIconCache[bundleId] {
+            cacheLock.unlock()
             return cached
         }
+        cacheLock.unlock()
+        
         if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             let icon = NSWorkspace.shared.icon(forFile: appURL.path)
             icon.size = NSSize(width: 64, height: 64)
+            cacheLock.lock()
             if appIconCache.count > 10 {
                 appIconCache.removeAll()
             }
             appIconCache[bundleId] = icon
+            cacheLock.unlock()
             return icon
         }
         return nil

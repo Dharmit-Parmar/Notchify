@@ -87,7 +87,6 @@ public final class CompanionPanel: NSPanel {
         clickPanel = nil
         
         self.orderOut(nil)
-        self.contentView = nil
         self.close()
         
         if CompanionPanel.shared === self {
@@ -153,7 +152,6 @@ public final class CompanionClickPanel: NSPanel {
     
     public func teardown() {
         self.orderOut(nil)
-        self.contentView = nil
         self.close()
     }
 }

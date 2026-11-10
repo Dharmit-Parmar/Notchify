@@ -359,7 +359,7 @@ public final class TelegramModule: NotchModule {
     @Published public var botToken: String = "" {
         didSet {
             let clean = botToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            KeychainHelper.shared.saveSecret(clean, forKey: "telegram_bot_token")
+            KeychainHelper.shared.saveSecretAsync(clean, forKey: "telegram_bot_token")
         }
     }
     
