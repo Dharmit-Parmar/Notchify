@@ -672,8 +672,10 @@ public final class ThockModule: NotchModule {
         guard !isRunning else { return }
         FeedbackManager.playClick()
         
-        // Sweep any stale orphan processes before launching a fresh engine
-        Self.sweepOrphanProcesses()
+        // Sweep any stale orphan processes in background before launching a fresh engine
+        DispatchQueue.global(qos: .utility).async {
+            Self.sweepOrphanProcesses()
+        }
         
         guard FileManager.default.fileExists(atPath: binaryURL.path) else {
             return

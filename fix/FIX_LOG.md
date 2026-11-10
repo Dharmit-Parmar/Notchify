@@ -27,3 +27,14 @@ This log documents every batch change, pre-mortem analysis, skill activation, ev
 - **Pre-Mortem Result:** Verified that removing `contentView = nil` safely delegates deallocation to ARC (matching commit `5682c6b`). Verified async keychain write does not lose in-memory credentials.
 - **Complaints Addressed:** C10, C1.
 - **Evidence File:** `fix/evidence/b1_test_output.txt` (83/83 verification tests passed).
+
+## Batch B2 Entry: Lag & Responsiveness
+- **Batch ID:** B2
+- **Files Modified:**
+  - `Sources/Modules/Companion/CreatureRigView.swift:57-73` (Gated `TimelineView` so dormant mascot in den or sleeping while collapsed does not run at 120Hz)
+  - `Sources/App/AppDelegate.swift:37-41` (Offloaded 2048-PID `ThockModule.sweepOrphanProcesses()` to background utility queue)
+  - `Sources/Modules/Thock/ThockModule.swift:675-679` (Offloaded `sweepOrphanProcesses()` in `startEngine()` to background utility queue)
+- **Why:** Eliminate idle CPU burn and high energy usage while the companion is dormant; prevent launch and engine startup from blocking `@MainActor` with synchronous PID iterations.
+- **Pre-Mortem Result:** Verified that wake-up on expand or behavior change restores `.animation` mode without delay. Verified that background orphan sweep cleanly cleans up stale processes without thread contention.
+- **Complaints Addressed:** C1 (lag/heavy), C10 (old idle CPU bugs).
+- **Evidence File:** `fix/evidence/b2_test_output.txt` (83/83 verification tests passed, 0 compiler errors).

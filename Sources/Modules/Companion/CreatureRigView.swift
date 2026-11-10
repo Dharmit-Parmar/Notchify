@@ -55,10 +55,11 @@ public struct CreatureRigView: View {
     }
     
     public var body: some View {
-        TimelineView(.animation(paused: coordinator.state == .inDen)) { timelineContext in
+        let isDormant = coordinator.state == .inDen || (coordinator.state == .sleeping && NotchShellCoordinator.shared.state == .collapsed)
+        TimelineView(.animation(paused: isDormant)) { timelineContext in
             Canvas { context, _ in
-                // Zero CPU / early exit if in den
-                guard coordinator.state != .inDen else { return }
+                // Zero CPU / early exit if in den or dormant
+                guard !isDormant, coordinator.state != .inDen else { return }
                 
                 renderCompanion(
                     context: &context,
@@ -68,7 +69,7 @@ public struct CreatureRigView: View {
                 )
             }
             .onChange(of: timelineContext.date) { previousDate, date in
-                guard coordinator.state != .inDen else { return }
+                guard !isDormant, coordinator.state != .inDen else { return }
                 let deltaTime = date.timeIntervalSince(previousDate)
                 
                 let screen = CompanionPanel.shared?.screen ?? NSScreen.main ?? NSScreen.screens[0]

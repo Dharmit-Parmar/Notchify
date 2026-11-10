@@ -34,8 +34,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             }
         }
         
-        // Sweep any stale orphaned thock-cli child processes left over from ungraceful terminations
-        ThockModule.sweepOrphanProcesses()
+        // Sweep any stale orphaned thock-cli child processes left over from ungraceful terminations in background
+        DispatchQueue.global(qos: .utility).async {
+            ThockModule.sweepOrphanProcesses()
+        }
         
         // Zero-Startup Overhead: Register secondary feature modules as lazy factories.
         // Instances and heavy resources are instantiated strictly on first user selection.
