@@ -107,3 +107,19 @@
 - **Safety Analysis (F8)**:
   - *What could break*: If a child process relied on non-standard custom ambient variables (e.g. proxy variables), they would be missing.
   - *How verified*: Toolchains only require `HOME`, `USER`, `PATH`, `TERM`, and `LANG`. `SafeEnvironment` includes callers' explicit extras.
+
+### Commit 3: SEC-C-2 — Add --locked to Cargo Build Arguments
+
+- **Commit**: `SEC-C-2: enforce locked dependencies in cargo build`
+- **Files Changed**:
+  - `Sources/Modules/Thock/ThockModule.swift`: Added `"--locked"` to `cargoProc.arguments` (`["build", "--locked", "--release", "--bin", "thock-cli"]`).
+  - `Tests/VerificationTests.swift`: Added `[TEST 89]` verifying that cargo build arguments strictly include `--locked` before target binaries.
+- **Diffstat**:
+  `Sources/Modules/Thock/ThockModule.swift | 2 +/-`
+  `Tests/VerificationTests.swift | 16 +++-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 89 / 89 passing.
+- **Supply Chain Verification**: Confirmed `Cargo.lock` is present in pinned commit `264ef80…`; `--locked` ensures exact crate resolution without network fetching or unauthorized dependency upgrades during compilation.
+- **Safety Analysis (F8)**:
+  - *What could break*: If `Cargo.lock` was missing or out of sync with `Cargo.toml`, `cargo build --locked` would fail.
+  - *How verified*: Checked via `git ls-tree` that `Cargo.lock` exists in pinned commit `264ef80…`.

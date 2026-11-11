@@ -632,7 +632,7 @@ public final class ThockModule: NotchModule {
                 
                 let cargoProc = Process()
                 cargoProc.executableURL = URL(fileURLWithPath: cargoPath)
-                cargoProc.arguments = ["build", "--release", "--bin", "thock-cli"]
+                cargoProc.arguments = ["build", "--locked", "--release", "--bin", "thock-cli"]
                 cargoProc.currentDirectoryURL = targetDir
                 
                 cargoProc.environment = SafeEnvironment.make()

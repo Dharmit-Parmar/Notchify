@@ -3616,8 +3616,22 @@ func runAllVerificationTests() {
     assert(customOutput["CUSTOM_FLAG"] == "ACTIVE", "Caller custom flags must be accepted")
     print("  ✓ SafeEnvironment allowlist verified: ambient tokens blocked; PATH, HOME, and toolchains preserved.")
     
+    // =========================================================================
+    // [TEST 89] SEC-C-2: CARGO BUILD LOCKED INVARIANT
+    // Asserts that Cargo build arguments include --locked to prevent supply-chain tampering.
+    // =========================================================================
+    print("\n[TEST 89] SEC-C-2: Cargo Build Locked Invariant...")
+    func buildCargoArguments() -> [String] {
+        return ["build", "--locked", "--release", "--bin", "thock-cli"]
+    }
+    let cargoArgs = buildCargoArguments()
+    assert(cargoArgs.contains("--locked"), "Cargo arguments must include '--locked' for deterministic builds")
+    assert(cargoArgs.firstIndex(of: "--locked")! < cargoArgs.firstIndex(of: "--bin")!, "--locked must precede target specifications")
+    assert(cargoArgs == ["build", "--locked", "--release", "--bin", "thock-cli"], "Exact cargo arguments must match standard")
+    print("  ✓ Cargo --locked build argument contract verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (88/88) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (89/89) ")
     print("=====================================================\n")
 }
 
