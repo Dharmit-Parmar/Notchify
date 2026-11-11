@@ -3,10 +3,20 @@ import Security
 import CryptoKit
 import LocalAuthentication
 
+// MARK: - KeychainManaging Protocol
+/// Abstraction protocol for Keychain secret management enabling decoupled dependency injection and testing.
+public protocol KeychainManaging: Sendable {
+    func loadSecret(forKey account: String) -> String?
+    @discardableResult
+    func saveSecret(_ secret: String, forKey account: String) -> Bool
+    @discardableResult
+    func deleteSecret(forKey account: String) -> Bool
+}
+
 // MARK: - KeychainHelper: Native Apple Keychain Secure Secret Vault
 /// Provides native macOS Keychain Services (`kSecClassGenericPassword`) for secure storage
 /// of credentials (API keys, bot tokens) protected by macOS Secure Enclave and login keychain.
-public final class KeychainHelper: @unchecked Sendable {
+public final class KeychainHelper: KeychainManaging, @unchecked Sendable {
     public static let shared = KeychainHelper()
     
     public let serviceName: String

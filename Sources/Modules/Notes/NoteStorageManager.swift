@@ -13,15 +13,23 @@ public final class NoteStorageManager: ObservableObject {
     @Published public var text: String {
         didSet {
             guard text != oldValue else { return }
+            userHasEdited = true
             scheduleDebouncedSave()
         }
     }
     
     private var saveTask: Task<Void, Never>?
     private var isDirty: Bool = false
+    private var userHasEdited: Bool = false
     private var observerTokens: [NSObjectProtocol] = []
     
+    private let customStorageURL: URL?
+    private let fileStore: EncryptedFileStore
+    
     private var storageURL: URL {
+        if let custom = customStorageURL {
+            return custom
+        }
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("NotchApp", isDirectory: true)
         if !FileManager.default.fileExists(atPath: dir.path) {
@@ -30,23 +38,41 @@ public final class NoteStorageManager: ObservableObject {
         return dir.appendingPathComponent("notes.txt")
     }
     
-    private init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let fileURL = appSupport.appendingPathComponent("NotchApp/notes.txt")
+    public convenience init() {
+        self.init(customStorageURL: nil, fileStore: .shared)
+    }
+    
+    public init(customStorageURL: URL? = nil, fileStore: EncryptedFileStore = .shared) {
+        self.customStorageURL = customStorageURL
+        self.fileStore = fileStore
+        
+        let fileURL: URL = {
+            if let custom = customStorageURL {
+                return custom
+            }
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            return appSupport.appendingPathComponent("NotchApp/notes.txt")
+        }()
+        
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            // Decrypt with CryptoKit AES-256-GCM (SEC-A-1) or auto-migrate legacy plaintext
-            if let saved = try? EncryptedFileStore.shared.readString(from: fileURL) {
-                self.text = saved
-            } else if let saved = try? String(contentsOf: fileURL, encoding: .utf8) {
-                self.text = saved
-                try? EncryptedFileStore.shared.writeString(saved, to: fileURL)
-            } else {
+            do {
+                if let saved = try fileStore.readString(from: fileURL) {
+                    self.text = saved
+                } else {
+                    self.text = ""
+                }
+            } catch {
+                // Invariant 5: on any read error keep the file untouched,
+                // run with empty in-memory state, and never write until the user types.
                 self.text = ""
+                self.isDirty = false
+                self.userHasEdited = false
             }
         } else if let legacy = UserDefaults.standard.string(forKey: Self.userDefaultsKey) {
             self.text = legacy
+            self.userHasEdited = true
             UserDefaults.standard.removeObject(forKey: Self.userDefaultsKey)
-            try? EncryptedFileStore.shared.writeString(legacy, to: fileURL)
+            try? fileStore.writeString(legacy, to: fileURL)
         } else {
             self.text = ""
         }
@@ -91,19 +117,22 @@ public final class NoteStorageManager: ObservableObject {
     public func saveImmediately() {
         saveTask?.cancel()
         saveTask = nil
-        guard isDirty else { return }
+        guard isDirty && userHasEdited else { return }
         commitToDisk()
     }
     
     private func commitToDisk() {
+        guard userHasEdited else { return }
         let target = storageURL
-        try? EncryptedFileStore.shared.writeString(text, to: target)
+        try? fileStore.writeString(text, to: target)
         UserDefaults.standard.removeObject(forKey: Self.userDefaultsKey)
         isDirty = false
     }
     
     public func clear() {
+        userHasEdited = true
         text = ""
+        isDirty = true
         saveImmediately()
     }
 }

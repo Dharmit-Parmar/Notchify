@@ -339,8 +339,14 @@ public final class TelegramModule: NotchModule {
     }
     
     private let contactsStorageKey = "NotchApp_SavedContacts"
+    private var userHasModifiedContacts: Bool = false
+    private let customContactsURL: URL?
+    private let fileStore: EncryptedFileStore
     
-    public init() {
+    public init(customContactsURL: URL? = nil, fileStore: EncryptedFileStore = .shared) {
+        self.customContactsURL = customContactsURL
+        self.fileStore = fileStore
+        
         // Secure Hardware Keychain Retrieval & Legacy Plist Residue Eradication
         let keychainToken = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token")
         let legacyToken = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken")
@@ -394,6 +400,9 @@ public final class TelegramModule: NotchModule {
     }
     
     private var contactsFileURL: URL {
+        if let custom = customContactsURL {
+            return custom
+        }
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("NotchApp", isDirectory: true)
         if !FileManager.default.fileExists(atPath: dir.path) {
@@ -405,26 +414,33 @@ public final class TelegramModule: NotchModule {
     private func loadSavedContacts() {
         let file = contactsFileURL
         if FileManager.default.fileExists(atPath: file.path) {
-            // Decrypt with CryptoKit AES-256-GCM (SEC-A-2) or auto-migrate legacy plaintext
-            if let data = try? EncryptedFileStore.shared.read(from: file),
-               let saved = try? JSONDecoder().decode([ChatContact].self, from: data),
-               !saved.isEmpty {
-                self.contacts = saved
-                self.selectedContactId = saved.first?.id
-            } else if let rawData = try? Data(contentsOf: file),
-                      let saved = try? JSONDecoder().decode([ChatContact].self, from: rawData),
-                      !saved.isEmpty {
-                self.contacts = saved
-                self.selectedContactId = saved.first?.id
-                persistContacts()
-            } else {
-                setupDefaultWelcomeContact()
+            do {
+                if let data = try fileStore.read(from: file) {
+                    if let saved = try? JSONDecoder().decode([ChatContact].self, from: data), !saved.isEmpty {
+                        self.contacts = saved
+                        self.selectedContactId = saved.first?.id
+                    } else {
+                        self.contacts = []
+                        self.selectedContactId = nil
+                    }
+                } else {
+                    self.contacts = []
+                    self.selectedContactId = nil
+                }
+            } catch {
+                // Invariant 5: on any read error keep the file untouched,
+                // run with empty in-memory state, and never write until the user types.
+                self.contacts = []
+                self.selectedContactId = nil
+                self.userHasModifiedContacts = false
+                return
             }
         } else if let legacyData = UserDefaults.standard.data(forKey: contactsStorageKey),
                   let saved = try? JSONDecoder().decode([ChatContact].self, from: legacyData),
                   !saved.isEmpty {
             self.contacts = saved
             self.selectedContactId = saved.first?.id
+            self.userHasModifiedContacts = true
             persistContacts()
             UserDefaults.standard.removeObject(forKey: contactsStorageKey)
         } else {
@@ -451,9 +467,10 @@ public final class TelegramModule: NotchModule {
     }
     
     private func persistContacts() {
+        guard userHasModifiedContacts else { return }
         if let encoded = try? JSONEncoder().encode(contacts) {
             let target = contactsFileURL
-            try? EncryptedFileStore.shared.write(data: encoded, to: target)
+            try? fileStore.write(data: encoded, to: target)
         }
         UserDefaults.standard.removeObject(forKey: contactsStorageKey)
     }
@@ -510,6 +527,7 @@ public final class TelegramModule: NotchModule {
         newPersonName = ""
         newPersonHandle = ""
         isAddingContact = false
+        userHasModifiedContacts = true
         persistContacts()
         FeedbackManager.playClick()
     }
@@ -519,6 +537,7 @@ public final class TelegramModule: NotchModule {
         if selectedContactId == id {
             selectedContactId = contacts.first?.id
         }
+        userHasModifiedContacts = true
         persistContacts()
         FeedbackManager.playDelete()
     }
@@ -550,6 +569,7 @@ public final class TelegramModule: NotchModule {
             contacts[idx].messages.removeFirst(contacts[idx].messages.count - 50)
         }
         draftText = ""
+        userHasModifiedContacts = true
         persistContacts()
         isDispatching = true
         lastDispatchStatus = nil

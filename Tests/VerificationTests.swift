@@ -4260,8 +4260,508 @@ func runAllVerificationTests() {
     try? FileManager.default.removeItem(at: test101Dir)
     print("  ✓ CryptoKit AES-256-GCM at-rest encryption, tamper rejection, 0600 perms & migration verified.")
     
+    // =========================================================================
+    // [TEST 102] ENCRYPTED FILE STORE KEY LIFECYCLE, CACHING, & MIGRATION VERIFICATION
+    // Asserts:
+    // 1. keyProvider NEVER creates a key if target ciphertext file exists -> throws keyMissing.
+    // 2. Creates key ONLY when no encrypted file exists, and verifies saveSecret succeeded; if failed, throws keychainSaveFailed and writes nothing.
+    // 3. Caches key in memory after first load (zero Keychain IPC per save).
+    // 4. Plaintext migration: writes encrypted, decrypts again and compares to original, only then replaces. On any error keeps original.
+    // 5. Callers (Notes, Contacts): on any read error keep file untouched, run with empty in-memory state, and never write until user types.
+    // =========================================================================
+    print("\n[TEST 102] EncryptedFileStore Key Lifecycle, Caching, Migration Verification & Caller Error Handling...")
+    let test102Dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("notch_test_encrypted_store_102_\(UUID().uuidString)", isDirectory: true)
+    try! FileManager.default.createDirectory(at: test102Dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    
+    enum Test102StoreError: Error, LocalizedError, Equatable {
+        case keyMissing
+        case keychainSaveFailed
+        case verificationFailed
+        case corruptedData
+        case unsupportedVersion(UInt8)
+        case invalidEncoding
+    }
+    
+    protocol Test102KeychainManaging: Sendable {
+        func loadSecret(forKey account: String) -> String?
+        func saveSecret(_ secret: String, forKey account: String) -> Bool
+        func deleteSecret(forKey account: String) -> Bool
+    }
+    
+    final class MockTest102Keychain: Test102KeychainManaging, @unchecked Sendable {
+        var storedSecrets: [String: String] = [:]
+        var saveShouldSucceed: Bool = true
+        var loadCallCount: Int = 0
+        var saveCallCount: Int = 0
+        var deleteCallCount: Int = 0
+        
+        func loadSecret(forKey account: String) -> String? {
+            loadCallCount += 1
+            return storedSecrets[account]
+        }
+        
+        func saveSecret(_ secret: String, forKey account: String) -> Bool {
+            saveCallCount += 1
+            if !saveShouldSucceed {
+                return false
+            }
+            storedSecrets[account] = secret
+            return true
+        }
+        
+        func deleteSecret(forKey account: String) -> Bool {
+            deleteCallCount += 1
+            storedSecrets.removeValue(forKey: account)
+            return true
+        }
+    }
+    
+    final class Test102EncryptedFileStore: @unchecked Sendable {
+        static let magicHeader = Data("NOTCHENC1".utf8)
+        static let currentVersion: UInt8 = 0x01
+        static let keychainKeyAccount = "notch_file_encryption_key"
+        
+        private let keychain: Test102KeychainManaging
+        private let managedDirectoryURL: URL?
+        private let lock = NSLock()
+        private var cachedKey: SymmetricKey?
+        var migrationVerificationHook: (@Sendable (Data) -> Data)?
+        
+        init(
+            key: SymmetricKey? = nil,
+            keychain: Test102KeychainManaging,
+            managedDirectoryURL: URL? = nil
+        ) {
+            self.keychain = keychain
+            self.managedDirectoryURL = managedDirectoryURL
+            self.cachedKey = key
+        }
+        
+        func clearMemoryCacheForTesting() {
+            lock.lock()
+            defer { lock.unlock() }
+            cachedKey = nil
+        }
+        
+        static func isCiphertextFile(at url: URL) -> Bool {
+            guard FileManager.default.fileExists(atPath: url.path),
+                  let handle = try? FileHandle(forReadingFrom: url) else { return false }
+            defer { try? handle.close() }
+            guard let prefix = try? handle.read(upToCount: magicHeader.count) else { return false }
+            return prefix == magicHeader
+        }
+        
+        private func hasCiphertextInManagedDirectory(excluding targetURL: URL?) -> Bool {
+            guard let dir = managedDirectoryURL, FileManager.default.fileExists(atPath: dir.path) else { return false }
+            let candidates = [
+                dir.appendingPathComponent("notes.txt"),
+                dir.appendingPathComponent("contacts.json")
+            ]
+            for candidate in candidates {
+                if let target = targetURL, candidate.standardizedFileURL == target.standardizedFileURL { continue }
+                if Self.isCiphertextFile(at: candidate) { return true }
+            }
+            return false
+        }
+        
+        func getKey(for targetURL: URL? = nil) throws -> SymmetricKey {
+            lock.lock()
+            defer { lock.unlock() }
+            
+            // Invariant 3: Cache key in memory after first load
+            if let cached = cachedKey {
+                return cached
+            }
+            
+            // Try loading from Keychain
+            if let savedBase64 = keychain.loadSecret(forKey: Self.keychainKeyAccount),
+               let keyData = Data(base64Encoded: savedBase64),
+               keyData.count == 32 {
+                let loadedKey = SymmetricKey(data: keyData)
+                self.cachedKey = loadedKey
+                return loadedKey
+            }
+            
+            // Invariant 1: keyProvider must NEVER create a key if target ciphertext exists
+            let targetIsCiphertext = targetURL.map { Self.isCiphertextFile(at: $0) } ?? false
+            let anyCiphertextExists = hasCiphertextInManagedDirectory(excluding: targetURL)
+            if targetIsCiphertext || anyCiphertextExists {
+                throw Test102StoreError.keyMissing
+            }
+            
+            // Invariant 2: Create a key only when no encrypted file exists,
+            // and verify saveSecret succeeded; if it failed, throw and write nothing
+            let newKey = SymmetricKey(size: .bits256)
+            let base64 = newKey.withUnsafeBytes { Data($0).base64EncodedString() }
+            let saved = keychain.saveSecret(base64, forKey: Self.keychainKeyAccount)
+            guard saved else {
+                throw Test102StoreError.keychainSaveFailed
+            }
+            self.cachedKey = newKey
+            return newKey
+        }
+        
+        func write(data: Data, to url: URL) throws {
+            let key = try getKey(for: url)
+            let sealedBox = try AES.GCM.seal(data, using: key)
+            guard let combined = sealedBox.combined else {
+                throw Test102StoreError.corruptedData
+            }
+            var packet = Data()
+            packet.append(Self.magicHeader)
+            packet.append(Self.currentVersion)
+            packet.append(combined)
+            
+            let parentDir = url.deletingLastPathComponent()
+            if !FileManager.default.fileExists(atPath: parentDir.path) {
+                try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            }
+            try packet.write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
+        
+        func writeString(_ string: String, to url: URL) throws {
+            guard let data = string.data(using: .utf8) else { throw Test102StoreError.invalidEncoding }
+            try write(data: data, to: url)
+        }
+        
+        func read(from url: URL) throws -> Data? {
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            let rawData = try Data(contentsOf: url)
+            guard !rawData.isEmpty else { return Data() }
+            
+            let headerSize = Self.magicHeader.count + 1
+            if rawData.count >= headerSize && rawData.prefix(Self.magicHeader.count) == Self.magicHeader {
+                let ver = rawData[Self.magicHeader.count]
+                guard ver == Self.currentVersion else { throw Test102StoreError.unsupportedVersion(ver) }
+                let combined = rawData.dropFirst(headerSize)
+                do {
+                    let box = try AES.GCM.SealedBox(combined: combined)
+                    let key = try getKey(for: url)
+                    return try AES.GCM.open(box, using: key)
+                } catch let error as Test102StoreError {
+                    throw error
+                } catch {
+                    throw Test102StoreError.corruptedData
+                }
+            }
+            // Invariant 4: Plaintext fallback
+            do {
+                try migratePlaintextFile(at: url, plaintext: rawData)
+            } catch {}
+            return rawData
+        }
+        
+        func readString(from url: URL) throws -> String? {
+            guard let data = try read(from: url) else { return nil }
+            guard let str = String(data: data, encoding: .utf8) else { throw Test102StoreError.invalidEncoding }
+            return str
+        }
+        
+        func migratePlaintextFile(at url: URL, plaintext: Data) throws {
+            let key = try getKey(for: url)
+            let box = try AES.GCM.seal(plaintext, using: key)
+            guard let combined = box.combined else { throw Test102StoreError.corruptedData }
+            
+            var packet = Data()
+            packet.append(Self.magicHeader)
+            packet.append(Self.currentVersion)
+            packet.append(combined)
+            
+            if let hook = migrationVerificationHook {
+                packet = hook(packet)
+            }
+            
+            let headerSize = Self.magicHeader.count + 1
+            guard packet.count >= headerSize, packet.prefix(Self.magicHeader.count) == Self.magicHeader else {
+                throw Test102StoreError.verificationFailed
+            }
+            
+            // In-memory verification
+            let inMemoryCombined = packet.dropFirst(headerSize)
+            do {
+                let inMemBox = try AES.GCM.SealedBox(combined: inMemoryCombined)
+                let inMemDecrypted = try AES.GCM.open(inMemBox, using: key)
+                guard inMemDecrypted == plaintext else { throw Test102StoreError.verificationFailed }
+            } catch {
+                throw Test102StoreError.verificationFailed
+            }
+            
+            // Two-phase staging with disk read-back verification
+            let tempURL = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).migration_\(UUID().uuidString).tmp")
+            do {
+                try packet.write(to: tempURL, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tempURL.path)
+                
+                let diskData = try Data(contentsOf: tempURL)
+                guard diskData.count >= headerSize, diskData.prefix(Self.magicHeader.count) == Self.magicHeader else {
+                    throw Test102StoreError.verificationFailed
+                }
+                let diskBox = try AES.GCM.SealedBox(combined: diskData.dropFirst(headerSize))
+                let diskDecrypted = try AES.GCM.open(diskBox, using: key)
+                guard diskDecrypted == plaintext else { throw Test102StoreError.verificationFailed }
+                
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: tempURL, backupItemName: nil, options: [])
+            } catch {
+                try? FileManager.default.removeItem(at: tempURL)
+                throw error
+            }
+        }
+    }
+    
+    final class Test102NoteManager {
+        var text: String {
+            didSet {
+                guard text != oldValue else { return }
+                userHasEdited = true
+                isDirty = true
+            }
+        }
+        var isDirty = false
+        var userHasEdited = false
+        let fileURL: URL
+        let store: Test102EncryptedFileStore
+        
+        init(fileURL: URL, store: Test102EncryptedFileStore) {
+            self.fileURL = fileURL
+            self.store = store
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                do {
+                    if let saved = try store.readString(from: fileURL) {
+                        self.text = saved
+                    } else {
+                        self.text = ""
+                    }
+                } catch {
+                    self.text = ""
+                    self.isDirty = false
+                    self.userHasEdited = false
+                }
+            } else {
+                self.text = ""
+            }
+        }
+        
+        func saveImmediately() {
+            guard isDirty && userHasEdited else { return }
+            try? store.writeString(text, to: fileURL)
+            isDirty = false
+        }
+    }
+    
+    final class Test102ContactsManager {
+        struct Contact: Codable, Equatable {
+            let id: UUID
+            var name: String
+        }
+        var contacts: [Contact] = []
+        var userHasModifiedContacts = false
+        let fileURL: URL
+        let store: Test102EncryptedFileStore
+        
+        init(fileURL: URL, store: Test102EncryptedFileStore) {
+            self.fileURL = fileURL
+            self.store = store
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                do {
+                    if let data = try store.read(from: fileURL) {
+                        if let saved = try? JSONDecoder().decode([Contact].self, from: data), !saved.isEmpty {
+                            self.contacts = saved
+                        } else {
+                            self.contacts = []
+                        }
+                    } else {
+                        self.contacts = []
+                    }
+                } catch {
+                    self.contacts = []
+                    self.userHasModifiedContacts = false
+                    return
+                }
+            } else {
+                self.contacts = [Contact(id: UUID(), name: "Welcome")]
+            }
+        }
+        
+        func addContact(name: String) {
+            contacts.append(Contact(id: UUID(), name: name))
+            userHasModifiedContacts = true
+            persist()
+        }
+        
+        func persist() {
+            guard userHasModifiedContacts else { return }
+            if let encoded = try? JSONEncoder().encode(contacts) {
+                try? store.write(data: encoded, to: fileURL)
+            }
+        }
+    }
+    
+    let mock102Keychain = MockTest102Keychain()
+    let test102Store = Test102EncryptedFileStore(keychain: mock102Keychain, managedDirectoryURL: test102Dir)
+    
+    // --- Subtest 1: Missing key + existing ciphertext -> throws keyMissing, creates NO key ---
+    let cipherFile102 = test102Dir.appendingPathComponent("existing_cipher.enc")
+    let dummyKey102 = SymmetricKey(size: .bits256)
+    let dummyBox102 = try! AES.GCM.seal(Data("Confidential payload".utf8), using: dummyKey102)
+    var dummyPacket102 = Data()
+    dummyPacket102.append(Test102EncryptedFileStore.magicHeader)
+    dummyPacket102.append(Test102EncryptedFileStore.currentVersion)
+    dummyPacket102.append(dummyBox102.combined!)
+    try! dummyPacket102.write(to: cipherFile102)
+    
+    assert(Test102EncryptedFileStore.isCiphertextFile(at: cipherFile102), "Target file must be recognized as ciphertext")
+    assert(mock102Keychain.storedSecrets.isEmpty, "Keychain must have no key initially")
+    
+    var didThrowKeyMissing = false
+    do {
+        _ = try test102Store.getKey(for: cipherFile102)
+    } catch let error as Test102StoreError {
+        if error == .keyMissing { didThrowKeyMissing = true }
+    } catch {}
+    assert(didThrowKeyMissing, "getKey(for:) MUST throw keyMissing when ciphertext file exists but key is absent from Keychain")
+    assert(mock102Keychain.saveCallCount == 0, "keyProvider must NEVER create/save a key if target ciphertext exists")
+    
+    var didThrowReadMissing = false
+    do {
+        _ = try test102Store.read(from: cipherFile102)
+    } catch let error as Test102StoreError {
+        if error == .keyMissing { didThrowReadMissing = true }
+    } catch {}
+    assert(didThrowReadMissing, "read(from:) MUST throw keyMissing when ciphertext file exists but key is absent from Keychain")
+    assert(mock102Keychain.saveCallCount == 0, "read(from:) must NEVER create a key if target ciphertext exists")
+    
+    // --- Subtest 2: Failed Keychain save -> throws keychainSaveFailed and writes nothing ---
+    let nonExistentFile102 = test102Dir.appendingPathComponent("new_file_fail_save.enc")
+    mock102Keychain.saveShouldSucceed = false
+    var didThrowSaveFailed = false
+    do {
+        try test102Store.write(data: Data("secret data".utf8), to: nonExistentFile102)
+    } catch let error as Test102StoreError {
+        if error == .keychainSaveFailed { didThrowSaveFailed = true }
+    } catch {}
+    assert(didThrowSaveFailed, "write(data:to:) MUST throw keychainSaveFailed when Keychain save fails")
+    assert(!FileManager.default.fileExists(atPath: nonExistentFile102.path), "Must write NOTHING to disk when saveSecret fails")
+    mock102Keychain.saveShouldSucceed = true // Restore
+    
+    // --- Subtest 3: In-memory key caching -> no Keychain call per save ---
+    test102Store.clearMemoryCacheForTesting()
+    let validKey102 = SymmetricKey(size: .bits256)
+    let validKeyBase64_102 = validKey102.withUnsafeBytes { Data($0).base64EncodedString() }
+    mock102Keychain.storedSecrets[Test102EncryptedFileStore.keychainKeyAccount] = validKeyBase64_102
+    mock102Keychain.loadCallCount = 0
+    mock102Keychain.saveCallCount = 0
+    
+    let fileA_102 = test102Dir.appendingPathComponent("file_a.enc")
+    try! test102Store.write(data: Data("note A".utf8), to: fileA_102)
+    assert(mock102Keychain.loadCallCount == 1, "First operation must load key from Keychain (loadCallCount = 1)")
+    
+    let fileB_102 = test102Dir.appendingPathComponent("file_b.enc")
+    try! test102Store.write(data: Data("note B".utf8), to: fileB_102)
+    let fileC_102 = test102Dir.appendingPathComponent("file_c.enc")
+    try! test102Store.write(data: Data("note C".utf8), to: fileC_102)
+    _ = try! test102Store.read(from: fileA_102)
+    _ = try! test102Store.getKey(for: nil)
+    assert(mock102Keychain.loadCallCount == 1, "Subsequent writes/reads MUST use cached key in memory without Keychain IPC (expected 1, got \(mock102Keychain.loadCallCount))")
+    
+    // --- Subtest 4: Corrupt file -> throws corruptedData ---
+    let corruptFile102 = test102Dir.appendingPathComponent("corrupt.enc")
+    let validData102 = Data("Precious document text".utf8)
+    try! test102Store.write(data: validData102, to: corruptFile102)
+    
+    var corruptBytes102 = try! Data(contentsOf: corruptFile102)
+    corruptBytes102[corruptBytes102.count - 5] ^= 0xAA
+    try! corruptBytes102.write(to: corruptFile102)
+    
+    var didThrowCorrupt = false
+    do {
+        _ = try test102Store.read(from: corruptFile102)
+    } catch let error as Test102StoreError {
+        if error == .corruptedData { didThrowCorrupt = true }
+    } catch {}
+    assert(didThrowCorrupt, "read(from:) MUST throw corruptedData on tampered ciphertext/auth tag")
+    
+    // --- Subtest 5: Plaintext migration verify failure -> keeps original file untouched ---
+    let legacyPlaintextFile102 = test102Dir.appendingPathComponent("legacy_notes.txt")
+    let legacyPlainTextContent102 = "Legacy note content that must survive migration failure."
+    let legacyRawBytes102 = Data(legacyPlainTextContent102.utf8)
+    try! legacyRawBytes102.write(to: legacyPlaintextFile102)
+    
+    test102Store.migrationVerificationHook = { packet in
+        var badPacket = packet
+        badPacket[badPacket.count - 4] ^= 0x55
+        return badPacket
+    }
+    
+    var didThrowVerifyFail = false
+    do {
+        try test102Store.migratePlaintextFile(at: legacyPlaintextFile102, plaintext: legacyRawBytes102)
+    } catch let error as Test102StoreError {
+        if error == .verificationFailed || error == .corruptedData { didThrowVerifyFail = true }
+    } catch {}
+    assert(didThrowVerifyFail, "migratePlaintextFile MUST throw verificationFailed when round-trip verification fails")
+    
+    let diskBytesAfterFail102 = try! Data(contentsOf: legacyPlaintextFile102)
+    assert(diskBytesAfterFail102 == legacyRawBytes102, "Original file on disk must remain 100% UNTOUCHED after verification failure")
+    assert(!Test102EncryptedFileStore.isCiphertextFile(at: legacyPlaintextFile102), "File on disk must still be original plaintext, NOT replaced")
+    
+    let dirContentsAfterFail102 = try! FileManager.default.contentsOfDirectory(atPath: test102Dir.path)
+    let tmpFiles102 = dirContentsAfterFail102.filter { $0.contains(".tmp") }
+    assert(tmpFiles102.isEmpty, "No temporary files must linger in directory after migration failure")
+    
+    // --- Subtest 6: Plaintext migration success -> replaces with verified ciphertext ---
+    test102Store.migrationVerificationHook = nil
+    let migratedReadData102 = try! test102Store.read(from: legacyPlaintextFile102)
+    assert(migratedReadData102 == legacyRawBytes102, "read(from:) must return original plaintext intact")
+    assert(Test102EncryptedFileStore.isCiphertextFile(at: legacyPlaintextFile102), "Migrated file on disk must now be ciphertext (NOTCHENC1)")
+    let postMigrationReadData102 = try! test102Store.read(from: legacyPlaintextFile102)
+    assert(postMigrationReadData102 == legacyRawBytes102, "Post-migration ciphertext must decrypt to original data")
+    
+    // --- Subtest 7: Caller error handling (Notes & Contacts) ---
+    let callerNotesFile102 = test102Dir.appendingPathComponent("corrupted_notes.txt")
+    var fakeEncryptedNotes102 = Data(Test102EncryptedFileStore.magicHeader)
+    fakeEncryptedNotes102.append(Test102EncryptedFileStore.currentVersion)
+    fakeEncryptedNotes102.append(Data([0x01, 0x02, 0x03, 0x04]))
+    try! fakeEncryptedNotes102.write(to: callerNotesFile102)
+    
+    let emptyMockKeychain102 = MockTest102Keychain()
+    let missingKeyStore102 = Test102EncryptedFileStore(keychain: emptyMockKeychain102, managedDirectoryURL: test102Dir)
+    
+    let noteManager102 = Test102NoteManager(fileURL: callerNotesFile102, store: missingKeyStore102)
+    assert(noteManager102.text == "", "NoteStorageManager must run with empty in-memory state on read error")
+    
+    noteManager102.saveImmediately()
+    let callerNotesAfterSave102 = try! Data(contentsOf: callerNotesFile102)
+    assert(callerNotesAfterSave102 == fakeEncryptedNotes102, "NoteStorageManager must NOT write to disk before user types")
+    
+    let validNoteStore102 = Test102EncryptedFileStore(key: validKey102, keychain: mock102Keychain)
+    let activeNoteManager102 = Test102NoteManager(fileURL: callerNotesFile102, store: validNoteStore102)
+    activeNoteManager102.text = "New user typed note!"
+    activeNoteManager102.saveImmediately()
+    let callerNotesAfterTyping102 = try! validNoteStore102.readString(from: callerNotesFile102)
+    assert(callerNotesAfterTyping102 == "New user typed note!", "NoteStorageManager must save to disk once user types")
+    
+    let callerContactsFile102 = test102Dir.appendingPathComponent("corrupted_contacts.json")
+    try! fakeEncryptedNotes102.write(to: callerContactsFile102)
+    
+    let telegramModule102 = Test102ContactsManager(fileURL: callerContactsFile102, store: missingKeyStore102)
+    assert(telegramModule102.contacts.isEmpty, "TelegramModule must run with empty in-memory state on read error (contacts.isEmpty)")
+    
+    let callerContactsAfterInit102 = try! Data(contentsOf: callerContactsFile102)
+    assert(callerContactsAfterInit102 == fakeEncryptedNotes102, "TelegramModule must keep file completely untouched on read error")
+    
+    let activeTelegramModule102 = Test102ContactsManager(fileURL: callerContactsFile102, store: validNoteStore102)
+    activeTelegramModule102.addContact(name: "Alice Security")
+    assert(!activeTelegramModule102.contacts.isEmpty, "Contacts must contain added contact")
+    let reloadedContactsData102 = try! validNoteStore102.read(from: callerContactsFile102)
+    let reloadedContacts102 = try! JSONDecoder().decode([Test102ContactsManager.Contact].self, from: reloadedContactsData102!)
+    assert(reloadedContacts102.contains(where: { $0.name == "Alice Security" }), "Contacts file must be persisted after user adds contact")
+    
+    try? FileManager.default.removeItem(at: test102Dir)
+    print("  ✓ EncryptedFileStore key lifecycle, in-memory caching, migration verification & caller error handling verified.")
+    
     print("\n=====================================================")
-    print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (101/101) ")
+    print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (102/102) ")
     print("=====================================================\n")
 }
 

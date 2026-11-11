@@ -357,6 +357,37 @@
   - *What could break*: If a user had an existing plaintext `notes.txt` or `contacts.json`, failing to read plaintext would lose user data.
   - *How verified*: `read()` checks for the `NOTCHENC1` magic header; if absent, it recovers the plaintext data seamlessly, passes it to the UI, and automatically rewrites it to disk as an authenticated encrypted file with 0600 permissions. Test 101 Subtest 4 asserts legacy recovery and migration.
 
+### Commit 17: SEC-A-1 — Harden EncryptedFileStore Key Lifecycle, Migration Verification, and Caller Error Handling
+
+- **Commit**: `SEC-A-1: harden EncryptedFileStore key lifecycle, migration verification, and caller error handling`
+- **Files Changed**:
+  - `Sources/Core/KeychainHelper.swift`: Extracted `KeychainManaging` protocol and conformed `KeychainHelper` for decoupled dependency injection and testability.
+  - `Sources/Core/EncryptedFileStore.swift`:
+    - Defined strongly-typed `EncryptedFileStoreError` enum (`keyMissing`, `keychainSaveFailed`, `verificationFailed`, `corruptedData`, `unsupportedVersion`, `invalidEncoding`).
+    - Enforced Invariant 1: Key resolution never creates a key if a target ciphertext file exists on disk (throws `keyMissing` instead).
+    - Enforced Invariant 2: Generates a key only when no ciphertext file exists, and checks that `saveSecret` succeeded; if it failed, throws `keychainSaveFailed` and writes nothing to disk.
+    - Enforced Invariant 3: Caches the key in memory after the first load (zero Keychain IPC calls per note save or contact update).
+    - Enforced Invariant 4: Two-phase plaintext migration verification (encrypts, verifies in memory, writes to sidecar `.tmp`, verifies disk read-back decryption matches original data, and only then atomically replaces original via `replaceItemAt`). On any error, deletes `.tmp` and keeps the original file untouched on disk. Added `migrationVerificationHook` for deterministic testing.
+    - Added `isCiphertextFile(at:)` magic header inspector.
+  - `Sources/Modules/Notes/NoteStorageManager.swift`:
+    - Added `userHasEdited` tracking.
+    - On read error: keeps file untouched, sets `text = ""`, `isDirty = false`, `userHasEdited = false`.
+    - `commitToDisk` and `saveImmediately` guard `userHasEdited`; never writes to disk until user explicitly types.
+    - Added dependency-injected initializer `init(customStorageURL:fileStore:)` for test isolation.
+  - `Sources/Modules/Telegram/TelegramModule.swift`:
+    - Added `userHasModifiedContacts` tracking.
+    - On read error: keeps file untouched, sets `contacts = []`, `selectedContactId = nil`, `userHasModifiedContacts = false`.
+    - `persistContacts` guards `userHasModifiedContacts`; never writes to disk until user adds/removes contacts or sends messages.
+    - Added dependency-injected initializer `init(customContactsURL:fileStore:)` for test isolation.
+  - `Tests/VerificationTests.swift`:
+    - Added `[TEST 102]` with 7 comprehensive subtests covering missing key + existing ciphertext, failed Keychain save, memory key caching (1 Keychain load only), corrupt file handling, migration verification failure keeping original file untouched, migration verification success, and caller lazy write behavior.
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 102 / 102 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If key retrieval failed, an app might regenerate a random key and overwrite or orphan user ciphertext.
+  - *How verified*: Invariant 1 explicitly checks `isCiphertextFile(at:)` before generating any key. If ciphertext exists, it refuses to generate a key and throws `keyMissing`. Callers run with empty state and never overwrite disk until explicit user action, ensuring data integrity.
+
+
 
 
 
