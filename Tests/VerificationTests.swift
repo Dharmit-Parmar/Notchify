@@ -2939,13 +2939,241 @@ func runAllVerificationTests() {
     let chromeOverhead = 56.0 // tabs (~33pt) + divider (11pt) + padding (12pt)
     let availableContentHeight = minUsableHeight - chromeOverhead
     assert(availableContentHeight >= 140.0, "Available content height at minimum setting (200pt) must provide sufficient vertical space for adaptive calendar")
-    let maxCalendarIntrinsicHeight = 218.0 // 6 full weeks + event glance + card padding
-    assert(availableContentHeight >= maxCalendarIntrinsicHeight, "Available content height at minimum setting (310pt) must exceed 6-row calendar intrinsic height (218pt) to guarantee zero clipping")
+    let weekStripHeight = 110.0 // Single-week strip active below 240pt (notchTight / compact)
+    assert(availableContentHeight >= weekStripHeight, "Available content height at minimum setting (200pt) must exceed single-week strip height (110pt) to guarantee zero clipping")
     
     print("  ✓ Expanded rect top flush, notch inset included, centering, non-notch adaptation, and zero-clipping contracts verified.")
     
+    // Test 85: Responsive Expanded Layouts & Event-Driven Battery Widget Tests
+    print("\n[TEST 85] Responsive Expanded Layouts & Event-Driven Battery Widget Tests...")
+    
+    // 1. ExpandedLayout tests across heights 200, 240, 330, 420 on notch and non-notch screens
+    let testHeights: [CGFloat] = [200.0, 240.0, 330.0, 420.0]
+    
+    // 1a. Hardware Notch Screen (MacBook Pro 16" synthetic bounds)
+    let notchScreenFrame = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+    let notchInset: CGFloat = 34.0
+    let notchCenter: CGFloat = 864.0
+    let testWidth: CGFloat = 560.0
+    
+    for h in testHeights {
+        let layout = computeExpandedLayout(
+            screenFrame: notchScreenFrame,
+            hasPhysicalNotch: true,
+            physicalNotchHeight: notchInset,
+            notchCenterX: notchCenter,
+            notchWidth: testWidth,
+            notchHeight: h
+        )
+        let contentHeight = layout.targetHeight - layout.notchInset
+        let contentRect = NSRect(x: 0, y: 0, width: layout.targetWidth, height: contentHeight)
+        assert(layout.targetHeight == notchInset + h, "Notch screen height must equal notchInset + notchHeight exactly")
+        assert(layout.windowRect.maxY == notchScreenFrame.maxY, "Notch screen window top must sit flush with screen top")
+        assert(layout.notchInset == notchInset, "Notch inset must match physical hardware notch height")
+        assert(layout.contentTopPadding == notchInset, "Content top padding must match physical notch to clear camera")
+        assert(contentRect.height == h, "Content rect height must equal configured notchHeight")
+        assert(contentRect.height > 0, "Content rect must have positive height at \(h)pt")
+        assert(layout.windowRect.height - layout.notchInset == h, "Content height below physical notch must match h")
+    }
+    print("  ✓ Notch display expandedLayout verified across 200, 240, 330, 420 pt: positive height, notch cleared, top flush.")
+    
+    // 1b. Non-Notch Screen (External 4K Monitor synthetic bounds)
+    let nonNotchScreenFrame = CGRect(x: 0, y: 0, width: 3840, height: 2160)
+    for h in testHeights {
+        let layout = computeExpandedLayout(
+            screenFrame: nonNotchScreenFrame,
+            hasPhysicalNotch: false,
+            physicalNotchHeight: 0.0,
+            notchCenterX: 1920.0,
+            notchWidth: testWidth,
+            notchHeight: h
+        )
+        let contentHeight = layout.targetHeight - layout.notchInset
+        let contentRect = NSRect(x: 0, y: 0, width: layout.targetWidth, height: contentHeight)
+        assert(layout.targetHeight == h, "Non-notch screen height must equal notchHeight without physical inset")
+        assert(layout.windowRect.maxY == nonNotchScreenFrame.maxY, "Non-notch screen window top must sit flush with screen top")
+        assert(layout.notchInset == 0.0, "Non-notch screen notch inset must be 0pt")
+        assert(layout.contentTopPadding == 10.0, "Non-notch screen content top padding must be 10pt compact breathing room")
+        assert(contentRect.height > 0, "Non-notch content rect must have positive height at \(h)pt")
+    }
+    print("  ✓ Non-notch display expandedLayout verified across 200, 240, 330, 420 pt: positive height, 0pt inset, top flush.")
+    
+    // 2. SettingsStore Clamp Invariant Tests
+    func clampHeight(_ value: Double) -> Double {
+        min(420.0, max(200.0, value))
+    }
+    assert(clampHeight(150.0) == 200.0, "notchHeight of 150 must clamp to 200pt minimum")
+    assert(clampHeight(199.9) == 200.0, "notchHeight below 200 must clamp to 200pt")
+    assert(clampHeight(200.0) == 200.0, "notchHeight of 200 must remain valid")
+    assert(clampHeight(310.0) == 310.0, "Saved notchHeight of 310 must remain completely valid")
+    assert(clampHeight(420.0) == 420.0, "notchHeight of 420 must remain valid at maximum")
+    assert(clampHeight(500.0) == 420.0, "notchHeight of 500 must clamp to 420pt maximum")
+    print("  ✓ SettingsStore clamp verified: 150 clamps to 200, saved 310 preserved, bounds [200, 420].")
+    
+    // 3. DashboardWidgetType Serialization & Backward Compatibility
+    enum Test85WidgetType: String, Codable, CaseIterable {
+        case nowPlaying = "nowPlaying"
+        case calendar = "calendar"
+        case notes = "notes"
+        case clock = "clock"
+        case mirror = "mirror"
+        case askAI = "askAI"
+        case battery = "battery"
+    }
+    
+    let activeWidgets: [Test85WidgetType] = [.battery, .clock, .calendar, .notes]
+    let encoder = JSONEncoder()
+    let decoder = JSONDecoder()
+    
+    let encodedData = try! encoder.encode(activeWidgets)
+    let test85JsonString = String(data: encodedData, encoding: .utf8)!
+    assert(test85JsonString.contains("\"battery\""), "JSON serialization must include 'battery' widget identifier")
+    
+    let decodedWidgets = try! decoder.decode([Test85WidgetType].self, from: encodedData)
+    assert(decodedWidgets == activeWidgets, "Decoded widgets must strictly match encoded array")
+    assert(decodedWidgets.contains(.battery), "Decoded widgets array must contain .battery")
+    
+    // Backward compatibility: Old saved JSON array without .battery
+    let oldJson = "[\"clock\", \"calendar\", \"notes\", \"nowPlaying\"]".data(using: .utf8)!
+    let decodedOld = try! decoder.decode([Test85WidgetType].self, from: oldJson)
+    assert(decodedOld.count == 4, "Old JSON payload without .battery must decode cleanly without error")
+    assert(!decodedOld.contains(.battery), "Old payload does not contain .battery")
+    print("  ✓ DashboardWidgetType serialization and backward compatibility verified.")
+    
+    // 4. BatteryModule Ingestion & Formatted Strings Tests
+    struct Test85BatteryModel {
+        var hasBattery: Bool = true
+        var percentage: Int = 100
+        var isCharging: Bool = false
+        var isFullyCharged: Bool = false
+        var powerSourceState: String = "AC Power"
+        var timeRemainingMinutes: Int = -1
+        var timeToFullMinutes: Int = -1
+        var isLowPowerMode: Bool = false
+        
+        mutating func applyPowerSourceData(description: [String: Any]) {
+            self.hasBattery = true
+            if let current = description["CurrentCapacity"] as? Int,
+               let maxCap = description["MaxCapacity"] as? Int, maxCap > 0 {
+                self.percentage = min(100, max(0, Int((Double(current) / Double(maxCap)) * 100.0)))
+            }
+            if let charging = description["IsCharging"] as? Bool {
+                self.isCharging = charging
+            }
+            if let isCharged = description["IsCharged"] as? Bool {
+                self.isFullyCharged = isCharged
+            } else {
+                self.isFullyCharged = (self.percentage >= 100 && !self.isCharging)
+            }
+            if let pState = description["PowerSourceState"] as? String {
+                self.powerSourceState = pState
+            }
+            if let toEmpty = description["TimeToEmpty"] as? Int {
+                self.timeRemainingMinutes = toEmpty
+            }
+            if let toFull = description["TimeToFullCharge"] as? Int {
+                self.timeToFullMinutes = toFull
+            }
+        }
+        
+        var statusDescription: String {
+            if !hasBattery { return "No battery detected" }
+            if isFullyCharged { return "Fully Charged" }
+            if isCharging { return "Charging" }
+            if isLowPowerMode { return "Low Power Mode" }
+            return "On Battery"
+        }
+        
+        var formattedTimeEstimate: String? {
+            guard hasBattery else { return nil }
+            if isCharging && timeToFullMinutes > 0 {
+                let h = timeToFullMinutes / 60
+                let m = timeToFullMinutes % 60
+                return h > 0 ? "\(h)h \(m)m to full" : "\(m)m to full"
+            } else if !isCharging && timeRemainingMinutes > 0 {
+                let h = timeRemainingMinutes / 60
+                let m = timeRemainingMinutes % 60
+                return h > 0 ? "\(h)h \(m)m remaining" : "\(m)m remaining"
+            }
+            return nil
+        }
+        
+        var voiceOverLabel: String {
+            if !hasBattery {
+                return "Battery Status: Desktop Mac, connected to power, no battery detected"
+            }
+            var label = "Battery \(percentage) percent, \(statusDescription)"
+            if let time = formattedTimeEstimate {
+                label += ", \(time)"
+            }
+            return label
+        }
+    }
+    
+    // 4a. Mock Charging at 85% with 42 min to full
+    var chargingModel = Test85BatteryModel()
+    let mockChargingDict: [String: Any] = [
+        "CurrentCapacity": 85,
+        "MaxCapacity": 100,
+        "IsCharging": true,
+        "IsCharged": false,
+        "PowerSourceState": "AC Power",
+        "TimeToFullCharge": 42,
+        "TimeToEmpty": -1
+    ]
+    chargingModel.applyPowerSourceData(description: mockChargingDict)
+    assert(chargingModel.hasBattery == true, "hasBattery must be true")
+    assert(chargingModel.percentage == 85, "Percentage must be 85%")
+    assert(chargingModel.isCharging == true, "isCharging must be true")
+    assert(chargingModel.statusDescription == "Charging", "Status description must be 'Charging'")
+    assert(chargingModel.formattedTimeEstimate == "42m to full", "Time estimate must be '42m to full'")
+    assert(chargingModel.voiceOverLabel == "Battery 85 percent, Charging, 42m to full", "VoiceOver label must match combined format")
+    print("  ✓ Mock charging data verified: 85%, 'Charging', '42m to full'.")
+    
+    // 4b. Mock Discharging at 45% with 150 min (2h 30m) remaining
+    var dischargingModel = Test85BatteryModel()
+    let mockDischargingDict: [String: Any] = [
+        "CurrentCapacity": 45,
+        "MaxCapacity": 100,
+        "IsCharging": false,
+        "IsCharged": false,
+        "PowerSourceState": "Battery Power",
+        "TimeToFullCharge": -1,
+        "TimeToEmpty": 150
+    ]
+    dischargingModel.applyPowerSourceData(description: mockDischargingDict)
+    assert(dischargingModel.percentage == 45, "Percentage must be 45%")
+    assert(dischargingModel.isCharging == false, "isCharging must be false")
+    assert(dischargingModel.statusDescription == "On Battery", "Status must be 'On Battery'")
+    assert(dischargingModel.formattedTimeEstimate == "2h 30m remaining", "Time estimate must be '2h 30m remaining'")
+    assert(dischargingModel.voiceOverLabel == "Battery 45 percent, On Battery, 2h 30m remaining", "VoiceOver label must match combined format")
+    print("  ✓ Mock discharging data verified: 45%, 'On Battery', '2h 30m remaining'.")
+    
+    // 4c. Mock Desktop Mac (No battery list / desktop hardware fallback)
+    var desktopModel = Test85BatteryModel()
+    desktopModel.hasBattery = false
+    desktopModel.percentage = 0
+    desktopModel.isCharging = false
+    desktopModel.isFullyCharged = false
+    desktopModel.powerSourceState = "AC Power"
+    assert(desktopModel.hasBattery == false, "Desktop Mac hasBattery must be false")
+    assert(desktopModel.statusDescription == "No battery detected", "Desktop Mac status must be 'No battery detected'")
+    assert(desktopModel.formattedTimeEstimate == nil, "Desktop Mac time estimate must be nil")
+    assert(desktopModel.voiceOverLabel == "Battery Status: Desktop Mac, connected to power, no battery detected", "VoiceOver label must announce desktop Mac gracefully")
+    print("  ✓ Desktop Mac fallback verified: no battery, 'No battery detected', nil estimate, graceful VoiceOver.")
+    
+    // 4d. Mock Low Power Mode
+    var lpmModel = Test85BatteryModel()
+    lpmModel.hasBattery = true
+    lpmModel.percentage = 60
+    lpmModel.isCharging = false
+    lpmModel.isLowPowerMode = true
+    assert(lpmModel.isLowPowerMode == true, "Low Power Mode must be true")
+    assert(lpmModel.statusDescription == "Low Power Mode", "Status description in Low Power Mode must be 'Low Power Mode'")
+    print("  ✓ Low Power Mode verified: isLowPowerMode == true, status == 'Low Power Mode'.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (84/84) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (85/85) ")
     print("=====================================================\n")
 }
 

@@ -96,3 +96,20 @@
 ---
 
 
+
+## Phase 3 - Skill Selection & Headless Verification Logging
+
+- **Phase**: Phase 3 - Headless Tests & Final Report
+- **Trigger**: Entering Phase 3 verification, unit testing of responsive geometry, battery decoding/mocking, SettingsStore clamping, and comprehensive report generation.
+- **Chosen Skills**:
+  - `axiom-testing`: Headless test design, unit testing pure calculations without window allocation or synthetic event dispatch, XCTest/Swift Testing patterns.
+  - `gravitas`: Evidence-backed verification, exact line citations, rigorous testing contracts, no ungrounded claims.
+  - `ponytail`: Minimalist test cases, direct assertions on models and layout functions, YAGNI.
+  - `graphify`: Rebuilding knowledge graph with updated types (`BatteryWidgetView`, `DashboardWidgetType.battery`).
+  - `axiom-macos`: Mocking IOKit dictionary responses without touching hardware drivers.
+  - `swiftui-expert-skill`: Testing view and model invariants headlessly.
+  - `axiom-performance`: Zero-timer verification, instant headless test execution.
+- **Dropped Skills**:
+  - `emilkowalski-motion`, `apple-design`, `axiom-design`, `axiom-accessibility`: UI design was completed in Phase 1 & 2; Phase 3 focuses on headless unit testing, test suite execution, and report synthesis.
+
+---
