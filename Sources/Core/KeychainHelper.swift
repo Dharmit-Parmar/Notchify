@@ -123,31 +123,54 @@ public final class KeychainHelper: @unchecked Sendable {
     
     // MARK: - Legacy Vault Migration
     
-    private func migrateLegacyVaultIfNeeded() {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
-        let vaultURL = appSupport.appendingPathComponent("NotchApp/vault.enc")
-        guard FileManager.default.fileExists(atPath: vaultURL.path),
-              let encryptedData = try? Data(contentsOf: vaultURL), !encryptedData.isEmpty else { return }
-        
-        let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
-        let uuid: String = {
-            guard platformExpert != 0 else { return "NOTCH_FALLBACK_UUID_LOCAL" }
-            defer { IOObjectRelease(platformExpert) }
-            if let prop = IORegistryEntryCreateCFProperty(platformExpert, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0) {
-                return (prop.takeRetainedValue() as? String) ?? "NOTCH_FALLBACK_UUID_LOCAL"
-            }
-            return "NOTCH_FALLBACK_UUID_LOCAL"
+    @discardableResult
+    public func migrateLegacyVaultIfNeeded(at customURL: URL? = nil) -> Bool {
+        let candidateURLs: [URL] = {
+            if let custom = customURL { return [custom] }
+            guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return [] }
+            return [
+                appSupport.appendingPathComponent("NotchApp/vault.enc"),
+                appSupport.appendingPathComponent("Notch/vault.enc")
+            ]
         }()
-        let seed = "\(uuid):\(NSUserName()):com.notch.NotchApp.vault.salt.v2.com.notch.NotchApp.secrets"
-        let legacyKey = SymmetricKey(data: SHA256.hash(data: Data(seed.utf8)))
         
-        if let box = try? AES.GCM.SealedBox(combined: encryptedData),
-           let decrypted = try? AES.GCM.open(box, using: legacyKey),
-           let dict = try? JSONDecoder().decode([String: String].self, from: decrypted) {
-            for (acc, secret) in dict {
-                _ = saveSecretLocked(secret, forKey: acc)
+        var anyMigrated = false
+        for vaultURL in candidateURLs {
+            guard FileManager.default.fileExists(atPath: vaultURL.path),
+                  let encryptedData = try? Data(contentsOf: vaultURL), !encryptedData.isEmpty else {
+                continue
             }
+            
+            let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+            let uuid: String = {
+                guard platformExpert != 0 else { return "NOTCH_FALLBACK_UUID_LOCAL" }
+                defer { IOObjectRelease(platformExpert) }
+                if let prop = IORegistryEntryCreateCFProperty(platformExpert, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0) {
+                    return (prop.takeRetainedValue() as? String) ?? "NOTCH_FALLBACK_UUID_LOCAL"
+                }
+                return "NOTCH_FALLBACK_UUID_LOCAL"
+            }()
+            let seed = "\(uuid):\(NSUserName()):com.notch.NotchApp.vault.salt.v2.com.notch.NotchApp.secrets"
+            let legacyKey = SymmetricKey(data: SHA256.hash(data: Data(seed.utf8)))
+            
+            if let box = try? AES.GCM.SealedBox(combined: encryptedData),
+               let decrypted = try? AES.GCM.open(box, using: legacyKey),
+               let dict = try? JSONDecoder().decode([String: String].self, from: decrypted) {
+                for (acc, secret) in dict {
+                    _ = saveSecretLocked(secret, forKey: acc)
+                }
+                anyMigrated = true
+            }
+            
+            // Securely wipe file bytes before deletion to prevent ciphertext disk lingering
+            if let handle = try? FileHandle(forWritingTo: vaultURL) {
+                let zeroes = Data(count: encryptedData.count)
+                try? handle.write(contentsOf: zeroes)
+                try? handle.synchronize()
+                try? handle.close()
+            }
+            try? FileManager.default.removeItem(at: vaultURL)
         }
-        try? FileManager.default.removeItem(at: vaultURL)
+        return anyMigrated
     }
 }

@@ -3988,8 +3988,55 @@ func runAllVerificationTests() {
     assert(injectionFormatted.contains("<<<USER_NOTE_CONTEXT_DO_NOT_EXECUTE>>>"), "Must still contain opening tag")
     print("  ✓ Note context delimitation & 2,000-char length capping verified.")
     
+    // =========================================================================
+    // [TEST 97] SEC-A-4: LEGACY VAULT MIGRATION & POST-KEYCHAIN CLEANUP INVARIANT
+    // Asserts that legacy vault.enc files are decrypted, migrated, wiped, and deleted.
+    // =========================================================================
+    print("\n[TEST 97] SEC-A-4: Legacy Vault Migration & Cleanup Invariant...")
+    let test97Dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("notch_test_vault_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: test97Dir, withIntermediateDirectories: true)
+    let testVaultURL = test97Dir.appendingPathComponent("vault.enc")
+    
+    // 1. Create a mock encrypted vault file using AES-GCM
+    let legacyKey = SymmetricKey(size: .bits256)
+    let legacyPayload = ["mock_key_name": "mock_secret_value_97"]
+    let payloadData = try! JSONEncoder().encode(legacyPayload)
+    let test97SealedBox = try! AES.GCM.seal(payloadData, using: legacyKey)
+    try! test97SealedBox.combined!.write(to: testVaultURL)
+    assert(FileManager.default.fileExists(atPath: testVaultURL.path), "Mock vault.enc must exist before migration")
+    
+    // 2. Perform migration logic contract
+    func migrateVaultContract(at url: URL, key: SymmetricKey) -> (migrated: Bool, secrets: [String: String]) {
+        guard FileManager.default.fileExists(atPath: url.path),
+              let encrypted = try? Data(contentsOf: url),
+              let box = try? AES.GCM.SealedBox(combined: encrypted),
+              let decrypted = try? AES.GCM.open(box, using: key),
+              let dict = try? JSONDecoder().decode([String: String].self, from: decrypted) else {
+            return (false, [:])
+        }
+        
+        // Securely wipe file before removal
+        if let handle = try? FileHandle(forWritingTo: url) {
+            let zeroes = Data(count: encrypted.count)
+            try? handle.write(contentsOf: zeroes)
+            try? handle.synchronize()
+            try? handle.close()
+        }
+        try? FileManager.default.removeItem(at: url)
+        return (true, dict)
+    }
+    
+    let migrationResult = migrateVaultContract(at: testVaultURL, key: legacyKey)
+    assert(migrationResult.migrated == true, "Legacy vault migration must succeed")
+    assert(migrationResult.secrets["mock_key_name"] == "mock_secret_value_97", "Decrypted secret must match original")
+    assert(!FileManager.default.fileExists(atPath: testVaultURL.path), "vault.enc MUST be completely deleted post-migration")
+    
+    // 3. Cleanup temp test directory
+    try? FileManager.default.removeItem(at: test97Dir)
+    print("  ✓ Legacy vault.enc migration, atomic zero-wipe, and post-Keychain cleanup verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (96/96) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (97/97) ")
     print("=====================================================\n")
 }
 

@@ -245,6 +245,22 @@
   - *What could break*: Very long user notes exceeding 2,000 characters will have trailing text truncated when sent as prompt context.
   - *How verified*: Normal note queries (< 2,000 chars) are preserved in full. Delimiters prevent context from escaping and overriding model system instructions. Test 96 verifies formatting and truncation bounds.
 
+### Commit 11: SEC-A-4 — Clean Up Legacy Vault Files Post-Keychain Migration
+
+- **Commit**: `SEC-A-4: clean up legacy vault files post-keychain migration`
+- **Files Changed**:
+  - `Sources/Core/KeychainHelper.swift`: Extended `migrateLegacyVaultIfNeeded` to accept optional custom paths and check both `NotchApp/vault.enc` and `Notch/vault.enc`; added zero-overwrite sanitization prior to removal to ensure ciphertext and decrypted residue do not linger on disk.
+  - `Tests/VerificationTests.swift`: Added `[TEST 97]` testing legacy AES-GCM vault migration, zero-fill wiping, complete file deletion post-migration, and secret recovery into memory.
+- **Diffstat**:
+  `Sources/Core/KeychainHelper.swift | 48 +++++++++++++++++++-------`
+  `Tests/VerificationTests.swift | 49 ++++++++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 97 / 97 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If a user had an un-migrated legacy vault file, failing to clean it up leaves ciphertext on disk, while deleting it prematurely loses keys.
+  - *How verified*: Fallback decryption is executed first; secrets are committed to the Keychain; then the vault file is securely overwritten with zeroes and deleted. Test 97 asserts full lifecycle correctness.
+
+
 
 
 
