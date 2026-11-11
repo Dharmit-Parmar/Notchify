@@ -26,7 +26,8 @@ public final class NotchPanel: NSPanel {
         )
         
         self.isFloatingPanel = true
-        self.level = .floating
+        // Keep notch above menu bar and over full-screen apps (popUpMenu sits above mainMenu 24 and statusBar 25)
+        self.level = .popUpMenu
         self.collectionBehavior = [
             .canJoinAllSpaces,
             .fullScreenAuxiliary,
@@ -127,6 +128,11 @@ public final class NotchPanel: NSPanel {
         return false
     }
     
+    public override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        // Return frameRect strictly unmodified so AppKit never pushes the panel below screen.visibleFrame.maxY
+        return frameRect
+    }
+    
     public static func calculateFrame(for state: NotchState, store: SettingsStore, screen: NSScreen) -> NSRect {
         let screenFrame = screen.frame
         let geometry = NotchGeometry.current(for: screen)
@@ -174,20 +180,29 @@ public final class NotchPanel: NSPanel {
                 }
             }
         } else {
-            let baseWidth = geometry.physicalNotchWidth + 24.0
-            if store.compactIndicatorStyle == .threeZoneStatusBar {
-                if geometry.hasPhysicalNotch {
+            if geometry.hasPhysicalNotch {
+                switch store.compactIndicatorStyle {
+                case .minimal:
+                    targetWidth = geometry.physicalNotchWidth
+                case .threeZoneStatusBar:
                     targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 180.0)
-                } else {
-                    targetWidth = max(store.hoverTriggerWidth, 270.0)
+                case .media:
+                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)
+                case .battery:
+                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 140.0)
+                case .dateTime:
+                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)
+                case .circadian:
+                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)
                 }
+                targetHeight = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)
             } else {
-                targetWidth = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : baseWidth
+                targetWidth = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0
+                targetHeight = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0
             }
-            targetHeight = store.hoverTriggerHeight
         }
         
-        let x = screenFrame.origin.x + (screenFrame.width - targetWidth) / 2.0
+        let x = geometry.notchCenterX - (targetWidth / 2.0)
         let y = screenFrame.origin.y + screenFrame.height - targetHeight
         
         return NSRect(x: x, y: y, width: targetWidth, height: targetHeight)

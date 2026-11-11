@@ -285,6 +285,10 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func onMouseEnter() {
+        if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive {
+            return // Do not expand over Settings window while Settings is open and active
+        }
+        
         if state == .expanded {
             if isAppearancePreviewActive && AppDelegate.isSettingsOpen {
                 return // Do not trap preview in expanded state when clicking settings

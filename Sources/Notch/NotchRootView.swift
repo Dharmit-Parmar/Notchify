@@ -15,12 +15,29 @@ public struct NotchRootView: View {
         coordinator.state == .expanded
     }
     
+    private var currentTopRadius: CGFloat {
+        if isExpanded {
+            return store.cornerStyle.topRadius
+        } else {
+            // Hardware notch top edge is flush with screen bezel (0 radius); non-notch display is a rounded pill (10 radius)
+            return coordinator.geometry.hasPhysicalNotch ? 0 : 10
+        }
+    }
+    
+    private var currentBottomRadius: CGFloat {
+        if isExpanded {
+            return store.cornerStyle.bottomRadius
+        } else {
+            return 14
+        }
+    }
+    
     public var body: some View {
         ZStack(alignment: .top) {
             // Clean Liquid Retina Glass: No drop shadow, deep continuous squircle radii
             NotchGlassBackground(
-                topRadius: isExpanded ? store.cornerStyle.topRadius : 4,
-                bottomRadius: isExpanded ? store.cornerStyle.bottomRadius : 14,
+                topRadius: currentTopRadius,
+                bottomRadius: currentBottomRadius,
                 showsMaterial: isExpanded
             )
             
@@ -70,10 +87,10 @@ public struct NotchRootView: View {
         .clipShape(
             UnevenRoundedRectangle(
                 cornerRadii: RectangleCornerRadii(
-                    topLeading: isExpanded ? store.cornerStyle.topRadius : 4,
-                    bottomLeading: isExpanded ? store.cornerStyle.bottomRadius : 14,
-                    bottomTrailing: isExpanded ? store.cornerStyle.bottomRadius : 14,
-                    topTrailing: isExpanded ? store.cornerStyle.topRadius : 4
+                    topLeading: currentTopRadius,
+                    bottomLeading: currentBottomRadius,
+                    bottomTrailing: currentBottomRadius,
+                    topTrailing: currentTopRadius
                 ),
                 style: .continuous
             )
@@ -699,27 +716,47 @@ public struct UniversalTabDropDelegate: DropDelegate {
 private struct CompactNotchIndicator: View {
     @ObservedObject private var store = SettingsStore.shared
     @ObservedObject private var themeEngine = DynamicThemeEngine.shared
+    @ObservedObject private var coordinator = NotchShellCoordinator.shared
     let height: CGFloat
 
     var body: some View {
-        HStack(spacing: 8) {
+        let geometry = coordinator.geometry
+        if geometry.hasPhysicalNotch {
             switch store.compactIndicatorStyle {
-            case .media:
-                CompactMediaIndicator()
             case .minimal:
-                minimalIndicator
-            case .battery:
-                CompactBatteryIndicator()
-            case .dateTime:
-                dateTimeIndicator
-            case .circadian:
-                circadianIndicator
+                // Shape matches physical notch cutout width and disappears seamlessly into bezel
+                EmptyView()
             case .threeZoneStatusBar:
                 CompactThreeZoneStatusBarIndicator()
+            case .media:
+                CompactWingMediaIndicator(notchWidth: geometry.physicalNotchWidth)
+            case .battery:
+                CompactWingBatteryIndicator(notchWidth: geometry.physicalNotchWidth)
+            case .dateTime:
+                CompactWingDateTimeIndicator(notchWidth: geometry.physicalNotchWidth)
+            case .circadian:
+                CompactWingCircadianIndicator(notchWidth: geometry.physicalNotchWidth)
             }
+        } else {
+            HStack(spacing: 8) {
+                switch store.compactIndicatorStyle {
+                case .media:
+                    CompactMediaIndicator()
+                case .minimal:
+                    minimalIndicator
+                case .battery:
+                    CompactBatteryIndicator()
+                case .dateTime:
+                    dateTimeIndicator
+                case .circadian:
+                    circadianIndicator
+                case .threeZoneStatusBar:
+                    CompactThreeZoneStatusBarIndicator()
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: height)
         }
-        .padding(.horizontal, 10)
-        .frame(height: height)
     }
     
     private var minimalIndicator: some View {
@@ -828,6 +865,193 @@ private struct CompactBatteryIndicator: View {
                 .font(.system(size: 9))
                 .foregroundColor(DesignSystem.secondaryText)
         }
+    }
+}
+
+private struct CompactWingMediaIndicator: View {
+    @ObservedObject private var nowPlaying = NowPlayingModule.shared
+    let notchWidth: CGFloat
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Left Wing
+            HStack(spacing: 5) {
+                if nowPlaying.hasActiveMedia {
+                    if let art = nowPlaying.artwork {
+                        Image(nsImage: art)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 14, height: 14)
+                            .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
+                    } else {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 9))
+                            .foregroundColor(CompactIndicatorStyle.media.tintColor)
+                    }
+                    Text(nowPlaying.trackTitle)
+                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                } else {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 9))
+                        .foregroundColor(CompactIndicatorStyle.media.tintColor)
+                    Text("No Media")
+                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 8)
+            
+            // Physical Cutout Clear Zone: 0 pixels inside physical notch cutout
+            Spacer()
+                .frame(width: max(20.0, notchWidth))
+                .allowsHitTesting(false)
+            
+            // Right Wing
+            HStack(spacing: 4) {
+                Spacer()
+                if nowPlaying.hasActiveMedia && nowPlaying.isPlaying {
+                    HStack(spacing: 1.5) {
+                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 6)
+                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 11)
+                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 7)
+                    }
+                } else if nowPlaying.hasActiveMedia {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(Color.white.opacity(0.45))
+                } else {
+                    Circle()
+                        .fill(CompactIndicatorStyle.media.tintColor.opacity(0.40))
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 8)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct CompactWingBatteryIndicator: View {
+    @ObservedObject private var battery = BatteryModule.shared
+    let notchWidth: CGFloat
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Left Wing
+            TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 8.5))
+                        .foregroundColor(CompactIndicatorStyle.battery.tintColor)
+                    Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 8)
+            
+            // Physical Cutout Clear Zone
+            Spacer()
+                .frame(width: max(20.0, notchWidth))
+                .allowsHitTesting(false)
+            
+            // Right Wing
+            HStack(spacing: 4) {
+                Spacer()
+                Text("\(battery.percentage)%")
+                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                    .font(.system(size: 9))
+                    .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.battery.tintColor)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 8)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct CompactWingDateTimeIndicator: View {
+    let notchWidth: CGFloat
+    
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
+            HStack(spacing: 0) {
+                // Left Wing
+                HStack(spacing: 5) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 9))
+                        .foregroundColor(CompactIndicatorStyle.dateTime.tintColor)
+                    Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 8)
+                
+                // Physical Cutout Clear Zone
+                Spacer()
+                    .frame(width: max(20.0, notchWidth))
+                    .allowsHitTesting(false)
+                
+                // Right Wing
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text(timeline.date.formatted(.dateTime.weekday(.abbreviated)))
+                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 8)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct CompactWingCircadianIndicator: View {
+    @ObservedObject private var themeEngine = DynamicThemeEngine.shared
+    let notchWidth: CGFloat
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Left Wing
+            HStack(spacing: 5) {
+                Image(systemName: "sun.max.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(CompactIndicatorStyle.circadian.tintColor)
+                Text(themeEngine.paletteSource)
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 8)
+            
+            // Physical Cutout Clear Zone
+            Spacer()
+                .frame(width: max(20.0, notchWidth))
+                .allowsHitTesting(false)
+            
+            // Right Wing
+            TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 8)
+        }
+        .contentShape(Rectangle())
     }
 }
 

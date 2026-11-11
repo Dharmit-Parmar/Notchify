@@ -27,8 +27,13 @@ public struct NotchGeometry {
             notchWidth = hasNotch ? 185.0 : 160.0
         }
         
-        // Exact hardware center of the screen
-        let centerX = frame.origin.x + (frame.width / 2.0)
+        // Precise hardware notch center derived directly from AppKit auxiliary menu bar cutouts
+        let centerX: CGFloat
+        if hasNotch, let tl = screen.auxiliaryTopLeftArea, let tr = screen.auxiliaryTopRightArea {
+            centerX = (tl.origin.x + tl.width + tr.origin.x) / 2.0
+        } else {
+            centerX = frame.origin.x + (frame.width / 2.0)
+        }
         
         return NotchGeometry(
             hasPhysicalNotch: hasNotch,

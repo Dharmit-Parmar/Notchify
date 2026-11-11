@@ -228,7 +228,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         window.title = "Notch Island Preferences"
         window.contentView = NSHostingView(rootView: SettingsView())
         window.isReleasedWhenClosed = false
-        window.level = .floating + 1
+        // Keep Settings as a standard normal window for clean minimization and window management
+        window.level = .normal
         window.delegate = AppDelegate.sharedDelegate
         
         isSettingsOpen = true
@@ -266,6 +267,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                let panel = NotchShellCoordinator.shared.panel,
                !panel.frame.contains(NSEvent.mouseLocation) {
                 NotchShellCoordinator.shared.collapseImmediately()
+            }
+        }
+    }
+    
+    public func windowDidBecomeKey(_ notification: Notification) {
+        if let window = notification.object as? NSWindow, window === AppDelegate.settingsWindow {
+            if !SettingsStore.shared.keepOpenWhileSettingsActive {
+                NotchShellCoordinator.shared.collapseImmediately(force: true)
             }
         }
     }
