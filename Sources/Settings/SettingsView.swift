@@ -981,12 +981,12 @@ public struct SettingsView: View {
                         .font(.system(size: 9.5))
                         .foregroundColor(SettingsInk.secondary)
                 }
-                Slider(value: $store.notchHeight, in: 310...420, step: 10) { editing in
+                Slider(value: $store.notchHeight, in: 200...420, step: 10) { editing in
                     if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
                 }
                 .tint(SettingsCategory.geometry.tintColor)
                 .accessibilityLabel("Expanded Notch Height")
-                .accessibilityHint("Adjusts the height of the expanded notch island from 310 to 420 points.")
+                .accessibilityHint("Adjusts the height of the expanded notch island from 200 to 420 points.")
             }
             
             Divider()

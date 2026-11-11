@@ -379,7 +379,7 @@ public class SettingsStore: ObservableObject {
             self.notchWidth = min(800, max(480, CGFloat(defaults.double(forKey: "NotchApp_NotchWidth"))))
         }
         if defaults.object(forKey: "NotchApp_NotchHeight") != nil {
-            self.notchHeight = min(420, max(310, CGFloat(defaults.double(forKey: "NotchApp_NotchHeight"))))
+            self.notchHeight = min(420, max(200, CGFloat(defaults.double(forKey: "NotchApp_NotchHeight"))))
         }
         if defaults.object(forKey: "NotchApp_HoverTriggerHeight") != nil {
             self.hoverTriggerHeight = min(54, max(24, CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerHeight"))))

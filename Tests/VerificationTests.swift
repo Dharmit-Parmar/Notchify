@@ -2863,7 +2863,7 @@ func runAllVerificationTests() {
             contentTopPadding = 10.0
         }
         
-        let contentHeight = max(280.0, notchHeight)
+        let contentHeight = max(200.0, notchHeight)
         let totalHeight = notchInset + contentHeight
         let targetWidth = notchWidth
         
@@ -2901,7 +2901,7 @@ func runAllVerificationTests() {
     
     // 2. Settings Width & Height Extrema Applied Without Hardcoded Clamps
     for testW in [480.0, 560.0, 640.0, 720.0, 800.0] as [CGFloat] {
-        for testH in [310.0, 330.0, 360.0, 400.0, 420.0] as [CGFloat] {
+        for testH in [200.0, 240.0, 310.0, 330.0, 360.0, 400.0, 420.0] as [CGFloat] {
             let layout = computeExpandedLayout(
                 screenFrame: frame,
                 hasPhysicalNotch: t84HasNotch,
@@ -2934,10 +2934,11 @@ func runAllVerificationTests() {
     assert(nonNotchLayout.windowRect.maxY == 1080.0, "Non-notch screen window top must sit at screen top")
     assert(nonNotchLayout.windowRect.midX == 960.0, "Non-notch screen window must be centered horizontally")
     
-    // 4. Calendar 6-Row Visibility & Vertical Clearance Invariant
-    let minUsableHeight = 310.0
+    // 4. Calendar Adaptive Height & Vertical Clearance Invariant
+    let minUsableHeight = 200.0
     let chromeOverhead = 56.0 // tabs (~33pt) + divider (11pt) + padding (12pt)
     let availableContentHeight = minUsableHeight - chromeOverhead
+    assert(availableContentHeight >= 140.0, "Available content height at minimum setting (200pt) must provide sufficient vertical space for adaptive calendar")
     let maxCalendarIntrinsicHeight = 218.0 // 6 full weeks + event glance + card padding
     assert(availableContentHeight >= maxCalendarIntrinsicHeight, "Available content height at minimum setting (310pt) must exceed 6-row calendar intrinsic height (218pt) to guarantee zero clipping")
     

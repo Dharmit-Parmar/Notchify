@@ -422,9 +422,14 @@ public struct NotchRootView: View {
                         .padding(.bottom, 2)
                     }
                     
-                    active.makeExpandedView()
-                        .id(active.id)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    ViewThatFits(in: .vertical) {
+                        active.makeExpandedView()
+                        ScrollView(.vertical, showsIndicators: false) {
+                            active.makeExpandedView()
+                        }
+                    }
+                    .id(active.id)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
                 .padding(12)
                 .background(
