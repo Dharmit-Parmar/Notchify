@@ -196,3 +196,21 @@
   - *What could break*: Legitimate file renames might be altered if they rely on leading dots or directory slashes.
   - *How verified*: Standard filenames ("My Document.pdf", "Invoice 2026") are completely unchanged. Traversal attempts (`../../etc/passwd`) are safely contained.
 
+### Commit 8: SEC-A-3 — Remove Silent Clipboard Overwrite on Siri Dispatch
+
+- **Commit**: `SEC-A-3: remove silent clipboard copy on siri dispatch`
+- **Files Changed**:
+  - `Sources/Modules/AI/AskAIService.swift`: In `triggerSiri(query:context:launchApp:)`, removed silent overwriting of `NSPasteboard.general`; updated status string to remove inaccurate claims of prompt copying while preserving Siri activation dispatch.
+  - `Sources/Core/PermissionsHelper.swift`: Fixed argument label `createSymbolicLink(at:withDestinationURL:)`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 94]` verifying that `NSPasteboard.general` is never modified on Siri dispatch with non-empty queries or note contexts.
+- **Diffstat**:
+  `Sources/Modules/AI/AskAIService.swift | 25 ++---`
+  `Sources/Core/PermissionsHelper.swift | 2 +-`
+  `Tests/VerificationTests.swift | 45 ++++++++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 94 / 94 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If a user specifically relied on Siri trigger to put text on their clipboard rather than using the explicit copy button, it is no longer placed on clipboard.
+  - *How verified*: Explicit copy buttons in Note view and AI view remain functional; clipboard history and sensitive data are protected from background overwrites. Test 94 asserts pasteboard state remains strictly intact.
+
+

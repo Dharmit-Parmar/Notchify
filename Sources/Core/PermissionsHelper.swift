@@ -74,7 +74,7 @@ public struct PermissionsHelper {
         ]
         for userApp in userTargets {
             if !fm.fileExists(atPath: userApp.path) && (try? fm.destinationOfSymbolicLink(atPath: userApp.path)) == nil {
-                try? fm.createSymbolicLink(atPath: userApp, withDestinationURL: bundleURL)
+                try? fm.createSymbolicLink(at: userApp, withDestinationURL: bundleURL)
             }
         }
     }

@@ -355,35 +355,33 @@ public final class AskAIService: ObservableObject {
     
     // MARK: - 1. Native macOS Siri Bridge (Zero RAM Allocation)
     @discardableResult
-    public func triggerSiri(query: String? = nil, context: String? = nil) -> String {
+    public func triggerSiri(query: String? = nil, context: String? = nil, launchApp: Bool = true) -> String {
         FeedbackManager.playClick()
         
         let trimmedQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
-        // If a note context is provided, copy full query to clipboard for effortless dictation or paste
-        if !trimmedQuery.isEmpty {
-            let combined = context.flatMap { $0.isEmpty ? nil : "Note context:\n\($0)\n\nQuestion:\n\(trimmedQuery)" } ?? trimmedQuery
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(combined, forType: .string)
-        }
+        // SEC-A-3: Do not silently overwrite general clipboard on Siri activation.
+        // User's clipboard history and sensitive data remain untouched.
         
         // Native dispatch to macOS Siri using NSWorkspace & /System/Applications/Siri.app
-        DispatchQueue.global(qos: .userInitiated).async {
-            let siriAppURL = URL(fileURLWithPath: "/System/Applications/Siri.app")
-            if FileManager.default.fileExists(atPath: siriAppURL.path) {
-                NSWorkspace.shared.openApplication(at: siriAppURL, configuration: NSWorkspace.OpenConfiguration())
-            } else if let siriURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.siri") {
-                NSWorkspace.shared.openApplication(at: siriURL, configuration: NSWorkspace.OpenConfiguration())
-            } else {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                p.arguments = ["-a", "Siri"]
-                try? p.run()
+        if launchApp {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let siriAppURL = URL(fileURLWithPath: "/System/Applications/Siri.app")
+                if FileManager.default.fileExists(atPath: siriAppURL.path) {
+                    NSWorkspace.shared.openApplication(at: siriAppURL, configuration: NSWorkspace.OpenConfiguration())
+                } else if let siriURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.siri") {
+                    NSWorkspace.shared.openApplication(at: siriURL, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    let p = Process()
+                    p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                    p.arguments = ["-a", "Siri"]
+                    try? p.run()
+                }
             }
         }
         
         if !trimmedQuery.isEmpty {
-            return "🎙️ Apple Siri activated on macOS.\n\nQuery: \"\(trimmedQuery)\"\n\n(Prompt copied to clipboard — paste with ⌘V or speak directly to Siri. Note: Siri displays output in the system Siri interface. For direct text responses inside Notch, switch to Google Gemini or ChatGPT above.)"
+            return "🎙️ Apple Siri activated on macOS.\n\nQuery: \"\(trimmedQuery)\"\n\n(Speak directly to Siri. Note: Siri displays output in the system Siri interface. For direct text responses inside Notch, switch to Google Gemini or ChatGPT above.)"
         } else {
             return "🎙️ Apple Siri activated on macOS. Listening...\n\n(For direct conversational responses inside the Notch island, switch to Google Gemini or ChatGPT above.)"
         }
