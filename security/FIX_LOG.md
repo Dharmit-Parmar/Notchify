@@ -303,6 +303,20 @@
   - *What could break*: If an undeclared TCC API is called, macOS kills the process.
   - *How verified*: Verified via grep that `CNContactStore` and microphone recording APIs are never called anywhere in the codebase. Active usage descriptions (`NSCameraUsageDescription`, `NSAppleEventsUsageDescription`, `NSCalendarsUsageDescription`) are confirmed present and valid. Test 100 asserts this contract.
 
+### Commit 15: SEC-F-2 — Expand Security Audit Script Checks Without Loosening Gates
+
+- **Commit**: `SEC-F-2: expand security audit script checks without loosening gates`
+- **Files Changed**:
+  - `scripts/security-audit.sh`: Expanded audit gates from 6 to 8 checks: added check for `NSCalendarsUsageDescription` in Info.plist (falling back to `Resources/Info.plist`), and added POSIX permission verification (0600) for `notes.txt` and `contacts.json`. All gates remain strictly add-only with zero relaxation of existing security checks.
+- **Diffstat**:
+  `scripts/security-audit.sh | 45 +++++++++++++++++++++++++++++++++++++++------`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 100 / 100 passing (audit script passes with 8/8 gates).
+- **Safety Analysis (F8)**:
+  - *What could break*: If notes.txt or contacts.json existed with loose permissions (>0600), the audit script would fail.
+  - *How verified*: The app writes both files with strict 0600 attributes (`[.posixPermissions: 0o600]`). The script confirms 0600 compliance.
+
+
 
 
 

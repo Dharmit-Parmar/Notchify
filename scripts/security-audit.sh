@@ -18,7 +18,7 @@ FAILED=0
 WARNINGS=0
 
 # 1. Check UserDefaults plists on macOS for plaintext tokens
-echo -n "[1/6] Auditing local UserDefaults plists for credentials... "
+echo -n "[1/8] Auditing local UserDefaults plists for credentials... "
 PLIST_LEAKS=$(defaults read NotchApp 2>/dev/null | grep -iE "(apiKey|botToken|secret|AIzaSy|sk-)" || true)
 if [ -n "$PLIST_LEAKS" ]; then
     echo -e "${RED}FAILED${NC}"
@@ -29,7 +29,7 @@ else
 fi
 
 # 2. Check tracked git files for credential patterns
-echo -n "[2/6] Auditing tracked repository files for API keys... "
+echo -n "[2/8] Auditing tracked repository files for API keys... "
 GIT_TRACKED_LEAKS=$(git grep -EI "(AIza[0-9A-Za-z_-]{35}|sk-[a-zA-Z0-9_-]{28,}|gh[pousr]_[0-9a-zA-Z]{36})" -- Sources/ 2>/dev/null || true)
 if [ -n "$GIT_TRACKED_LEAKS" ]; then
     echo -e "${RED}FAILED${NC}"
@@ -40,7 +40,7 @@ else
 fi
 
 # 3. Check gitignore enforcement
-echo -n "[3/6] Auditing .gitignore credential rules... "
+echo -n "[3/8] Auditing .gitignore credential rules... "
 if grep -q "env" .gitignore && grep -q "key" .gitignore && grep -q "token" .gitignore; then
     echo -e "${GREEN}PASSED (Strict gitignore rules active)${NC}"
 else
@@ -49,7 +49,7 @@ else
 fi
 
 # 4. Check git pre-commit hook presence
-echo -n "[4/6] Auditing active git pre-commit security hook... "
+echo -n "[4/8] Auditing active git pre-commit security hook... "
 if [ -x .git/hooks/pre-commit ]; then
     echo -e "${GREEN}PASSED (Pre-commit security gate active)${NC}"
 else
@@ -58,20 +58,29 @@ else
 fi
 
 # 5. Check Info.plist for TCC Privacy descriptions
-echo -n "[5/6] Auditing Info.plist for TCC privacy declarations... "
+echo -n "[5/8] Auditing Info.plist for TCC privacy declarations... "
+PLIST_TARGET=""
 if [ -f "NotchApp.app/Contents/Info.plist" ]; then
-    if grep -q "NSCameraUsageDescription" "NotchApp.app/Contents/Info.plist" && grep -q "NSAppleEventsUsageDescription" "NotchApp.app/Contents/Info.plist"; then
-        echo -e "${GREEN}PASSED (Camera & AppleEvents privacy descriptions present)${NC}"
+    PLIST_TARGET="NotchApp.app/Contents/Info.plist"
+elif [ -f "Resources/Info.plist" ]; then
+    PLIST_TARGET="Resources/Info.plist"
+fi
+
+if [ -n "$PLIST_TARGET" ]; then
+    if grep -q "NSCameraUsageDescription" "$PLIST_TARGET" && \
+       grep -q "NSAppleEventsUsageDescription" "$PLIST_TARGET" && \
+       grep -q "NSCalendarsUsageDescription" "$PLIST_TARGET"; then
+        echo -e "${GREEN}PASSED (Camera, AppleEvents, and Calendar privacy descriptions present)${NC}"
     else
         echo -e "${YELLOW}WARNING (Missing TCC privacy keys in Info.plist)${NC}"
         WARNINGS=$((WARNINGS + 1))
     fi
 else
-    echo -e "${YELLOW}SKIPPED (App bundle not generated yet)${NC}"
+    echo -e "${YELLOW}SKIPPED (Info.plist not found)${NC}"
 fi
 
 # 6. Check Local Vault POSIX Permissions
-echo -n "[6/6] Auditing local credential vault permissions... "
+echo -n "[6/8] Auditing local credential vault permissions... "
 VAULT_PATH="$HOME/Library/Application Support/NotchApp/vault.enc"
 if [ -f "$VAULT_PATH" ]; then
     PERMS=$(stat -f "%Lp" "$VAULT_PATH" 2>/dev/null || stat -c "%a" "$VAULT_PATH" 2>/dev/null || echo "unknown")
@@ -82,7 +91,37 @@ if [ -f "$VAULT_PATH" ]; then
         FAILED=1
     fi
 else
-    echo -e "${GREEN}PASSED (No local vault file created yet)${NC}"
+    echo -e "${GREEN}PASSED (No local vault file lingering on disk)${NC}"
+fi
+
+# 7. Check Notes File POSIX Permissions (SEC-F-2)
+echo -n "[7/8] Auditing local notes file permissions... "
+NOTES_PATH="$HOME/Library/Application Support/NotchApp/notes.txt"
+if [ -f "$NOTES_PATH" ]; then
+    PERMS=$(stat -f "%Lp" "$NOTES_PATH" 2>/dev/null || stat -c "%a" "$NOTES_PATH" 2>/dev/null || echo "unknown")
+    if [ "$PERMS" = "600" ]; then
+        echo -e "${GREEN}PASSED (notes.txt has secure 0600 POSIX permissions)${NC}"
+    else
+        echo -e "${RED}FAILED (notes.txt permissions are $PERMS, expected 0600)${NC}"
+        FAILED=1
+    fi
+else
+    echo -e "${GREEN}PASSED (notes.txt not yet created or clean)${NC}"
+fi
+
+# 8. Check Contacts File POSIX Permissions (SEC-F-2)
+echo -n "[8/8] Auditing local contacts file permissions... "
+CONTACTS_PATH="$HOME/Library/Application Support/NotchApp/contacts.json"
+if [ -f "$CONTACTS_PATH" ]; then
+    PERMS=$(stat -f "%Lp" "$CONTACTS_PATH" 2>/dev/null || stat -c "%a" "$CONTACTS_PATH" 2>/dev/null || echo "unknown")
+    if [ "$PERMS" = "600" ]; then
+        echo -e "${GREEN}PASSED (contacts.json has secure 0600 POSIX permissions)${NC}"
+    else
+        echo -e "${RED}FAILED (contacts.json permissions are $PERMS, expected 0600)${NC}"
+        FAILED=1
+    fi
+else
+    echo -e "${GREEN}PASSED (contacts.json not yet created or clean)${NC}"
 fi
 
 echo "=========================================================="
