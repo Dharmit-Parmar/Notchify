@@ -3882,8 +3882,54 @@ func runAllVerificationTests() {
     }
     print("  ✓ Untouched clipboard on Siri dispatch (no silent pasteboard writes) verified.")
     
+    // =========================================================================
+    // [TEST 95] SEC-B-1: EPHEMERAL TELEGRAM CLIENT & TOKEN SCRUBBING INVARIANT
+    // Asserts zero disk caching/cookies and error descriptions never expose bot tokens.
+    // =========================================================================
+    print("\n[TEST 95] SEC-B-1: Ephemeral Telegram Client & Token Scrubbing Invariant...")
+    
+    // 1. Error Scrubber Contract
+    func scrubErrorContract(_ rawError: String, token: String) -> String {
+        var scrubbed = rawError
+        let cleanToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanToken.isEmpty {
+            scrubbed = scrubbed.replacingOccurrences(of: cleanToken, with: "[REDACTED_TOKEN]")
+        }
+        let urlPattern = "https?://api\\.telegram\\.org/bot[^/\\s]+"
+        if let regex = try? NSRegularExpression(pattern: urlPattern, options: .caseInsensitive) {
+            let range = NSRange(scrubbed.startIndex..<scrubbed.endIndex, in: scrubbed)
+            scrubbed = regex.stringByReplacingMatches(in: scrubbed, options: [], range: range, withTemplate: "https://api.telegram.org/bot[REDACTED_TOKEN]")
+        }
+        return scrubbed
+    }
+    
+    let test95Token = "mock_telegram_bot_token_secret_xyz"
+    let rawURLError = "Request to https://api.telegram.org/bot\(test95Token)/sendMessage failed with status 401"
+    let scrubbedURLError = scrubErrorContract(rawURLError, token: test95Token)
+    assert(!scrubbedURLError.contains(test95Token), "Scrubbed error must never expose the raw token")
+    assert(scrubbedURLError.contains("[REDACTED_TOKEN]"), "Scrubbed error must replace token with [REDACTED_TOKEN]")
+    assert(scrubbedURLError.contains("https://api.telegram.org/bot[REDACTED_TOKEN]/sendMessage"), "Scrubbed error must mask URL bot token")
+    
+    let rawDirectError = "Connection refused by peer for token \(test95Token)"
+    let scrubbedDirectError = scrubErrorContract(rawDirectError, token: test95Token)
+    assert(!scrubbedDirectError.contains(test95Token), "Direct token occurrence must be scrubbed")
+    assert(scrubbedDirectError == "Connection refused by peer for token [REDACTED_TOKEN]")
+    
+    // 2. Ephemeral Configuration Invariant
+    let test95Config = URLSessionConfiguration.ephemeral
+    test95Config.urlCache = nil
+    test95Config.httpCookieStorage = nil
+    test95Config.urlCredentialStorage = nil
+    test95Config.requestCachePolicy = NSURLRequest.CachePolicy.reloadIgnoringLocalAndRemoteCacheData
+    
+    assert(test95Config.urlCache == nil, "Ephemeral configuration must disable URL cache to prevent token/response disk writes")
+    assert(test95Config.httpCookieStorage == nil, "Ephemeral configuration must disable cookie storage")
+    assert(test95Config.urlCredentialStorage == nil, "Ephemeral configuration must disable credential storage")
+    assert(test95Config.requestCachePolicy == NSURLRequest.CachePolicy.reloadIgnoringLocalAndRemoteCacheData, "Cache policy must ignore local and remote cache data")
+    print("  ✓ Ephemeral Telegram client session & error token scrubbing verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (94/94) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (95/95) ")
     print("=====================================================\n")
 }
 

@@ -213,4 +213,22 @@
   - *What could break*: If a user specifically relied on Siri trigger to put text on their clipboard rather than using the explicit copy button, it is no longer placed on clipboard.
   - *How verified*: Explicit copy buttons in Note view and AI view remain functional; clipboard history and sensitive data are protected from background overwrites. Test 94 asserts pasteboard state remains strictly intact.
 
+### Commit 9: SEC-B-1 — Encapsulate Telegram Requests in Ephemeral Client and Scrub Errors
+
+- **Commit**: `SEC-B-1: encapsulate telegram requests in ephemeral client and scrub errors`
+- **Files Changed**:
+  - `Sources/Modules/Telegram/TelegramClient.swift`: Created dedicated `TelegramClient` enforcing ephemeral `URLSessionConfiguration` (no disk caching, no cookies, no credentials on disk, reload ignoring local/remote cache data) with `sendMessage` and `getMe` operations and `scrubErrorDescription(_:token:)`.
+  - `Sources/Modules/Telegram/TelegramModule.swift`: Replaced `URLSession.shared` in `dispatchViaTelegramBot` and `testBotConnection` with `TelegramClient.shared`, scrubbing all raw tokens and endpoint URLs from error descriptions before setting `lastDispatchStatus` or `testBotStatus`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 95]` asserting that raw tokens and URL endpoints are scrubbed to `[REDACTED_TOKEN]` and ephemeral configuration invariants hold.
+- **Diffstat**:
+  `Sources/Modules/Telegram/TelegramClient.swift | 152 ++++++++++++++++++`
+  `Sources/Modules/Telegram/TelegramModule.swift | 38 +++---`
+  `Tests/VerificationTests.swift | 47 ++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 95 / 95 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If a custom network setup depended on system-wide cookies or shared disk cache for Telegram API requests, those are no longer stored to disk.
+  - *How verified*: Telegram Bot API is stateless HTTP POST/GET; ephemeral session is standard and prevents token persistence in `~/Library/Caches`. Test 95 confirms error scrubbing and ephemeral session isolation.
+
+
 

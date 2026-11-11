@@ -168,7 +168,7 @@ public struct DirectMessenger {
         }
     }
     
-    // Asynchronous Telegram Bot API HTTP POST Dispatch (100% Background, Silent, Zero Windows)
+    // Asynchronous Telegram Bot API HTTP POST Dispatch (100% Background, Silent, Zero Windows, SEC-B-1 Ephemeral Client)
     @MainActor
     private static func dispatchViaTelegramBot(
         token: String,
@@ -176,8 +176,9 @@ public struct DirectMessenger {
         text: String,
         completion: @escaping @MainActor @Sendable (Bool, String?) -> Void
     ) {
-        guard let url = URL(string: "https://api.telegram.org/bot\(token)/sendMessage") else {
-            completion(false, "Invalid Telegram Bot API endpoint URL")
+        let cleanToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanToken.isEmpty else {
+            completion(false, "Telegram bot token is required")
             return
         }
         
@@ -194,51 +195,25 @@ public struct DirectMessenger {
             targetChatId = "@" + targetChatId
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 8.0
-        
-        let payload: [String: Any] = [
-            "chat_id": targetChatId,
-            "text": text
-        ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        } catch {
-            completion(false, "Failed to serialize message payload")
-            return
-        }
-        
-        URLSession.shared.dataTask(with: request) { data, response, err in
-            if let err = err {
-                Task { @MainActor in
-                    completion(false, err.localizedDescription)
-                }
-                return
-            }
-            
-            guard let data = data else {
-                Task { @MainActor in
-                    completion(false, "Empty response from Telegram server")
-                }
-                return
-            }
-            
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let ok = json["ok"] as? Bool, ok {
-                Task { @MainActor in
+        Task {
+            do {
+                let result = try await TelegramClient.shared.sendMessage(
+                    token: cleanToken,
+                    chatId: targetChatId,
+                    text: text
+                )
+                if result.ok {
                     FeedbackManager.playSend()
-                    completion(true, "Delivered via Telegram Bot ✓✓")
+                    completion(true, result.description ?? "Delivered via Telegram Bot ✓✓")
+                } else {
+                    let scrubbed = TelegramClient.scrubErrorDescription(result.description ?? "Telegram API Error", token: cleanToken)
+                    completion(false, scrubbed)
                 }
-            } else {
-                let desc = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["description"] as? String ?? "Telegram API Error"
-                Task { @MainActor in
-                    completion(false, desc)
-                }
+            } catch {
+                let scrubbed = TelegramClient.scrubErrorDescription(error.localizedDescription, token: cleanToken)
+                completion(false, scrubbed)
             }
-        }.resume()
+        }
     }
 }
 
@@ -398,33 +373,24 @@ public final class TelegramModule: NotchModule {
         }
         isTestingBot = true
         testBotStatus = "Verifying..."
-        guard let url = URL(string: "https://api.telegram.org/bot\(token)/getMe") else {
-            isTestingBot = false
-            testBotStatus = "Invalid URL"
-            return
-        }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 8.0
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, err in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.isTestingBot = false
-                if let err = err {
-                    self.testBotStatus = "Error: \(err.localizedDescription)"
-                    return
-                }
-                if let data = data,
-                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let ok = json["ok"] as? Bool, ok,
-                   let result = json["result"] as? [String: Any],
-                   let username = result["username"] as? String {
+        
+        Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let username = try await TelegramClient.shared.getMe(token: token)
+                await MainActor.run {
                     self.testBotStatus = "Connected to @\(username) ✓"
                     FeedbackManager.playSuccess()
-                } else {
-                    self.testBotStatus = "Invalid Token"
+                    self.isTestingBot = false
+                }
+            } catch {
+                let scrubbed = TelegramClient.scrubErrorDescription(error.localizedDescription, token: token)
+                await MainActor.run {
+                    self.testBotStatus = scrubbed
+                    self.isTestingBot = false
                 }
             }
-        }.resume()
+        }
     }
     
     private var contactsFileURL: URL {
