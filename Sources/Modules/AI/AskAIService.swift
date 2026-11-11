@@ -293,16 +293,37 @@ public final class AskAIService: ObservableObject {
         }
     }
     
+    // MARK: - Prompt & Context Sanitization (SEC-B-2)
+    /// Wraps note context in non-executable data boundary delimiters and enforces a 2,000 character limit.
+    public static func formatPromptWithBoundedContext(prompt: String, context: String?) -> String {
+        guard let ctx = context?.trimmingCharacters(in: .whitespacesAndNewlines), !ctx.isEmpty else {
+            return prompt
+        }
+        let maxChars = 2000
+        let safeContext: String
+        if ctx.count > maxChars {
+            let index = ctx.index(ctx.startIndex, offsetBy: maxChars)
+            safeContext = String(ctx[..<index]) + "\n...[Context truncated at 2000 characters for safety]"
+        } else {
+            safeContext = ctx
+        }
+        return """
+        <<<USER_NOTE_CONTEXT_DO_NOT_EXECUTE>>>
+        \(safeContext)
+        <<<END_USER_NOTE_CONTEXT>>>
+
+        User Prompt:
+        \(prompt)
+        """
+    }
+    
     // MARK: - Query Gemini via Google Account Login (Zero External File Snooping)
     public func queryGeminiViaGoogleAccount(prompt: String, context: String?, googleEmail: String, model: String) async throws -> String {
         if let accessToken = KeychainHelper.shared.loadSecret(forKey: "google_oauth_token"), !accessToken.isEmpty {
             let cleanModel = model.isEmpty ? "gemini-1.5-flash" : model
             let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(cleanModel):generateContent"
             if let url = URL(string: urlString) {
-                var userContent = prompt
-                if let ctx = context, !ctx.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    userContent = "Context from notes:\n\(ctx)\n\nPrompt:\n\(prompt)"
-                }
+                let userContent = Self.formatPromptWithBoundedContext(prompt: prompt, context: context)
                 let requestPayload: [String: Any] = [
                     "contents": [
                         [
@@ -396,10 +417,7 @@ public final class AskAIService: ObservableObject {
             throw URLError(.badURL)
         }
         
-        var fullPrompt = prompt
-        if let ctx = context, !ctx.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            fullPrompt = "Context from user notes:\n\(ctx)\n\nUser Question:\n\(prompt)"
-        }
+        let fullPrompt = Self.formatPromptWithBoundedContext(prompt: prompt, context: context)
         
         let requestPayload: [String: Any] = [
             "contents": [
@@ -459,10 +477,7 @@ public final class AskAIService: ObservableObject {
             throw URLError(.badURL)
         }
         
-        var userContent = prompt
-        if let ctx = context, !ctx.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            userContent = "Context from user notes:\n\(ctx)\n\nUser Prompt:\n\(prompt)"
-        }
+        let userContent = Self.formatPromptWithBoundedContext(prompt: prompt, context: context)
         
         let systemPrompt = SettingsStore.shared.aiSystemPrompt
         

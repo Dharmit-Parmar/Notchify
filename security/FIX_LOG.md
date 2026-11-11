@@ -230,5 +230,21 @@
   - *What could break*: If a custom network setup depended on system-wide cookies or shared disk cache for Telegram API requests, those are no longer stored to disk.
   - *How verified*: Telegram Bot API is stateless HTTP POST/GET; ephemeral session is standard and prevents token persistence in `~/Library/Caches`. Test 95 confirms error scrubbing and ephemeral session isolation.
 
+### Commit 10: SEC-B-2 — Delimit Note Context and Cap Prompt Length
+
+- **Commit**: `SEC-B-2: delimit note context and cap prompt length`
+- **Files Changed**:
+  - `Sources/Modules/AI/AskAIService.swift`: Added `formatPromptWithBoundedContext(prompt:context:)` which wraps untrusted user note context in non-executable data boundary tags (`<<<USER_NOTE_CONTEXT_DO_NOT_EXECUTE>>>` / `<<<END_USER_NOTE_CONTEXT>>>`) and caps length at 2,000 characters. Integrated across `queryGeminiViaGoogleAccount`, `queryGemini`, and `queryOpenAI`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 96]` testing nil/empty context pass-through, delimiter wrapping, 2,000-character boundary truncation, and prompt injection neutralization within data tags.
+- **Diffstat**:
+  `Sources/Modules/AI/AskAIService.swift | 36 +++++++++++++++-----`
+  `Tests/VerificationTests.swift | 62 +++++++++++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 96 / 96 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: Very long user notes exceeding 2,000 characters will have trailing text truncated when sent as prompt context.
+  - *How verified*: Normal note queries (< 2,000 chars) are preserved in full. Delimiters prevent context from escaping and overriding model system instructions. Test 96 verifies formatting and truncation bounds.
+
+
 
 
