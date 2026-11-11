@@ -255,6 +255,15 @@ public struct DashboardSettingsView: View {
                         store.setSpan(2, for: .notes)
                         store.applyPresetDashboard(slots: [.askAI, .notes, nil, nil])
                     }
+                    
+                    PresetButton(title: "Power Dashboard", subtitle: "Battery + Clock + Cal + Notes") {
+                        store.dashboardLayoutFlow = .horizontalStrip
+                        store.setSpan(1, for: .battery)
+                        store.setSpan(1, for: .clock)
+                        store.setSpan(1, for: .calendar)
+                        store.setSpan(1, for: .notes)
+                        store.applyPresetDashboard(slots: [.battery, .clock, .calendar, .notes])
+                    }
                 }
             }
             

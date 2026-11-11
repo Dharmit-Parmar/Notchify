@@ -40,6 +40,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
     case clock = "clock"
     case mirror = "mirror"
     case askAI = "askAI"
+    case battery = "battery"
     
     public var id: String { rawValue }
     
@@ -51,6 +52,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .clock: return "Clock"
         case .mirror: return "Mirror"
         case .askAI: return "Ask AI"
+        case .battery: return "Battery"
         }
     }
     
@@ -62,6 +64,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .clock: return "clock.fill"
         case .mirror: return "camera.fill"
         case .askAI: return "sparkles"
+        case .battery: return "battery.100.bolt"
         }
     }
     
@@ -73,6 +76,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .clock: return Color(red: 0.35, green: 0.85, blue: 0.65)
         case .mirror: return Color(red: 0.90, green: 0.40, blue: 0.85)
         case .askAI: return Color(red: 0.68, green: 0.42, blue: 0.98)
+        case .battery: return Color(red: 0.35, green: 0.85, blue: 0.45)
         }
     }
     
@@ -84,6 +88,7 @@ public enum DashboardWidgetType: String, Codable, CaseIterable, Identifiable {
         case .clock: return "Analog dial or digital display"
         case .mirror: return "Fast camera glance & preview"
         case .askAI: return "Siri, Gemini & ChatGPT Assistant"
+        case .battery: return "Power state & charge status"
         }
     }
 }
@@ -165,7 +170,8 @@ public class SettingsStore: ObservableObject {
         "notes": 1,
         "clock": 1,
         "mirror": 1,
-        "askAI": 1
+        "askAI": 1,
+        "battery": 1
     ] {
         didSet { UserDefaults.standard.set(widgetSpans, forKey: "NotchApp_WidgetSpans") }
     }

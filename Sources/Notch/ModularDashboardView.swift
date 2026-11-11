@@ -246,6 +246,8 @@ public struct ModularDashboardView: View {
             MirrorAdaptiveWidgetView(span: span)
         case .askAI:
             AskAIWidgetView(span: span)
+        case .battery:
+            BatteryWidgetView(span: span)
         }
     }
     

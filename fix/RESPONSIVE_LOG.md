@@ -29,6 +29,28 @@
 
 ---
 
+## Phase 2 - Skill Selection & Implementation Logging
+
+- **Phase**: Phase 2 - Battery Status Widget in Dashboard Slots
+- **Trigger**: Entering Phase 2 implementation for `DashboardWidgetType.battery`, `BatteryWidgetView`, event-driven power source updates, and "Power Dashboard" layout preset.
+- **Chosen Skills**:
+  - `ponytail`: Native SwiftUI primitives, reusing existing `BatteryModule.shared` kernel notifications, no extra timer classes or polling.
+  - `gravitas`: Ground before mutating, ensure switch exhaustiveness, maintain backwards compatibility with existing saved slot arrays.
+  - `swiftui-expert-skill`: Clean state flow, `@ObservedObject` on shared singleton, proper span 1/2/4 layouts responding to `notchCompact` and `notchTight`.
+  - `swiftui-pro`: Theme token colors, accessible Dynamic Type styling, clean view hierarchy.
+  - `axiom-swiftui`: Multi-span widget rendering (span 1, 2, 4), safe column and row framing across Strip, Bento, Adaptive, and Focus layouts.
+  - `axiom-macos`: IOKit `IOPSCopyPowerSourcesInfo` parsing, `ProcessInfo` power-state notifications, desktop Mac "No battery detected" handling.
+  - `axiom-performance`: 100% event-driven, zero polling, zero timers, zero CPU consumption while collapsed.
+  - `axiom-accessibility`: Combined VoiceOver accessibility label (`accessibilityLabel` + `accessibilityValue`), minimum 10 pt text, full card clickable target.
+  - `axiom-design`: Apple HIG battery indicators, semantic status colors (green/orange/red), readability on Sakura and Birch light themes.
+  - `apple-design`: Restrained visual motion, seamless live update on charger connect/disconnect.
+- **Dropped Skills**:
+  - `axiom-testing`: Formal unit tests executed in Phase 3.
+  - `axiom-ai`, `axiom-graphics`, `axiom-games`: Out of scope.
+
+---
+
+
 ## Phase 1 - Skill Selection & Implementation Logging
 
 - **Phase**: Phase 1 - One Responsive Container For All Tabs
@@ -51,4 +73,26 @@
   - `axiom-ai`, `axiom-graphics`, `axiom-games`, `axiom-watchos`: Out of scope for responsive layout.
 
 ---
+
+## Phase 2 - Skill Selection & Implementation Logging
+
+- **Phase**: Phase 2 - Battery Status Widget in Dashboard Slots
+- **Trigger**: Entering Phase 2 implementation for `DashboardWidgetType.battery`, `BatteryWidgetView`, event-driven power source updates, and "Power Dashboard" layout preset.
+- **Chosen Skills**:
+  - `ponytail`: Native SwiftUI primitives, reusing existing `BatteryModule.shared` kernel notifications, no extra timer classes or polling.
+  - `gravitas`: Ground before mutating, ensure switch exhaustiveness, maintain backwards compatibility with existing saved slot arrays.
+  - `swiftui-expert-skill`: Clean state flow, `@ObservedObject` on shared singleton, proper span 1/2/4 layouts responding to `notchCompact` and `notchTight`.
+  - `swiftui-pro`: Theme token colors, accessible Dynamic Type styling, clean view hierarchy.
+  - `axiom-swiftui`: Multi-span widget rendering (span 1, 2, 4), safe column and row framing across Strip, Bento, Adaptive, and Focus layouts.
+  - `axiom-macos`: IOKit `IOPSCopyPowerSourcesInfo` parsing, `ProcessInfo` power-state notifications, desktop Mac "No battery detected" handling.
+  - `axiom-performance`: 100% event-driven, zero polling, zero timers, zero CPU consumption while collapsed.
+  - `axiom-accessibility`: Combined VoiceOver accessibility label (`accessibilityLabel` + `accessibilityValue`), minimum 10 pt text, full card clickable target.
+  - `axiom-design`: Apple HIG battery indicators, semantic status colors (green/orange/red), readability on Sakura and Birch light themes.
+  - `apple-design`: Restrained visual motion, seamless live update on charger connect/disconnect.
+- **Dropped Skills**:
+  - `axiom-testing`: Formal unit tests executed in Phase 3.
+  - `axiom-ai`, `axiom-graphics`, `axiom-games`: Out of scope.
+
+---
+
 

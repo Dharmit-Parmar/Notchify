@@ -1,6 +1,5 @@
 import SwiftUI
 import IOKit.ps
-
 import Combine
 
 public final class BatteryModule: NotchModule {
@@ -11,11 +10,17 @@ public final class BatteryModule: NotchModule {
     public let iconName = "battery.100.bolt"
     @Published public var isEnabled: Bool = true
     
+    @Published public var hasBattery: Bool = true
     @Published public var percentage: Int = 100
     @Published public var isCharging: Bool = true
-    @Published public var timeRemaining: String = "Fully Charged"
+    @Published public var isFullyCharged: Bool = false
+    @Published public var powerSourceState: String = "AC Power"
+    @Published public var timeRemainingMinutes: Int = -1
+    @Published public var timeToFullMinutes: Int = -1
+    @Published public var isLowPowerMode: Bool = false
     
     private var powerRunLoopSource: CFRunLoopSource?
+    private var powerObserver: NSObjectProtocol?
     
     public init() {
         refresh()
@@ -33,6 +38,18 @@ public final class BatteryModule: NotchModule {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             powerRunLoopSource = source
         }
+        
+        if powerObserver == nil {
+            powerObserver = NotificationCenter.default.addObserver(
+                forName: .NSProcessInfoPowerStateDidChange,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.refresh()
+                }
+            }
+        }
     }
     
     public func stop() {
@@ -40,26 +57,162 @@ public final class BatteryModule: NotchModule {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
             powerRunLoopSource = nil
         }
+        if let obs = powerObserver {
+            NotificationCenter.default.removeObserver(obs)
+            powerObserver = nil
+        }
     }
     
     public func refresh() {
+        self.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+        
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef] else {
+              let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue() as? [CFTypeRef],
+              !sources.isEmpty else {
+            // Desktop Mac with no battery detected (e.g. Mac Studio, Mac mini, Mac Pro, iMac)
+            self.hasBattery = false
+            self.percentage = 0
+            self.isCharging = false
+            self.isFullyCharged = false
+            self.powerSourceState = "AC Power"
+            self.timeRemainingMinutes = -1
+            self.timeToFullMinutes = -1
             return
         }
         
+        var foundBattery = false
         for source in sources {
             guard let description = IOPSGetPowerSourceDescription(snapshot, source)?.takeUnretainedValue() as? [String: Any] else {
                 continue
             }
-            if let currentCapacity = description[kIOPSCurrentCapacityKey as String] as? Int,
-               let maxCapacity = description[kIOPSMaxCapacityKey as String] as? Int {
-                self.percentage = Int((Double(currentCapacity) / Double(maxCapacity)) * 100.0)
+            applyPowerSourceData(description: description)
+            foundBattery = true
+            break
+        }
+        
+        if !foundBattery {
+            self.hasBattery = false
+            self.percentage = 0
+            self.isCharging = false
+            self.isFullyCharged = false
+            self.powerSourceState = "AC Power"
+        }
+    }
+    
+    /// Testable pure ingestion method accepting power-source dictionary
+    public func applyPowerSourceData(description: [String: Any]) {
+        self.hasBattery = true
+        
+        if let currentCapacity = description[kIOPSCurrentCapacityKey as String] as? Int,
+           let maxCapacity = description[kIOPSMaxCapacityKey as String] as? Int,
+           maxCapacity > 0 {
+            self.percentage = min(100, max(0, Int((Double(currentCapacity) / Double(maxCapacity)) * 100.0)))
+        }
+        
+        if let isCharging = description[kIOPSIsChargingKey as String] as? Bool {
+            self.isCharging = isCharging
+        }
+        
+        if let isCharged = description[kIOPSIsChargedKey as String] as? Bool {
+            self.isFullyCharged = isCharged
+        } else {
+            self.isFullyCharged = (self.percentage >= 100 && !self.isCharging)
+        }
+        
+        if let pState = description[kIOPSPowerSourceStateKey as String] as? String {
+            self.powerSourceState = pState
+        }
+        
+        if let toEmpty = description[kIOPSTimeToEmptyKey as String] as? Int {
+            self.timeRemainingMinutes = toEmpty
+        }
+        
+        if let toFull = description[kIOPSTimeToFullChargeKey as String] as? Int {
+            self.timeToFullMinutes = toFull
+        }
+    }
+    
+    public var statusDescription: String {
+        if !hasBattery {
+            return "No battery detected"
+        }
+        if isFullyCharged {
+            return "Fully Charged"
+        }
+        if isCharging {
+            return "Charging"
+        }
+        if isLowPowerMode {
+            return "Low Power Mode"
+        }
+        return "On Battery"
+    }
+    
+    public var formattedTimeEstimate: String? {
+        guard hasBattery else { return nil }
+        if isCharging && timeToFullMinutes > 0 {
+            let hours = timeToFullMinutes / 60
+            let mins = timeToFullMinutes % 60
+            if hours > 0 {
+                return "\(hours)h \(mins)m to full"
+            } else {
+                return "\(mins)m to full"
             }
-            if let isCharging = description[kIOPSIsChargingKey as String] as? Bool {
-                self.isCharging = isCharging
+        } else if !isCharging && timeRemainingMinutes > 0 {
+            let hours = timeRemainingMinutes / 60
+            let mins = timeRemainingMinutes % 60
+            if hours > 0 {
+                return "\(hours)h \(mins)m remaining"
+            } else {
+                return "\(mins)m remaining"
             }
         }
+        return nil
+    }
+    
+    public var batteryColor: Color {
+        if !hasBattery {
+            return DesignSystem.secondaryText
+        }
+        if isLowPowerMode {
+            return .yellow
+        }
+        if percentage <= 20 {
+            return .red
+        }
+        if percentage <= 40 {
+            return .orange
+        }
+        return .green
+    }
+    
+    public var batteryIconName: String {
+        guard hasBattery else { return "desktopcomputer" }
+        if isCharging {
+            return "battery.100.bolt"
+        }
+        if percentage >= 90 {
+            return "battery.100"
+        } else if percentage >= 65 {
+            return "battery.75"
+        } else if percentage >= 40 {
+            return "battery.50"
+        } else if percentage >= 15 {
+            return "battery.25"
+        } else {
+            return "battery.0"
+        }
+    }
+    
+    public var voiceOverLabel: String {
+        if !hasBattery {
+            return "Battery Status: Desktop Mac, connected to power, no battery detected"
+        }
+        var label = "Battery \(percentage) percent, \(statusDescription)"
+        if let time = formattedTimeEstimate {
+            label += ", \(time)"
+        }
+        return label
     }
     
     public func makeCompactView() -> AnyView {
@@ -67,10 +220,10 @@ public final class BatteryModule: NotchModule {
             HStack(spacing: 4) {
                 Image(systemName: isCharging ? "battery.100.bolt" : "battery.100")
                     .font(.system(size: 9))
-                    .foregroundColor(percentage < 20 ? .red : .green)
+                    .foregroundColor(batteryColor)
                 Text("\(percentage)%")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(DesignSystem.primaryText)
             }
         )
     }
@@ -96,7 +249,7 @@ public struct BatteryExpandedView: View {
             HStack {
                 Text("Power & Battery")
                     .font(.system(size: notchTight ? 11 : 13, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(DesignSystem.primaryText)
                 Spacer()
                 Text(module.isCharging ? "Connected to Power" : "On Battery")
                     .font(.system(size: notchTight ? 9.5 : 11))
@@ -122,7 +275,7 @@ public struct BatteryExpandedView: View {
                     VStack(spacing: 0) {
                         Text("\(module.percentage)%")
                             .font(.system(size: percentFontSize, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(DesignSystem.primaryText)
                         if module.isCharging {
                             Image(systemName: "bolt.fill")
                                 .font(.system(size: notchTight ? 7 : 10))
@@ -134,7 +287,7 @@ public struct BatteryExpandedView: View {
                 VStack(alignment: .leading, spacing: notchTight ? 3 : 6) {
                     Text("Apple Silicon Health")
                         .font(.system(size: notchTight ? 10.5 : 12, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(DesignSystem.primaryText)
                     
                     if !notchTight {
                         Text("Optimized Battery Charging: Active")
