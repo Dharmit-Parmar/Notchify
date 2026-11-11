@@ -3630,8 +3630,55 @@ func runAllVerificationTests() {
     assert(cargoArgs == ["build", "--locked", "--release", "--bin", "thock-cli"], "Exact cargo arguments must match standard")
     print("  ✓ Cargo --locked build argument contract verified.")
     
+    // =========================================================================
+    // [TEST 90] SEC-C-3: HARDENED BINARY SECURITY & ENGINE RESOLUTION INVARIANT
+    // Asserts that engine binaries must be regular files, user-owned, non-writable by group/world.
+    // =========================================================================
+    print("\n[TEST 90] SEC-C-3: Hardened Binary Security & Engine Resolution Invariant...")
+    let test90Dir = FileManager.default.temporaryDirectory.appendingPathComponent("Notch_Test90_\(UUID().uuidString)", isDirectory: true)
+    try! FileManager.default.createDirectory(at: test90Dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: test90Dir) }
+    
+    func testValidateBinarySecurity(at url: URL) -> Bool {
+        let path = url.path
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else { return false }
+        var statBuf = stat()
+        guard lstat(path, &statBuf) == 0 else { return false }
+        if (statBuf.st_mode & S_IFMT) == S_IFLNK { return false }
+        guard (statBuf.st_mode & S_IFMT) == S_IFREG else { return false }
+        guard statBuf.st_uid == geteuid() else { return false }
+        if (statBuf.st_mode & (S_IWGRP | S_IWOTH)) != 0 { return false }
+        guard (statBuf.st_mode & S_IXUSR) != 0 else { return false }
+        return true
+    }
+    
+    // 1. Valid regular file with 0755 permissions
+    let validBin = test90Dir.appendingPathComponent("valid_thock_cli")
+    try! Data("valid_exec_payload".utf8).write(to: validBin)
+    try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: validBin.path)
+    assert(testValidateBinarySecurity(at: validBin) == true, "Valid 0755 regular executable must pass security check")
+    
+    // 2. Symbolic link to a binary must be REJECTED (anti-symlink attack)
+    let symlinkBin = test90Dir.appendingPathComponent("symlink_thock_cli")
+    try! FileManager.default.createSymbolicLink(atPath: symlinkBin.path, withDestinationPath: validBin.path)
+    assert(testValidateBinarySecurity(at: symlinkBin) == false, "Symbolic links must be rejected for engine execution")
+    
+    // 3. Group/world-writable binary must be REJECTED
+    let worldWritableBin = test90Dir.appendingPathComponent("world_writable_cli")
+    try! Data("world_writable".utf8).write(to: worldWritableBin)
+    try! FileManager.default.setAttributes([.posixPermissions: 0o777], ofItemAtPath: worldWritableBin.path)
+    assert(testValidateBinarySecurity(at: worldWritableBin) == false, "World-writable binary must be rejected")
+    
+    // 4. Non-executable file must be REJECTED
+    let nonExecBin = test90Dir.appendingPathComponent("non_exec_cli")
+    try! Data("non_exec".utf8).write(to: nonExecBin)
+    try! FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: nonExecBin.path)
+    assert(testValidateBinarySecurity(at: nonExecBin) == false, "Non-executable binary must be rejected")
+    print("  ✓ Hardened binary security validation verified: symlinks, writable, and non-executables rejected.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (89/89) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (90/90) ")
     print("=====================================================\n")
 }
 

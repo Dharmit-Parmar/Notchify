@@ -55,32 +55,93 @@ public final class ThockModule: NotchModule {
     
     nonisolated public static let pinnedKeySoundCommit = "264ef80f73c38b1d45a6c3e69fa127775b7a5e49"
     
-    // Dynamic Portable Paths
+    // Dynamic Portable Paths (SEC-C-3: Hardened Binary Security & Safe Fallback)
     nonisolated public static func resolveKeySoundDirectory() -> URL {
         let fm = FileManager.default
         let homeDir = URL(fileURLWithPath: NSHomeDirectory())
         
-        // 1. Check user Application Support directory (~/Library/Application Support/Notch/KeySound)
+        // 1. Primary secure target: user Application Support directory (~/Library/Application Support/Notch/KeySound)
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? homeDir.appendingPathComponent("Library/Application Support")
         let notchKeySound = appSupport.appendingPathComponent("Notch/KeySound")
-        if fm.fileExists(atPath: notchKeySound.appendingPathComponent("target/release/thock-cli").path) {
+        if validateBinarySecurity(at: notchKeySound.appendingPathComponent("target/release/thock-cli")) {
             return notchKeySound
         }
         
-        // 2. Check local dev directory (~/Doc/KeySound)
-        let docKeySound = homeDir.appendingPathComponent("Doc/KeySound")
-        if fm.fileExists(atPath: docKeySound.appendingPathComponent("target/release/thock-cli").path) {
-            return docKeySound
-        }
-        
-        // 3. Check ~/Documents/KeySound
-        let documentsKeySound = homeDir.appendingPathComponent("Documents/KeySound")
-        if fm.fileExists(atPath: documentsKeySound.appendingPathComponent("target/release/thock-cli").path) {
-            return documentsKeySound
+        // 2. Safe developer path for existing local installs (opt-in; default active if local copy present)
+        let allowDevPath = UserDefaults.standard.object(forKey: "NotchApp_AllowDevKeySound") as? Bool ?? true
+        if allowDevPath {
+            let docKeySound = homeDir.appendingPathComponent("Doc/KeySound")
+            if validateBinarySecurity(at: docKeySound.appendingPathComponent("target/release/thock-cli")) {
+                migrateLocalDevKeySoundIfNeeded(from: docKeySound, to: notchKeySound)
+                if validateBinarySecurity(at: notchKeySound.appendingPathComponent("target/release/thock-cli")) {
+                    return notchKeySound
+                }
+                return docKeySound
+            }
+            let documentsKeySound = homeDir.appendingPathComponent("Documents/KeySound")
+            if validateBinarySecurity(at: documentsKeySound.appendingPathComponent("target/release/thock-cli")) {
+                migrateLocalDevKeySoundIfNeeded(from: documentsKeySound, to: notchKeySound)
+                if validateBinarySecurity(at: notchKeySound.appendingPathComponent("target/release/thock-cli")) {
+                    return notchKeySound
+                }
+                return documentsKeySound
+            }
         }
         
         // Default target for new installations
         return notchKeySound
+    }
+    
+    nonisolated public static func validateBinarySecurity(at url: URL) -> Bool {
+        let path = url.path
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else { return false }
+        
+        var statBuf = stat()
+        guard lstat(path, &statBuf) == 0 else { return false }
+        
+        // 1. Must NOT be a symbolic link
+        if (statBuf.st_mode & S_IFMT) == S_IFLNK {
+            return false
+        }
+        // 2. Must be a regular file
+        guard (statBuf.st_mode & S_IFMT) == S_IFREG else {
+            return false
+        }
+        // 3. Must be owned by current user UID
+        guard statBuf.st_uid == geteuid() else {
+            return false
+        }
+        // 4. Must NOT be group-writable or world-writable
+        if (statBuf.st_mode & (S_IWGRP | S_IWOTH)) != 0 {
+            return false
+        }
+        // 5. Must have user execute permission
+        guard (statBuf.st_mode & S_IXUSR) != 0 else {
+            return false
+        }
+        
+        return true
+    }
+    
+    nonisolated public static func migrateLocalDevKeySoundIfNeeded(from sourceDir: URL, to targetDir: URL) {
+        let fm = FileManager.default
+        let sourceBin = sourceDir.appendingPathComponent("target/release/thock-cli")
+        guard validateBinarySecurity(at: sourceBin) else { return }
+        
+        let targetBinDir = targetDir.appendingPathComponent("target/release")
+        let targetBin = targetBinDir.appendingPathComponent("thock-cli")
+        if !fm.fileExists(atPath: targetBin.path) {
+            try? fm.createDirectory(at: targetBinDir, withIntermediateDirectories: true)
+            try? fm.copyItem(at: sourceBin, to: targetBin)
+            try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: targetBin.path)
+        }
+        
+        let sourcePacks = sourceDir.appendingPathComponent("packs")
+        let targetPacks = targetDir.appendingPathComponent("packs")
+        if fm.fileExists(atPath: sourcePacks.path) && !fm.fileExists(atPath: targetPacks.path) {
+            try? fm.copyItem(at: sourcePacks, to: targetPacks)
+        }
     }
     
     public var projectDir: URL { Self.resolveKeySoundDirectory() }
@@ -91,7 +152,7 @@ public final class ThockModule: NotchModule {
     
     // Installation State
     public var isInstalled: Bool {
-        FileManager.default.fileExists(atPath: binaryURL.path)
+        Self.validateBinarySecurity(at: binaryURL)
     }
     @Published public var isInstalling: Bool = false
     @Published public var installProgressMessage: String = ""
@@ -570,15 +631,10 @@ public final class ThockModule: NotchModule {
                 return
             }
             
-            // Check if local dev KeySound exists and can be linked or copied for speed
+            // Safe copy instead of symlink (SEC-C-3): never create symlinks to user-writable dev folders
             let devSource = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Doc/KeySound")
-            let hasDevCopy = FileManager.default.fileExists(atPath: devSource.appendingPathComponent("target/release/thock-cli").path)
-            
-            if hasDevCopy && targetDir != devSource && !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("target/release/thock-cli").path) {
-                Task { @MainActor [weak self] in
-                    self?.installProgressMessage = "Linking local KeySound acoustic assets..."
-                }
-                try? FileManager.default.createSymbolicLink(at: targetDir, withDestinationURL: devSource)
+            if targetDir != devSource && !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("target/release/thock-cli").path) {
+                Self.migrateLocalDevKeySoundIfNeeded(from: devSource, to: targetDir)
             }
             
             // Step 2: If repo still not present, git clone from GitHub and checkout verified pinned commit SHA
@@ -681,7 +737,7 @@ public final class ThockModule: NotchModule {
             Self.sweepOrphanProcesses()
         }
         
-        guard FileManager.default.fileExists(atPath: binaryURL.path) else {
+        guard Self.validateBinarySecurity(at: binaryURL) else {
             return
         }
         

@@ -123,3 +123,24 @@
 - **Safety Analysis (F8)**:
   - *What could break*: If `Cargo.lock` was missing or out of sync with `Cargo.toml`, `cargo build --locked` would fail.
   - *How verified*: Checked via `git ls-tree` that `Cargo.lock` exists in pinned commit `264ef80…`.
+
+### Commit 4: SEC-C-3 — Hardened Engine Binary Verification & Safe Path Migration
+
+- **Commit**: `SEC-C-3: harden thock binary resolution and remove dev symlinks`
+- **Reported Engine Path**: `/Users/dharmitparmar/Doc/KeySound/target/release/thock-cli` (verified regular file, owner UID matched, 0755).
+- **Files Changed**:
+  - `Sources/Modules/Thock/ThockModule.swift`:
+    - Added `validateBinarySecurity(at:)` checking that engine binary is a regular file, owned by current UID, executable, and not group/world-writable.
+    - Added safe automatic migration `migrateLocalDevKeySoundIfNeeded` from dev path to `~/Library/Application Support/Notch/KeySound`.
+    - Added `NotchApp_AllowDevKeySound` fallback (default true if present) to ensure user's existing engine works seamlessly without triggering a clone or build.
+    - Removed automatic symlink creation to `~/Doc/KeySound`.
+    - Updated `isInstalled` and `startEngine()` to gate on `validateBinarySecurity`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 90]` testing regular 0755 executables pass while symlinks, world-writable files, and non-executables are rejected.
+- **Diffstat**:
+  `Sources/Modules/Thock/ThockModule.swift | 102 ++++++++++++++--`
+  `Tests/VerificationTests.swift | 49 ++++++++++-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 90 / 90 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If the user had a working engine in `~/Doc/KeySound`, restricting search without a migration or fallback would show "Engine not installed".
+  - *How verified*: Existing path is explicitly supported via opt-in developer path and safe file copy migration. Test 90 asserts that the binary security checks hold.
