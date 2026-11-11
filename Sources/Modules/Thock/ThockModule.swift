@@ -238,10 +238,42 @@ public final class ThockModule: NotchModule {
     private var process: Process?
     public private(set) nonisolated(unsafe) var spawnedProcess: Process?
     public private(set) var spawnedPID: pid_t?
+    public private(set) var spawnedProcessStartTime: UInt64?
     private var inPipe: Pipe?
     private var outPipe: Pipe?
     private var activeHeartbeatTimer: AnyCancellable?
     private var processGeneration: Int = 0
+    
+    // Process Start-Time Validation (SEC-C-4: Prevent PID-Reuse Race Conditions)
+    public static func processStartTime(pid: pid_t) -> UInt64? {
+        guard pid > 1 else { return nil }
+        var bsdInfo = proc_bsdinfo()
+        let size = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsdInfo, Int32(MemoryLayout<proc_bsdinfo>.size))
+        guard size == MemoryLayout<proc_bsdinfo>.size else { return nil }
+        return bsdInfo.pbi_start_tvsec
+    }
+    
+    @discardableResult
+    private func safeKill(pid: pid_t, signal: Int32) -> Int32 {
+        guard pid > 1 else { return -1 }
+        if let expectedStart = self.spawnedProcessStartTime,
+           let currentStart = Self.processStartTime(pid: pid),
+           currentStart != expectedStart {
+            return -1 // PID reuse detected! Refuse to signal foreign process.
+        }
+        return kill(pid, signal)
+    }
+    
+    @discardableResult
+    private func safeKillGroup(pgid: pid_t, signal: Int32) -> Int32 {
+        guard pgid > 1 else { return -1 }
+        if let expectedStart = self.spawnedProcessStartTime,
+           let currentStart = Self.processStartTime(pid: pgid),
+           currentStart != expectedStart {
+            return -1 // PID reuse detected! Refuse to signal foreign process group.
+        }
+        return kill(-pgid, signal)
+    }
     
     public init() {
         signal(SIGPIPE, SIG_IGN)
@@ -293,13 +325,13 @@ public final class ThockModule: NotchModule {
     
     public func suspendChildProcess() {
         guard let pid = self.spawnedPID ?? self.processPID, isRunning, !isChildSuspended else { return }
-        kill(pid, SIGSTOP)
+        safeKill(pid: pid, signal: SIGSTOP)
         isChildSuspended = true
     }
     
     public func resumeChildProcess() {
         guard let pid = self.spawnedPID ?? self.processPID, isRunning, isChildSuspended else { return }
-        kill(pid, SIGCONT)
+        safeKill(pid: pid, signal: SIGCONT)
         isChildSuspended = false
     }
     
@@ -371,20 +403,20 @@ public final class ThockModule: NotchModule {
         }
         
         if let pid = targetPid, pid > 1 {
-            // Signal process group and process
-            kill(-pid, SIGTERM)
-            kill(pid, SIGTERM)
+            // Signal process group and process safely (SEC-C-4: start-time validated)
+            safeKillGroup(pgid: pid, signal: SIGTERM)
+            safeKill(pid: pid, signal: SIGTERM)
             
             // Give up to 100ms for clean termination
             let deadline = Date().addingTimeInterval(0.10)
-            while kill(pid, 0) == 0 && Date() < deadline {
+            while safeKill(pid: pid, signal: 0) == 0 && Date() < deadline {
                 usleep(5_000)
             }
             
             // If still running after deadline, force terminate via SIGKILL strictly to spawned process & group
-            if kill(pid, 0) == 0 {
-                kill(-pid, SIGKILL)
-                kill(pid, SIGKILL)
+            if safeKill(pid: pid, signal: 0) == 0 {
+                safeKillGroup(pgid: pid, signal: SIGKILL)
+                safeKill(pid: pid, signal: SIGKILL)
             }
         }
         
@@ -395,6 +427,7 @@ public final class ThockModule: NotchModule {
         self.process = nil
         self.spawnedProcess = nil
         self.spawnedPID = nil
+        self.spawnedProcessStartTime = nil
         self.processPID = nil
         self.isRunning = false
         self.statusSubtitle = "Engine Stopped"
@@ -403,7 +436,7 @@ public final class ThockModule: NotchModule {
     // MARK: - Thermal-Optimized Zero-Overhead Monitor (No fork/exec pgrep loops!)
     public func startLightweightMonitor() {
         guard activeHeartbeatTimer == nil else { return }
-        // 5-second cadence only while notch is expanded, using zero-cost kill(pid, 0)
+        // 5-second cadence only while notch is expanded, using zero-cost safeKill(pid: 0)
         activeHeartbeatTimer = Timer.publish(every: 5.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -419,19 +452,20 @@ public final class ThockModule: NotchModule {
     
     public func checkProcessStateZeroOverhead() {
         if let pid = self.spawnedPID {
-            // kill(pid, 0) is a 5-nanosecond POSIX syscall: returns 0 if alive, -1 if exited.
-            if kill(pid, 0) == 0 {
+            // safeKill with signal 0 checks liveness and verifies start time matches
+            if safeKill(pid: pid, signal: 0) == 0 {
                 if !self.isRunning {
                     self.isRunning = true
                     self.statusSubtitle = "Active · PID \(pid)"
                 }
                 return
             } else {
-                // Process terminated externally
+                // Process terminated externally or PID recycled
                 self.isRunning = false
                 self.processPID = nil
                 self.spawnedProcess = nil
                 self.spawnedPID = nil
+                self.spawnedProcessStartTime = nil
                 self.statusSubtitle = "Engine Offline"
                 return
             }
@@ -441,6 +475,7 @@ public final class ThockModule: NotchModule {
             self.isRunning = true
             self.processPID = proc.processIdentifier
             self.spawnedPID = proc.processIdentifier
+            self.spawnedProcessStartTime = Self.processStartTime(pid: proc.processIdentifier)
             self.statusSubtitle = "Active · PID \(proc.processIdentifier)"
             return
         }
@@ -805,7 +840,7 @@ public final class ThockModule: NotchModule {
                 guard self.spawnedProcess === p else { return }
                 self.outPipe?.fileHandleForReading.readabilityHandler = nil
                 self.inPipe = nil; self.outPipe = nil; self.process = nil
-                self.spawnedProcess = nil; self.spawnedPID = nil; self.processPID = nil
+                self.spawnedProcess = nil; self.spawnedPID = nil; self.spawnedProcessStartTime = nil; self.processPID = nil
                 self.isRunning = false
                 self.statusSubtitle = "Engine Stopped"
             }
@@ -820,6 +855,7 @@ public final class ThockModule: NotchModule {
             }
             self.isRunning = true
             self.spawnedPID = childPid
+            self.spawnedProcessStartTime = Self.processStartTime(pid: childPid)
             self.processPID = childPid
             self.statusSubtitle = "Active · PID \(childPid)"
             FeedbackManager.playSuccess()
@@ -838,6 +874,7 @@ public final class ThockModule: NotchModule {
             self.isRunning = false
             self.spawnedProcess = nil
             self.spawnedPID = nil
+            self.spawnedProcessStartTime = nil
             self.processPID = nil
         }
     }

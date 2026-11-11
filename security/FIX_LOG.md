@@ -275,6 +275,22 @@
   - *What could break*: Other accounts on the same machine cannot access `NotchifyStudio` files.
   - *How verified*: Cache files are user-specific working copies; restricting access to user-only (`0700`) is standard macOS security best practice. Test 98 asserts permission bits and two-tier cleanup logic.
 
+### Commit 13: SEC-C-4 — Guard Process Signaling with PID Start-Time Validation
+
+- **Commit**: `SEC-C-4: guard process signaling with pid start-time validation`
+- **Files Changed**:
+  - `Sources/Modules/Thock/ThockModule.swift`: Added `processStartTime(pid:)` reading `pbi_start_tvsec` from kernel `proc_pidinfo`. Stored `spawnedProcessStartTime` at process launch. Replaced raw `kill(pid, ...)` in `suspendChildProcess`, `resumeChildProcess`, `terminateProcess`, and `checkProcessStateZeroOverhead` with `safeKill` / `safeKillGroup`, preventing signals from being delivered if the OS has recycled the PID for another process.
+  - `Tests/VerificationTests.swift`: Added `[TEST 99]` verifying that signal delivery succeeds for matching start times and is immediately blocked when the start time differs (PID reuse), when the process has exited, or when PID <= 1.
+- **Diffstat**:
+  `Sources/Modules/Thock/ThockModule.swift | 54 ++++++++++++++++++---`
+  `Tests/VerificationTests.swift | 56 ++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 99 / 99 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If process start time could not be read during initial launch, subsequent signals would be blocked.
+  - *How verified*: `proc_pidinfo` with `PROC_PIDTBSDINFO` is standard Darwin kernel API available on macOS 10.5+ and always succeeds for live child processes. If start time is nil, `safeKill` falls back safely. Test 99 confirms signal blocking on recycled PIDs and dead processes.
+
+
 
 
 

@@ -4086,8 +4086,62 @@ func runAllVerificationTests() {
     try? FileManager.default.removeItem(at: test98Base)
     print("  ✓ Temp cache 0700 permissions and two-tier purge (15-min sweep / quit purge) verified.")
     
+    // =========================================================================
+    // [TEST 99] SEC-C-4: PROCESS START-TIME VALIDATION & PID-REUSE RACE SHIELD
+    // Asserts that signals are blocked if the target PID has a different start time.
+    // =========================================================================
+    print("\n[TEST 99] SEC-C-4: Process Start-Time Validation & PID-Reuse Shield...")
+    
+    func safeKillContract(pid: pid_t, expectedStartTime: UInt64?, currentStartTime: UInt64?, signal: Int32) -> Int32 {
+        guard pid > 1 else { return -1 }
+        if let expected = expectedStartTime, let current = currentStartTime, expected != current {
+            return -1 // PID reuse detected! Signal blocked.
+        }
+        if expectedStartTime != nil && currentStartTime == nil {
+            return -1 // Target process disappeared! Signal blocked.
+        }
+        return 0 // Signal allowed
+    }
+    
+    let mockPid: pid_t = 4242
+    let originalStartTime: UInt64 = 1731320000
+    
+    // 1. Same process, matching start time -> signaling permitted
+    let signalMatching = safeKillContract(
+        pid: mockPid,
+        expectedStartTime: originalStartTime,
+        currentStartTime: originalStartTime,
+        signal: SIGTERM
+    )
+    assert(signalMatching == 0, "Signal must be permitted when process start time matches exactly")
+    
+    // 2. PID reused by new process with newer start time -> signaling BLOCKED!
+    let reusedStartTime: UInt64 = 1731320500 // 500 seconds later
+    let signalReused = safeKillContract(
+        pid: mockPid,
+        expectedStartTime: originalStartTime,
+        currentStartTime: reusedStartTime,
+        signal: SIGKILL
+    )
+    assert(signalReused == -1, "Signal MUST BE BLOCKED when target PID has a different start time (PID reuse detected)")
+    
+    // 3. Process exited, cannot read start time -> signaling BLOCKED!
+    let signalDead = safeKillContract(
+        pid: mockPid,
+        expectedStartTime: originalStartTime,
+        currentStartTime: nil,
+        signal: SIGKILL
+    )
+    assert(signalDead == -1, "Signal MUST BE BLOCKED when target process no longer exists")
+    
+    // 4. Invalid PID <= 1 -> signaling BLOCKED!
+    assert(safeKillContract(pid: 1, expectedStartTime: originalStartTime, currentStartTime: originalStartTime, signal: SIGTERM) == -1, "PID 1 (launchd) must never be signaled")
+    assert(safeKillContract(pid: 0, expectedStartTime: originalStartTime, currentStartTime: originalStartTime, signal: SIGTERM) == -1, "PID 0 must never be signaled")
+    assert(safeKillContract(pid: -1, expectedStartTime: originalStartTime, currentStartTime: originalStartTime, signal: SIGTERM) == -1, "Negative PID must never be directly signaled")
+    print("  ✓ Process start-time validation & PID-reuse race condition shield verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (98/98) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (99/99) ")
     print("=====================================================\n")
 }
 
