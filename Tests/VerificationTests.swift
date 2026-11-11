@@ -4140,8 +4140,37 @@ func runAllVerificationTests() {
     assert(safeKillContract(pid: -1, expectedStartTime: originalStartTime, currentStartTime: originalStartTime, signal: SIGTERM) == -1, "Negative PID must never be directly signaled")
     print("  ✓ Process start-time validation & PID-reuse race condition shield verified.")
     
+    // =========================================================================
+    // [TEST 100] SEC-D-4: INFO.PLIST PRIVACY USAGE DESCRIPTIONS AUDIT INVARIANT
+    // Asserts that Info.plist accurately declares only active TCC APIs (Camera, AppleEvents, Calendar).
+    // =========================================================================
+    print("\n[TEST 100] SEC-D-4: Info.plist Privacy Usage Descriptions Audit Invariant...")
+    let infoPlistURL = URL(fileURLWithPath: "Resources/Info.plist")
+    if let data = try? Data(contentsOf: infoPlistURL),
+       let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
+        
+        // Active required usage descriptions
+        assert(plist["NSCameraUsageDescription"] is String, "Info.plist must declare NSCameraUsageDescription for Mirror video")
+        assert(plist["NSAppleEventsUsageDescription"] is String, "Info.plist must declare NSAppleEventsUsageDescription for AppleScript dispatch")
+        assert(plist["NSCalendarsUsageDescription"] is String, "Info.plist must declare NSCalendarsUsageDescription for EventKit calendar access")
+        
+        let cameraDesc = plist["NSCameraUsageDescription"] as! String
+        let appleEventsDesc = plist["NSAppleEventsUsageDescription"] as! String
+        let calendarDesc = plist["NSCalendarsUsageDescription"] as! String
+        assert(!cameraDesc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "NSCameraUsageDescription must be descriptive")
+        assert(!appleEventsDesc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "NSAppleEventsUsageDescription must be descriptive")
+        assert(!calendarDesc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "NSCalendarsUsageDescription must be descriptive")
+        
+        // Unneeded descriptions must NOT be declared
+        assert(plist["NSContactsUsageDescription"] == nil, "Info.plist must not declare unneeded NSContactsUsageDescription (CNContactStore is never called)")
+        assert(plist["NSMicrophoneUsageDescription"] == nil, "Info.plist must not declare unneeded NSMicrophoneUsageDescription (audio recording is never called)")
+        print("  ✓ Info.plist privacy usage descriptions strictly verified against active APIs.")
+    } else {
+        fatalError("Resources/Info.plist must exist and be readable as a valid property list")
+    }
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (99/99) ")
+    print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (100/100) ")
     print("=====================================================\n")
 }
 

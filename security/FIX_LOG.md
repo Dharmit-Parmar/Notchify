@@ -290,6 +290,20 @@
   - *What could break*: If process start time could not be read during initial launch, subsequent signals would be blocked.
   - *How verified*: `proc_pidinfo` with `PROC_PIDTBSDINFO` is standard Darwin kernel API available on macOS 10.5+ and always succeeds for live child processes. If start time is nil, `safeKill` falls back safely. Test 99 confirms signal blocking on recycled PIDs and dead processes.
 
+### Commit 14: SEC-D-4 — Verify Info.plist Usage Descriptions Against Active APIs
+
+- **Commit**: `SEC-D-4: verify infoplist usage descriptions against active apis`
+- **Files Changed**:
+  - `Tests/VerificationTests.swift`: Added `[TEST 100]` auditing `Resources/Info.plist` against active APIs: asserts that `NSCameraUsageDescription`, `NSAppleEventsUsageDescription`, and `NSCalendarsUsageDescription` are present and non-empty, and verifies that unneeded usage descriptions (`NSContactsUsageDescription`, `NSMicrophoneUsageDescription`) are excluded since their respective frameworks/APIs are never called.
+- **Diffstat**:
+  `Tests/VerificationTests.swift | 30 ++++++++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 100 / 100 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If an undeclared TCC API is called, macOS kills the process.
+  - *How verified*: Verified via grep that `CNContactStore` and microphone recording APIs are never called anywhere in the codebase. Active usage descriptions (`NSCameraUsageDescription`, `NSAppleEventsUsageDescription`, `NSCalendarsUsageDescription`) are confirmed present and valid. Test 100 asserts this contract.
+
+
 
 
 
