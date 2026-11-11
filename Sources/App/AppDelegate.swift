@@ -92,8 +92,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             factory: { NotificationModule() }
         )
         
-        // Ensure standard /Applications and ~/Applications bundle discovery
-        PermissionsHelper.ensureApplicationsSymlink()
+        // Background bundle discovery (Symlinks managed safely without launch mutations)
         
         setupMainMenu()
         setupStatusItem()

@@ -32,14 +32,18 @@ cp -f "$DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
 echo "Application bundle signed with ad-hoc signature."
 
-# 3. Create user Applications shortcut (~/Applications/NotchApp.app)
+# 3. Create user Applications shortcut (~/Applications/NotchApp.app) only if absent (SEC-E-2)
 mkdir -p "$HOME/Applications"
-ln -sfn "$APP_BUNDLE" "$HOME/Applications/NotchApp.app"
-echo "Standard Application bundle installed at: $HOME/Applications/NotchApp.app"
+if [ ! -e "$HOME/Applications/NotchApp.app" ] && [ ! -L "$HOME/Applications/NotchApp.app" ]; then
+    ln -s "$APP_BUNDLE" "$HOME/Applications/NotchApp.app" 2>/dev/null || true
+    echo "Standard Application bundle installed at: $HOME/Applications/NotchApp.app"
+fi
 
-# 4. Create system Applications symlink (/Applications/NotchApp.app) if writable
-ln -sfn "$APP_BUNDLE" "/Applications/NotchApp.app" 2>/dev/null || true
-echo "System Applications symlink installed at: /Applications/NotchApp.app"
+# 4. Create system Applications symlink (/Applications/NotchApp.app) only if absent (SEC-E-2)
+if [ ! -e "/Applications/NotchApp.app" ] && [ ! -L "/Applications/NotchApp.app" ]; then
+    ln -s "$APP_BUNDLE" "/Applications/NotchApp.app" 2>/dev/null || true
+    echo "System Applications symlink installed at: /Applications/NotchApp.app"
+fi
 echo "(You can now select NotchApp directly in System Settings (+) without searching!)"
 
 echo "Launching NotchApp in background..."

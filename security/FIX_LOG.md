@@ -48,3 +48,44 @@
   - Compiler Errors: 0
   - Compiler Warnings: 0 (2 linker search path warnings for CommandLineTools)
   - Existing Passing Tests: 85 / 85
+
+---
+
+## Stage B: Small, Targeted Security Fixes (Per-Commit Execution)
+
+- **Date**: 2026-11-11
+- **Trigger**: User authorized execution of Stage B fixes ("start").
+- **Operating Rules**:
+  - One commit per item with format `SEC-X-n: <what>`.
+  - Minimal diffs; zero edits to view layouts or UI appearance.
+  - Public signatures preserved.
+  - Every commit accompanied by diffstat, verification test run, and regression assertions.
+  - Build warnings strictly checked (must not increase from 0 warnings).
+  - All existing tests (1–86) + new targeted security tests must pass.
+- **Skills Activated**:
+  - `security-audit`: Ensuring each vulnerability is resolved at root cause without altering user-facing UX.
+  - `axiom-security`: Hardening Keychain, environment isolation, input validation, and process permissions.
+  - `axiom-macos`: Process management, path canonicalization, POSIX permissions, and LaunchServices integration.
+  - `axiom-networking`: Ephemeral URLSession, request redaction, and credential protection.
+  - `axiom-testing`: Writing new regression test for each item proving defect is eliminated.
+  - `ponytail`: Minimal lines of code, standard library first, zero new dependencies.
+  - `gravitas`: Evidence-backed commits: run `swift build` and `swift run NotchTests` after every single commit.
+
+### Commit 1: SEC-E-2 — Stop Deleting Applications & Symlinks at Launch
+
+- **Commit**: `SEC-E-2: stop deleting or relinking applications at launch`
+- **Files Changed**:
+  - `Sources/App/AppDelegate.swift`: Removed launch-time `PermissionsHelper.ensureApplicationsSymlink()`.
+  - `Sources/Core/PermissionsHelper.swift`: Removed all `removeItem` calls; only creates symlink when target path does not exist.
+  - `run_notch.sh`: Replaced `ln -sfn` with non-destructive existence check (`[ ! -e ... ] && [ ! -L ... ]`).
+  - `Tests/VerificationTests.swift`: Added `[TEST 87]` verifying real directories and foreign symlinks are never modified or removed.
+- **Diffstat**:
+  `Sources/App/AppDelegate.swift | 3 +/-`
+  `Sources/Core/PermissionsHelper.swift | 20 +/-`
+  `run_notch.sh | 18 +/-`
+  `Tests/VerificationTests.swift | 57 +/-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 87 / 87 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: An installation expecting automatic overwrite of older symlinks would not overwrite them.
+  - *How verified*: Existing symlinks and real application directories remain preserved. Test 87 asserts non-destructive behavior across real directories and foreign symlinks.

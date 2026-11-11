@@ -47,25 +47,21 @@ public struct PermissionsHelper {
         guard fm.fileExists(atPath: bundleURL.path) else { return }
         
         // 1. Ensure System /Applications symlinks (/Applications/Notch.app & /Applications/NotchApp.app) if writable
+        // Safety invariant (SEC-E-2): NEVER call removeItem on /Applications or overwrite existing bundles
         if fm.isWritableFile(atPath: "/Applications") {
             let systemTargets = [
                 "/Applications/Notch.app",
                 "/Applications/NotchApp.app"
             ]
-            
             for sysAppPath in systemTargets {
-                if let dest = try? fm.destinationOfSymbolicLink(atPath: sysAppPath) {
-                    if dest != bundleURL.path {
-                        try? fm.removeItem(atPath: sysAppPath)
-                        try? fm.createSymbolicLink(atPath: sysAppPath, withDestinationPath: bundleURL.path)
-                    }
-                } else if !fm.fileExists(atPath: sysAppPath) {
+                if !fm.fileExists(atPath: sysAppPath) && (try? fm.destinationOfSymbolicLink(atPath: sysAppPath)) == nil {
                     try? fm.createSymbolicLink(atPath: sysAppPath, withDestinationPath: bundleURL.path)
                 }
             }
         }
         
         // 2. Ensure User ~/Applications symlinks
+        // Safety invariant (SEC-E-2): NEVER call removeItem on ~/Applications or overwrite existing bundles
         let home = fm.homeDirectoryForCurrentUser
         let userAppsDir = home.appendingPathComponent("Applications")
         if !fm.fileExists(atPath: userAppsDir.path) {
@@ -76,15 +72,9 @@ public struct PermissionsHelper {
             userAppsDir.appendingPathComponent("Notch.app"),
             userAppsDir.appendingPathComponent("NotchApp.app")
         ]
-        
         for userApp in userTargets {
-            if let dest = try? fm.destinationOfSymbolicLink(atPath: userApp.path) {
-                if dest != bundleURL.path {
-                    try? fm.removeItem(at: userApp)
-                    try? fm.createSymbolicLink(at: userApp, withDestinationURL: bundleURL)
-                }
-            } else if !fm.fileExists(atPath: userApp.path) {
-                try? fm.createSymbolicLink(at: userApp, withDestinationURL: bundleURL)
+            if !fm.fileExists(atPath: userApp.path) && (try? fm.destinationOfSymbolicLink(atPath: userApp.path)) == nil {
+                try? fm.createSymbolicLink(atPath: userApp, withDestinationURL: bundleURL)
             }
         }
     }

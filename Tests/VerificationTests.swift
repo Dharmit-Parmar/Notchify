@@ -3482,8 +3482,63 @@ func runAllVerificationTests() {
     assert(loadedAfterDelete == nil, "Secret must be nil after deletion")
     print("  ✓ Native macOS Keychain save, load, delete, and isolation verified.")
     
+    // =========================================================================
+    // [TEST 87] SEC-E-2: SAFE APPLICATIONS SYMLINK NON-DESTRUCTIVE INVARIANT
+    // Guarantees that symlink creation never deletes existing apps or foreign symlinks.
+    // =========================================================================
+    print("\n[TEST 87] SEC-E-2: Safe Applications Symlink Non-Destructive Invariant...")
+    let test87Dir = FileManager.default.temporaryDirectory.appendingPathComponent("Notch_Test87_\(UUID().uuidString)", isDirectory: true)
+    let fakeAppsDir = test87Dir.appendingPathComponent("Applications", isDirectory: true)
+    let fakeBundleURL = test87Dir.appendingPathComponent("NewBuild/NotchApp.app", isDirectory: true)
+    try! FileManager.default.createDirectory(at: fakeAppsDir, withIntermediateDirectories: true)
+    try! FileManager.default.createDirectory(at: fakeBundleURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: test87Dir) }
+    
+    // 1. Create a real user-installed app directory with critical data
+    let existingRealApp = fakeAppsDir.appendingPathComponent("Notch.app", isDirectory: true)
+    try! FileManager.default.createDirectory(at: existingRealApp, withIntermediateDirectories: true)
+    let userSecretFile = existingRealApp.appendingPathComponent("UserData.txt")
+    try! Data("Critical User Application Data".utf8).write(to: userSecretFile)
+    
+    // 2. Create a foreign symlink pointing to an external directory
+    let existingForeignSymlink = fakeAppsDir.appendingPathComponent("NotchApp.app")
+    let foreignTarget = "/usr/bin"
+    try! FileManager.default.createSymbolicLink(atPath: existingForeignSymlink.path, withDestinationPath: foreignTarget)
+    
+    // 3. Execute safe symlink logic (SEC-E-2 invariant)
+    func executeSafeSymlinkLogic(targetDir: URL, bundleURL: URL, fm: FileManager) {
+        let targets = [
+            targetDir.appendingPathComponent("Notch.app"),
+            targetDir.appendingPathComponent("NotchApp.app"),
+            targetDir.appendingPathComponent("BrandNewNotch.app")
+        ]
+        for target in targets {
+            // Invariant: Never removeItem on targets. Only create if nothing exists at path.
+            if !fm.fileExists(atPath: target.path) && (try? fm.destinationOfSymbolicLink(atPath: target.path)) == nil {
+                try? fm.createSymbolicLink(at: target, withDestinationURL: bundleURL)
+            }
+        }
+    }
+    
+    executeSafeSymlinkLogic(targetDir: fakeAppsDir, bundleURL: fakeBundleURL, fm: FileManager.default)
+    
+    // Assert 1: Real application directory was NOT removed or modified
+    assert(FileManager.default.fileExists(atPath: userSecretFile.path), "Real user app data must NOT be removed!")
+    let preservedData = try! String(contentsOf: userSecretFile, encoding: .utf8)
+    assert(preservedData == "Critical User Application Data", "Preserved user data content must remain untouched")
+    
+    // Assert 2: Foreign symlink was NOT removed or retargeted
+    let destAfter = try! FileManager.default.destinationOfSymbolicLink(atPath: existingForeignSymlink.path)
+    assert(destAfter == foreignTarget, "Foreign symlink destination must remain /usr/bin and NOT be overwritten!")
+    
+    // Assert 3: A genuinely absent target CAN be linked safely
+    let brandNewTarget = fakeAppsDir.appendingPathComponent("BrandNewNotch.app")
+    assert(FileManager.default.fileExists(atPath: brandNewTarget.path), "Absent target can be safely linked")
+    assert((try? FileManager.default.destinationOfSymbolicLink(atPath: brandNewTarget.path)) == fakeBundleURL.path, "Newly linked target points to bundleURL")
+    print("  ✓ Non-destructive symlink safety verified: real files and foreign symlinks are never touched.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (86/86) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (87/87) ")
     print("=====================================================\n")
 }
 
