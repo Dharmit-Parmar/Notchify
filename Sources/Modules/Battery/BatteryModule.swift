@@ -77,60 +77,80 @@ public final class BatteryModule: NotchModule {
     
     public func makeExpandedView() -> AnyView {
         AnyView(
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Power & Battery")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Spacer()
-                    Text(isCharging ? "Connected to Power" : "On Battery")
-                        .font(.system(size: 11))
-                        .foregroundColor(DesignSystem.secondaryText)
-                }
-                
-                HStack(spacing: 20) {
-                    ZStack {
-                        Circle()
-                            .stroke(DesignSystem.structureColor, lineWidth: 8)
-                            .frame(width: 70, height: 70)
-                        
-                        Circle()
-                            .trim(from: 0, to: CGFloat(percentage) / 100.0)
-                            .stroke(
-                                percentage < 20 ? Color.red : (isCharging ? Color.green : DesignSystem.accentColor),
-                                style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: 70, height: 70)
-                            .animation(DesignSystem.reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85), value: percentage)
-                        
-                        VStack(spacing: 0) {
-                            Text("\(percentage)%")
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                            if isCharging {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.yellow)
-                            }
+            BatteryExpandedView(module: self)
+        )
+    }
+}
+
+public struct BatteryExpandedView: View {
+    @ObservedObject var module: BatteryModule
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
+    
+    public var body: some View {
+        let gaugeSize: CGFloat = notchTight ? 46 : (notchCompact ? 56 : 70)
+        let strokeW: CGFloat = notchTight ? 5.0 : 8.0
+        let percentFontSize: CGFloat = notchTight ? 12.0 : 16.0
+        
+        VStack(alignment: .leading, spacing: notchTight ? 6 : 12) {
+            HStack {
+                Text("Power & Battery")
+                    .font(.system(size: notchTight ? 11 : 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
+                Text(module.isCharging ? "Connected to Power" : "On Battery")
+                    .font(.system(size: notchTight ? 9.5 : 11))
+                    .foregroundColor(DesignSystem.secondaryText)
+            }
+            
+            HStack(spacing: notchTight ? 12 : 20) {
+                ZStack {
+                    Circle()
+                        .stroke(DesignSystem.structureColor, lineWidth: strokeW)
+                        .frame(width: gaugeSize, height: gaugeSize)
+                    
+                    Circle()
+                        .trim(from: 0, to: CGFloat(module.percentage) / 100.0)
+                        .stroke(
+                            module.percentage < 20 ? Color.red : (module.isCharging ? Color.green : DesignSystem.accentColor),
+                            style: StrokeStyle(lineWidth: strokeW, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: gaugeSize, height: gaugeSize)
+                        .animation(DesignSystem.reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85), value: module.percentage)
+                    
+                    VStack(spacing: 0) {
+                        Text("\(module.percentage)%")
+                            .font(.system(size: percentFontSize, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        if module.isCharging {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: notchTight ? 7 : 10))
+                                .foregroundColor(.yellow)
                         }
                     }
+                }
+                
+                VStack(alignment: .leading, spacing: notchTight ? 3 : 6) {
+                    Text("Apple Silicon Health")
+                        .font(.system(size: notchTight ? 10.5 : 12, weight: .semibold))
+                        .foregroundColor(.white)
                     
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Apple Silicon Health")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
+                    if !notchTight {
                         Text("Optimized Battery Charging: Active")
                             .font(.system(size: 11))
                             .foregroundColor(DesignSystem.secondaryText)
+                    }
+                    
+                    if !notchCompact {
                         Text("Cycle Count & Battery Longevity Normal")
                             .font(.system(size: 10))
                             .foregroundColor(DesignSystem.tertiaryText)
                     }
                 }
             }
-            .onAppear { [weak self] in self?.start() }
-            .onDisappear { [weak self] in self?.stop() }
-        )
+        }
+        .onAppear { module.start() }
+        .onDisappear { module.stop() }
     }
 }

@@ -219,7 +219,14 @@ public class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(Double(notchWidth), forKey: "NotchApp_NotchWidth") }
     }
     @Published public var notchHeight: CGFloat = 330.0 {
-        didSet { UserDefaults.standard.set(Double(notchHeight), forKey: "NotchApp_NotchHeight") }
+        didSet {
+            let clamped = min(420.0, max(200.0, notchHeight))
+            if notchHeight != clamped {
+                notchHeight = clamped
+                return
+            }
+            UserDefaults.standard.set(Double(clamped), forKey: "NotchApp_NotchHeight")
+        }
     }
     @Published public var hoverTriggerHeight: CGFloat = 34.0 {
         didSet { UserDefaults.standard.set(Double(hoverTriggerHeight), forKey: "NotchApp_HoverTriggerHeight") }
@@ -379,7 +386,13 @@ public class SettingsStore: ObservableObject {
             self.notchWidth = min(800, max(480, CGFloat(defaults.double(forKey: "NotchApp_NotchWidth"))))
         }
         if defaults.object(forKey: "NotchApp_NotchHeight") != nil {
-            self.notchHeight = min(420, max(200, CGFloat(defaults.double(forKey: "NotchApp_NotchHeight"))))
+            let rawHeight = CGFloat(defaults.double(forKey: "NotchApp_NotchHeight"))
+            let clampedHeight = min(420, max(200, rawHeight))
+            self.notchHeight = clampedHeight
+            if rawHeight != clampedHeight {
+                // Migration: Persist clamped value if saved height was out of bounds (< 200 or > 420)
+                defaults.set(Double(clampedHeight), forKey: "NotchApp_NotchHeight")
+            }
         }
         if defaults.object(forKey: "NotchApp_HoverTriggerHeight") != nil {
             self.hoverTriggerHeight = min(54, max(24, CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerHeight"))))

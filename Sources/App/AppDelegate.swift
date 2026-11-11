@@ -149,6 +149,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             NotchShellCoordinator.shared.refreshLayouts()
         }
         .store(in: &cancellables)
+        
+        Publishers.CombineLatest4(
+            SettingsStore.shared.$positionAttachment,
+            SettingsStore.shared.$horizontalNotchOffset,
+            SettingsStore.shared.$verticalNotchOffset,
+            SettingsStore.shared.$dashboardLayoutFlow
+        )
+        .dropFirst()
+        .sink { [weak self] _ in
+            guard let self = self, let _ = self.notchPanel else { return }
+            NotchShellCoordinator.shared.refreshLayouts()
+        }
+        .store(in: &cancellables)
     }
     
     private func setupStatusItem() {

@@ -143,40 +143,47 @@ public final class AirDropModule: NotchModule {
 public struct AirDropExpandedView: View {
     @ObservedObject var module: AirDropModule
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     
     public var body: some View {
-        HStack(spacing: 16) {
+        let radarSize: CGFloat = notchTight ? 85 : (notchCompact ? 110 : 140)
+        let iconSize: CGFloat = notchTight ? 18 : (notchCompact ? 22 : 26)
+        
+        HStack(spacing: notchTight ? 10 : 16) {
             // Left Column: Animated AirDrop Radar Beacon
             ZStack {
                 AirDropRadarAnimation(isTargeted: module.isDropTargeted, isBeaming: module.isBeaming)
-                    .frame(width: 140, height: 140)
+                    .frame(width: radarSize, height: radarSize)
                 
-                VStack(spacing: 4) {
+                VStack(spacing: notchTight ? 2 : 4) {
                     Image(systemName: "airdrop")
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.system(size: iconSize, weight: .bold))
                         .foregroundColor(module.isDropTargeted ? .white : DesignSystem.accentColor)
                         .scaleEffect(module.isDropTargeted ? 1.15 : 1.0)
                         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: module.isDropTargeted)
                     
                     Text("AirDrop")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: notchTight ? 9.5 : 11, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
             }
-            .frame(width: 140, height: 140)
+            .frame(width: radarSize, height: radarSize)
             
             // Right Column: Drop Stage, Status & Manual File Picker
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: notchTight ? 4 : 8) {
                 // Header & Status
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Wireless File Transfer")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                    if !notchTight {
+                        Text("Wireless File Transfer")
+                            .font(.system(size: notchCompact ? 11.5 : 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
                     
                     Text(module.statusMessage)
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundColor(module.isDropTargeted ? DesignSystem.accentColor : DesignSystem.secondaryText)
-                        .lineLimit(2)
+                        .lineLimit(notchTight ? 1 : 2)
                 }
                 
                 // Drop Stage Box
@@ -190,23 +197,25 @@ public struct AirDropExpandedView: View {
                             style: StrokeStyle(lineWidth: module.isDropTargeted ? 1.5 : 1.0, dash: [5, 4])
                         )
                     
-                    VStack(spacing: 5) {
+                    VStack(spacing: notchTight ? 2 : 5) {
                         Image(systemName: module.isDropTargeted ? "arrow.down.circle.fill" : "arrow.up.and.down.circle")
-                            .font(.system(size: 18))
+                            .font(.system(size: notchTight ? 14 : 18))
                             .foregroundColor(DesignSystem.accentColor)
                             .scaleEffect(module.isDropTargeted ? 1.2 : 1.0)
                         
-                        Text(module.isDropTargeted ? "Release to Beam Immediately" : "Drag & Drop Files Anywhere Here")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        Text(module.isDropTargeted ? "Release to Beam" : "Drag & Drop Files Here")
+                            .font(.system(size: notchTight ? 8.5 : 10, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
                         
-                        Text("Photos, PDFs, videos, or folders")
-                            .font(.system(size: 8.5))
-                            .foregroundColor(DesignSystem.secondaryText)
+                        if !notchTight {
+                            Text("Photos, PDFs, videos, or folders")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
                     }
-                    .padding(8)
+                    .padding(notchTight ? 4 : 8)
                 }
-                .frame(maxWidth: .infinity, maxHeight: 72)
+                .frame(maxWidth: .infinity, maxHeight: notchTight ? 56 : 72)
                 
                 // Action Buttons & Recent History
                 HStack(spacing: 8) {

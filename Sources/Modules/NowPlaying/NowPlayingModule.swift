@@ -192,38 +192,43 @@ public final class NowPlayingModule: ObservableObject {
 // Left-side Now Playing Media Card for Home Dashboard
 public struct NowPlayingHomeCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     @ObservedObject var module: NowPlayingModule = NowPlayingModule.shared
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
+        let artBoxSize: CGFloat = notchTight ? 38 : (notchCompact ? 46 : 58)
+        let artImgSize: CGFloat = notchTight ? 34 : (notchCompact ? 42 : 54)
+        
+        VStack(alignment: .leading, spacing: notchTight ? 4 : (notchCompact ? 6 : 10)) {
+            HStack(spacing: notchTight ? 8 : 12) {
                 // Double-Bezel Squircle Album Art / App Icon
                 ZStack {
                     if module.isPlaying && SettingsStore.shared.currentTheme == .musicReactive {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: notchTight ? 10 : 14, style: .continuous)
                             .fill(DesignSystem.accentColor.opacity(0.35))
-                            .frame(width: 58, height: 58)
-                            .blur(radius: 6)
+                            .frame(width: artBoxSize, height: artBoxSize)
+                            .blur(radius: notchTight ? 3 : 6)
                     }
                     
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: notchTight ? 10 : 14, style: .continuous)
                         .fill(Color.white.opacity(0.06))
-                        .frame(width: 58, height: 58)
+                        .frame(width: artBoxSize, height: artBoxSize)
                     
                     if let art = module.artwork {
                         Image(nsImage: art)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 54, height: 54)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .frame(width: artImgSize, height: artImgSize)
+                            .clipShape(RoundedRectangle(cornerRadius: notchTight ? 8 : 12, style: .continuous))
                             .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     } else {
                         Image(systemName: module.hasActiveMedia ? "tv.music.note.fill" : "music.note")
-                            .font(.system(size: 22))
+                            .font(.system(size: notchTight ? 16 : 22))
                             .foregroundColor(DesignSystem.accentColor)
                     }
                     
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: notchTight ? 10 : 14, style: .continuous)
                         .strokeBorder(
                             LinearGradient(
                                 colors: [Color.white.opacity(0.25), Color.clear],
@@ -234,10 +239,10 @@ public struct NowPlayingHomeCardView: View {
                         )
                 }
                 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: notchTight ? 1 : 3) {
                     HStack(spacing: 6) {
                         Text(module.trackTitle)
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .font(.system(size: notchTight ? 11.5 : 13, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                             .lineLimit(1)
                             .contentTransition(.opacity)
@@ -246,17 +251,17 @@ public struct NowPlayingHomeCardView: View {
                         Spacer()
                         
                         if module.hasActiveMedia && module.isPlaying {
-                            LiveEqualizerIndicator(isPlaying: true, color: DesignSystem.accentColor, barWidth: 2, maxHeight: 11)
+                            LiveEqualizerIndicator(isPlaying: true, color: DesignSystem.accentColor, barWidth: 2, maxHeight: notchTight ? 8 : 11)
                         }
                     }
                     
                     HStack(spacing: 6) {
                         Text(module.artistName)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: notchTight ? 9.5 : 11, weight: .medium))
                             .foregroundColor(DesignSystem.secondaryText)
                             .lineLimit(1)
                         
-                        if !module.sourceApp.isEmpty && module.hasActiveMedia {
+                        if !module.sourceApp.isEmpty && module.hasActiveMedia && !notchTight {
                             Text(module.sourceApp)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(DesignSystem.accentColor)
@@ -287,14 +292,16 @@ public struct NowPlayingHomeCardView: View {
                                 }
                                 .frame(height: 3)
 
-                                HStack {
-                                    Text(module.formatTime(module.duration * progress))
-                                        .font(.system(size: 9, design: .monospaced))
-                                        .foregroundColor(Color.white.opacity(0.4))
-                                    Spacer()
-                                    Text(module.formatTime(module.duration))
-                                        .font(.system(size: 9, design: .monospaced))
-                                        .foregroundColor(Color.white.opacity(0.4))
+                                if !notchTight {
+                                    HStack {
+                                        Text(module.formatTime(module.duration * progress))
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundColor(Color.white.opacity(0.4))
+                                        Spacer()
+                                        Text(module.formatTime(module.duration))
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundColor(Color.white.opacity(0.4))
+                                    }
                                 }
                             }
                         }
@@ -372,11 +379,15 @@ public struct NowPlayingHomeCardView: View {
 // MARK: - 1-Space Compact Media Tile View
 public struct NowPlayingCompactTileView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     @ObservedObject var module: NowPlayingModule = NowPlayingModule.shared
     
     public var body: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 10) {
+        let tileArtSize: CGFloat = notchTight ? 32 : (notchCompact ? 38 : 44)
+        
+        VStack(spacing: notchTight ? 3 : 6) {
+            HStack(spacing: notchTight ? 6 : 10) {
                 // Album Art / App Icon
                 ZStack {
                     if let artwork = module.artwork {
@@ -388,15 +399,15 @@ public struct NowPlayingCompactTileView: View {
                             .fill(Color.white.opacity(0.08))
                             .overlay(
                                 Image(systemName: "music.note")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: notchTight ? 12 : 16))
                                     .foregroundColor(DesignSystem.secondaryText)
                             )
                     }
                 }
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: tileArtSize, height: tileArtSize)
+                .clipShape(RoundedRectangle(cornerRadius: notchTight ? 7 : 10, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: notchTight ? 7 : 10, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
                 )
                 

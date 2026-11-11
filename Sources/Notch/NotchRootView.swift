@@ -76,10 +76,12 @@ public struct NotchRootView: View {
                             .padding(.bottom, 10)
                         
                         // Body: Home Dashboard (by default) OR Selected Secondary Module
-                        contentArea
-                            .padding(.horizontal, store.contentHorizontalPadding)
-                            .padding(.bottom, store.contentVerticalPadding)
-                            .frame(maxHeight: .infinity, alignment: .top)
+                        ResponsiveTabContent(enablesVerticalScrollFallback: false) { availableH in
+                            contentArea(availableHeight: availableH)
+                        }
+                        .padding(.horizontal, store.contentHorizontalPadding)
+                        .padding(.bottom, store.contentVerticalPadding)
+                        .frame(maxHeight: .infinity, alignment: .top)
                             .overlay(
                                 // Zero-allocation composited dimming overlay avoiding CoreAnimation offscreen group render pass
                                 Color.black
@@ -365,9 +367,14 @@ public struct NotchRootView: View {
         }
     }
     
+    private var moduleHasInternalVerticalScroll: Bool {
+        guard let id = registry.activeModuleId else { return false }
+        return id == "telegram" || id == "notifications" || id == "notes" || id == "askAI"
+    }
+
     // Content Area: Default Home Landing OR Selected Secondary Module with Breadcrumb Ribbon
     @ViewBuilder
-    private var contentArea: some View {
+    private func contentArea(availableHeight: CGFloat) -> some View {
         Group {
             if let active = registry.activeModule {
                 // Selected Secondary Module View
@@ -422,15 +429,20 @@ public struct NotchRootView: View {
                         .padding(.bottom, 2)
                     }
                     
-                    ViewThatFits(in: .vertical) {
+                    if moduleHasInternalVerticalScroll {
                         active.makeExpandedView()
-                        ScrollView(.vertical, showsIndicators: false) {
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    } else {
+                        ViewThatFits(in: .vertical) {
                             active.makeExpandedView()
+                            ScrollView(.vertical, showsIndicators: false) {
+                                active.makeExpandedView()
+                            }
                         }
                     }
-                    .id(active.id)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
+                .id(active.id)
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)

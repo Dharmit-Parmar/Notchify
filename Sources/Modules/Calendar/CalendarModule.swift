@@ -172,6 +172,8 @@ public final class CalendarModule: ObservableObject {
 // Right-side Calendar Card for Home Dashboard
 public struct CalendarHomeCardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     @ObservedObject var module: CalendarModule = CalendarModule.shared
     
     private static let gridColumns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
@@ -186,10 +188,35 @@ public struct CalendarHomeCardView: View {
         return Array(symbols[firstWeekday...] + symbols[..<firstWeekday])
     }
     
+    private var weekStripCells: [CalendarCellData] {
+        let calendar = Calendar.current
+        let targetDate = module.selectedDate
+        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: targetDate) else {
+            return Array(module.monthGridCells.prefix(7))
+        }
+        var cells: [CalendarCellData] = []
+        var current = weekInterval.start
+        var idx = 0
+        while current < weekInterval.end && cells.count < 7 {
+            let dayNum = calendar.component(.day, from: current)
+            let isToday = calendar.isDateInToday(current)
+            let isCurrentMonth = calendar.isDate(current, equalTo: module.displayedMonthDate, toGranularity: .month)
+            let hasEvents = !module.events(for: current).isEmpty
+            cells.append(CalendarCellData(id: idx, date: current, dayNumber: dayNum, isCurrentMonth: isCurrentMonth, isToday: isToday, hasEvents: hasEvents))
+            idx += 1
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return cells
+    }
+    
     public var body: some View {
         ViewThatFits(in: .vertical) {
-            calendarCardContent(spacing: 5, padding: 10)
-            calendarCardContent(spacing: 2.5, padding: 6)
+            if !notchTight {
+                calendarCardContent(spacing: 5, padding: 10)
+                calendarCardContent(spacing: 2.5, padding: 6)
+            }
+            weekStripContent(padding: notchTight ? 6 : 8)
             ScrollView(.vertical, showsIndicators: false) {
                 calendarCardContent(spacing: 3, padding: 6)
             }
@@ -204,6 +231,125 @@ public struct CalendarHomeCardView: View {
             RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
                 .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
         )
+    }
+    
+    @ViewBuilder
+    private func weekStripContent(padding: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            // Header
+            HStack {
+                Text(monthYearTitle)
+                    .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                HStack(spacing: 4) {
+                    Button(action: { module.snapToToday() }) {
+                        HStack(spacing: 3) {
+                            Circle().fill(DesignSystem.accentColor).frame(width: 4, height: 4)
+                            Text("Today")
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                    }
+                    .buttonStyle(.spring)
+                    
+                    Button(action: { module.changeMonth(by: -1) }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(Color.white.opacity(0.6))
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Color.white.opacity(0.06)))
+                    }
+                    .buttonStyle(.spring)
+                    
+                    Button(action: { module.changeMonth(by: 1) }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(Color.white.opacity(0.6))
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Color.white.opacity(0.06)))
+                    }
+                    .buttonStyle(.spring)
+                }
+            }
+            
+            // Weekday Headers
+            HStack(spacing: 0) {
+                ForEach(weekDays.indices, id: \.self) { index in
+                    Text(weekDays[index])
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundColor(DesignSystem.secondaryText)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            
+            // Single Week Row
+            let calendar = Calendar.current
+            LazyVGrid(columns: Self.gridColumns, spacing: 2) {
+                ForEach(weekStripCells) { cell in
+                    let isSelected = calendar.isDate(cell.date, inSameDayAs: module.selectedDate)
+                    let hasEvents = cell.hasEvents
+                    
+                    Button(action: {
+                        FeedbackManager.playClick()
+                        module.selectedDate = cell.date
+                    }) {
+                        ZStack {
+                            if isSelected {
+                                Circle().fill(DesignSystem.accentColor)
+                            } else if cell.isToday {
+                                Circle().strokeBorder(DesignSystem.accentColor, lineWidth: 1)
+                            }
+                            
+                            Text("\(cell.dayNumber)")
+                                .font(.system(size: 9.5, weight: cell.isToday || isSelected ? .semibold : .regular, design: .rounded))
+                                .foregroundColor(
+                                    isSelected ? DesignSystem.canvasColor :
+                                    (cell.isToday ? DesignSystem.accentColor :
+                                    (cell.isCurrentMonth ? .white : Color.white.opacity(0.25)))
+                                )
+                            
+                            if hasEvents {
+                                Circle()
+                                    .fill(isSelected ? DesignSystem.canvasColor : DesignSystem.accentColor)
+                                    .frame(width: 2.5, height: 2.5)
+                                    .offset(y: 6)
+                            }
+                        }
+                        .frame(width: 18, height: 18)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(.spring(scale: 0.97))
+                }
+            }
+            
+            // Event Line
+            let dayEvents = module.events(for: module.selectedDate)
+            if let firstEvent = dayEvents.first {
+                HStack(spacing: 4) {
+                    Circle().fill(firstEvent.color).frame(width: 4, height: 4)
+                    Text(firstEvent.title)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(firstEvent.timeString)
+                        .font(.system(size: 8.5, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2.5)
+                .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.06)))
+            }
+        }
+        .padding(padding)
     }
     
     @ViewBuilder

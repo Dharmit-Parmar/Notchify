@@ -1028,11 +1028,13 @@ public final class ThockModule: NotchModule {
 public struct ThockExpandedView: View {
     @ObservedObject var module: ThockModule
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     
     public var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: notchTight ? 4 : (notchCompact ? 6 : 8)) {
             // SUB-NAVIGATION DOCK: Key Sound · Ambient ASMR · CLI Terminal
-            HStack(spacing: 6) {
+            HStack(spacing: notchTight ? 4 : 6) {
                 ForEach(ThockSubSection.allCases) { section in
                     let isCurrent = (module.selectedSection == section)
                     Button(action: {
@@ -1041,15 +1043,15 @@ public struct ThockExpandedView: View {
                             module.selectedSection = section
                         }
                     }) {
-                        HStack(spacing: 5) {
+                        HStack(spacing: notchTight ? 3 : 5) {
                             Image(systemName: section.icon)
-                                .font(.system(size: 9, weight: isCurrent ? .bold : .medium))
+                                .font(.system(size: notchTight ? 8 : 9, weight: isCurrent ? .bold : .medium))
                             Text(section.rawValue)
-                                .font(.system(size: 10, weight: isCurrent ? .bold : .medium, design: .rounded))
+                                .font(.system(size: notchTight ? 9 : 10, weight: isCurrent ? .bold : .medium, design: .rounded))
                         }
                         .foregroundColor(isCurrent ? .white : Color.white.opacity(0.6))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4.5)
+                        .padding(.horizontal, notchTight ? 7 : 10)
+                        .padding(.vertical, notchTight ? 3 : 4.5)
                         .background(
                             Capsule()
                                 .fill(isCurrent ? DesignSystem.structureColor : Color.white.opacity(0.04))
@@ -1368,11 +1370,13 @@ public struct ThockExpandedView: View {
                     .buttonStyle(.plain)
                     .help(module.isKeyMuted ? "Unmute Key Sound" : "Mute Key Sound")
                     
-                    Text("Volume")
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.85))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    if !notchCompact {
+                        Text("Volume")
+                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                     
                     Slider(
                         value: $module.keyVolume,
@@ -1421,27 +1425,31 @@ public struct ThockExpandedView: View {
             }
             
             // Sound Pack Selector Carousel & Profiles (14 Switch Types)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Mechanical Switch Profiles")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Text("Selected: \(module.currentPack.replacingOccurrences(of: "_", with: " ").capitalized)")
-                        .font(.system(size: 8.5, weight: .medium, design: .rounded))
-                        .foregroundColor(DesignSystem.accentColor)
+            VStack(alignment: .leading, spacing: notchTight ? 2 : 4) {
+                if !notchTight {
+                    HStack {
+                        Text("Mechanical Switch Profiles")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        if !notchCompact {
+                            Text("Selected: \(module.currentPack.replacingOccurrences(of: "_", with: " ").capitalized)")
+                                .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                                .foregroundColor(DesignSystem.accentColor)
+                        }
+                    }
                 }
                 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: notchTight ? 4 : 6) {
                         ForEach(module.availablePacks) { pack in
                             let isSelected = (module.currentPack == pack.name)
                             Button(action: {
                                 module.selectPack(pack.name)
                             }) {
-                                VStack(alignment: .leading, spacing: 3) {
+                                VStack(alignment: .leading, spacing: notchTight ? 1 : 3) {
                                     HStack(spacing: 4) {
                                         if pack.isFavorite {
                                             Image(systemName: "star.fill")
@@ -1450,7 +1458,7 @@ public struct ThockExpandedView: View {
                                         }
                                         
                                         Text(pack.displayName)
-                                            .font(.system(size: 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
+                                            .font(.system(size: notchTight ? 8.5 : 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
                                             .foregroundColor(isSelected ? .white : Color.white.opacity(0.9))
                                             .lineLimit(1)
                                         
@@ -1464,18 +1472,20 @@ public struct ThockExpandedView: View {
                                     }
                                     
                                     Text(pack.switchType)
-                                        .font(.system(size: 7.5, weight: .semibold))
+                                        .font(.system(size: notchTight ? 7 : 7.5, weight: .semibold))
                                         .foregroundColor(isSelected ? DesignSystem.accentColor : DesignSystem.secondaryText)
                                         .lineLimit(1)
                                     
-                                    Text(pack.acousticProfile)
-                                        .font(.system(size: 7, weight: .regular))
-                                        .foregroundColor(Color.white.opacity(0.55))
-                                        .lineLimit(1)
+                                    if !notchCompact {
+                                        Text(pack.acousticProfile)
+                                            .font(.system(size: 7, weight: .regular))
+                                            .foregroundColor(Color.white.opacity(0.55))
+                                            .lineLimit(1)
+                                    }
                                 }
-                                .frame(width: 135, alignment: .leading)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
+                                .frame(width: notchTight ? 105 : (notchCompact ? 120 : 135), alignment: .leading)
+                                .padding(.horizontal, notchTight ? 6 : 8)
+                                .padding(.vertical, notchTight ? 3.5 : (notchCompact ? 4.5 : 6))
                                 .background(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .fill(isSelected ? DesignSystem.structureColor : Color.white.opacity(0.04))
@@ -1520,11 +1530,13 @@ public struct ThockExpandedView: View {
                     .buttonStyle(.plain)
                     .help(module.isAsmrMuted ? "Unmute ASMR" : "Mute ASMR")
                     
-                    Text("Volume")
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.85))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    if !notchCompact {
+                        Text("Volume")
+                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                     
                     Slider(
                         value: $module.asmrVolume,

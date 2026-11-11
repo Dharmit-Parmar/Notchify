@@ -22,6 +22,8 @@ final class NotesUIState: ObservableObject {
 }
 
 public struct NotesWidgetView: View {
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     @ObservedObject private var noteStorage = NoteStorageManager.shared
     @ObservedObject private var aiService = AskAIService.shared
     @ObservedObject private var store = SettingsStore.shared
@@ -82,14 +84,16 @@ public struct NotesWidgetView: View {
 
                 Spacer()
 
-                Text("\(wordCount)w")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(DesignSystem.secondaryText)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.white.opacity(0.08)))
+                if !notchTight {
+                    Text("\(wordCount)w")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.white.opacity(0.08)))
+                }
             }
 
             // Body: CustomTextEditor filling available height or AI panel

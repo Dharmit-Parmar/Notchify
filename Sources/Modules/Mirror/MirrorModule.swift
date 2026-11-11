@@ -226,12 +226,16 @@ public final class MirrorModule: NotchModule {
 
 public struct MirrorContainerView: View {
     @ObservedObject var module: MirrorModule
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let previewH: CGFloat = notchTight ? 80 : (notchCompact ? 105 : 140)
+        
+        VStack(alignment: .leading, spacing: notchTight ? 4 : 8) {
             HStack {
                 Text("Camera Mirror")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: notchTight ? 10.5 : 12, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()
                 if module.isRunning {
@@ -251,11 +255,11 @@ public struct MirrorContainerView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Color.black.opacity(0.85))
-                    .frame(height: 140)
+                    .frame(height: previewH)
                 
                 CameraLivePreview(session: module.session)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .frame(height: 140)
+                    .frame(height: previewH)
                     .opacity(module.isRunning ? 1 : 0)
                 
                 if !module.isRunning {

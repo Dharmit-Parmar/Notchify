@@ -616,9 +616,11 @@ public final class TelegramModule: NotchModule {
 
 public struct TelegramModuleExpandedView: View {
     @ObservedObject var module: TelegramModule
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: notchTight ? 3 : 6) {
             // Top Bar: Pinned Contacts List + Add (+) Button
             HStack(spacing: 6) {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -732,9 +734,11 @@ public struct TelegramModuleExpandedView: View {
                         .controlSize(.mini)
                     }
                     
-                    Text("Enter your Telegram Bot Token from @BotFather. Messages beam silently in the background with zero app popups.")
-                        .font(.system(size: 9.5))
-                        .foregroundColor(DesignSystem.secondaryText)
+                    if !notchCompact {
+                        Text("Enter your Telegram Bot Token from @BotFather. Messages beam silently in the background with zero app popups.")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(DesignSystem.secondaryText)
+                    }
                     
                     HStack(spacing: 6) {
                         PasteableTextField(text: $module.botToken, placeholder: "Bot Token (e.g. 123456789:AAFx...)")
@@ -951,7 +955,7 @@ public struct TelegramModuleExpandedView: View {
                                 }
                             }
                         }
-                        .frame(height: 72)
+                        .frame(height: notchTight ? 48 : (notchCompact ? 60 : 72))
                         .onChange(of: contact.messages.count) { _, _ in
                             if let lastId = contact.messages.last?.id {
                                 proxy.scrollTo(lastId, anchor: .bottom)

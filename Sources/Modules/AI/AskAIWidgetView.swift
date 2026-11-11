@@ -13,6 +13,8 @@ final class AskAIWidgetUIState: ObservableObject {
 public struct AskAIWidgetView: View {
     public var span: Int // 1, 2, or 4 spaces
     
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     @ObservedObject private var aiService = AskAIService.shared
     @ObservedObject private var store = SettingsStore.shared
     @StateObject private var uiState = AskAIWidgetUIState()
@@ -52,7 +54,7 @@ public struct AskAIWidgetView: View {
     
     // MARK: - 1-Space Mode (Compact Tile)
     private var oneSpaceView: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: notchTight ? 3 : 6) {
             // Header
             HStack(spacing: 5) {
                 Image(systemName: "sparkles")

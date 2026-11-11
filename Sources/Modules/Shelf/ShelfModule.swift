@@ -963,37 +963,43 @@ public final class ShelfModule: NotchModule {
 public struct ShelfModuleExpandedView: View {
     @ObservedObject var module: ShelfModule
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchCompact) private var notchCompact
+    @Environment(\.notchTight) private var notchTight
     
     public var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: notchTight ? 5 : (notchCompact ? 7 : 10)) {
             // Header Bar with Breadcrumb and Clear All
             HStack(alignment: .center) {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Image(systemName: "doc.badge.gearshape.fill")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(DesignSystem.accentColor)
                     
-                    Text("File Studio")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(Color.white.opacity(0.35))
+                    if !notchTight {
+                        Text("File Studio")
+                            .font(.system(size: notchCompact ? 11.5 : 13, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(Color.white.opacity(0.35))
+                    }
                     
                     Text(module.selectedTool.title)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: notchTight ? 10 : 11, weight: .semibold, design: .rounded))
                         .foregroundColor(DesignSystem.accentColor)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                     
-                    Text("(\(module.items.count) in tray)")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(DesignSystem.secondaryText)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                    if !notchCompact {
+                        Text("(\(module.items.count) in tray)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(DesignSystem.secondaryText)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                 }
                 
                 Spacer()
@@ -1102,7 +1108,9 @@ public struct ShelfModuleExpandedView: View {
             .padding(.horizontal, 2)
             
             // Main Two-Column Stage
-            HStack(alignment: .top, spacing: 14) {
+            let wheelSize: CGFloat = notchTight ? 95 : (notchCompact ? 115 : 140)
+            let leftColWidth: CGFloat = notchTight ? 105 : (notchCompact ? 125 : 154)
+            HStack(alignment: .top, spacing: notchTight ? 8 : (notchCompact ? 10 : 14)) {
                 // Left Column: Interactive Jog Wheel OR Resultant PDF Preview Card
                 ZStack {
                     if module.leftStageMode == .preview, let doc = module.resultantDocument {
@@ -1112,34 +1120,38 @@ public struct ShelfModuleExpandedView: View {
                                 removal: .opacity
                             ))
                     } else {
-                        VStack(spacing: 6) {
+                        VStack(spacing: notchTight ? 3 : 6) {
                             InteractiveStudioWheel(module: module)
-                                .frame(width: 140, height: 140)
+                                .frame(width: wheelSize, height: wheelSize)
                             
-                            Text("Dial / tap to select")
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
-                                .foregroundColor(DesignSystem.secondaryText)
+                            if !notchTight {
+                                Text("Dial / tap to select")
+                                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
                         }
-                        .frame(width: 140)
+                        .frame(width: wheelSize)
                         .transition(.opacity)
                     }
                 }
-                .frame(width: 154)
+                .frame(width: leftColWidth)
                 
                 // Right Column: Active Tool Action Card & File Tray
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: notchTight ? 5 : 8) {
                     // Tool Details & Primary Action Trigger
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: notchTight ? 2 : 4) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(module.selectedTool.title)
-                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .font(.system(size: notchTight ? 11.5 : 13, weight: .bold, design: .rounded))
                                     .foregroundColor(.white)
                                 
-                                Text(module.selectedTool.subtitle)
-                                    .font(.system(size: 9, weight: .medium))
-                                    .foregroundColor(DesignSystem.secondaryText)
-                                    .lineLimit(2)
+                                if !notchTight {
+                                    Text(module.selectedTool.subtitle)
+                                        .font(.system(size: 9, weight: .medium))
+                                        .foregroundColor(DesignSystem.secondaryText)
+                                        .lineLimit(notchCompact ? 1 : 2)
+                                }
                             }
                             
                             Spacer()
