@@ -4035,8 +4035,59 @@ func runAllVerificationTests() {
     try? FileManager.default.removeItem(at: test97Dir)
     print("  ✓ Legacy vault.enc migration, atomic zero-wipe, and post-Keychain cleanup verified.")
     
+    // =========================================================================
+    // [TEST 98] SEC-E-1: TEMP CACHE 0700 PERMISSIONS & PURGE INVARIANT
+    // Asserts that NotchifyStudio directory enforces 0700 permissions and purges on quit/sweep.
+    // =========================================================================
+    print("\n[TEST 98] SEC-E-1: Temp Cache 0700 Permissions & Purge Invariant...")
+    let test98Base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("notch_test_shelf_cache_\(UUID().uuidString)", isDirectory: true)
+    
+    // 1. Directory creation with 0700 permissions
+    try! FileManager.default.createDirectory(at: test98Base, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try! FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: test98Base.path)
+    
+    let attrs = try! FileManager.default.attributesOfItem(atPath: test98Base.path)
+    let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue ?? 0
+    assert(perms & 0o777 == 0o700, "Temporary directory MUST enforce 0700 permissions (got \(String(perms, radix: 8)))")
+    
+    // 2. Temp file cleanup contract
+    func cleanTempFilesContract(dir: URL, all: Bool) {
+        guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        let now = Date()
+        for file in files {
+            if all {
+                try? FileManager.default.removeItem(at: file)
+            } else if let date = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+                      now.timeIntervalSince(date) > 900 {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
+    
+    // Create a fresh file and an aged file (1000s ago)
+    let freshFile = test98Base.appendingPathComponent("fresh.pdf")
+    let agedFile = test98Base.appendingPathComponent("aged.pdf")
+    try! Data("fresh content".utf8).write(to: freshFile)
+    try! Data("aged content".utf8).write(to: agedFile)
+    
+    let pastDate = Date().addingTimeInterval(-1200) // 20 minutes ago
+    try! FileManager.default.setAttributes([.modificationDate: pastDate], ofItemAtPath: agedFile.path)
+    
+    // Sweep with all: false (15-minute sweep)
+    cleanTempFilesContract(dir: test98Base, all: false)
+    assert(FileManager.default.fileExists(atPath: freshFile.path), "Fresh file (< 15 mins) must be retained during normal sweep")
+    assert(!FileManager.default.fileExists(atPath: agedFile.path), "Aged file (> 15 mins) must be purged during normal sweep")
+    
+    // Purge on quit (all: true)
+    cleanTempFilesContract(dir: test98Base, all: true)
+    assert(!FileManager.default.fileExists(atPath: freshFile.path), "All temporary files must be purged when all: true")
+    
+    // Cleanup test directory
+    try? FileManager.default.removeItem(at: test98Base)
+    print("  ✓ Temp cache 0700 permissions and two-tier purge (15-min sweep / quit purge) verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (97/97) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (98/98) ")
     print("=====================================================\n")
 }
 

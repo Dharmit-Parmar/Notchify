@@ -179,7 +179,9 @@ public final class ShelfModule: NotchModule {
     
     public init() {
         let baseTemp = FileManager.default.temporaryDirectory.appendingPathComponent("NotchifyStudio", isDirectory: true)
-        try? FileManager.default.createDirectory(at: baseTemp, withIntermediateDirectories: true)
+        // SEC-E-1: Strictly enforce 0700 permissions to protect document cache from other local users
+        try? FileManager.default.createDirectory(at: baseTemp, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: baseTemp.path)
         self.tempCacheDirectory = baseTemp
         cleanStaleTempFiles()
     }
@@ -195,7 +197,7 @@ public final class ShelfModule: NotchModule {
     public func start() {}
     public func stop() {
         cancelProcessing()
-        cleanStaleTempFiles(all: false)
+        cleanStaleTempFiles(all: true)
         evictCaches()
     }
 

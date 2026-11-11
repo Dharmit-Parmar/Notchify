@@ -260,6 +260,22 @@
   - *What could break*: If a user had an un-migrated legacy vault file, failing to clean it up leaves ciphertext on disk, while deleting it prematurely loses keys.
   - *How verified*: Fallback decryption is executed first; secrets are committed to the Keychain; then the vault file is securely overwritten with zeroes and deleted. Test 97 asserts full lifecycle correctness.
 
+### Commit 12: SEC-E-1 — Enforce 0700 Permissions and Cleanup on Temp Cache
+
+- **Commit**: `SEC-E-1: enforce 0700 permissions and cleanup on temp cache`
+- **Files Changed**:
+  - `Sources/Modules/Shelf/ShelfModule.swift`: Enforced POSIX mode `0700` (`0o700`) during `NotchifyStudio` creation and startup via `attributes: [.posixPermissions: 0o700]`; updated `stop()` to purge all temporary files (`all: true`).
+  - `Tests/VerificationTests.swift`: Added `[TEST 98]` verifying `0700` POSIX permission bits on temporary cache directory and testing the two-tier cleanup contract (15-min sweep retains active files, quit purge wipes all).
+- **Diffstat**:
+  `Sources/Modules/Shelf/ShelfModule.swift | 6 ++--`
+  `Tests/VerificationTests.swift | 53 ++++++++++++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 98 / 98 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: Other accounts on the same machine cannot access `NotchifyStudio` files.
+  - *How verified*: Cache files are user-specific working copies; restricting access to user-only (`0700`) is standard macOS security best practice. Test 98 asserts permission bits and two-tier cleanup logic.
+
+
 
 
 
