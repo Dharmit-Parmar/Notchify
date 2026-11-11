@@ -303,9 +303,11 @@ public final class ThockModule: NotchModule {
         isChildSuspended = false
     }
     
-    // MARK: - Process Group & Orphan Hygiene
+    // MARK: - Process Group & Orphan Hygiene (SEC-C-4: Precise Realpath & UID Ownership)
     nonisolated public static func sweepOrphanProcesses() {
-        let binaryPath = resolveKeySoundDirectory().appendingPathComponent("target/release/thock-cli").path
+        let rawBinaryPath = resolveKeySoundDirectory().appendingPathComponent("target/release/thock-cli").path
+        let binaryPath = URL(fileURLWithPath: rawBinaryPath).resolvingSymlinksInPath().path
+        let currentUID = geteuid()
         
         var pids = [pid_t](repeating: 0, count: 2048)
         let byteCount = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids, Int32(MemoryLayout<pid_t>.stride * pids.count))
@@ -326,13 +328,18 @@ public final class ThockModule: NotchModule {
             // Only sweep orphaned processes reparented to launchd (ppid == 1)
             guard bsdInfo.pbi_ppid == 1 else { continue }
             
+            // Must belong to the current user (SEC-C-4: prevent terminating other users' processes)
+            guard bsdInfo.pbi_uid == currentUID else { continue }
+            
             let pathLen = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
             guard pathLen > 0 else { continue }
-            let execPath = pathBuffer.withUnsafeBufferPointer { ptr in
+            let rawExecPath = pathBuffer.withUnsafeBufferPointer { ptr in
                 String(cString: ptr.baseAddress!)
             }
+            let execPath = URL(fileURLWithPath: rawExecPath).resolvingSymlinksInPath().path
             
-            if execPath == binaryPath || execPath.hasSuffix("/thock-cli") {
+            // Precise realpath match: never sweep foreign binaries based on suffix (SEC-C-4)
+            if execPath == binaryPath {
                 // Orphaned thock-cli detected! Terminate it cleanly.
                 kill(-pid, SIGTERM)
                 kill(pid, SIGTERM)

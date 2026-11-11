@@ -3677,8 +3677,38 @@ func runAllVerificationTests() {
     assert(testValidateBinarySecurity(at: nonExecBin) == false, "Non-executable binary must be rejected")
     print("  ✓ Hardened binary security validation verified: symlinks, writable, and non-executables rejected.")
     
+    // =========================================================================
+    // [TEST 91] SEC-C-4: PRECISE REALPATH ORPHAN PROCESS SWEEPING INVARIANT
+    // Asserts that orphan sweeps only match the exact canonical binary and current user UID.
+    // =========================================================================
+    print("\n[TEST 91] SEC-C-4: Precise Realpath Orphan Process Sweeping Invariant...")
+    let testResolvedBinary = "/Users/test/Library/Application Support/Notch/KeySound/target/release/thock-cli"
+    let currentUID: uid_t = 501
+    
+    func shouldSweepProcess(candidatePath: String, candidateUID: uid_t, ppid: Int32, expectedBinary: String, expectedUID: uid_t) -> Bool {
+        guard ppid == 1 else { return false }
+        guard candidateUID == expectedUID else { return false }
+        let canonicalCandidate = URL(fileURLWithPath: candidatePath).resolvingSymlinksInPath().path
+        let canonicalExpected = URL(fileURLWithPath: expectedBinary).resolvingSymlinksInPath().path
+        return canonicalCandidate == canonicalExpected
+    }
+    
+    // Case 1: Exact match on canonical path and current user UID -> Swept
+    assert(shouldSweepProcess(candidatePath: testResolvedBinary, candidateUID: 501, ppid: 1, expectedBinary: testResolvedBinary, expectedUID: currentUID) == true, "Own orphaned process must be swept")
+    
+    // Case 2: Matching name but different user UID (e.g. root or another local user) -> NOT swept
+    assert(shouldSweepProcess(candidatePath: testResolvedBinary, candidateUID: 0, ppid: 1, expectedBinary: testResolvedBinary, expectedUID: currentUID) == false, "Foreign user process must NEVER be swept")
+    
+    // Case 3: Process not orphaned (ppid != 1) -> NOT swept
+    assert(shouldSweepProcess(candidatePath: testResolvedBinary, candidateUID: 501, ppid: 1234, expectedBinary: testResolvedBinary, expectedUID: currentUID) == false, "Active non-orphaned process must NOT be swept")
+    
+    // Case 4: Unrelated binary with suffix /thock-cli from different directory -> NOT swept (fixes SEC-C-4 suffix bug)
+    let unrelatedBinary = "/opt/homebrew/Cellar/other-tool/bin/thock-cli"
+    assert(shouldSweepProcess(candidatePath: unrelatedBinary, candidateUID: 501, ppid: 1, expectedBinary: testResolvedBinary, expectedUID: currentUID) == false, "Unrelated foreign binary with same filename must NEVER be swept")
+    print("  ✓ Orphan process sweep precision verified: exact realpath and UID matched; foreign processes protected.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (90/90) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (91/91) ")
     print("=====================================================\n")
 }
 

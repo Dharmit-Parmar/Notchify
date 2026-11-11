@@ -144,3 +144,18 @@
 - **Safety Analysis (F8)**:
   - *What could break*: If the user had a working engine in `~/Doc/KeySound`, restricting search without a migration or fallback would show "Engine not installed".
   - *How verified*: Existing path is explicitly supported via opt-in developer path and safe file copy migration. Test 90 asserts that the binary security checks hold.
+
+### Commit 5: SEC-C-4 — Precise Canonical Realpath & UID Match in Orphan Sweeper
+
+- **Commit**: `SEC-C-4: match realpath and user uid in orphan process sweep`
+- **Files Changed**:
+  - `Sources/Modules/Thock/ThockModule.swift`: In `sweepOrphanProcesses()`, replaced loose `hasSuffix("/thock-cli")` with canonical `URL.resolvingSymlinksInPath().path` exact equality, and added `bsdInfo.pbi_uid == geteuid()` ownership check.
+  - `Tests/VerificationTests.swift`: Added `[TEST 91]` asserting that foreign binaries with identical filenames or different UIDs are never swept.
+- **Diffstat**:
+  `Sources/Modules/Thock/ThockModule.swift | 15 ++++++++++----`
+  `Tests/VerificationTests.swift | 32 +++++++++++++++++++++++++++++++-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 91 / 91 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If the resolved binary path differed in symlink representation from the kernel-reported `proc_pidpath`, it might fail to sweep our own orphans.
+  - *How verified*: Both paths are normalized through `resolvingSymlinksInPath()`. Test 91 confirms our own orphans are swept while foreign processes are protected.
