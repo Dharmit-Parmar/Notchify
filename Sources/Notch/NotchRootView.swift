@@ -724,22 +724,27 @@ private struct CompactNotchIndicator: View {
     let height: CGFloat
 
     var body: some View {
-        let geometry = coordinator.geometry
-        if geometry.hasPhysicalNotch {
-            switch store.compactIndicatorStyle {
-            case .minimal:
-                // Shape matches physical notch cutout width and disappears seamlessly into bezel
+        let layout = coordinator.currentCollapsedLayout
+        if coordinator.geometry.hasPhysicalNotch {
+            if !layout.isWingsVisible {
+                // In "Hide behind notch" or inactive "Wings on events":
+                // Zero pixels drawn outside the hardware cutout. Completely disappears into bezel!
                 EmptyView()
-            case .threeZoneStatusBar:
-                CompactThreeZoneStatusBarIndicator()
-            case .media:
-                CompactWingMediaIndicator(notchWidth: geometry.physicalNotchWidth)
-            case .battery:
-                CompactWingBatteryIndicator(notchWidth: geometry.physicalNotchWidth)
-            case .dateTime:
-                CompactWingDateTimeIndicator(notchWidth: geometry.physicalNotchWidth)
-            case .circadian:
-                CompactWingCircadianIndicator(notchWidth: geometry.physicalNotchWidth)
+            } else {
+                switch store.compactIndicatorStyle {
+                case .minimal:
+                    compactWingMinimalView(layout: layout)
+                case .threeZoneStatusBar:
+                    CompactThreeZoneStatusBarIndicator(layout: layout)
+                case .media:
+                    CompactWingMediaIndicator(layout: layout)
+                case .battery:
+                    CompactWingBatteryIndicator(layout: layout)
+                case .dateTime:
+                    CompactWingDateTimeIndicator(layout: layout)
+                case .circadian:
+                    CompactWingCircadianIndicator(layout: layout)
+                }
             }
         } else {
             HStack(spacing: 8) {
@@ -763,6 +768,24 @@ private struct CompactNotchIndicator: View {
         }
     }
     
+    private func compactWingMinimalView(layout: CollapsedLayout) -> some View {
+        HStack(spacing: 0) {
+            Circle()
+                .fill(CompactIndicatorStyle.minimal.tintColor)
+                .frame(width: 5, height: 5)
+                .frame(width: layout.effectiveWingWidth, alignment: .center)
+            
+            Spacer()
+                .frame(width: layout.centerCutoutRect.width)
+                .allowsHitTesting(false)
+            
+            Capsule()
+                .fill(CompactIndicatorStyle.minimal.tintColor.opacity(0.70))
+                .frame(width: 12, height: 3)
+                .frame(width: layout.effectiveWingWidth, alignment: .center)
+        }
+    }
+    
     private var minimalIndicator: some View {
         HStack {
             Spacer()
@@ -775,14 +798,16 @@ private struct CompactNotchIndicator: View {
     
     private var dateTimeIndicator: some View {
         TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: "calendar")
                     .font(.system(size: 9))
                     .foregroundColor(CompactIndicatorStyle.dateTime.tintColor)
                 Text(timeline.date.formatted(date: .omitted, time: .shortened))
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
-                Spacer()
+                Text("•")
+                    .font(.system(size: 8))
+                    .foregroundColor(DesignSystem.secondaryText.opacity(0.6))
                 Text(timeline.date.formatted(.dateTime.weekday(.abbreviated)))
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .foregroundColor(DesignSystem.secondaryText)
@@ -874,57 +899,53 @@ private struct CompactBatteryIndicator: View {
 
 private struct CompactWingMediaIndicator: View {
     @ObservedObject private var nowPlaying = NowPlayingModule.shared
-    let notchWidth: CGFloat
+    let layout: CollapsedLayout
     
     var body: some View {
         HStack(spacing: 0) {
             // Left Wing
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 if nowPlaying.hasActiveMedia {
                     if let art = nowPlaying.artwork {
                         Image(nsImage: art)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 14, height: 14)
-                            .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
+                            .frame(width: 13, height: 13)
+                            .clipShape(RoundedRectangle(cornerRadius: 3.0, style: .continuous))
                     } else {
                         Image(systemName: "music.note")
-                            .font(.system(size: 9))
+                            .font(.system(size: 8.5))
                             .foregroundColor(CompactIndicatorStyle.media.tintColor)
                     }
                     Text(nowPlaying.trackTitle)
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        .font(.system(size: 9.0, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                         .lineLimit(1)
                 } else {
                     Image(systemName: "music.note")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8.5))
                         .foregroundColor(CompactIndicatorStyle.media.tintColor)
-                    Text("No Media")
-                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                        .foregroundColor(DesignSystem.secondaryText)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 8)
+            .frame(width: layout.effectiveWingWidth, alignment: .center)
+            .padding(.horizontal, 4)
             
             // Physical Cutout Clear Zone: 0 pixels inside physical notch cutout
             Spacer()
-                .frame(width: max(20.0, notchWidth))
+                .frame(width: layout.centerCutoutRect.width)
                 .allowsHitTesting(false)
             
             // Right Wing
-            HStack(spacing: 4) {
-                Spacer()
+            HStack(spacing: 2) {
                 if nowPlaying.hasActiveMedia && nowPlaying.isPlaying {
                     HStack(spacing: 1.5) {
+                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 5)
+                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 10)
                         RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 6)
-                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 11)
-                        RoundedRectangle(cornerRadius: 1).fill(CompactIndicatorStyle.media.tintColor).frame(width: 2, height: 7)
                     }
                 } else if nowPlaying.hasActiveMedia {
                     Image(systemName: "pause.fill")
-                        .font(.system(size: 8))
+                        .font(.system(size: 7.5))
                         .foregroundColor(Color.white.opacity(0.45))
                 } else {
                     Circle()
@@ -932,8 +953,8 @@ private struct CompactWingMediaIndicator: View {
                         .frame(width: 4, height: 4)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 8)
+            .frame(width: layout.effectiveWingWidth, alignment: .center)
+            .padding(.horizontal, 4)
         }
         .contentShape(Rectangle())
     }
@@ -941,78 +962,77 @@ private struct CompactWingMediaIndicator: View {
 
 private struct CompactWingBatteryIndicator: View {
     @ObservedObject private var battery = BatteryModule.shared
-    let notchWidth: CGFloat
+    let layout: CollapsedLayout
     
     var body: some View {
         HStack(spacing: 0) {
             // Left Wing
-            TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 8.5))
-                        .foregroundColor(CompactIndicatorStyle.battery.tintColor)
-                    Text(timeline.date.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.white)
-                }
+            HStack(spacing: 3) {
+                Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
+                    .font(.system(size: 8.5))
+                    .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.battery.tintColor)
+                Text("\(battery.percentage)%")
+                    .font(.system(size: 9.0, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 8)
+            .frame(width: layout.effectiveWingWidth, alignment: .center)
+            .padding(.horizontal, 4)
             
             // Physical Cutout Clear Zone
             Spacer()
-                .frame(width: max(20.0, notchWidth))
+                .frame(width: layout.centerCutoutRect.width)
                 .allowsHitTesting(false)
             
             // Right Wing
-            HStack(spacing: 4) {
-                Spacer()
-                Text("\(battery.percentage)%")
-                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
-                    .font(.system(size: 9))
-                    .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.battery.tintColor)
+            TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
+                HStack(spacing: 3) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 8.0))
+                        .foregroundColor(CompactIndicatorStyle.battery.tintColor)
+                    Text(timeline.date.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 8.5, weight: .medium, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 8)
+            .frame(width: layout.effectiveWingWidth, alignment: .center)
+            .padding(.horizontal, 4)
         }
         .contentShape(Rectangle())
     }
 }
 
 private struct CompactWingDateTimeIndicator: View {
-    let notchWidth: CGFloat
+    let layout: CollapsedLayout
     
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
             HStack(spacing: 0) {
                 // Left Wing
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     Image(systemName: "calendar")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8.5))
                         .foregroundColor(CompactIndicatorStyle.dateTime.tintColor)
                     Text(timeline.date.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 9.0, weight: .semibold, design: .monospaced))
                         .foregroundColor(.white)
+                        .lineLimit(1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 8)
+                .frame(width: layout.effectiveWingWidth, alignment: .center)
+                .padding(.horizontal, 4)
                 
                 // Physical Cutout Clear Zone
                 Spacer()
-                    .frame(width: max(20.0, notchWidth))
+                    .frame(width: layout.centerCutoutRect.width)
                     .allowsHitTesting(false)
                 
                 // Right Wing
-                HStack(spacing: 4) {
-                    Spacer()
+                HStack(spacing: 3) {
                     Text(timeline.date.formatted(.dateTime.weekday(.abbreviated)))
-                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .font(.system(size: 9.0, weight: .semibold, design: .rounded))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 8)
+                .frame(width: layout.effectiveWingWidth, alignment: .center)
+                .padding(.horizontal, 4)
             }
         }
         .contentShape(Rectangle())
@@ -1021,39 +1041,38 @@ private struct CompactWingDateTimeIndicator: View {
 
 private struct CompactWingCircadianIndicator: View {
     @ObservedObject private var themeEngine = DynamicThemeEngine.shared
-    let notchWidth: CGFloat
+    let layout: CollapsedLayout
     
     var body: some View {
         HStack(spacing: 0) {
             // Left Wing
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: "sun.max.fill")
-                    .font(.system(size: 9))
+                    .font(.system(size: 8.5))
                     .foregroundColor(CompactIndicatorStyle.circadian.tintColor)
                 Text(themeEngine.paletteSource)
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .font(.system(size: 9.0, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 8)
+            .frame(width: layout.effectiveWingWidth, alignment: .center)
+            .padding(.horizontal, 4)
             
             // Physical Cutout Clear Zone
             Spacer()
-                .frame(width: max(20.0, notchWidth))
+                .frame(width: layout.centerCutoutRect.width)
                 .allowsHitTesting(false)
             
             // Right Wing
             TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
-                HStack(spacing: 4) {
-                    Spacer()
+                HStack(spacing: 3) {
                     Text(timeline.date.formatted(date: .omitted, time: .shortened))
-                        .font(.system(size: 9, design: .monospaced))
+                        .font(.system(size: 8.5, design: .monospaced))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 8)
+            .frame(width: layout.effectiveWingWidth, alignment: .center)
+            .padding(.horizontal, 4)
         }
         .contentShape(Rectangle())
     }
@@ -1062,49 +1081,53 @@ private struct CompactWingCircadianIndicator: View {
 private struct CompactThreeZoneStatusBarIndicator: View {
     @ObservedObject private var nowPlaying = NowPlayingModule.shared
     @ObservedObject private var battery = BatteryModule.shared
+    let layout: CollapsedLayout?
+    
+    init(layout: CollapsedLayout? = nil) {
+        self.layout = layout
+    }
     
     var body: some View {
         let geometry = NotchGeometry.current()
-        if geometry.hasPhysicalNotch {
+        if geometry.hasPhysicalNotch, let layout = layout {
             HStack(spacing: 0) {
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     if nowPlaying.hasActiveMedia {
                         Image(systemName: "music.note")
-                            .font(.system(size: 9))
+                            .font(.system(size: 8.5))
                             .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
                         Text(nowPlaying.trackTitle)
-                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 9.0, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
                             .lineLimit(1)
                     } else {
                         Image(systemName: "clock")
-                            .font(.system(size: 8.5))
+                            .font(.system(size: 8.0))
                             .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
                         TimelineView(.periodic(from: .now, by: 60.0)) { timeline in
                             Text(timeline.date.formatted(date: .omitted, time: .shortened))
-                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 9.0, weight: .semibold, design: .monospaced))
                                 .foregroundColor(.white)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 8)
+                .frame(width: layout.effectiveWingWidth, alignment: .center)
+                .padding(.horizontal, 4)
                 
                 Spacer()
-                    .frame(width: max(20.0, geometry.physicalNotchWidth))
+                    .frame(width: layout.centerCutoutRect.width)
                     .allowsHitTesting(false)
                 
-                HStack(spacing: 4) {
-                    Spacer()
+                HStack(spacing: 3) {
                     Text("\(battery.percentage)%")
-                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .font(.system(size: 9.0, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8.5))
                         .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.threeZoneStatusBar.tintColor)
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 8)
+                .frame(width: layout.effectiveWingWidth, alignment: .center)
+                .padding(.horizontal, 4)
             }
             .contentShape(Rectangle())
         } else {
@@ -1115,7 +1138,7 @@ private struct CompactThreeZoneStatusBarIndicator: View {
                             .font(.system(size: 8.5))
                             .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
                         Text(timeline.date.formatted(date: .omitted, time: .shortened))
-                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 9.0, weight: .semibold, design: .monospaced))
                             .foregroundColor(.white)
                     }
                 }
@@ -1130,13 +1153,13 @@ private struct CompactThreeZoneStatusBarIndicator: View {
                             .font(.system(size: 8.5))
                             .foregroundColor(CompactIndicatorStyle.threeZoneStatusBar.tintColor)
                         Text(nowPlaying.trackTitle)
-                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                            .font(.system(size: 9.0, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
                             .lineLimit(1)
                     }
                 } else {
                     Text("Notch Island")
-                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                        .font(.system(size: 9.0, weight: .medium, design: .rounded))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
                 
@@ -1146,10 +1169,10 @@ private struct CompactThreeZoneStatusBarIndicator: View {
                 
                 HStack(spacing: 3) {
                     Text("\(battery.percentage)%")
-                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .font(.system(size: 9.0, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     Image(systemName: battery.isCharging ? "battery.100.bolt" : "battery.100")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8.5))
                         .foregroundColor(battery.percentage < 20 ? .red : CompactIndicatorStyle.threeZoneStatusBar.tintColor)
                 }
             }

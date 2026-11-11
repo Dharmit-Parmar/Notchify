@@ -349,6 +349,91 @@ public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+// MARK: - Collapsed Notch Width & Wings Mode
+public enum CollapsedNotchMode: String, CaseIterable, Identifiable, Codable, Sendable {
+    case hideBehindNotch = "Hide behind notch"
+    case wingsOnEvents = "Wings on events"
+    case alwaysShowWings = "Always show wings"
+    
+    public var id: String { rawValue }
+    
+    public var icon: String {
+        switch self {
+        case .hideBehindNotch: return "eye.slash"
+        case .wingsOnEvents: return "sparkles"
+        case .alwaysShowWings: return "rectangle.expand.vertical"
+        }
+    }
+    
+    public var subtitle: String {
+        switch self {
+        case .hideBehindNotch: return "Pill strictly matches physical cutout; nothing visible outside"
+        case .wingsOnEvents: return "Wings slide out only when media, charging or events are active"
+        case .alwaysShowWings: return "Wings remain comfortably visible with configured width"
+        }
+    }
+}
+
+// MARK: - Notch Position Attachment
+public enum NotchPositionAttachment: String, CaseIterable, Identifiable, Codable, Sendable {
+    case hardwareNotch = "Attach to hardware notch"
+    case custom = "Custom"
+    case belowMenuBar = "Below menu bar"
+    
+    public var id: String { rawValue }
+    
+    public var icon: String {
+        switch self {
+        case .hardwareNotch: return "display"
+        case .custom: return "slider.horizontal.2.square"
+        case .belowMenuBar: return "menubar.arrow.down.rectangle"
+        }
+    }
+    
+    public var subtitle: String {
+        switch self {
+        case .hardwareNotch: return "Anchored flush to the top bezel and hardware cutout"
+        case .custom: return "Freely adjusted via offsets and arrow-key nudges"
+        case .belowMenuBar: return "Positioned directly below the macOS menu bar strip"
+        }
+    }
+}
+
+// MARK: - Per-Display Position & Size Profile (Versioned Codable)
+public struct DisplayPositionProfile: Codable, Equatable, Sendable {
+    public var version: Int = 1
+    public var wingMode: CollapsedNotchMode = .hideBehindNotch
+    public var attachment: NotchPositionAttachment = .hardwareNotch
+    public var wingWidth: CGFloat = 56.0
+    public var collapsedHeight: CGFloat = 34.0
+    public var horizontalOffset: CGFloat = 0.0
+    public var verticalOffset: CGFloat = 0.0
+    public var customX: CGFloat? = nil
+    public var customY: CGFloat? = nil
+    
+    public init(
+        version: Int = 1,
+        wingMode: CollapsedNotchMode = .hideBehindNotch,
+        attachment: NotchPositionAttachment = .hardwareNotch,
+        wingWidth: CGFloat = 56.0,
+        collapsedHeight: CGFloat = 34.0,
+        horizontalOffset: CGFloat = 0.0,
+        verticalOffset: CGFloat = 0.0,
+        customX: CGFloat? = nil,
+        customY: CGFloat? = nil
+    ) {
+        self.version = version
+        self.wingMode = wingMode
+        self.attachment = attachment
+        self.wingWidth = wingWidth
+        self.collapsedHeight = collapsedHeight
+        self.horizontalOffset = horizontalOffset
+        self.verticalOffset = verticalOffset
+        self.customX = customX
+        self.customY = customY
+    }
+}
+
 // MARK: - Apple Music Live Waveform Equalizer
 public struct LiveEqualizerIndicator: View {
     @ObservedObject private var shell = NotchShellCoordinator.shared

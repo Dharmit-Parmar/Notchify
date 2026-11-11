@@ -1,62 +1,85 @@
-# Phase 1 Manual Verification Steps: Notch Position & Flush Bezel Integration
+# Phase 1 Manual Verification Steps: Collapsed Notch Width Model & Event-Driven Wings
 
-These verification checks confirm the root-cause fixes applied in Phase 1 for the notch position, window level, and bezel merging.
+These manual verification steps confirm the width model, event-driven wings, and hit-testing pass-through implemented in Phase 1.
 
 ---
 
-### Check 1: Collapsed Notch Flush Top Alignment (Desktop)
-- **Goal:** Verify the collapsed notch pill sits flush against the very top edge of the display, merging directly into the physical notch bezel instead of floating below the menu bar.
+### Check 1: Default "Hide Behind Notch" Mode (Zero Visible Pixels Outside Cutout)
+- **Goal:** Verify that in the default mode, the collapsed notch pill is completely contained within the physical hardware cutout.
 - **Steps:**
   1. Launch the app (`swift run NotchApp` or launch compiled binary).
-  2. With the desktop visible (or any standard windowed app open), observe the collapsed notch pill.
-  3. Inspect the top edge of the pill where it meets the black bezel.
-- **Pass Criteria:** The top edge of the notch panel sits exactly at `screen.frame.maxY` (0pt gap from top screen bezel). There is no gap between the notch and the bezel.
-- **Failure Condition:** The pill renders below the menu bar with visible desktop wallpaper or menu bar space above it.
+  2. Ensure Settings -> Position & Size -> Collapsed Mode is set to **"Hide behind notch"** (default).
+  3. Observe the collapsed notch at the top bezel.
+- **Pass Criteria:**
+  - The notch pill width matches the physical hardware notch (+ 2 pt overlap per side to prevent visual hairline seams).
+  - Absolutely **zero pixels** (text, background glass, icons) are rendered outside or to the sides of the physical hardware notch.
+  - The top edge of the pill is flush against the top bezel.
+- **Failure Condition:** The pill extends past the physical notch edges into the menu bar, or renders text/clock icons beside the notch.
 
 ---
 
-### Check 2: Full-Screen Safari & Full-Screen Spaces
-- **Goal:** Verify the notch pill does not drop down over the Safari address bar or toolbar in native macOS full-screen mode.
+### Check 2: Pass-Through Hit-Testing (Menu Bar Items Beside Notch Are Fully Clickable)
+- **Goal:** Verify that `NotchHostingView.hitTest(_:)` allows clicks to pass through to menu bar items and status icons located beside the notch.
 - **Steps:**
-  1. Open Safari and click the green maximize button to enter native full-screen mode.
-  2. Look at the top center of the screen, specifically the Safari address bar and tab bar.
-  3. Move the mouse to reveal and hide the full-screen menu bar.
-- **Pass Criteria:** The collapsed notch remains docked flush at the very top of the physical bezel (`.popUpMenu` level with `.fullScreenAuxiliary`). It does NOT drop down onto or obscure the Safari address bar.
-- **Failure Condition:** The notch pill renders floating over the Safari URL/search bar or website header.
+  1. Open several menu bar applications or ensure status items (e.g. Wi-Fi, battery, clock, Control Center) are located near the notch.
+  2. With the notch collapsed, click on menu bar icons positioned immediately adjacent to the notch (20 pt to 80 pt to the left and right).
+  3. Click on the Apple menu or app menus on the left side of the notch.
+- **Pass Criteria:**
+  - Clicking any menu bar icon immediately opens its menu or status popover.
+  - Clicks are NOT intercepted, swallowed, or blocked by the notch panel.
+- **Failure Condition:** Clicking near the notch fails to open menu bar items or requires moving the mouse far away from the center.
 
 ---
 
-### Check 3: Bezel Merger, Zero-Pixel Cutout Zone & Wings
-- **Goal:** Verify that collapsed notch width matches the cutout when Minimal, and content sits strictly on the left/right wings without pixels hidden behind the hardware notch.
+### Check 3: "Wings on Events" Dynamic Slide-Out and Retraction
+- **Goal:** Verify that wings slide out only while active events occur and retract immediately when events stop.
 - **Steps:**
-  1. Open Settings -> Appearance / Compact Indicator.
-  2. Set Compact Indicator to **"Minimal"**:
-     - Observe the collapsed notch: it matches the physical notch cutout width and disappears seamlessly into the black bezel.
-  3. Set Compact Indicator to **"Media"**, **"Battery"**, or **"3-Zone Status Bar"**:
-     - Observe the layout of indicators: content sits in the left wing (beside the notch) and right wing (beside the notch).
-- **Pass Criteria:** In Minimal mode, the pill disappears into the physical notch cutout. In wing modes, all text, numbers, and icons are 100% visible on the left and right sides of the notch; no text or icon is drawn inside or occluded by the physical camera cutout.
-- **Failure Condition:** Text or icons render in the center dead-zone behind the physical camera plastic.
+  1. Set Collapsed Mode to **"Wings on events"**.
+  2. While no music is playing and the laptop is on battery:
+     - Observe the notch: it remains hidden behind the physical cutout (0 pt wings).
+  3. Start playing music in Apple Music or Spotify:
+     - Observe the notch: left wing slides out displaying artwork/title, and right wing slides out displaying animated equalizer bars.
+  4. Pause music playback:
+     - Observe the notch: wings smoothly slide back behind the physical notch cutout.
+  5. Plug in the MagSafe / USB-C charger:
+     - Observe the notch: battery charging wing slides out showing the charging bolt and battery percentage.
+  6. Unplug the charger:
+     - Observe the notch: wing retracts behind the notch.
+  7. Enable macOS System Settings -> Accessibility -> Display -> **Reduce Motion**:
+     - Repeat steps 3–6. Verify transitions are immediate without spring animation.
+- **Pass Criteria:** Wings only appear during active events and cleanly retract when events end. Transitions are smooth and respect Reduce Motion.
+- **Failure Condition:** Wings remain permanently visible when no events are active, or fail to retract after media is paused.
 
 ---
 
-### Check 4: Settings Window Decoupling, Minimization & Focus Non-Overlap
-- **Goal:** Verify Settings is a standard window (`.normal` level) that minimizes to the Dock and never gets occluded by the notch when focused.
+### Check 4: "Always Show Wings" & Elimination of Opposing-Pole Empty Void
+- **Goal:** Verify that in wing-enabled modes, indicators render comfortably snug against the notch without wide 370 pt balloons or empty center voids.
 - **Steps:**
-  1. Open Settings (via menu bar or expanding notch and clicking gear).
-  2. Click the yellow minimize button on the Settings window.
-  3. Check the macOS Dock: verify Notchify has a Dock tile with the minimized window.
-  4. Click the Dock tile: verify the Settings window restores cleanly.
-  5. Drag the Settings window near the top center of the screen directly beneath the notch.
-  6. Click inside the Settings window to focus it.
-- **Pass Criteria:** When Settings has key focus, the notch collapses immediately into the physical notch cutout, eliminating any overlap. Settings can be minimized and restored without trapping or clipping.
-- **Failure Condition:** Expanded notch blocks Settings controls while Settings has focus, or Settings fails to minimize to the Dock.
+  1. Set Collapsed Mode to **"Always show wings"**.
+  2. Set Compact Indicator Style to **"Clock" (`.dateTime`)**:
+     - Observe the left and right wings.
+  3. Compare with prior buggy behavior:
+     - Prior behavior: 370 pt wide pill with the clock at the extreme left (x: 8 pt) and "Wed" at the extreme right (x: 362 pt) with a gaping 210 pt empty void in the middle.
+     - New behavior: Left wing displays calendar icon + time within a compact 56 pt wing; right wing displays weekday within a compact 56 pt wing, anchored directly against the sides of the hardware notch.
+  4. Cycle through all 6 compact styles:
+     - **Minimal**: No wings.
+     - **Media**: Art + Title left (56 pt), Equalizer right (56 pt).
+     - **Battery**: Time left (56 pt), Battery % right (56 pt).
+     - **Clock**: Time left (56 pt), Day right (56 pt).
+     - **Circadian**: Sun icon left (56 pt), Time right (56 pt).
+     - **3-Zone Status Bar**: Media left, status center, clock right.
+- **Pass Criteria:** All 6 styles render content within the configured wing width (default 56 pt). Content is legible, compact, and snug against the notch without awkward pole separation.
+- **Failure Condition:** Time and weekday are separated by a giant empty void, or wings extend 80–100 pt across the menu bar.
 
 ---
 
-### Check 5: Non-Notch Display (External Monitor)
-- **Goal:** Verify behavior on a display without a hardware notch (e.g., external monitor or iMac).
+### Check 5: Display Without a Hardware Notch (External Display / iMac)
+- **Goal:** Verify collapsed notch behavior on screens without a physical notch cutout.
 - **Steps:**
-  1. Connect or switch to an external monitor without a notch.
-  2. Observe the collapsed notch.
-- **Pass Criteria:** The notch renders as a centered top pill with rounded top and bottom corners (`topRadius: 10, bottomRadius: 14`), neatly centered horizontally at `screen.frame.midX`.
-- **Failure Condition:** Pill renders square top corners on a non-notch screen or is horizontally misaligned.
+  1. Move the app window or connect an external display without a notch.
+  2. Observe the collapsed pill.
+- **Pass Criteria:**
+  - Renders as a centered top pill (`width: 180 pt + wing factor`, `height: 32 pt`).
+  - Top and bottom corners are rounded (`topRadius: 10, bottomRadius: 14`).
+  - In Clock mode, time and weekday are rendered in a compact, bullet-separated pill (`"11:24 AM • Wed"`) rather than pushed to opposite edges with a large empty spacer.
+- **Failure Condition:** Pill renders square top corners or large empty void on non-notch screens.

@@ -38,6 +38,31 @@ public final class NotchShellCoordinator: ObservableObject {
     
     public weak var panel: NotchPanel?
     
+    public var currentCollapsedLayout: CollapsedLayout {
+        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        let geom = NotchGeometry.current(for: screen)
+        let store = SettingsStore.shared
+        return NotchGeometry.collapsedLayout(
+            geometry: geom,
+            style: store.compactIndicatorStyle,
+            mode: store.collapsedNotchMode,
+            attachment: store.positionAttachment,
+            wingWidth: store.wingWidth,
+            collapsedHeight: store.collapsedNotchHeight,
+            horizontalOffset: store.horizontalNotchOffset,
+            verticalOffset: store.verticalNotchOffset,
+            activeEvents: ActiveNotchEvents(
+                isMediaPlaying: NowPlayingModule.shared.hasActiveMedia,
+                isCharging: BatteryModule.shared.isCharging
+            )
+        )
+    }
+    
+    public func updateEventDrivenWings() {
+        guard state == .collapsed, SettingsStore.shared.collapsedNotchMode == .wingsOnEvents else { return }
+        panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
+    }
+    
     private var hoverWorkItem: DispatchWorkItem?
     private var collapseWorkItem: DispatchWorkItem?
     private var expandedWatchdog: Timer?

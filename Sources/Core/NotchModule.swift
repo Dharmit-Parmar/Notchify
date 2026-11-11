@@ -227,6 +227,33 @@ public class SettingsStore: ObservableObject {
     @Published public var hoverTriggerWidth: CGFloat = 210.0 {
         didSet { UserDefaults.standard.set(Double(hoverTriggerWidth), forKey: "NotchApp_HoverTriggerWidth") }
     }
+    
+    // Collapsed Notch Width Model & Position Architecture (Phase 1 & 2)
+    @Published public var collapsedNotchMode: CollapsedNotchMode = .hideBehindNotch {
+        didSet { UserDefaults.standard.set(collapsedNotchMode.rawValue, forKey: "NotchApp_CollapsedNotchMode") }
+    }
+    @Published public var positionAttachment: NotchPositionAttachment = .hardwareNotch {
+        didSet { UserDefaults.standard.set(positionAttachment.rawValue, forKey: "NotchApp_PositionAttachment") }
+    }
+    @Published public var wingWidth: CGFloat = 56.0 {
+        didSet { UserDefaults.standard.set(Double(wingWidth), forKey: "NotchApp_WingWidth") }
+    }
+    @Published public var collapsedNotchHeight: CGFloat = 34.0 {
+        didSet { UserDefaults.standard.set(Double(collapsedNotchHeight), forKey: "NotchApp_CollapsedNotchHeight") }
+    }
+    @Published public var horizontalNotchOffset: CGFloat = 0.0 {
+        didSet { UserDefaults.standard.set(Double(horizontalNotchOffset), forKey: "NotchApp_HorizontalNotchOffset") }
+    }
+    @Published public var verticalNotchOffset: CGFloat = 0.0 {
+        didSet { UserDefaults.standard.set(Double(verticalNotchOffset), forKey: "NotchApp_VerticalNotchOffset") }
+    }
+    @Published public var displayPositionProfiles: [String: DisplayPositionProfile] = [:] {
+        didSet {
+            if let data = try? JSONEncoder().encode(displayPositionProfiles) {
+                UserDefaults.standard.set(data, forKey: "NotchApp_DisplayPositionProfiles")
+            }
+        }
+    }
     @Published public var contentHorizontalPadding: CGFloat = 16.0 {
         didSet { UserDefaults.standard.set(Double(contentHorizontalPadding), forKey: "NotchApp_ContentHorizontalPadding") }
     }
@@ -526,8 +553,88 @@ public class SettingsStore: ObservableObject {
         if let rawDebug = UserDefaults.standard.object(forKey: "NotchApp_CompanionDebugSkeleton") as? Bool {
             self.companionDebugSkeleton = rawDebug
         }
+        
+        // Collapsed Notch Width Model & Position Architecture Loading (Phase 1 & 2)
+        if let savedMode = defaults.string(forKey: "NotchApp_CollapsedNotchMode"),
+           let mode = CollapsedNotchMode(rawValue: savedMode) {
+            self.collapsedNotchMode = mode
+        }
+        if let savedAttachment = defaults.string(forKey: "NotchApp_PositionAttachment"),
+           let attachment = NotchPositionAttachment(rawValue: savedAttachment) {
+            self.positionAttachment = attachment
+        }
+        if defaults.object(forKey: "NotchApp_WingWidth") != nil {
+            self.wingWidth = min(160, max(0, CGFloat(defaults.double(forKey: "NotchApp_WingWidth"))))
+        }
+        if defaults.object(forKey: "NotchApp_CollapsedNotchHeight") != nil {
+            self.collapsedNotchHeight = min(60, max(24, CGFloat(defaults.double(forKey: "NotchApp_CollapsedNotchHeight"))))
+        }
+        if defaults.object(forKey: "NotchApp_HorizontalNotchOffset") != nil {
+            self.horizontalNotchOffset = CGFloat(defaults.double(forKey: "NotchApp_HorizontalNotchOffset"))
+        }
+        if defaults.object(forKey: "NotchApp_VerticalNotchOffset") != nil {
+            self.verticalNotchOffset = CGFloat(defaults.double(forKey: "NotchApp_VerticalNotchOffset"))
+        }
+        if let data = defaults.data(forKey: "NotchApp_DisplayPositionProfiles"),
+           let profiles = try? JSONDecoder().decode([String: DisplayPositionProfile].self, from: data) {
+            self.displayPositionProfiles = profiles
+        }
+        
         self.isAccessibilityGranted = AXIsProcessTrusted()
         self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
+    }
+    
+    // MARK: - Per-Display Position & Size Profile Helpers
+    
+    public func screenKey(for screen: NSScreen) -> String {
+        if let num = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
+            return "Screen_\(num.intValue)"
+        }
+        return screen.localizedName
+    }
+    
+    public func positionProfile(for screen: NSScreen) -> DisplayPositionProfile {
+        let key = screenKey(for: screen)
+        if let profile = displayPositionProfiles[key] {
+            return profile
+        }
+        let geom = NotchGeometry.current(for: screen)
+        let defaultProfile = DisplayPositionProfile(
+            version: 1,
+            wingMode: collapsedNotchMode,
+            attachment: positionAttachment,
+            wingWidth: wingWidth,
+            collapsedHeight: geom.hasPhysicalNotch ? geom.physicalNotchHeight : 32.0,
+            horizontalOffset: horizontalNotchOffset,
+            verticalOffset: verticalNotchOffset
+        )
+        return defaultProfile
+    }
+    
+    public func updatePositionProfile(_ profile: DisplayPositionProfile, for screen: NSScreen) {
+        let key = screenKey(for: screen)
+        displayPositionProfiles[key] = profile
+        // Sync active state variables for currently active display
+        self.collapsedNotchMode = profile.wingMode
+        self.positionAttachment = profile.attachment
+        self.wingWidth = profile.wingWidth
+        self.collapsedNotchHeight = profile.collapsedHeight
+        self.horizontalNotchOffset = profile.horizontalOffset
+        self.verticalNotchOffset = profile.verticalOffset
+    }
+    
+    public func resetPositionProfile(for screen: NSScreen) {
+        let geom = NotchGeometry.current(for: screen)
+        let defaultProfile = DisplayPositionProfile(
+            version: 1,
+            wingMode: .hideBehindNotch,
+            attachment: .hardwareNotch,
+            wingWidth: 56.0,
+            collapsedHeight: geom.hasPhysicalNotch ? geom.physicalNotchHeight : 32.0,
+            horizontalOffset: 0.0,
+            verticalOffset: 0.0
+        )
+        updatePositionProfile(defaultProfile, for: screen)
     }
     
     // MARK: - Dashboard Slot Helpers

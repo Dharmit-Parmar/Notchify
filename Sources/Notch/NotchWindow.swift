@@ -180,30 +180,33 @@ public final class NotchPanel: NSPanel {
                 }
             }
         } else {
-            if geometry.hasPhysicalNotch {
-                switch store.compactIndicatorStyle {
-                case .minimal:
-                    targetWidth = geometry.physicalNotchWidth
-                case .threeZoneStatusBar:
-                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 180.0)
-                case .media:
-                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)
-                case .battery:
-                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 140.0)
-                case .dateTime:
-                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)
-                case .circadian:
-                    targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)
-                }
-                targetHeight = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)
-            } else {
-                targetWidth = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0
-                targetHeight = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0
-            }
+            let layout = NotchGeometry.collapsedLayout(
+                geometry: geometry,
+                style: store.compactIndicatorStyle,
+                mode: store.collapsedNotchMode,
+                attachment: store.positionAttachment,
+                wingWidth: store.wingWidth,
+                collapsedHeight: store.collapsedNotchHeight,
+                horizontalOffset: store.horizontalNotchOffset,
+                verticalOffset: store.verticalNotchOffset,
+                activeEvents: ActiveNotchEvents(
+                    isMediaPlaying: NowPlayingModule.shared.hasActiveMedia,
+                    isCharging: BatteryModule.shared.isCharging
+                )
+            )
+            return layout.windowRect
         }
         
-        let x = geometry.notchCenterX - (targetWidth / 2.0)
-        let y = screenFrame.origin.y + screenFrame.height - targetHeight
+        let x = (geometry.notchCenterX + store.horizontalNotchOffset) - (targetWidth / 2.0)
+        let topY: CGFloat
+        switch store.positionAttachment {
+        case .hardwareNotch, .custom:
+            topY = screenFrame.maxY + store.verticalNotchOffset
+        case .belowMenuBar:
+            topY = screenFrame.maxY - geometry.topInset + store.verticalNotchOffset
+        }
+        let clampedTopY = min(screenFrame.maxY, topY)
+        let y = clampedTopY - targetHeight
         
         return NSRect(x: x, y: y, width: targetWidth, height: targetHeight)
     }
@@ -251,6 +254,19 @@ public final class NotchHostingView<Content: View>: NSHostingView<Content> {
         )
         addTrackingArea(area)
         trackingArea = area
+    }
+    
+    public override func hitTest(_ point: NSPoint) -> NSView? {
+        let coordinator = NotchShellCoordinator.shared
+        if coordinator.state == .collapsed {
+            let layout = coordinator.currentCollapsedLayout
+            let localContentRect = convert(layout.contentRect, from: nil)
+            guard localContentRect.contains(point) else {
+                // Pass clicks through outside the content rect so menu bar items keep working!
+                return nil
+            }
+        }
+        return super.hitTest(point)
     }
     
     public override func mouseEntered(with event: NSEvent) {

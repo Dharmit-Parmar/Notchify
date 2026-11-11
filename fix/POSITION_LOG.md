@@ -138,3 +138,162 @@
 ### 5. Verification Status
 - Built with `swift build --target NotchApp`: Clean build, 0 errors.
 - Built and ran `.build/debug/NotchTests`: 83/83 verification tests passed.
+
+---
+
+## Round 2 Phase 0: Width Model & Indicator Sizing Diagnosis
+
+### Skills Re-Pick Log
+
+| Phase | Trigger | Skills Activated | Rationale |
+|---|---|---|---|
+| **Phase 0 & 1** | Collapsed notch pill rendering far too wide with "Wed" and time on opposite poles sticking out past hardware notch; hit testing blocking menu items; mascot ledge collision | `swiftui-expert-skill`, `axiom-macos`, `apple-design`, `axiom-design`, `swiftui-pro`, `axiom-accessibility`, `axiom-testing`, `ponytail`, `gravitas`, `graphify` | `ponytail` for the simplest pure-function layout model; `axiom-macos` for AppKit window geometry, `hitTest(_:)`, and pass-through clicks; `apple-design` & `axiom-design` for clean bezel integration without clumsy arbitrary wing widths; `gravitas` for evidence-backed verification with exact file:line citations; `axiom-testing` for headless unit tests. |
+
+---
+
+### 1. Table of Collapsed Window Width and Height (Phase 0.1)
+
+All formulas cited from **CONFIRMED-BY-READING** `Sources/Notch/NotchWindow.swift:183-203`:
+
+| CompactIndicatorStyle | Display With Physical Notch: Formula & File:Line | Display Without Notch: Formula & File:Line | Settings Feeding Value | Typical Sizing (14" / 16" MBP) |
+|---|---|---|---|---|
+| **`.minimal`** | `width = geometry.physicalNotchWidth`<br>`height = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)`<br>(`Sources/Notch/NotchWindow.swift:186, 198`) | `width = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0`<br>`height = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0`<br>(`Sources/Notch/NotchWindow.swift:200-201`) | `hoverTriggerHeight` (default 34.0 pt) | Notch: ~210 x 34 pt<br>No-notch: 210 x 32 pt |
+| **`.threeZoneStatusBar`** | `width = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 180.0)`<br>`height = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)`<br>(`Sources/Notch/NotchWindow.swift:188, 198`) | `width = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0`<br>`height = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0`<br>(`Sources/Notch/NotchWindow.swift:200-201`) | `hoverTriggerWidth` (default 210 pt), fixed `+ 180.0` term | Notch: **390 x 34 pt** (+90 pt wing per side)<br>No-notch: 210 x 32 pt |
+| **`.media`** | `width = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)`<br>`height = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)`<br>(`Sources/Notch/NotchWindow.swift:190, 198`) | `width = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0`<br>`height = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0`<br>(`Sources/Notch/NotchWindow.swift:200-201`) | `hoverTriggerWidth`, fixed `+ 160.0` term | Notch: **370 x 34 pt** (+80 pt wing per side)<br>No-notch: 210 x 32 pt |
+| **`.battery`** | `width = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 140.0)`<br>`height = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)`<br>(`Sources/Notch/NotchWindow.swift:192, 198`) | `width = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0`<br>`height = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0`<br>(`Sources/Notch/NotchWindow.swift:200-201`) | `hoverTriggerWidth`, fixed `+ 140.0` term | Notch: **350 x 34 pt** (+70 pt wing per side)<br>No-notch: 210 x 32 pt |
+| **`.dateTime`** | `width = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)`<br>`height = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)`<br>(`Sources/Notch/NotchWindow.swift:194, 198`) | `width = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0`<br>`height = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0`<br>(`Sources/Notch/NotchWindow.swift:200-201`) | `hoverTriggerWidth`, fixed `+ 160.0` term | Notch: **370 x 34 pt** (+80 pt wing per side)<br>No-notch: 210 x 32 pt |
+| **`.circadian`** | `width = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)`<br>`height = max(geometry.physicalNotchHeight, store.hoverTriggerHeight)`<br>(`Sources/Notch/NotchWindow.swift:196, 198`) | `width = store.hoverTriggerWidth > 0 ? store.hoverTriggerWidth : 210.0`<br>`height = store.hoverTriggerHeight > 0 ? store.hoverTriggerHeight : 32.0`<br>(`Sources/Notch/NotchWindow.swift:200-201`) | `hoverTriggerWidth`, fixed `+ 160.0` term | Notch: **370 x 34 pt** (+80 pt wing per side)<br>No-notch: 210 x 32 pt |
+
+---
+
+### 2. Root Cause of the Wide Pill with Opposing Poles (Phase 0.2)
+
+- **Style Identified**: `CompactIndicatorStyle.dateTime` ("Clock") (**CONFIRMED-BY-READING** `Sources/Notch/NotchRootView.swift:984-1020` on notch displays and `Sources/Notch/NotchRootView.swift:776-791` on non-notch displays).
+- **Why It Sticks Out**:
+  - In `NotchWindow.swift:194`, `targetWidth = max(store.hoverTriggerWidth, geometry.physicalNotchWidth + 160.0)`.
+  - On standard Apple Silicon notch displays where `physicalNotchWidth` is ~210 pt, this forces `targetWidth` to 370 pt (extending 80 pt past the physical notch on both left and right).
+- **Why the Middle Is Empty**:
+  - In `CompactWingDateTimeIndicator` (`Sources/Notch/NotchRootView.swift:989-1016`):
+    - Left Wing (`:991-1000`): Uses `HStack` with `.frame(maxWidth: .infinity, alignment: .leading)`, pinning `calendar` icon and formatted time (`11:24 AM`) to the extreme left edge (`padding(.leading, 8)`).
+    - Center Cutout (`:1003-1005`): `Spacer().frame(width: max(20.0, notchWidth)).allowsHitTesting(false)` inserts an unpainted ~210 pt void corresponding to the camera bezel.
+    - Right Wing (`:1008-1015`): Uses `HStack` with `Spacer()` and `.frame(maxWidth: .infinity, alignment: .trailing)`, pinning `Text("Wed")` to the extreme right edge (`padding(.trailing, 8)`).
+  - On non-notch displays (`Sources/Notch/NotchRootView.swift:776-791`), `dateTimeIndicator` uses a free `Spacer()` between the time and weekday inside a 210 pt pill, pushing time to the far left and "Wed" to the far right with dead space between them.
+
+---
+
+### 3. Window Sizing, Hit-Testing, Menu Bar Blocking & Mascot Collision (Phase 0.3)
+
+1. **Window Size vs Visible Content**:
+   - **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:15-26, 214-234`): The window frame matches `targetWidth` (370 pt) exactly.
+   - **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:38-42`): `NotchGlassBackground` spans the full window bounds (`ZStack`), rendering a continuous 370 pt glass capsule across the top bezel instead of hiding behind the physical notch.
+2. **Hit-Testing & Click Blocking on Menu Bar Items**:
+   - **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:30, 40`): `NotchPanel.level = .popUpMenu` (level 101, above `.mainMenu` level 24 and `.statusBar` level 25) and `self.ignoresMouseEvents = false`.
+   - **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:238-272`): `NotchHostingView` does NOT override `hitTest(_:)`.
+   - **Defect Impact**: Any click on menu bar items or status extras located within 80–90 pt of the notch (e.g. Wi-Fi, battery, clock, Control Center, or app menus) is intercepted by `NotchPanel`.
+3. **Mascot Ledge Collision**:
+   - **CONFIRMED-BY-READING** (`Sources/Modules/Companion/KinematicEngine.swift:110-115`): `notchLeft` and `notchRight` are computed strictly from the physical cutout (`tl.maxX` and `tr.minX`).
+   - The mascot's crawl boundaries (`notchLeft - 42.0`, `notchRight + 42.0`) and hang points (`notchLeft + 14.0`, `notchRight - 14.0`) assume the physical notch boundaries.
+   - When the wide pill extends to `notchLeft - 80.0` and `notchRight + 80.0`, the mascot crawls, hangs, and dangles right over and through the wing content.
+
+---
+
+### 4. Inventory of All Consumers of the Collapsed Rect (Phase 0.4)
+
+1. **`NotchPanel` Frame Math**: `Sources/Notch/NotchWindow.swift:15-26, 136-234`
+2. **`NotchHostingView` Tracking Area**: `Sources/Notch/NotchWindow.swift:246-253`
+3. **`NotchShellCoordinator` Transitions & Frame Sync**: `Sources/Notch/NotchShellCoordinator.swift:150-180, 265-267, 383-385, 427-447`
+4. **`NotchShellCoordinator` Hover Detection**: `Sources/Notch/NotchShellCoordinator.swift:258-340` (`onMouseEnter()`, `onMouseExit()`)
+5. **`NotchRootView` Compact Container Sizing**: `Sources/Notch/NotchRootView.swift:45-47, 720-764`
+6. **Wing Indicators**: `CompactWingMediaIndicator`, `CompactWingBatteryIndicator`, `CompactWingDateTimeIndicator`, `CompactWingCircadianIndicator`, `CompactThreeZoneStatusBarIndicator` (`Sources/Notch/NotchRootView.swift:880-1160`)
+7. **Drag & Drop Drop Targets**: `Sources/Notch/NotchRootView.swift:85-120`
+8. **Companion Mascot Engine**: `Sources/Modules/Companion/KinematicEngine.swift:36-41, 109-127, 157-185, 408-456, 640-641, 1003-1004`
+9. **Companion Den & Spawning**: `Sources/Modules/Companion/CompanionCoordinator.swift:110-145`
+10. **Settings Window Preview**: `Sources/Settings/SettingsView.swift:1020-1045, 1315-1350`
+
+---
+
+## Round 2 Phase 1: One Collapsed-Layout Model Implementation
+
+### Skills Re-Pick Log
+
+| Phase | Trigger | Skills Activated | Rationale |
+|---|---|---|---|
+| **Phase 1 Execution** | Implementing unified pure collapsed layout function, removing hardcoded wing expansion (+180/160/140), event-driven wings, and hit-test pass-through | `swiftui-expert-skill`, `axiom-macos`, `apple-design`, `axiom-design`, `swiftui-pro`, `axiom-accessibility`, `axiom-testing`, `ponytail`, `gravitas`, `graphify` | `ponytail` for a single clean pure function `collapsedLayout` replacing ad-hoc geometry sprawl; `axiom-macos` for `NSView.hitTest(_:)` outside `contentRect` to permit menu bar clicks; `apple-design` & `axiom-design` for fluid event-driven wings and bezel aesthetics; `gravitas` for evidence-backed verification. |
+
+### 1. Pure Function: `NotchGeometry.collapsedLayout`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchGeometry.swift:80-205`):
+  - Pure function signature:
+    ```swift
+    public static func collapsedLayout(
+        geometry: NotchGeometry,
+        style: CompactIndicatorStyle,
+        mode: CollapsedNotchMode,
+        attachment: NotchPositionAttachment,
+        wingWidth: CGFloat = 56.0,
+        collapsedHeight: CGFloat = 34.0,
+        horizontalOffset: CGFloat = 0.0,
+        verticalOffset: CGFloat = 0.0,
+        activeEvents: ActiveNotchEvents = ActiveNotchEvents()
+    ) -> CollapsedLayout
+    ```
+  - Output struct `CollapsedLayout`:
+    - `windowRect`: Frame allocated to the `NotchPanel` NSWindow.
+    - `contentRect`: Visual painted boundary of the notch pill and visible wings.
+    - `leftWingRect`: Bounding box of the left wing.
+    - `centerCutoutRect`: Screen region occupied by the hardware notch cutout (clear zone).
+    - `rightWingRect`: Bounding box of the right wing.
+    - `hoverTriggerRect`: Expanded interactive hit region for cursor expansion.
+    - `effectiveWingWidth`: Calculated wing dimension (0 when wings are hidden).
+    - `isWingsVisible`: Boolean indicating whether wings are rendered.
+
+### 2. Collapsed Notch Modes Supported
+- **CONFIRMED-BY-READING** (`Sources/UI/DesignSystem.swift:352-374` & `Sources/Notch/NotchGeometry.swift:108-144`):
+  1. **"Hide behind notch" (`.hideBehindNotch`, default)**:
+     - On notch screens: `effectiveWingWidth = 0`.
+     - `contentRect.width = physicalNotchWidth + 4.0` (2 pt overlap per side to prevent visual hairline seams against the bezel).
+     - `windowRect.width = contentRect.width`.
+     - Zero pixels rendered outside the physical notch cutout.
+  2. **"Wings on events" (`.wingsOnEvents`)**:
+     - Wings slide out only while active events occur (`activeEvents.isMediaPlaying`, `activeEvents.isCharging`, `activeEvents.hasActiveTimer`, `activeEvents.hasNotification`).
+     - When active, `effectiveWingWidth = clampedWingWidth` (default 56 pt); when inactive, `effectiveWingWidth = 0`.
+     - Smooth spring animation, instantaneous under `accessibilityReduceMotion`.
+  3. **"Always show wings" (`.alwaysShowWings`)**:
+     - Wings remain visible with width configured in settings (`0` to `160` pt, default `56` pt).
+  4. **Display without a notch**:
+     - Centered top pill with width `180.0 + (effectiveWingWidth * 0.8)` and height `32.0`.
+     - Snug formatting without empty void spaces.
+
+### 3. Keep-and-Guard All 6 Compact Styles
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:880-1160`):
+  - All 6 styles preserved and adapted to receive `CollapsedLayout`:
+    - `.minimal`: Always hides wings, matching physical cutout.
+    - `.media`: `CompactWingMediaIndicator` receives `layout.effectiveWingWidth` (56 pt) and renders art/title in left wing, equalizer in right wing.
+    - `.battery`: `CompactWingBatteryIndicator` renders time in left wing, battery level + charging glyph in right wing.
+    - `.dateTime`: `CompactWingDateTimeIndicator` renders calendar/time in left wing, weekday in right wing, strictly constrained to `effectiveWingWidth` (56 pt). Fixed the opposing-pole defect.
+    - `.circadian`: `CompactWingCircadianIndicator` renders circadian sun in left wing, time in right wing.
+    - `.threeZoneStatusBar`: `CompactThreeZoneStatusBarIndicator` with media left, status center-wings, clock right.
+  - When `layout.isWingsVisible == false`, `CompactNotchIndicator` renders `EmptyView()`, leaving the physical notch cutout completely bare and undisturbed.
+
+### 4. Zero Click-Blocking Hit Testing
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:259-271`):
+  - `NotchHostingView.hitTest(_:)` overridden:
+    ```swift
+    public override func hitTest(_ point: NSPoint) -> NSView? {
+        let coordinator = NotchShellCoordinator.shared
+        if coordinator.state == .collapsed {
+            let layout = coordinator.currentCollapsedLayout
+            let localContentRect = convert(layout.contentRect, from: nil)
+            guard localContentRect.contains(point) else {
+                return nil
+            }
+        }
+        return super.hitTest(point)
+    }
+    ```
+  - When the window frame is wider than its visible content (or when wings retract), points outside `contentRect` return `nil`, passing clicks through to underlying menu bar items, status icons, and desktop elements.
+
+### 5. Verification Status
+- Built with `swift build --target NotchApp`: Clean build, 0 errors.
+- Built and ran `.build/debug/NotchTests`: 83/83 verification tests passed.
+
+
