@@ -589,6 +589,7 @@ public final class ThockModule: NotchModule {
                 let cloneProc = Process()
                 cloneProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
                 cloneProc.arguments = ["clone", "https://github.com/Dharmit-Parmar/KeySound.git", targetDir.path]
+                cloneProc.environment = SafeEnvironment.make()
                 do {
                     try cloneProc.run()
                     cloneProc.waitUntilExit()
@@ -600,6 +601,7 @@ public final class ThockModule: NotchModule {
                     checkoutProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
                     checkoutProc.arguments = ["checkout", Self.pinnedKeySoundCommit]
                     checkoutProc.currentDirectoryURL = targetDir
+                    checkoutProc.environment = SafeEnvironment.make()
                     try checkoutProc.run()
                     checkoutProc.waitUntilExit()
                     guard checkoutProc.terminationStatus == 0 else {
@@ -633,10 +635,7 @@ public final class ThockModule: NotchModule {
                 cargoProc.arguments = ["build", "--release", "--bin", "thock-cli"]
                 cargoProc.currentDirectoryURL = targetDir
                 
-                var env = ProcessInfo.processInfo.environment
-                let pathEnv = env["PATH"] ?? ""
-                env["PATH"] = "\(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cargo/bin").path):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\(pathEnv)"
-                cargoProc.environment = env
+                cargoProc.environment = SafeEnvironment.make()
                 
                 do {
                     try cargoProc.run()
@@ -690,9 +689,7 @@ public final class ThockModule: NotchModule {
         proc.executableURL = binaryURL
         proc.currentDirectoryURL = projectDir
         
-        var env = ProcessInfo.processInfo.environment
-        env["TERM"] = "xterm-256color"
-        proc.environment = env
+        proc.environment = SafeEnvironment.make(extra: ["TERM": "xterm-256color"])
         
         let inP = Pipe()
         let outP = Pipe()

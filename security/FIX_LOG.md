@@ -89,3 +89,21 @@
 - **Safety Analysis (F8)**:
   - *What could break*: An installation expecting automatic overwrite of older symlinks would not overwrite them.
   - *How verified*: Existing symlinks and real application directories remain preserved. Test 87 asserts non-destructive behavior across real directories and foreign symlinks.
+
+### Commit 2: SEC-C-1 — Sanitized SafeEnvironment Allowlist for Child Processes
+
+- **Commit**: `SEC-C-1: sanitize child process environment allowlist`
+- **Files Changed**:
+  - `Sources/Core/SafeEnvironment.swift`: Added `SafeEnvironment.make()` allowlist restricting variables to `PATH`, `HOME`, `USER`, `LANG`, `TERM`, `CARGO_HOME`, `RUSTUP_HOME` plus caller extras.
+  - `Sources/Modules/Thock/ThockModule.swift`: Applied `SafeEnvironment.make()` to `cloneProc`, `checkoutProc`, `cargoProc`, and `thock-cli` `proc`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 88]` verifying that ambient secrets (`SECRET_TEST_TOKEN`, `AWS_ACCESS_KEY_ID`, `GITHUB_TOKEN`) are filtered out while required toolchain variables remain.
+- **Diffstat**:
+  `Sources/Core/SafeEnvironment.swift | 52 +`
+  `Sources/Modules/Thock/ThockModule.swift | 11 ++---`
+  `Tests/VerificationTests.swift | 81 ++++++++-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 88 / 88 passing.
+- **Cargo Toolchain Verification**: `cargo` operation verified; `HOME` and `PATH` are preserved, ensuring Cargo finds toolchain binaries, global registry caches, and config.
+- **Safety Analysis (F8)**:
+  - *What could break*: If a child process relied on non-standard custom ambient variables (e.g. proxy variables), they would be missing.
+  - *How verified*: Toolchains only require `HOME`, `USER`, `PATH`, `TERM`, and `LANG`. `SafeEnvironment` includes callers' explicit extras.

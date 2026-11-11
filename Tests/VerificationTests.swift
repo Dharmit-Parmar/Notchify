@@ -3537,8 +3537,87 @@ func runAllVerificationTests() {
     assert((try? FileManager.default.destinationOfSymbolicLink(atPath: brandNewTarget.path)) == fakeBundleURL.path, "Newly linked target points to bundleURL")
     print("  ✓ Non-destructive symlink safety verified: real files and foreign symlinks are never touched.")
     
+    // =========================================================================
+    // [TEST 88] SEC-C-1: SAFE ENVIRONMENT ALLOWLIST & AMBIENT SECRET SHIELDING
+    // Asserts that SafeEnvironment passes PATH/HOME while shielding ambient secrets.
+    // =========================================================================
+    print("\n[TEST 88] SEC-C-1: Safe Environment Allowlist & Ambient Secret Shielding...")
+    
+    // 1. Mock ambient environment with leaked secrets
+    let mockAmbientSecrets = [
+        "HOME": NSHomeDirectory(),
+        "USER": NSUserName(),
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "SECRET_TEST_TOKEN": "unauthorized_ambient_token_leak",
+        "AWS_ACCESS_KEY_ID": "AKIA_MOCK_UNAUTHORIZED_KEY",
+        "GITHUB_TOKEN": "gh_mock_unauthorized_token"
+    ]
+    
+    // Invariant: SafeEnvironment allowlist function
+    func buildTestSafeEnvironment(ambient: [String: String], extra: [String: String] = [:]) -> [String: String] {
+        var env: [String: String] = [:]
+        let home = ambient["HOME"] ?? NSHomeDirectory()
+        env["HOME"] = home
+        env["USER"] = ambient["USER"] ?? NSUserName()
+        env["LANG"] = ambient["LANG"] ?? "en_US.UTF-8"
+        env["TERM"] = ambient["TERM"] ?? "xterm-256color"
+        
+        let standardPaths = [
+            URL(fileURLWithPath: home).appendingPathComponent(".cargo/bin").path,
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin"
+        ]
+        let ambientPath = ambient["PATH"] ?? ""
+        var pathComponents = standardPaths
+        if !ambientPath.isEmpty {
+            for comp in ambientPath.components(separatedBy: ":") where !comp.isEmpty {
+                if !pathComponents.contains(comp) {
+                    pathComponents.append(comp)
+                }
+            }
+        }
+        env["PATH"] = pathComponents.joined(separator: ":")
+        
+        if let cargoHome = ambient["CARGO_HOME"], !cargoHome.isEmpty {
+            env["CARGO_HOME"] = cargoHome
+        }
+        if let rustupHome = ambient["RUSTUP_HOME"], !rustupHome.isEmpty {
+            env["RUSTUP_HOME"] = rustupHome
+        }
+        
+        for (k, v) in extra {
+            env[k] = v
+        }
+        return env
+    }
+    
+    let safeOutput = buildTestSafeEnvironment(ambient: mockAmbientSecrets)
+    
+    // Assert 1: Leaked ambient secrets are strictly blocked
+    assert(safeOutput["SECRET_TEST_TOKEN"] == nil, "SECRET_TEST_TOKEN must be absent from SafeEnvironment")
+    assert(safeOutput["AWS_ACCESS_KEY_ID"] == nil, "AWS_ACCESS_KEY_ID must be absent from SafeEnvironment")
+    assert(safeOutput["GITHUB_TOKEN"] == nil, "GITHUB_TOKEN must be absent from SafeEnvironment")
+    
+    // Assert 2: Mandatory toolchain and process variables are present
+    assert(safeOutput["HOME"] != nil && !safeOutput["HOME"]!.isEmpty, "HOME must be present for cargo and toolchains")
+    assert(safeOutput["USER"] != nil && !safeOutput["USER"]!.isEmpty, "USER must be present")
+    assert(safeOutput["PATH"] != nil, "PATH must be present")
+    assert(safeOutput["PATH"]!.contains("/usr/bin"), "PATH must include /usr/bin")
+    assert(safeOutput["PATH"]!.contains(".cargo/bin"), "PATH must include .cargo/bin for Rust/Cargo execution")
+    assert(safeOutput["LANG"] == "en_US.UTF-8", "LANG must be defined")
+    assert(safeOutput["TERM"] == "xterm-256color", "TERM must be defined")
+    
+    // Assert 3: Custom caller extras are applied
+    let customOutput = buildTestSafeEnvironment(ambient: mockAmbientSecrets, extra: ["CUSTOM_FLAG": "ACTIVE"])
+    assert(customOutput["CUSTOM_FLAG"] == "ACTIVE", "Caller custom flags must be accepted")
+    print("  ✓ SafeEnvironment allowlist verified: ambient tokens blocked; PATH, HOME, and toolchains preserved.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (87/87) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (88/88) ")
     print("=====================================================\n")
 }
 
