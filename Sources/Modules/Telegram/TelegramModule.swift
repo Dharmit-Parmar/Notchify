@@ -404,12 +404,22 @@ public final class TelegramModule: NotchModule {
     
     private func loadSavedContacts() {
         let file = contactsFileURL
-        if FileManager.default.fileExists(atPath: file.path),
-           let data = try? Data(contentsOf: file),
-           let saved = try? JSONDecoder().decode([ChatContact].self, from: data),
-           !saved.isEmpty {
-            self.contacts = saved
-            self.selectedContactId = saved.first?.id
+        if FileManager.default.fileExists(atPath: file.path) {
+            // Decrypt with CryptoKit AES-256-GCM (SEC-A-2) or auto-migrate legacy plaintext
+            if let data = try? EncryptedFileStore.shared.read(from: file),
+               let saved = try? JSONDecoder().decode([ChatContact].self, from: data),
+               !saved.isEmpty {
+                self.contacts = saved
+                self.selectedContactId = saved.first?.id
+            } else if let rawData = try? Data(contentsOf: file),
+                      let saved = try? JSONDecoder().decode([ChatContact].self, from: rawData),
+                      !saved.isEmpty {
+                self.contacts = saved
+                self.selectedContactId = saved.first?.id
+                persistContacts()
+            } else {
+                setupDefaultWelcomeContact()
+            }
         } else if let legacyData = UserDefaults.standard.data(forKey: contactsStorageKey),
                   let saved = try? JSONDecoder().decode([ChatContact].self, from: legacyData),
                   !saved.isEmpty {
@@ -418,29 +428,32 @@ public final class TelegramModule: NotchModule {
             persistContacts()
             UserDefaults.standard.removeObject(forKey: contactsStorageKey)
         } else {
-            let welcome = ChatContact(
-                name: "Add Contact (+)",
-                platform: "Telegram",
-                handle: "@username",
-                messages: [
-                    ChatMessage(
-                        sender: "Notch",
-                        text: "Tap the (+) button above to pin any Telegram or WhatsApp person to your Notch.",
-                        isMe: false,
-                        time: "Now"
-                    )
-                ]
-            )
-            self.contacts = [welcome]
-            self.selectedContactId = welcome.id
+            setupDefaultWelcomeContact()
         }
+    }
+    
+    private func setupDefaultWelcomeContact() {
+        let welcome = ChatContact(
+            name: "Add Contact (+)",
+            platform: "Telegram",
+            handle: "@username",
+            messages: [
+                ChatMessage(
+                    sender: "Notch",
+                    text: "Tap the (+) button above to pin any Telegram or WhatsApp person to your Notch.",
+                    isMe: false,
+                    time: "Now"
+                )
+            ]
+        )
+        self.contacts = [welcome]
+        self.selectedContactId = welcome.id
     }
     
     private func persistContacts() {
         if let encoded = try? JSONEncoder().encode(contacts) {
             let target = contactsFileURL
-            try? encoded.write(to: target, options: .atomic)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+            try? EncryptedFileStore.shared.write(data: encoded, to: target)
         }
         UserDefaults.standard.removeObject(forKey: contactsStorageKey)
     }

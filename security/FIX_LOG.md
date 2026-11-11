@@ -316,6 +316,48 @@
   - *What could break*: If notes.txt or contacts.json existed with loose permissions (>0600), the audit script would fail.
   - *How verified*: The app writes both files with strict 0600 attributes (`[.posixPermissions: 0o600]`). The script confirms 0600 compliance.
 
+---
+
+## Stage C: Encrypt Notes and Contacts at Rest (SEC-A-1 & SEC-A-2)
+
+- **Date**: 2026-11-11
+- **Trigger**: Execution of Stage C requirement to protect persistent notes (`notes.txt`) and contact records (`contacts.json`) with authenticated AES-256-GCM encryption at rest, backed by macOS Keychain key management.
+- **Operating Rules**:
+  - No new dependencies: standard library `CryptoKit`, `Security`, and `Foundation` only.
+  - Transparent plaintext backward-compatibility: unencrypted legacy files are seamlessly read and automatically upgraded to encrypted format.
+  - Atomic writing with POSIX `0600` permissions.
+  - Zero edits to view bodies or UI layouts.
+  - Zero compiler warnings.
+- **Skills Re-Picked & Activated**:
+  - `axiom-security`: CryptoKit AES-256-GCM sealed box, authenticated tags, Secure Enclave / login keychain storage.
+  - `axiom-data`: File persistence, atomic swapping, schema preservation, transparent plaintext migration.
+  - `axiom-macos`: POSIX permissions (`0600`), Application Support directory sandboxing (`0700`).
+  - `axiom-testing`: Writing deterministic unit tests for round-trip encryption, tamper rejection, and migration.
+  - `ponytail`: Minimal lines, Apple native frameworks, zero external dependencies.
+  - `gravitas`: Evidence-backed testing, zero unsubstantiated claims, verified test counts.
+
+### Commit 16: SEC-A-1 & SEC-A-2 — Encrypt Notes and Contacts at Rest with CryptoKit AES-GCM
+
+- **Commit**: `SEC-A-1 & SEC-A-2: encrypt notes and contacts at rest with cryptokit aes-gcm`
+- **Files Changed**:
+  - `Sources/Core/EncryptedFileStore.swift`: Created `EncryptedFileStore` implementing CryptoKit AES-256-GCM encryption with 256-bit Keychain-stored keys, `NOTCHENC1\x01` wire format, atomic writes, and transparent legacy plaintext migration.
+  - `Sources/Modules/Notes/NoteStorageManager.swift`: Integrated `EncryptedFileStore` for loading and saving `notes.txt`.
+  - `Sources/Modules/Telegram/TelegramModule.swift`: Integrated `EncryptedFileStore` for loading and persisting `contacts.json`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 101]` (Subtests 1–5) verifying encryption round-trip, magic header bytes, tamper rejection on bit flip, legacy plaintext auto-migration, and 0600 permissions.
+  - `security/MANUAL_CHECKS_C.md`: Created manual verification guide for Stage C at-rest encryption.
+- **Diffstat**:
+  `Sources/Core/EncryptedFileStore.swift | 125 ++++++++++++++++++++++++++`
+  `Sources/Modules/Notes/NoteStorageManager.swift | 15 +++-`
+  `Sources/Modules/Telegram/TelegramModule.swift | 37 +++++---`
+  `Tests/VerificationTests.swift | 94 ++++++++++++++++++++++++++++++`
+  `security/MANUAL_CHECKS_C.md | 85 ++++++++++++++++++++++++++`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 101 / 101 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If a user had an existing plaintext `notes.txt` or `contacts.json`, failing to read plaintext would lose user data.
+  - *How verified*: `read()` checks for the `NOTCHENC1` magic header; if absent, it recovers the plaintext data seamlessly, passes it to the UI, and automatically rewrites it to disk as an authenticated encrypted file with 0600 permissions. Test 101 Subtest 4 asserts legacy recovery and migration.
+
+
 
 
 

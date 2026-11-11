@@ -33,12 +33,20 @@ public final class NoteStorageManager: ObservableObject {
     private init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let fileURL = appSupport.appendingPathComponent("NotchApp/notes.txt")
-        if FileManager.default.fileExists(atPath: fileURL.path),
-           let saved = try? String(contentsOf: fileURL, encoding: .utf8) {
-            self.text = saved
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            // Decrypt with CryptoKit AES-256-GCM (SEC-A-1) or auto-migrate legacy plaintext
+            if let saved = try? EncryptedFileStore.shared.readString(from: fileURL) {
+                self.text = saved
+            } else if let saved = try? String(contentsOf: fileURL, encoding: .utf8) {
+                self.text = saved
+                try? EncryptedFileStore.shared.writeString(saved, to: fileURL)
+            } else {
+                self.text = ""
+            }
         } else if let legacy = UserDefaults.standard.string(forKey: Self.userDefaultsKey) {
             self.text = legacy
             UserDefaults.standard.removeObject(forKey: Self.userDefaultsKey)
+            try? EncryptedFileStore.shared.writeString(legacy, to: fileURL)
         } else {
             self.text = ""
         }
@@ -89,10 +97,7 @@ public final class NoteStorageManager: ObservableObject {
     
     private func commitToDisk() {
         let target = storageURL
-        if let data = text.data(using: .utf8) {
-            try? data.write(to: target, options: .atomic)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
-        }
+        try? EncryptedFileStore.shared.writeString(text, to: target)
         UserDefaults.standard.removeObject(forKey: Self.userDefaultsKey)
         isDirty = false
     }
