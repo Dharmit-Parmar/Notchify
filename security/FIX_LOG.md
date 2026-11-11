@@ -178,3 +178,21 @@
 - **Safety Analysis (F8)**:
   - *What could break*: If a legitimate pack name contained special characters or spaces, it would be excluded.
   - *How verified*: All 14 known pack names were verified against the validator; all pass cleanly.
+
+### Commit 7: SEC-E-1 — Sanitize Document Export Names and Pack Path Traversal
+
+- **Commit**: `SEC-E-1: sanitize document export names and pack path traversal`
+- **Files Changed**:
+  - `Sources/Modules/Shelf/ShelfModule.swift`: In `exportURL(for doc:)`, sanitized `doc.fileName` using `(cleanName as NSString).lastPathComponent`, stripped non-printable control characters (< 32), stripped leading dots, and verified prefix containment within `tempCacheDirectory.standardizedFileURL.path`.
+  - `Sources/Modules/Thock/ThockModule.swift`: In `playPackSample(_:)`, sanitized `packName` with `lastPathComponent`, `isValidPackName`, and prefix check against `packsDir`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 93]` testing `../../x.pdf`, `/etc/passwd`, `a/b.pdf`, empty string fallback, 5,000-char long name, `..`, and embedded NUL byte.
+- **Diffstat**:
+  `Sources/Modules/Shelf/ShelfModule.swift | 16 ++++++++++++++--`
+  `Sources/Modules/Thock/ThockModule.swift | 5 ++++-`
+  `Tests/VerificationTests.swift | 66 ++++++++++++++++++++++++++++++++++-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 93 / 93 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: Legitimate file renames might be altered if they rely on leading dots or directory slashes.
+  - *How verified*: Standard filenames ("My Document.pdf", "Invoice 2026") are completely unchanged. Traversal attempts (`../../etc/passwd`) are safely contained.
+

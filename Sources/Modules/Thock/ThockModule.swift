@@ -603,7 +603,10 @@ public final class ThockModule: NotchModule {
     
     // MARK: - Direct Audio Audition / Preview
     public func playPackSample(_ packName: String) {
-        let packDir = packsDir.appendingPathComponent(packName)
+        let safePackName = (packName as NSString).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isValidPackName(safePackName) else { return }
+        let packDir = packsDir.appendingPathComponent(safePackName).standardizedFileURL
+        guard packDir.path.hasPrefix(packsDir.standardizedFileURL.path) else { return }
         var wavURL: URL? = nil
         if let files = try? FileManager.default.contentsOfDirectory(at: packDir, includingPropertiesForKeys: nil) {
             wavURL = files.first(where: { $0.pathExtension.lowercased() == "wav" })

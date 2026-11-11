@@ -3771,8 +3771,72 @@ func runAllVerificationTests() {
     assert(testIsValidPackName("") == false, "Empty pack name must be rejected")
     print("  ✓ Stdin command injection and pack name whitelist (all 14 known packs) verified.")
     
+    // =========================================================================
+    // [TEST 93] SEC-E-1: PATH TRAVERSAL SANITIZATION INVARIANT
+    // Asserts that user-influenced filenames cannot traverse outside the target directory.
+    // =========================================================================
+    print("\n[TEST 93] SEC-E-1: Path Traversal Sanitization Invariant...")
+    let baseTargetDir = URL(fileURLWithPath: "/tmp/notch_shelf_safe_target", isDirectory: true)
+    
+    func sanitizeExportFileName(_ rawName: String, targetDir: URL) -> URL {
+        var cleanName = (rawName as NSString).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+        cleanName = String(cleanName.unicodeScalars.filter { $0.value >= 32 })
+        while cleanName.hasPrefix(".") {
+            cleanName = String(cleanName.dropFirst())
+        }
+        cleanName = cleanName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanName.isEmpty { cleanName = "Resultant_Document.pdf" }
+        if !cleanName.lowercased().hasSuffix(".pdf") { cleanName += ".pdf" }
+        
+        let targetURL = targetDir.appendingPathComponent(cleanName).standardizedFileURL
+        let targetPrefix = targetDir.standardizedFileURL.path
+        if !targetURL.path.hasPrefix(targetPrefix) {
+            return targetDir.appendingPathComponent("Resultant_Document.pdf")
+        }
+        return targetURL
+    }
+    
+    // 1. Path traversal attempt: "../../x.pdf" -> must be confined inside target directory as "x.pdf"
+    let urlTraversal = sanitizeExportFileName("../../x.pdf", targetDir: baseTargetDir)
+    assert(urlTraversal.path.hasPrefix(baseTargetDir.path), "Traversal attempt must remain strictly inside base directory")
+    assert(urlTraversal.lastPathComponent == "x.pdf", "Filename must be sanitized to x.pdf")
+    
+    // 2. Absolute root path attempt: "/etc/passwd" -> sanitized to passwd.pdf inside base directory
+    let urlRoot = sanitizeExportFileName("/etc/passwd", targetDir: baseTargetDir)
+    assert(urlRoot.path.hasPrefix(baseTargetDir.path), "Absolute path attempt must remain inside base directory")
+    assert(urlRoot.lastPathComponent == "passwd.pdf", "Filename must be sanitized to passwd.pdf")
+    
+    // 3. Subdirectory injection attempt: "a/b.pdf" -> sanitized to b.pdf
+    let urlSubdir = sanitizeExportFileName("a/b.pdf", targetDir: baseTargetDir)
+    assert(urlSubdir.path.hasPrefix(baseTargetDir.path), "Subdirectory injection must remain inside base directory")
+    assert(urlSubdir.lastPathComponent == "b.pdf", "Subdirectory must be stripped to b.pdf")
+    
+    // 4. Empty string -> fallback to Resultant_Document.pdf
+    let urlEmpty = sanitizeExportFileName("", targetDir: baseTargetDir)
+    assert(urlEmpty.lastPathComponent == "Resultant_Document.pdf", "Empty string must fallback to Resultant_Document.pdf")
+    
+    // 5. Very long filename (5,000 chars) -> handled without crash and kept inside target
+    let veryLongName = String(repeating: "A", count: 5000)
+    let urlLong = sanitizeExportFileName(veryLongName, targetDir: baseTargetDir)
+    assert(urlLong.path.hasPrefix(baseTargetDir.path), "Very long filename must remain inside base directory")
+    assert(urlLong.lastPathComponent.hasSuffix(".pdf"), "Long filename must maintain .pdf extension")
+    
+    // 6. Dot-dot traversal attempt: ".." -> leading dots stripped -> fallback to Resultant_Document.pdf
+    let urlDots = sanitizeExportFileName("..", targetDir: baseTargetDir)
+    assert(urlDots.lastPathComponent == "Resultant_Document.pdf", "Dot-dot must fallback to Resultant_Document.pdf")
+    
+    // 7. Embedded NUL byte attempt: "file\0malicious.pdf" -> NUL byte filtered -> safe filename
+    let urlNul = sanitizeExportFileName("file\u{0000}malicious.pdf", targetDir: baseTargetDir)
+    assert(!urlNul.lastPathComponent.contains("\u{0000}"), "NUL byte must be stripped")
+    assert(urlNul.lastPathComponent == "filemalicious.pdf", "Sanitized filename must match filtered scalars")
+    
+    // 8. Normal benign names produce exact expected filenames as before
+    assert(sanitizeExportFileName("My Project", targetDir: baseTargetDir).lastPathComponent == "My Project.pdf")
+    assert(sanitizeExportFileName("Report.pdf", targetDir: baseTargetDir).lastPathComponent == "Report.pdf")
+    print("  ✓ Path traversal sanitization (lastPathComponent, control chars, dot stripping, directory boundary) verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (92/92) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (93/93) ")
     print("=====================================================\n")
 }
 

@@ -290,13 +290,25 @@ public final class ShelfModule: NotchModule {
         }
     }
 
-    // Export URL generation with user-renamed file name
+    // Export URL generation with user-renamed file name (SEC-E-1: Path Traversal Sanitization)
     public func exportURL(for doc: ResultantPDF) -> URL {
-        var cleanName = doc.fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleanName = (doc.fileName as NSString).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Strip control characters (< 32)
+        cleanName = String(cleanName.unicodeScalars.filter { $0.value >= 32 })
+        // Strip leading dots to prevent hidden/traversal file patterns
+        while cleanName.hasPrefix(".") {
+            cleanName = String(cleanName.dropFirst())
+        }
+        cleanName = cleanName.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleanName.isEmpty { cleanName = "Resultant_Document.pdf" }
         if !cleanName.lowercased().hasSuffix(".pdf") { cleanName += ".pdf" }
         
-        let targetURL = tempCacheDirectory.appendingPathComponent(cleanName)
+        let targetURL = tempCacheDirectory.appendingPathComponent(cleanName).standardizedFileURL
+        let targetPrefix = tempCacheDirectory.standardizedFileURL.path
+        guard targetURL.path.hasPrefix(targetPrefix) else {
+            return tempCacheDirectory.appendingPathComponent("Resultant_Document.pdf")
+        }
+        
         if targetURL != doc.fileURL {
             try? FileManager.default.removeItem(at: targetURL)
             try? FileManager.default.copyItem(at: doc.fileURL, to: targetURL)
