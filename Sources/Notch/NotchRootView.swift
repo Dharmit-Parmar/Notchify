@@ -78,9 +78,13 @@ public struct NotchRootView: View {
                         .padding(.horizontal, store.contentHorizontalPadding)
                         .padding(.bottom, store.contentVerticalPadding)
                         .frame(maxHeight: .infinity, alignment: .top)
-                        .opacity(coordinator.isIdleDimmed ? 0.88 : 1.0)
-                        .animation(reduceMotion ? nil : .easeInOut(duration: coordinator.isIdleDimmed ? 0.60 : 0.20), value: coordinator.isIdleDimmed)
-                        .transition(.opacity)
+                        .overlay(
+                            // Zero-allocation composited dimming overlay avoiding CoreAnimation offscreen group render pass
+                            Color.black
+                                .opacity(coordinator.isIdleDimmed ? 0.12 : 0.0)
+                                .allowsHitTesting(false)
+                                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: coordinator.isIdleDimmed)
+                        )
                 }
             }
         }

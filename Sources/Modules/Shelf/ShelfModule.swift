@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import AppKit
-import PDFKit
+@preconcurrency import PDFKit
 import CoreImage
 
 public enum FileStudioTool: String, CaseIterable, Identifiable, Sendable {
@@ -162,6 +162,8 @@ public final class ShelfModule: NotchModule {
     @Published public var selectedTool: FileStudioTool = .merge
     @Published public var isProcessing: Bool = false
     @Published public var processingStage: String = ""
+    @Published public var processingProgress: Double = 0.0
+    public private(set) var currentProcessingTask: Task<Void, Never>?
     @Published public var wheelRotationAngle: Double = 0.0
     
     // Resultant PDF Live Preview State
@@ -182,8 +184,17 @@ public final class ShelfModule: NotchModule {
         cleanStaleTempFiles()
     }
     
+    public func cancelProcessing() {
+        currentProcessingTask?.cancel()
+        currentProcessingTask = nil
+        isProcessing = false
+        processingProgress = 0.0
+        statusMessage = "Operation cancelled."
+    }
+    
     public func start() {}
     public func stop() {
+        cancelProcessing()
         cleanStaleTempFiles(all: false)
         evictCaches()
     }
@@ -301,75 +312,67 @@ public final class ShelfModule: NotchModule {
             return
         }
         
+        cancelProcessing()
         isProcessing = true
+        processingProgress = 0.0
         processingStage = "Merging documents..."
         FeedbackManager.playProcess()
         
-        let masterDoc = PDFDocument()
-        let sources = items // Merges in tray order!
+        var sources = items // Merges in tray order!
+        let cacheDir = tempCacheDirectory
         
-        for item in sources {
-            let url = item.url
-            if item.isPDF {
-                if let doc = PDFDocument(url: url), doc.pageCount > 0 {
-                    for pageIdx in 0..<doc.pageCount {
-                        if let page = doc.page(at: pageIdx) {
-                            masterDoc.insert(page, at: masterDoc.pageCount)
-                        }
-                    }
-                }
-            } else if item.isImage {
-                if let img = NSImage(contentsOf: url), let page = PDFPage(image: img) {
-                    masterDoc.insert(page, at: masterDoc.pageCount)
-                }
-            } else if item.isTextOrDoc {
-                if let textDoc = createPDFFromTextOrDoc(url: url) {
-                    for pageIdx in 0..<textDoc.pageCount {
-                        if let page = textDoc.page(at: pageIdx) {
-                            masterDoc.insert(page, at: masterDoc.pageCount)
-                        }
-                    }
+        // Pre-convert text items on MainActor if needed
+        for (i, item) in sources.enumerated() {
+            if item.isTextOrDoc, let textDoc = self.createPDFFromTextOrDoc(url: item.url) {
+                let tempName = "temp_text_\(item.id.uuidString).pdf"
+                let tempURL = cacheDir.appendingPathComponent(tempName)
+                if textDoc.write(to: tempURL) {
+                    sources[i] = ShelfItem(url: tempURL)
                 }
             }
         }
         
-        isProcessing = false
-        
-        guard masterDoc.pageCount > 0 else {
-            statusMessage = "Could not convert or merge the selected files."
-            return
-        }
-        
+        let finalSources = sources
         let defaultName = "Merged_Document.pdf"
-        let outputURL = tempCacheDirectory.appendingPathComponent(defaultName)
-        try? FileManager.default.removeItem(at: outputURL)
+        let outputURL = cacheDir.appendingPathComponent(defaultName)
         
-        guard masterDoc.write(to: outputURL) else {
-            statusMessage = "Failed to write merged PDF to cache."
-            return
+        let (stream, continuation) = AsyncStream.makeStream(of: Double.self)
+        Task { @MainActor [weak self] in
+            for await progress in stream {
+                self?.processingProgress = progress
+            }
         }
         
-        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
-        let byteCount = (attrs?[.size] as? Int64) ?? 0
-        let thumbnail = renderPageThumbnail(page: masterDoc.page(at: 0))
-        
-        let result = ResultantPDF(
-            fileURL: outputURL,
-            fileName: defaultName,
-            pageCount: masterDoc.pageCount,
-            byteCount: byteCount,
-            summary: "Merged \(sources.count) files into \(masterDoc.pageCount) pages",
-            tool: .merge,
-            thumbnailData: thumbnail
-        )
-        
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            self.resultantDocument = result
-            self.leftStageMode = .preview
+        currentProcessingTask = Task { @MainActor [weak self] in
+            let result = await Task.detached(priority: .userInitiated) { () -> ResultantPDF? in
+                defer { continuation.finish() }
+                return ShelfModule.performMerge(
+                    items: finalSources,
+                    outputURL: outputURL,
+                    defaultName: defaultName
+                ) { progress in
+                    continuation.yield(progress)
+                }
+            }.value
+            
+            guard let self = self else { return }
+            guard !Task.isCancelled, let result = result else {
+                self.isProcessing = false
+                self.processingProgress = 0.0
+                self.statusMessage = Task.isCancelled ? "Merge cancelled." : "Merge failed."
+                return
+            }
+            
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                self.resultantDocument = result
+                self.leftStageMode = .preview
+            }
+            
+            self.isProcessing = false
+            self.processingProgress = 1.0
+            self.statusMessage = "Merged \(sources.count) files (\(result.pageCount) pgs) ready!"
+            FeedbackManager.playSuccess()
         }
-        
-        statusMessage = "Merged \(sources.count) files (\(masterDoc.pageCount) pgs) ready!"
-        FeedbackManager.playSuccess()
     }
     
     // MARK: - 2. Compress PDF
@@ -391,101 +394,52 @@ public final class ShelfModule: NotchModule {
             return
         }
         
+        cancelProcessing()
         isProcessing = true
+        processingProgress = 0.0
         processingStage = "Compressing PDF streams..."
         FeedbackManager.playProcess()
         
-        let originalAttrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path)
-        let originalBytes = (originalAttrs?[.size] as? Int64) ?? 0
+        let outputName = customName ?? "\(defaultBaseName)_Compressed.pdf"
+        let outputURL = tempCacheDirectory.appendingPathComponent(outputName)
         
-        guard let inputDoc = PDFDocument(url: sourceURL), inputDoc.pageCount > 0 else {
-            isProcessing = false
-            statusMessage = "Unable to read file as PDF."
-            return
-        }
-        
-        let compressedDoc = PDFDocument()
-        for index in 0..<inputDoc.pageCount {
-            autoreleasepool {
-                guard let page = inputDoc.page(at: index) else { return }
-                let box = page.bounds(for: .mediaBox)
-                
-                // Balanced downsampling (scale 1.25 for crisp text at 50% storage)
-                let scale: CGFloat = 1.25
-                let targetSize = NSSize(width: max(80, box.width * scale), height: max(80, box.height * scale))
-                let image = NSImage(size: targetSize, flipped: false) { rect in
-                    guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-                    ctx.setFillColor(NSColor.white.cgColor)
-                    ctx.fill(rect)
-                    ctx.saveGState()
-                    ctx.scaleBy(x: scale, y: scale)
-                    page.draw(with: .mediaBox, to: ctx)
-                    ctx.restoreGState()
-                    return true
-                }
-                
-                if let tiff = image.tiffRepresentation,
-                   let rep = NSBitmapImageRep(data: tiff),
-                   let jpegData = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.52]),
-                   let compressedImg = NSImage(data: jpegData),
-                   let compressedPage = PDFPage(image: compressedImg) {
-                    compressedDoc.insert(compressedPage, at: compressedDoc.pageCount)
-                } else {
-                    compressedDoc.insert(page, at: compressedDoc.pageCount)
-                }
+        let (stream, continuation) = AsyncStream.makeStream(of: Double.self)
+        Task { @MainActor [weak self] in
+            for await progress in stream {
+                self?.processingProgress = progress
             }
         }
         
-        isProcessing = false
-        
-        let outputName = "\(defaultBaseName)_Compressed.pdf"
-        let outputURL = tempCacheDirectory.appendingPathComponent(outputName)
-        try? FileManager.default.removeItem(at: outputURL)
-        
-        // Write compressed
-        guard compressedDoc.write(to: outputURL) else {
-            statusMessage = "Failed to write compressed PDF."
-            return
+        currentProcessingTask = Task { @MainActor [weak self] in
+            let result = await Task.detached(priority: .userInitiated) { () -> ResultantPDF? in
+                defer { continuation.finish() }
+                return ShelfModule.performCompression(
+                    sourceURL: sourceURL,
+                    outputURL: outputURL,
+                    outputName: outputName
+                ) { progress in
+                    continuation.yield(progress)
+                }
+            }.value
+            
+            guard let self = self else { return }
+            guard !Task.isCancelled, let result = result else {
+                self.isProcessing = false
+                self.processingProgress = 0.0
+                self.statusMessage = Task.isCancelled ? "Compression cancelled." : "Compression failed."
+                return
+            }
+            
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                self.resultantDocument = result
+                self.leftStageMode = .preview
+            }
+            
+            self.isProcessing = false
+            self.processingProgress = 1.0
+            self.statusMessage = "Compressed \(result.fileName)!"
+            FeedbackManager.playSuccess()
         }
-        
-        let newAttrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
-        let newBytes = (newAttrs?[.size] as? Int64) ?? 0
-        
-        // If compressed was somehow larger (e.g. tiny 4KB text PDF), fallback to copy
-        let finalURL: URL
-        let finalBytes: Int64
-        if originalBytes > 0 && newBytes >= originalBytes {
-            try? FileManager.default.removeItem(at: outputURL)
-            try? FileManager.default.copyItem(at: sourceURL, to: outputURL)
-            finalURL = outputURL
-            finalBytes = originalBytes
-        } else {
-            finalURL = outputURL
-            finalBytes = newBytes
-        }
-        
-        let oldStr = ShelfModule.byteFormatter.string(fromByteCount: originalBytes)
-        let newStr = ShelfModule.byteFormatter.string(fromByteCount: finalBytes)
-        let reduction = originalBytes > finalBytes ? Int((Double(originalBytes - finalBytes) / Double(max(1, originalBytes))) * 100) : 0
-        
-        let thumbnail = renderPageThumbnail(page: compressedDoc.page(at: 0))
-        let result = ResultantPDF(
-            fileURL: finalURL,
-            fileName: outputName,
-            pageCount: inputDoc.pageCount,
-            byteCount: finalBytes,
-            summary: reduction > 0 ? "Compressed: -\(reduction)% (\(oldStr) → \(newStr))" : "Stream optimized: \(newStr)",
-            tool: .compress,
-            thumbnailData: thumbnail
-        )
-        
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            self.resultantDocument = result
-            self.leftStageMode = .preview
-        }
-        
-        statusMessage = result.summary
-        FeedbackManager.playSuccess()
     }
     
     // MARK: - 3. Convert to PDF
@@ -495,69 +449,74 @@ public final class ShelfModule: NotchModule {
             return
         }
         
+        cancelProcessing()
         isProcessing = true
+        processingProgress = 0.0
         processingStage = "Converting to PDF..."
         FeedbackManager.playProcess()
         
         let url = target.url
-        let outputDoc = PDFDocument()
+        let cacheDir = tempCacheDirectory
+        let base = (target.name as NSString).deletingPathExtension
+        let outputName = "\(base).pdf"
+        let outputURL = cacheDir.appendingPathComponent(outputName)
         
-        if target.isImage {
-            if let img = NSImage(contentsOf: url), let page = PDFPage(image: img) {
-                outputDoc.insert(page, at: 0)
+        currentProcessingTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            
+            if target.isPDF {
+                self.isProcessing = false
+                self.statusMessage = "\(target.name) is already a PDF."
+                return
             }
-        } else if target.isTextOrDoc {
-            if let textDoc = createPDFFromTextOrDoc(url: url) {
-                for i in 0..<textDoc.pageCount {
-                    if let page = textDoc.page(at: i) {
-                        outputDoc.insert(page, at: outputDoc.pageCount)
+            
+            var result: ResultantPDF?
+            if target.isImage {
+                result = await Task.detached(priority: .userInitiated) { () -> ResultantPDF? in
+                    return ShelfModule.performImageConversion(
+                        imageURL: url,
+                        outputURL: outputURL,
+                        outputName: outputName,
+                        targetName: target.name
+                    )
+                }.value
+            } else if target.isTextOrDoc {
+                if let textDoc = self.createPDFFromTextOrDoc(url: url) {
+                    try? FileManager.default.removeItem(at: outputURL)
+                    if textDoc.write(to: outputURL) {
+                        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
+                        let byteCount = (attrs?[.size] as? Int64) ?? 0
+                        let thumbnail = ShelfModule.renderPageThumbnailStatic(page: textDoc.page(at: 0))
+                        result = ResultantPDF(
+                            fileURL: outputURL,
+                            fileName: outputName,
+                            pageCount: textDoc.pageCount,
+                            byteCount: byteCount,
+                            summary: "Converted \(target.name) into PDF (\(textDoc.pageCount) pgs)",
+                            tool: .convert,
+                            thumbnailData: thumbnail
+                        )
                     }
                 }
             }
-        } else if target.isPDF {
-            isProcessing = false
-            statusMessage = "\(target.name) is already a PDF."
-            return
+            
+            guard !Task.isCancelled, let finalResult = result else {
+                self.isProcessing = false
+                self.processingProgress = 0.0
+                self.statusMessage = Task.isCancelled ? "Conversion cancelled." : "Could not convert \(target.name) to PDF."
+                return
+            }
+            
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                self.resultantDocument = finalResult
+                self.leftStageMode = .preview
+            }
+            
+            self.isProcessing = false
+            self.processingProgress = 1.0
+            self.statusMessage = "Converted \(target.name) successfully!"
+            FeedbackManager.playSuccess()
         }
-        
-        isProcessing = false
-        
-        guard outputDoc.pageCount > 0 else {
-            statusMessage = "Could not convert \(target.name) to PDF."
-            return
-        }
-        
-        let base = (target.name as NSString).deletingPathExtension
-        let outputName = "\(base).pdf"
-        let outputURL = tempCacheDirectory.appendingPathComponent(outputName)
-        try? FileManager.default.removeItem(at: outputURL)
-        
-        guard outputDoc.write(to: outputURL) else {
-            statusMessage = "Failed to write converted PDF."
-            return
-        }
-        
-        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
-        let byteCount = (attrs?[.size] as? Int64) ?? 0
-        let thumbnail = renderPageThumbnail(page: outputDoc.page(at: 0))
-        
-        let result = ResultantPDF(
-            fileURL: outputURL,
-            fileName: outputName,
-            pageCount: outputDoc.pageCount,
-            byteCount: byteCount,
-            summary: "Converted \(target.name) into PDF (\(outputDoc.pageCount) pgs)",
-            tool: .convert,
-            thumbnailData: thumbnail
-        )
-        
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            self.resultantDocument = result
-            self.leftStageMode = .preview
-        }
-        
-        statusMessage = "Converted \(target.name) successfully!"
-        FeedbackManager.playSuccess()
     }
     
     // MARK: - 4. Enhance Scans
@@ -576,82 +535,53 @@ public final class ShelfModule: NotchModule {
             return
         }
         
+        cancelProcessing()
         isProcessing = true
+        processingProgress = 0.0
         processingStage = "Enhancing clarity & contrast..."
         FeedbackManager.playProcess()
         
-        let enhancedDoc = PDFDocument()
-        let ciContext = CIContext(options: nil)
-        
+        let outputURL = tempCacheDirectory.appendingPathComponent("\(baseName)_Enhanced.pdf")
         let isPdf = sourceURL.pathExtension.lowercased() == "pdf"
-        if isPdf {
-            if let inputDoc = PDFDocument(url: sourceURL) {
-                for i in 0..<inputDoc.pageCount {
-                    autoreleasepool {
-                        guard let page = inputDoc.page(at: i) else { return }
-                        let box = page.bounds(for: .mediaBox)
-                        let image = NSImage(size: box.size, flipped: false) { rect in
-                            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-                            ctx.setFillColor(NSColor.white.cgColor)
-                            ctx.fill(rect)
-                            page.draw(with: .mediaBox, to: ctx)
-                            return true
-                        }
-                        
-                        if let enhanced = enhanceImage(image, ciContext: ciContext),
-                           let enhancedPage = PDFPage(image: enhanced) {
-                            enhancedDoc.insert(enhancedPage, at: enhancedDoc.pageCount)
-                        } else {
-                            enhancedDoc.insert(page, at: enhancedDoc.pageCount)
-                        }
-                    }
+        
+        let (stream, continuation) = AsyncStream.makeStream(of: Double.self)
+        Task { @MainActor [weak self] in
+            for await progress in stream {
+                self?.processingProgress = progress
+            }
+        }
+        
+        currentProcessingTask = Task { @MainActor [weak self] in
+            let result = await Task.detached(priority: .userInitiated) { () -> ResultantPDF? in
+                defer { continuation.finish() }
+                return ShelfModule.performEnhance(
+                    sourceURL: sourceURL,
+                    isPdf: isPdf,
+                    baseName: baseName,
+                    outputURL: outputURL
+                ) { progress in
+                    continuation.yield(progress)
                 }
+            }.value
+            
+            guard let self = self else { return }
+            guard !Task.isCancelled, let finalResult = result else {
+                self.isProcessing = false
+                self.processingProgress = 0.0
+                self.statusMessage = Task.isCancelled ? "Enhance cancelled." : "Could not enhance document."
+                return
             }
-        } else {
-            if let img = NSImage(contentsOf: sourceURL),
-               let enhanced = enhanceImage(img, ciContext: ciContext),
-               let page = PDFPage(image: enhanced) {
-                enhancedDoc.insert(page, at: 0)
+            
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                self.resultantDocument = finalResult
+                self.leftStageMode = .preview
             }
+            
+            self.isProcessing = false
+            self.processingProgress = 1.0
+            self.statusMessage = "Enhanced document successfully!"
+            FeedbackManager.playSuccess()
         }
-        
-        isProcessing = false
-        
-        guard enhancedDoc.pageCount > 0 else {
-            statusMessage = "Could not enhance document."
-            return
-        }
-        
-        let outputName = "\(baseName)_Enhanced.pdf"
-        let outputURL = tempCacheDirectory.appendingPathComponent(outputName)
-        try? FileManager.default.removeItem(at: outputURL)
-        
-        guard enhancedDoc.write(to: outputURL) else {
-            statusMessage = "Failed to write enhanced PDF."
-            return
-        }
-        
-        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
-        let byteCount = (attrs?[.size] as? Int64) ?? 0
-        let thumbnail = renderPageThumbnail(page: enhancedDoc.page(at: 0))
-        
-        let result = ResultantPDF(
-            fileURL: outputURL,
-            fileName: outputName,
-            pageCount: enhancedDoc.pageCount,
-            byteCount: byteCount,
-            summary: "Enhanced contrast, sharpening & noise suppression",
-            tool: .enhance,
-            thumbnailData: thumbnail
-        )
-        
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            self.resultantDocument = result
-            self.leftStageMode = .preview
-        }
-        
-        statusMessage = "Enhanced document clarity & contrast!"
-        FeedbackManager.playSuccess()
     }
     
     // Save Resultant PDF to Custom Location via NSSavePanel
@@ -708,6 +638,10 @@ public final class ShelfModule: NotchModule {
     }
 
     private func renderPageThumbnail(page: PDFPage?) -> Data? {
+        return ShelfModule.renderPageThumbnailStatic(page: page)
+    }
+
+    nonisolated public static func renderPageThumbnailStatic(page: PDFPage?) -> Data? {
         guard let page = page else { return nil }
         let box = page.bounds(for: .mediaBox)
         let targetWidth: CGFloat = 160.0
@@ -727,7 +661,210 @@ public final class ShelfModule: NotchModule {
         return nil
     }
 
+    // MARK: - Nonisolated Background Processing Routines (Swift 6 & P1-SHELF-1 Compliant)
+    
+    nonisolated public static func performMerge(
+        items: [ShelfItem],
+        outputURL: URL,
+        defaultName: String,
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) -> ResultantPDF? {
+        let masterDoc = PDFDocument()
+        let total = items.count
+        
+        for (idx, item) in items.enumerated() {
+            if Task.isCancelled { return nil }
+            let url = item.url
+            if item.isPDF {
+                if let doc = PDFDocument(url: url), doc.pageCount > 0 {
+                    for pageIdx in 0..<doc.pageCount {
+                        if Task.isCancelled { return nil }
+                        if let page = doc.page(at: pageIdx) {
+                            masterDoc.insert(page, at: masterDoc.pageCount)
+                        }
+                    }
+                }
+            } else if item.isImage {
+                if let img = NSImage(contentsOf: url), let page = PDFPage(image: img) {
+                    masterDoc.insert(page, at: masterDoc.pageCount)
+                }
+            }
+            onProgress?(Double(idx + 1) / Double(max(1, total)))
+        }
+        
+        guard !Task.isCancelled, masterDoc.pageCount > 0 else { return nil }
+        try? FileManager.default.removeItem(at: outputURL)
+        guard masterDoc.write(to: outputURL) else { return nil }
+        
+        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
+        let byteCount = (attrs?[.size] as? Int64) ?? 0
+        let thumbnail = ShelfModule.renderPageThumbnailStatic(page: masterDoc.page(at: 0))
+        
+        return ResultantPDF(
+            fileURL: outputURL,
+            fileName: defaultName,
+            pageCount: masterDoc.pageCount,
+            byteCount: byteCount,
+            summary: "Merged \(items.count) files into \(masterDoc.pageCount) pages",
+            tool: .merge,
+            thumbnailData: thumbnail
+        )
+    }
+
+    nonisolated public static func performCompression(
+        sourceURL: URL,
+        outputURL: URL,
+        outputName: String,
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) -> ResultantPDF? {
+        guard let inputDoc = PDFDocument(url: sourceURL), inputDoc.pageCount > 0 else { return nil }
+        let totalPages = inputDoc.pageCount
+        let compressedDoc = PDFDocument()
+        
+        for index in 0..<totalPages {
+            if Task.isCancelled { return nil }
+            guard let page = inputDoc.page(at: index) else { continue }
+            let box = page.bounds(for: .mediaBox)
+            let scale: CGFloat = 1.25
+            let targetSize = NSSize(width: max(80, box.width * scale), height: max(80, box.height * scale))
+            let image = NSImage(size: targetSize, flipped: false) { rect in
+                guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+                ctx.setFillColor(NSColor.white.cgColor)
+                ctx.fill(rect)
+                ctx.saveGState()
+                ctx.scaleBy(x: scale, y: scale)
+                page.draw(with: .mediaBox, to: ctx)
+                ctx.restoreGState()
+                return true
+            }
+            if let tiff = image.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let jpegData = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.52]),
+               let compressedImg = NSImage(data: jpegData),
+               let compPage = PDFPage(image: compressedImg) {
+                compressedDoc.insert(compPage, at: compressedDoc.pageCount)
+            } else {
+                compressedDoc.insert(page, at: compressedDoc.pageCount)
+            }
+            onProgress?(Double(index + 1) / Double(max(1, totalPages)))
+        }
+        
+        guard !Task.isCancelled, compressedDoc.pageCount > 0 else { return nil }
+        try? FileManager.default.removeItem(at: outputURL)
+        guard compressedDoc.write(to: outputURL) else { return nil }
+        
+        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
+        let byteCount = (attrs?[.size] as? Int64) ?? 0
+        let originalAttrs = try? FileManager.default.attributesOfItem(atPath: sourceURL.path)
+        let originalBytes = (originalAttrs?[.size] as? Int64) ?? byteCount
+        let savedPct = originalBytes > 0 ? max(0, Int((Double(originalBytes - byteCount) / Double(originalBytes)) * 100)) : 0
+        let thumbnail = ShelfModule.renderPageThumbnailStatic(page: compressedDoc.page(at: 0))
+        
+        return ResultantPDF(
+            fileURL: outputURL,
+            fileName: outputName,
+            pageCount: compressedDoc.pageCount,
+            byteCount: byteCount,
+            summary: "Compressed from \(ShelfModule.byteFormatter.string(fromByteCount: originalBytes)) down to \(ShelfModule.byteFormatter.string(fromByteCount: byteCount)) (\(savedPct)% smaller)",
+            tool: .compress,
+            thumbnailData: thumbnail
+        )
+    }
+
+    nonisolated public static func performImageConversion(
+        imageURL: URL,
+        outputURL: URL,
+        outputName: String,
+        targetName: String
+    ) -> ResultantPDF? {
+        guard let img = NSImage(contentsOf: imageURL), let page = PDFPage(image: img) else { return nil }
+        let outputDoc = PDFDocument()
+        outputDoc.insert(page, at: 0)
+        
+        try? FileManager.default.removeItem(at: outputURL)
+        guard outputDoc.write(to: outputURL) else { return nil }
+        
+        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
+        let byteCount = (attrs?[.size] as? Int64) ?? 0
+        let thumbnail = ShelfModule.renderPageThumbnailStatic(page: outputDoc.page(at: 0))
+        
+        return ResultantPDF(
+            fileURL: outputURL,
+            fileName: outputName,
+            pageCount: 1,
+            byteCount: byteCount,
+            summary: "Converted \(targetName) into PDF (1 pg)",
+            tool: .convert,
+            thumbnailData: thumbnail
+        )
+    }
+
+    nonisolated public static func performEnhance(
+        sourceURL: URL,
+        isPdf: Bool,
+        baseName: String,
+        outputURL: URL,
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) -> ResultantPDF? {
+        let enhancedDoc = PDFDocument()
+        let ciContext = CIContext(options: nil)
+        
+        if isPdf {
+            guard let inputDoc = PDFDocument(url: sourceURL) else { return nil }
+            let totalPages = inputDoc.pageCount
+            for i in 0..<totalPages {
+                if Task.isCancelled { return nil }
+                guard let page = inputDoc.page(at: i) else { continue }
+                let box = page.bounds(for: .mediaBox)
+                let image = NSImage(size: box.size, flipped: false) { rect in
+                    guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+                    ctx.setFillColor(NSColor.white.cgColor)
+                    ctx.fill(rect)
+                    page.draw(with: .mediaBox, to: ctx)
+                    return true
+                }
+                if let enhanced = ShelfModule.enhanceImageStatic(image, ciContext: ciContext),
+                   let enhancedPage = PDFPage(image: enhanced) {
+                    enhancedDoc.insert(enhancedPage, at: enhancedDoc.pageCount)
+                } else {
+                    enhancedDoc.insert(page, at: enhancedDoc.pageCount)
+                }
+                onProgress?(Double(i + 1) / Double(max(1, totalPages)))
+            }
+        } else {
+            if let img = NSImage(contentsOf: sourceURL),
+               let enhanced = ShelfModule.enhanceImageStatic(img, ciContext: ciContext),
+               let page = PDFPage(image: enhanced) {
+                enhancedDoc.insert(page, at: 0)
+            }
+            onProgress?(1.0)
+        }
+        
+        guard !Task.isCancelled, enhancedDoc.pageCount > 0 else { return nil }
+        try? FileManager.default.removeItem(at: outputURL)
+        guard enhancedDoc.write(to: outputURL) else { return nil }
+        
+        let attrs = try? FileManager.default.attributesOfItem(atPath: outputURL.path)
+        let byteCount = (attrs?[.size] as? Int64) ?? 0
+        let thumbnail = ShelfModule.renderPageThumbnailStatic(page: enhancedDoc.page(at: 0))
+        let outputName = "\(baseName)_Enhanced.pdf"
+        
+        return ResultantPDF(
+            fileURL: outputURL,
+            fileName: outputName,
+            pageCount: enhancedDoc.pageCount,
+            byteCount: byteCount,
+            summary: "Enhanced contrast, sharpening & noise suppression",
+            tool: .enhance,
+            thumbnailData: thumbnail
+        )
+    }
+
     private func enhanceImage(_ image: NSImage, ciContext: CIContext) -> NSImage? {
+        return ShelfModule.enhanceImageStatic(image, ciContext: ciContext)
+    }
+
+    nonisolated public static func enhanceImageStatic(_ image: NSImage, ciContext: CIContext) -> NSImage? {
         var proposedRect = CGRect(origin: .zero, size: image.size)
         let ciImage: CIImage
         if let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {

@@ -417,8 +417,8 @@ public final class LazyNotchModule: NotchModule, ObservableObject {
     }
     
     public func unload() {
+        // Suspend module hardware/timers on collapse without discarding instance state (P1-APP-1)
         _instance?.stop()
-        _instance = nil
     }
     
     public func start() {

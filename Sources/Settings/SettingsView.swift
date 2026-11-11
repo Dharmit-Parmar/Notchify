@@ -365,7 +365,6 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .pointerHoverCursor()
-                        .focusable()
                         .accessibilityLabel(category.rawValue)
                         .accessibilityHint("Switches settings category to \(category.rawValue)")
                         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -557,7 +556,6 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(.spring)
                         .pointerHoverCursor()
-                        .focusable()
                         .accessibilityLabel(theme.displayName)
                         .accessibilityHint("Activates dynamic living theme: \(theme.subtitle)")
                         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -644,7 +642,6 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(.spring)
                         .pointerHoverCursor()
-                        .focusable()
                         .accessibilityLabel(theme.displayName)
                         .accessibilityHint("Activates studio color preset: \(theme.subtitle)")
                         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -699,7 +696,6 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(.spring)
                         .pointerHoverCursor()
-                        .focusable()
                         .accessibilityLabel(style.rawValue)
                         .accessibilityHint(style.subtitle)
                         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -776,7 +772,6 @@ public struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .pointerHoverCursor()
-            .focusable()
             .accessibilityLabel("Per-Module Accent Colors")
             .accessibilityHint("Toggles between individual module colors and unified theme accent.")
             
@@ -1129,7 +1124,6 @@ public struct SettingsView: View {
                     }
                     .buttonStyle(.spring)
                     .pointerHoverCursor()
-                    .focusable()
                     .accessibilityLabel(motion.rawValue)
                     .accessibilityHint("Sets motion profile to \(motion.rawValue)")
                     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -1321,7 +1315,6 @@ public struct SettingsView: View {
                         }
                         .buttonStyle(.spring)
                         .pointerHoverCursor()
-                        .focusable()
                         .accessibilityLabel(style.rawValue)
                         .accessibilityHint("Sets collapsed notch indicator to \(style.rawValue)")
                         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -1765,7 +1758,6 @@ public struct SettingsView: View {
                             }
                             .buttonStyle(PlainButtonStyle())
                             .pointerHoverCursor()
-                            .focusable()
                             .accessibilityLabel(skin.displayName)
                             .accessibilityHint("Selects \(skin.displayName) character skin: \(skin.subtitle)")
                             .accessibilityAddTraits(store.companionSkin == skin ? [.isButton, .isSelected] : .isButton)

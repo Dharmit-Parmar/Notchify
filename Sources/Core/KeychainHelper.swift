@@ -11,6 +11,7 @@ public final class KeychainHelper: @unchecked Sendable {
     
     public let serviceName: String
     private let lock = NSLock()
+    private var pendingSaveTasks: [String: Task<Void, Never>] = [:]
     
     private func nonInteractiveContext() -> LAContext {
         let ctx = LAContext()
@@ -33,12 +34,17 @@ public final class KeychainHelper: @unchecked Sendable {
         return saveSecretLocked(secret, forKey: account)
     }
     
-    /// Asynchronously saves a secret off the main actor to eliminate keystroke lag in UI bindings.
-    public func saveSecretAsync(_ secret: String, forKey account: String) {
+    /// Asynchronously saves a secret off the main actor with debouncing to eliminate keystroke lag in UI bindings.
+    public func saveSecretAsync(_ secret: String, forKey account: String, debounceDelay: TimeInterval = 0.50) {
         let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
-        Task.detached(priority: .utility) { [weak self] in
+        lock.lock()
+        pendingSaveTasks[account]?.cancel()
+        pendingSaveTasks[account] = Task.detached(priority: .utility) { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(debounceDelay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
             self?.saveSecret(trimmed, forKey: account)
         }
+        lock.unlock()
     }
     
     private func saveSecretLocked(_ secret: String, forKey account: String) -> Bool {

@@ -116,6 +116,10 @@ public final class NotchShellCoordinator: ObservableObject {
     /// Provides visual feedback when appearance settings change by smoothly opening and closing the notch
     public func triggerAppearancePropagationPreview() {
         guard !isFileDraggingActive else { return }
+        // Suppress dead live notch preview expansion when Settings window is actively open (P1-SHELL-1)
+        if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive {
+            return
+        }
         if let panel = self.panel {
             cachedExpandedRect = NotchPanel.calculateFrame(
                 for: .expanded,
