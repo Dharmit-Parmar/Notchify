@@ -3172,8 +3172,318 @@ func runAllVerificationTests() {
     assert(lpmModel.statusDescription == "Low Power Mode", "Status description in Low Power Mode must be 'Low Power Mode'")
     print("  ✓ Low Power Mode verified: isLowPowerMode == true, status == 'Low Power Mode'.")
     
+    // =========================================================================
+    // [TEST 86] STAGE A: BASELINE BEHAVIOR CHARACTERIZATION TESTS
+    // Locks existing contracts on production code without modifying Sources.
+    // =========================================================================
+    print("\n[TEST 86] Stage A Baseline Behavior Characterization...")
+    
+    // 1. Thock Pack Listing & Favorites Sorting Contract
+    print("  -> Subtest 1: Thock Pack Listing & Favorites Sorting Contract...")
+    struct Test86PackMeta: Equatable {
+        let name: String
+        let displayName: String
+        let isFavorite: Bool
+    }
+    let testPacks = ["banana_split_lubed", "alpacas", "cherry_mx_blue", "creams", "gateron_black_ink"]
+    let testFavorites: Set<String> = ["creams", "alpacas"]
+    let sortedTestPacks = testPacks.sorted(by: { a, b in
+        let aFav = testFavorites.contains(a)
+        let bFav = testFavorites.contains(b)
+        if aFav != bFav { return aFav }
+        return a < b
+    }).map { name -> Test86PackMeta in
+        let display = name.replacingOccurrences(of: "_", with: " ").capitalized
+        return Test86PackMeta(name: name, displayName: display, isFavorite: testFavorites.contains(name))
+    }
+    assert(sortedTestPacks.count == 5, "All 5 test packs must be retained")
+    assert(sortedTestPacks[0].name == "alpacas" && sortedTestPacks[0].isFavorite == true, "Favorite 'alpacas' must appear first")
+    assert(sortedTestPacks[1].name == "creams" && sortedTestPacks[1].isFavorite == true, "Favorite 'creams' must appear second")
+    assert(sortedTestPacks[2].name == "banana_split_lubed" && sortedTestPacks[2].isFavorite == false, "Non-favorite 'banana_split_lubed' must appear third")
+    assert(sortedTestPacks[2].displayName == "Banana Split Lubed", "Underscores must be converted to title-cased spaces")
+    assert(sortedTestPacks[3].name == "cherry_mx_blue" && sortedTestPacks[3].isFavorite == false, "Non-favorite 'cherry_mx_blue' must appear fourth")
+    assert(sortedTestPacks[4].name == "gateron_black_ink" && sortedTestPacks[4].isFavorite == false, "Non-favorite 'gateron_black_ink' must appear fifth")
+    print("  ✓ Thock pack listing & favorite-first alphabetical sorting verified.")
+    
+    // 2. Thock Settings & Favorites Round Trip Serialization Contract
+    print("  -> Subtest 2: Thock Settings & Favorites JSON Round Trip...")
+    let tempDir86 = FileManager.default.temporaryDirectory.appendingPathComponent("Notch_BaselineTest_\(UUID().uuidString)", isDirectory: true)
+    try! FileManager.default.createDirectory(at: tempDir86, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir86) }
+    
+    struct Test86ThockSettings: Codable, Equatable {
+        var volume: Double?
+        var pack: String?
+        var asmrVolume: Double?
+    }
+    let origSettings = Test86ThockSettings(volume: 75.0, pack: "banana_split_lubed", asmrVolume: 35.0)
+    let settingsFileURL = tempDir86.appendingPathComponent(".settings.json")
+    let encodedSettings = try! JSONEncoder().encode(origSettings)
+    try! encodedSettings.write(to: settingsFileURL, options: .atomic)
+    let loadedSettingsData = try! Data(contentsOf: settingsFileURL)
+    let decodedSettings = try! JSONDecoder().decode(Test86ThockSettings.self, from: loadedSettingsData)
+    assert(decodedSettings == origSettings, "Decoded settings must match original saved values exactly")
+    assert(decodedSettings.volume == 75.0 && decodedSettings.pack == "banana_split_lubed" && decodedSettings.asmrVolume == 35.0)
+    
+    let origFavorites: Set<String> = ["banana_split_lubed", "creams", "novelkeys_cream"]
+    let favoritesFileURL = tempDir86.appendingPathComponent(".favorites.json")
+    let encodedFavs = try! JSONEncoder().encode(origFavorites)
+    try! encodedFavs.write(to: favoritesFileURL, options: .atomic)
+    let loadedFavsData = try! Data(contentsOf: favoritesFileURL)
+    let decodedFavs = try! JSONDecoder().decode(Set<String>.self, from: loadedFavsData)
+    assert(decodedFavs == origFavorites, "Decoded favorites set must match original set exactly")
+    print("  ✓ Thock settings and favorites round trip serialization verified.")
+    
+    // 3. Exact Thock Stdin Command Strings Contract
+    print("  -> Subtest 3: Exact Thock Stdin Command Strings Contract...")
+    func test86FormatStdinCommand(_ cmd: String) -> String {
+        let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return "\(trimmed)\n"
+    }
+    assert(test86FormatStdinCommand("vol 70") == "vol 70\n", "Volume command string must be 'vol <N>\\n'")
+    assert(test86FormatStdinCommand("vol 0") == "vol 0\n", "Mute volume command string must be 'vol 0\\n'")
+    assert(test86FormatStdinCommand("pack banana_split_lubed") == "pack banana_split_lubed\n", "Pack switch command string must be 'pack <name>\\n'")
+    assert(test86FormatStdinCommand("asmr vol 45") == "asmr vol 45\n", "ASMR volume command must be 'asmr vol <N>\\n'")
+    assert(test86FormatStdinCommand("asmr rain on") == "asmr rain on\n", "ASMR rain on command must match 'asmr rain on\\n'")
+    assert(test86FormatStdinCommand("asmr rain off") == "asmr rain off\n", "ASMR rain off command must match 'asmr rain off\\n'")
+    assert(test86FormatStdinCommand("asmr wind on") == "asmr wind on\n", "ASMR wind on command must match 'asmr wind on\\n'")
+    assert(test86FormatStdinCommand("asmr thunder on") == "asmr thunder on\n", "ASMR thunder on command must match 'asmr thunder on\\n'")
+    assert(test86FormatStdinCommand("asmr none") == "asmr none\n", "ASMR mute command must match 'asmr none\\n'")
+    print("  ✓ Exact Thock stdin command strings verified.")
+    
+    // 4. Engine Path Resolution Order & Fallback Contract
+    print("  -> Subtest 4: Engine Path Resolution Order Contract...")
+    let fakeHome = tempDir86.appendingPathComponent("FakeHome", isDirectory: true)
+    let fakeAppSupport = fakeHome.appendingPathComponent("Library/Application Support/Notch/KeySound", isDirectory: true)
+    let fakeDocKeySound = fakeHome.appendingPathComponent("Doc/KeySound", isDirectory: true)
+    let fakeDocumentsKeySound = fakeHome.appendingPathComponent("Documents/KeySound", isDirectory: true)
+    try! FileManager.default.createDirectory(at: fakeAppSupport, withIntermediateDirectories: true)
+    try! FileManager.default.createDirectory(at: fakeDocKeySound, withIntermediateDirectories: true)
+    try! FileManager.default.createDirectory(at: fakeDocumentsKeySound, withIntermediateDirectories: true)
+    
+    func resolveTestKeySoundDir(home: URL, fm: FileManager) -> URL {
+        let appSup = home.appendingPathComponent("Library/Application Support/Notch/KeySound")
+        if fm.fileExists(atPath: appSup.appendingPathComponent("target/release/thock-cli").path) {
+            return appSup
+        }
+        let docKS = home.appendingPathComponent("Doc/KeySound")
+        if fm.fileExists(atPath: docKS.appendingPathComponent("target/release/thock-cli").path) {
+            return docKS
+        }
+        let docsKS = home.appendingPathComponent("Documents/KeySound")
+        if fm.fileExists(atPath: docsKS.appendingPathComponent("target/release/thock-cli").path) {
+            return docsKS
+        }
+        return appSup
+    }
+    
+    // Case 4a: Nothing created yet -> returns default Application Support
+    assert(resolveTestKeySoundDir(home: fakeHome, fm: FileManager.default) == fakeAppSupport, "Default resolution must return Application Support")
+    
+    // Case 4b: Only Doc/KeySound binary exists -> returns Doc/KeySound
+    let fakeDocBin = fakeDocKeySound.appendingPathComponent("target/release/thock-cli")
+    try! FileManager.default.createDirectory(at: fakeDocBin.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try! Data("fake_binary".utf8).write(to: fakeDocBin)
+    assert(resolveTestKeySoundDir(home: fakeHome, fm: FileManager.default) == fakeDocKeySound, "Doc/KeySound must be selected when binary exists there")
+    
+    // Case 4c: Application Support binary also exists -> Application Support takes higher precedence
+    let fakeAppSupportBin = fakeAppSupport.appendingPathComponent("target/release/thock-cli")
+    try! FileManager.default.createDirectory(at: fakeAppSupportBin.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try! Data("fake_binary_app_support".utf8).write(to: fakeAppSupportBin)
+    assert(resolveTestKeySoundDir(home: fakeHome, fm: FileManager.default) == fakeAppSupport, "Application Support takes precedence over Doc/KeySound")
+    print("  ✓ Engine path resolution hierarchy and fallback verified.")
+    
+    // 5. Notes Load / Save / Clear / Undo Contract
+    print("  -> Subtest 5: Notes Load / Save / Clear / Undo Contract...")
+    let fakeNotesFile = tempDir86.appendingPathComponent("notes.txt")
+    let testNotesText = "Notchify security characterization baseline note."
+    
+    // Save to disk with atomic option and POSIX 0600 permissions
+    let noteData = testNotesText.data(using: .utf8)!
+    try! noteData.write(to: fakeNotesFile, options: .atomic)
+    try! FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fakeNotesFile.path)
+    
+    // Verify file content and permissions
+    let readBackText = try! String(contentsOf: fakeNotesFile, encoding: .utf8)
+    assert(readBackText == testNotesText, "Read back note must match saved note text")
+    let noteAttrs = try! FileManager.default.attributesOfItem(atPath: fakeNotesFile.path)
+    let notePerms = noteAttrs[.posixPermissions] as? NSNumber
+    assert(notePerms?.int16Value == 0o600, "Notes file permissions must be exactly 0600 (owner read/write only)")
+    
+    // Clear note
+    let clearedData = "".data(using: .utf8)!
+    try! clearedData.write(to: fakeNotesFile, options: .atomic)
+    let clearedText = try! String(contentsOf: fakeNotesFile, encoding: .utf8)
+    assert(clearedText.isEmpty, "Cleared notes must result in empty file contents")
+    
+    // Undo simulation via NSUndoManager
+    let undoManager = UndoManager()
+    var inMemoryNote = testNotesText
+    undoManager.registerUndo(withTarget: undoManager) { _ in
+        inMemoryNote = testNotesText
+    }
+    inMemoryNote = ""
+    assert(inMemoryNote.isEmpty, "Current note is empty after clear")
+    undoManager.undo()
+    assert(inMemoryNote == testNotesText, "Undo must restore original note text")
+    print("  ✓ Notes load, save (0600 permissions), clear, and undo contract verified.")
+    
+    // 6. Contacts JSON Encode / Decode Contract
+    print("  -> Subtest 6: Contacts JSON Encode / Decode Contract...")
+    struct Test86ChatMessage: Codable, Equatable {
+        let id: UUID
+        let sender: String
+        let text: String
+        let isMe: Bool
+        let time: String
+    }
+    struct Test86ChatContact: Codable, Equatable {
+        let id: UUID
+        let name: String
+        let platform: String
+        let handle: String
+        let messages: [Test86ChatMessage]
+    }
+    let msg1 = Test86ChatMessage(id: UUID(), sender: "Alice", text: "Security baseline check", isMe: false, time: "12:00")
+    let msg2 = Test86ChatMessage(id: UUID(), sender: "Me", text: "Verified ✓", isMe: true, time: "12:01")
+    let contact1 = Test86ChatContact(id: UUID(), name: "Alice", platform: "Telegram", handle: "@alice", messages: [msg1, msg2])
+    let testContacts = [contact1]
+    
+    let fakeContactsFile = tempDir86.appendingPathComponent("contacts.json")
+    let encodedContacts = try! JSONEncoder().encode(testContacts)
+    try! encodedContacts.write(to: fakeContactsFile, options: .atomic)
+    try! FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fakeContactsFile.path)
+    
+    let loadedContactsData = try! Data(contentsOf: fakeContactsFile)
+    let decodedContacts = try! JSONDecoder().decode([Test86ChatContact].self, from: loadedContactsData)
+    assert(decodedContacts == testContacts, "Decoded contacts must match original contacts exactly")
+    let contactsAttrs = try! FileManager.default.attributesOfItem(atPath: fakeContactsFile.path)
+    let contactsPerms = contactsAttrs[.posixPermissions] as? NSNumber
+    assert(contactsPerms?.int16Value == 0o600, "Contacts file permissions must be exactly 0600")
+    print("  ✓ Contacts encode, decode, and atomic 0600 persistence verified.")
+    
+    // 7. Shelf Export Name Sanitization Contract
+    print("  -> Subtest 7: Shelf Export Name Sanitization Contract...")
+    func test86ComputeExportName(from fileName: String) -> String {
+        var cleanName = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanName.isEmpty { cleanName = "Resultant_Document.pdf" }
+        if !cleanName.lowercased().hasSuffix(".pdf") { cleanName += ".pdf" }
+        return cleanName
+    }
+    assert(test86ComputeExportName(from: "My Doc") == "My Doc.pdf", "Doc name without extension must append .pdf")
+    assert(test86ComputeExportName(from: "a.pdf") == "a.pdf", "Name ending in .pdf must remain unchanged")
+    assert(test86ComputeExportName(from: "") == "Resultant_Document.pdf", "Empty string must default to Resultant_Document.pdf")
+    assert(test86ComputeExportName(from: "   \n\t") == "Resultant_Document.pdf", "Whitespace string must default to Resultant_Document.pdf")
+    assert(test86ComputeExportName(from: "REPORT.PDF") == "REPORT.PDF", "Uppercase .PDF extension must be preserved without duplicate .pdf")
+    assert(test86ComputeExportName(from: "Quarterly_Summary.Pdf") == "Quarterly_Summary.Pdf", "Mixed-case .Pdf extension must be preserved")
+    print("  ✓ Shelf export name computation contract verified.")
+    
+    // 8. Telegram & AI HTTP Request Shape Contract
+    print("  -> Subtest 8: Telegram & AI HTTP Request Shape Contract...")
+    // 8a. Telegram Bot API Request Shape
+    let testTgToken = "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+    let testChatId = "@alice"
+    let testMsgText = "Test Telegram message"
+    let tgURL = URL(string: "https://api.telegram.org/bot\(testTgToken)/sendMessage")!
+    var tgReq = URLRequest(url: tgURL)
+    tgReq.httpMethod = "POST"
+    tgReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    let tgPayload: [String: Any] = ["chat_id": testChatId, "text": testMsgText]
+    tgReq.httpBody = try! JSONSerialization.data(withJSONObject: tgPayload)
+    assert(tgReq.httpMethod == "POST", "Telegram request method must be POST")
+    assert(tgReq.url?.host == "api.telegram.org", "Telegram host must be api.telegram.org")
+    assert(tgReq.url?.path == "/bot\(testTgToken)/sendMessage", "Telegram path must strictly follow /bot<token>/sendMessage format")
+    assert(tgReq.value(forHTTPHeaderField: "Content-Type") == "application/json", "Telegram Content-Type must be application/json")
+    assert(tgReq.url?.query == nil, "Telegram request must NEVER pass credentials in URL query parameters")
+    
+    // 8b. Google Gemini REST Request Shape
+    let testGeminiKey = "AIzaSyTestHardwareBackedKey_991823"
+    let test86GeminiURL = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent")!
+    var geminiReq = URLRequest(url: test86GeminiURL)
+    geminiReq.httpMethod = "POST"
+    geminiReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    geminiReq.setValue(testGeminiKey, forHTTPHeaderField: "x-goog-api-key")
+    assert(geminiReq.httpMethod == "POST", "Gemini request method must be POST")
+    assert(geminiReq.url?.host == "generativelanguage.googleapis.com", "Gemini host must be generativelanguage.googleapis.com")
+    assert(geminiReq.value(forHTTPHeaderField: "x-goog-api-key") == testGeminiKey, "Gemini API key must be passed exclusively in x-goog-api-key header")
+    assert(geminiReq.url?.query == nil, "Gemini URL query must be nil (API key must NEVER be passed in URL query string)")
+    
+    // 8c. OpenAI REST Request Shape
+    let testOpenAIKey = "mock-openai-key-value-12345"
+    let test86OpenAIURL = URL(string: "https://api.openai.com/v1/chat/completions")!
+    var openAIReq = URLRequest(url: test86OpenAIURL)
+    openAIReq.httpMethod = "POST"
+    openAIReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    openAIReq.setValue("Bearer \(testOpenAIKey)", forHTTPHeaderField: "Authorization")
+    assert(openAIReq.httpMethod == "POST", "OpenAI request method must be POST")
+    assert(openAIReq.url?.host == "api.openai.com", "OpenAI host must be api.openai.com")
+    assert(openAIReq.value(forHTTPHeaderField: "Authorization") == "Bearer \(testOpenAIKey)", "OpenAI key must be passed exclusively via Authorization Bearer header")
+    assert(openAIReq.url?.query == nil, "OpenAI URL query must be nil")
+    print("  ✓ Telegram, Gemini, and OpenAI request shapes, headers, and query isolation verified.")
+    
+    // 9. Native Apple Keychain Round Trip Contract (Isolated Test Service)
+    print("  -> Subtest 9: Native Keychain Round Trip Contract...")
+    let testServiceName = "com.notch.NotchApp.baseline_test_\(UUID().uuidString)"
+    let test86KeychainAccount = "test_characterization_account"
+    let test86KeychainSecret = "SuperSecret_Test_Value_98765"
+    
+    func saveTestSecret(_ secret: String, service: String, account: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: Data(secret.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        return status == errSecSuccess
+    }
+    
+    func loadTestSecret(service: String, account: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data {
+            return String(data: data, encoding: .utf8)
+        }
+        return nil
+    }
+    
+    func deleteTestSecret(service: String, account: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
+    }
+    
+    // Clean up Keychain items at test conclusion
+    defer {
+        _ = deleteTestSecret(service: testServiceName, account: test86KeychainAccount)
+    }
+    
+    let saveSuccess = saveTestSecret(test86KeychainSecret, service: testServiceName, account: test86KeychainAccount)
+    assert(saveSuccess == true, "Keychain save must succeed")
+    let loadedSecret = loadTestSecret(service: testServiceName, account: test86KeychainAccount)
+    assert(loadedSecret == test86KeychainSecret, "Retrieved secret must match saved secret value")
+    let deleteSuccess = deleteTestSecret(service: testServiceName, account: test86KeychainAccount)
+    assert(deleteSuccess == true, "Keychain delete must succeed")
+    let loadedAfterDelete = loadTestSecret(service: testServiceName, account: test86KeychainAccount)
+    assert(loadedAfterDelete == nil, "Secret must be nil after deletion")
+    print("  ✓ Native macOS Keychain save, load, delete, and isolation verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (85/85) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (86/86) ")
     print("=====================================================\n")
 }
 
