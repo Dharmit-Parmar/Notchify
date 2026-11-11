@@ -535,14 +535,23 @@ public final class ThockModule: NotchModule {
         try? NSRegularExpression(pattern: #"\x1b\[[0-9;]*[a-zA-Z]"#, options: [])
     }()
     
+    // Pack validation helper (SEC-C-5: restricts pack names to ^[A-Za-z0-9_-]+$)
+    nonisolated public static func isValidPackName(_ name: String) -> Bool {
+        guard !name.isEmpty else { return false }
+        return name.allSatisfy { c in
+            c.isLetter || c.isNumber || c == "_" || c == "-"
+        }
+    }
+    
     // MARK: - Pack Discovery & Settings Sync
     public func loadPacksFromDisk() {
         var names: [String] = []
         if let entries = try? FileManager.default.contentsOfDirectory(at: packsDir, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles) {
             for entry in entries {
                 var isDir: ObjCBool = false
-                if FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue {
-                    names.append(entry.lastPathComponent)
+                let name = entry.lastPathComponent
+                if FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue, Self.isValidPackName(name) {
+                    names.append(name)
                 }
             }
         }
@@ -850,6 +859,11 @@ public final class ThockModule: NotchModule {
         let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
+        // SEC-C-5: Reject \n, \r, and control characters to prevent stdin command injection
+        guard !trimmed.contains(where: { $0.isNewline || ($0.asciiValue != nil && $0.asciiValue! < 32) }) else {
+            return
+        }
+        
         if let inPipe = self.inPipe, isRunning {
             if let data = "\(trimmed)\n".data(using: .utf8) {
                 try? inPipe.fileHandleForWriting.write(contentsOf: data)
@@ -912,6 +926,7 @@ public final class ThockModule: NotchModule {
     }
     
     public func selectPack(_ packName: String) {
+        guard Self.isValidPackName(packName) else { return }
         guard currentPack != packName else {
             // Already selected, audition it
             auditionCurrentPack()

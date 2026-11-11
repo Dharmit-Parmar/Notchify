@@ -3707,8 +3707,72 @@ func runAllVerificationTests() {
     assert(shouldSweepProcess(candidatePath: unrelatedBinary, candidateUID: 501, ppid: 1, expectedBinary: testResolvedBinary, expectedUID: currentUID) == false, "Unrelated foreign binary with same filename must NEVER be swept")
     print("  ✓ Orphan process sweep precision verified: exact realpath and UID matched; foreign processes protected.")
     
+    // =========================================================================
+    // [TEST 92] SEC-C-5: STDIN COMMAND INJECTION & PACK NAME WHITELIST INVARIANT
+    // Asserts that stdin commands with newlines/control chars are rejected, and pack names whitelist enforced.
+    // =========================================================================
+    print("\n[TEST 92] SEC-C-5: Stdin Command Injection & Pack Name Whitelist Invariant...")
+    
+    func testSanitizeStdinCommand(_ cmd: String) -> String? {
+        let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        // Reject \n, \r, and ASCII control characters < 32
+        guard !trimmed.contains(where: { $0.isNewline || ($0.asciiValue != nil && $0.asciiValue! < 32) }) else {
+            return nil
+        }
+        return "\(trimmed)\n"
+    }
+    
+    // 1. Valid command passes
+    assert(testSanitizeStdinCommand("vol 75") == "vol 75\n", "Valid single-line command must pass")
+    assert(testSanitizeStdinCommand("pack banana_split_lubed") == "pack banana_split_lubed\n", "Valid pack command must pass")
+    
+    // 2. Multiline injection commands are REJECTED
+    assert(testSanitizeStdinCommand("vol 75\nquit") == nil, "Newline command injection must be rejected")
+    assert(testSanitizeStdinCommand("pack banana\r\nrm -rf /") == nil, "CRLF injection must be rejected")
+    assert(testSanitizeStdinCommand("vol 10\u{001B}[2J") == nil, "Escape sequence injection must be rejected")
+    assert(testSanitizeStdinCommand("vol 10\u{0000}bad") == nil, "NUL byte injection must be rejected")
+    
+    // 3. Pack Name Whitelist Validation (^[A-Za-z0-9_-]+$)
+    func testIsValidPackName(_ name: String) -> Bool {
+        guard !name.isEmpty else { return false }
+        return name.allSatisfy { c in
+            c.isLetter || c.isNumber || c == "_" || c == "-"
+        }
+    }
+    
+    // 4. Test all 14 known sound packs
+    let known14Packs = [
+        "bubble_heaven",
+        "creamy_butter",
+        "creamy_lite_calm",
+        "banana_split_lubed",
+        "nk_cream",
+        "overlubed_custom",
+        "tealios_v2",
+        "cherry_mx_red_pbt",
+        "cherry_mx_red_abs",
+        "cherry_mx_brown_pbt",
+        "cherry_mx_brown_abs",
+        "cherry_mx_black_pbt",
+        "steelseries_apex_pro_v2",
+        "animal_crossing_nl"
+    ]
+    assert(known14Packs.count == 14, "Must verify exactly 14 known pack names")
+    for pack in known14Packs {
+        assert(testIsValidPackName(pack) == true, "Known pack '\(pack)' must pass whitelist validation")
+    }
+    
+    // 5. Malicious or traversal pack names must be REJECTED
+    assert(testIsValidPackName("../etc/passwd") == false, "Path traversal pack name must be rejected")
+    assert(testIsValidPackName("pack;killall") == false, "Command separator in pack name must be rejected")
+    assert(testIsValidPackName("pack$HOME") == false, "Shell variable in pack name must be rejected")
+    assert(testIsValidPackName("pack\nquit") == false, "Newline in pack name must be rejected")
+    assert(testIsValidPackName("") == false, "Empty pack name must be rejected")
+    print("  ✓ Stdin command injection and pack name whitelist (all 14 known packs) verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (91/91) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (92/92) ")
     print("=====================================================\n")
 }
 

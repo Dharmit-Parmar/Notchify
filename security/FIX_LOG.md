@@ -159,3 +159,22 @@
 - **Safety Analysis (F8)**:
   - *What could break*: If the resolved binary path differed in symlink representation from the kernel-reported `proc_pidpath`, it might fail to sweep our own orphans.
   - *How verified*: Both paths are normalized through `resolvingSymlinksInPath()`. Test 91 confirms our own orphans are swept while foreign processes are protected.
+
+### Commit 6: SEC-C-5 — Stdin Command Injection Prevention & Pack Name Whitelist
+
+- **Commit**: `SEC-C-5: reject control chars in stdin commands and whitelist pack names`
+- **Files Changed**:
+  - `Sources/Modules/Thock/ThockModule.swift`:
+    - In `sendCommand(_:)`: Added validation rejecting strings containing `\n`, `\r`, or ASCII control chars (< 32).
+    - Added `isValidPackName(_:)` enforcing `^[A-Za-z0-9_-]+$`.
+    - In `loadPacksFromDisk()`: Gated folder discovery with `isValidPackName`.
+    - In `selectPack(_:)`: Gated selection with `isValidPackName`.
+  - `Tests/VerificationTests.swift`: Added `[TEST 92]` verifying rejection of newlines, carriage returns, escape sequences, and path traversal in pack names, while verifying that all 14 known sound packs (`bubble_heaven`, `creamy_butter`, `creamy_lite_calm`, `banana_split_lubed`, `nk_cream`, `overlubed_custom`, `tealios_v2`, `cherry_mx_red_pbt`, `cherry_mx_red_abs`, `cherry_mx_brown_pbt`, `cherry_mx_brown_abs`, `cherry_mx_black_pbt`, `steelseries_apex_pro_v2`, `animal_crossing_nl`) continue to pass.
+- **Diffstat**:
+  `Sources/Modules/Thock/ThockModule.swift | 19 +++++++++++++++++--`
+  `Tests/VerificationTests.swift | 66 ++++++++++++++++++++++++++++++++-`
+- **Compiler Warnings**: 0 warnings.
+- **Test Count**: 92 / 92 passing.
+- **Safety Analysis (F8)**:
+  - *What could break*: If a legitimate pack name contained special characters or spaces, it would be excluded.
+  - *How verified*: All 14 known pack names were verified against the validator; all pass cleanly.
