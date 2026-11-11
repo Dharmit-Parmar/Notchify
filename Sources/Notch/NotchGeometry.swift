@@ -52,6 +52,81 @@ public struct NotchGeometry {
         return CGRect(x: x, y: y, width: width, height: height)
     }
     
+    // MARK: - Pure Expanded-Layout Model (One Source of Truth)
+    
+    public static func expandedLayout(
+        geometry: NotchGeometry,
+        notchWidth: CGFloat = 620.0,
+        notchHeight: CGFloat = 330.0,
+        attachment: NotchPositionAttachment = .hardwareNotch,
+        horizontalOffset: CGFloat = 0.0,
+        verticalOffset: CGFloat = 0.0,
+        dashboardLayoutFlow: DashboardLayoutFlow = .bentoQuad,
+        activeWidgetsCount: Int = 2
+    ) -> ExpandedLayout {
+        let screenFrame = geometry.screenFrame
+        
+        // Target Width: Respect user setting; expand for 4+ widgets in horizontal strip if needed
+        let targetWidth: CGFloat
+        if dashboardLayoutFlow == .horizontalStrip && activeWidgetsCount >= 4 {
+            targetWidth = max(notchWidth, 720.0)
+        } else {
+            targetWidth = notchWidth
+        }
+        
+        // Notch Inset and Content Top Padding:
+        // Expanded height = notch inset + content height.
+        // Content top padding = notch inset.
+        let notchInset: CGFloat
+        let contentTopPadding: CGFloat
+        
+        if attachment == .belowMenuBar {
+            notchInset = 0.0
+            contentTopPadding = 8.0
+        } else if geometry.hasPhysicalNotch {
+            notchInset = geometry.physicalNotchHeight
+            contentTopPadding = geometry.physicalNotchHeight
+        } else {
+            notchInset = 0.0
+            contentTopPadding = 10.0
+        }
+        
+        let contentHeight = max(280.0, notchHeight)
+        let totalHeight = notchInset + contentHeight
+        
+        // Center X: Anchored to hardware notch center + user offset, clamped to screen bounds
+        let rawCenterX = geometry.notchCenterX + horizontalOffset
+        let minCenterX = screenFrame.minX + (targetWidth / 2.0)
+        let maxCenterX = screenFrame.maxX - (targetWidth / 2.0)
+        let clampedCenterX = min(max(minCenterX, rawCenterX), maxCenterX)
+        let x = clampedCenterX - (targetWidth / 2.0)
+        
+        // Top Y: Flush with top bezel + user vertical offset, extending downward
+        let topY: CGFloat
+        switch attachment {
+        case .hardwareNotch, .custom:
+            topY = screenFrame.maxY + verticalOffset
+        case .belowMenuBar:
+            topY = screenFrame.maxY - geometry.topInset + verticalOffset
+        }
+        let clampedTopY = min(screenFrame.maxY, topY)
+        let y = clampedTopY - totalHeight
+        
+        let windowRect = NSRect(x: x, y: y, width: targetWidth, height: totalHeight)
+        let contentRect = NSRect(x: x, y: y, width: targetWidth, height: contentHeight)
+        let hoverBounds = windowRect.insetBy(dx: -24.0, dy: -14.0)
+        
+        return ExpandedLayout(
+            windowRect: windowRect,
+            contentRect: contentRect,
+            notchInset: notchInset,
+            contentTopPadding: contentTopPadding,
+            targetWidth: targetWidth,
+            targetHeight: totalHeight,
+            hoverBounds: hoverBounds
+        )
+    }
+    
     // MARK: - Pure Collapsed-Layout Model (Phase 1)
     
     public static func collapsedLayout(
@@ -240,5 +315,34 @@ public struct CollapsedLayout: Equatable, Sendable {
         self.hoverTriggerRect = hoverTriggerRect
         self.effectiveWingWidth = effectiveWingWidth
         self.isWingsVisible = isWingsVisible
+    }
+}
+
+// MARK: - Resolved Expanded Layout Result (One Source of Truth)
+public struct ExpandedLayout: Equatable, Sendable {
+    public let windowRect: NSRect
+    public let contentRect: NSRect
+    public let notchInset: CGFloat
+    public let contentTopPadding: CGFloat
+    public let targetWidth: CGFloat
+    public let targetHeight: CGFloat
+    public let hoverBounds: NSRect
+    
+    public init(
+        windowRect: NSRect,
+        contentRect: NSRect,
+        notchInset: CGFloat,
+        contentTopPadding: CGFloat,
+        targetWidth: CGFloat,
+        targetHeight: CGFloat,
+        hoverBounds: NSRect
+    ) {
+        self.windowRect = windowRect
+        self.contentRect = contentRect
+        self.notchInset = notchInset
+        self.contentTopPadding = contentTopPadding
+        self.targetWidth = targetWidth
+        self.targetHeight = targetHeight
+        self.hoverBounds = hoverBounds
     }
 }

@@ -46,45 +46,49 @@ public struct NotchRootView: View {
                     CompactNotchIndicator(height: store.hoverTriggerHeight)
                         .transition(.opacity)
                 } else {
-                    // Camera Clear Zone: Leaves 38pt+ clear at the top so nothing renders behind physical MacBook notch
-                    Spacer()
-                        .frame(height: max(38.0, coordinator.geometry.physicalNotchHeight + 6))
-                    
-                    // Persistent Navigation Dock (Reorderable Tabs, Edge Auto-Scroll, Close Button)
-                    expandedHeaderTabs
-                        .padding(.horizontal, store.contentHorizontalPadding)
-                        .padding(.bottom, 8)
-                        .transition(.opacity)
-                    
-                    // Dynamic Specular Divider
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    DesignSystem.accentColor.opacity(0.35),
-                                    DesignSystem.accentColor.opacity(0.10),
-                                    Color.clear
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    let expandedSize = coordinator.currentExpandedLayout.windowRect.size
+                    VStack(spacing: 0) {
+                        // Camera Clear Zone: Leaves notchInset clear on hardware notch; compact on non-notch or belowMenuBar
+                        Spacer()
+                            .frame(height: coordinator.currentExpandedLayout.contentTopPadding)
+                        
+                        // Persistent Navigation Dock (Reorderable Tabs, Edge Auto-Scroll, Close Button)
+                        expandedHeaderTabs
+                            .padding(.horizontal, store.contentHorizontalPadding)
+                            .padding(.bottom, 8)
+                            .transition(.opacity)
+                        
+                        // Dynamic Specular Divider
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        DesignSystem.accentColor.opacity(0.35),
+                                        DesignSystem.accentColor.opacity(0.10),
+                                        Color.clear
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .frame(height: 1)
-                        .padding(.horizontal, store.contentHorizontalPadding)
-                        .padding(.bottom, 10)
-                    
-                    // Body: Home Dashboard (by default) OR Selected Secondary Module
-                    contentArea
-                        .padding(.horizontal, store.contentHorizontalPadding)
-                        .padding(.bottom, store.contentVerticalPadding)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .overlay(
-                            // Zero-allocation composited dimming overlay avoiding CoreAnimation offscreen group render pass
-                            Color.black
-                                .opacity(coordinator.isIdleDimmed ? 0.12 : 0.0)
-                                .allowsHitTesting(false)
-                                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: coordinator.isIdleDimmed)
-                        )
+                            .frame(height: 1)
+                            .padding(.horizontal, store.contentHorizontalPadding)
+                            .padding(.bottom, 10)
+                        
+                        // Body: Home Dashboard (by default) OR Selected Secondary Module
+                        contentArea
+                            .padding(.horizontal, store.contentHorizontalPadding)
+                            .padding(.bottom, store.contentVerticalPadding)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .overlay(
+                                // Zero-allocation composited dimming overlay avoiding CoreAnimation offscreen group render pass
+                                Color.black
+                                    .opacity(coordinator.isIdleDimmed ? 0.12 : 0.0)
+                                    .allowsHitTesting(false)
+                                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: coordinator.isIdleDimmed)
+                            )
+                    }
+                    .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
                 }
             }
         }

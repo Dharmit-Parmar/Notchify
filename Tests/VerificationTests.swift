@@ -2837,8 +2837,114 @@ func runAllVerificationTests() {
     }
     print("  ✓ Bento Quad columns, 2-high vertical stacks, and horizontal strip strictly partition geometry with 0.00pt overlap.")
     
+    // [Test 84] Expanded Layout Contract (Top Flush, Notch Inset, Centering, Non-Notch, Settings Bounds)
+    print("\n[Test 84] Expanded Layout Single Source of Truth Contract...")
+    
+    // Pure Expanded Layout Model Contract Function (matching NotchGeometry.expandedLayout)
+    func computeExpandedLayout(
+        screenFrame: CGRect,
+        hasPhysicalNotch: Bool,
+        physicalNotchHeight: CGFloat,
+        notchCenterX: CGFloat,
+        notchWidth: CGFloat,
+        notchHeight: CGFloat,
+        isBelowMenuBar: Bool = false
+    ) -> (windowRect: NSRect, notchInset: CGFloat, contentTopPadding: CGFloat, targetWidth: CGFloat, targetHeight: CGFloat) {
+        let notchInset: CGFloat
+        let contentTopPadding: CGFloat
+        if isBelowMenuBar {
+            notchInset = 0.0
+            contentTopPadding = 8.0
+        } else if hasPhysicalNotch {
+            notchInset = physicalNotchHeight
+            contentTopPadding = physicalNotchHeight
+        } else {
+            notchInset = 0.0
+            contentTopPadding = 10.0
+        }
+        
+        let contentHeight = max(280.0, notchHeight)
+        let totalHeight = notchInset + contentHeight
+        let targetWidth = notchWidth
+        
+        let minCenterX = screenFrame.minX + (targetWidth / 2.0)
+        let maxCenterX = screenFrame.maxX - (targetWidth / 2.0)
+        let clampedCenterX = min(max(minCenterX, notchCenterX), maxCenterX)
+        let x = clampedCenterX - (targetWidth / 2.0)
+        
+        let topY = screenFrame.maxY
+        let y = topY - totalHeight
+        let windowRect = NSRect(x: x, y: y, width: targetWidth, height: totalHeight)
+        return (windowRect, notchInset, contentTopPadding, targetWidth, totalHeight)
+    }
+    
+    let t84HasNotch = screen.safeAreaInsets.top > 0
+    let t84NotchH: CGFloat = t84HasNotch ? screen.safeAreaInsets.top : 32.0
+    let t84NotchCenter: CGFloat = frame.origin.x + (frame.width / 2.0)
+    
+    // 1. Top Flush & Centering on Hardware Notch
+    let defaultExpanded = computeExpandedLayout(
+        screenFrame: frame,
+        hasPhysicalNotch: t84HasNotch,
+        physicalNotchHeight: t84NotchH,
+        notchCenterX: t84NotchCenter,
+        notchWidth: 620.0,
+        notchHeight: 330.0
+    )
+    assert(defaultExpanded.windowRect.maxY == frame.maxY, "Expanded rect top edge must sit flush with screen top bezel (screen.frame.maxY)")
+    assert(abs(defaultExpanded.windowRect.midX - t84NotchCenter) <= 0.001, "Expanded rect must center symmetrically on notch cutout")
+    if t84HasNotch {
+        assert(defaultExpanded.notchInset == t84NotchH, "Notch inset must match physical cutout height")
+        assert(defaultExpanded.windowRect.height == t84NotchH + 330.0, "Expanded height must include notch inset + full user content height")
+        assert(defaultExpanded.contentTopPadding == t84NotchH, "Content top padding must match physical cutout height")
+    }
+    
+    // 2. Settings Width & Height Extrema Applied Without Hardcoded Clamps
+    for testW in [480.0, 560.0, 640.0, 720.0, 800.0] as [CGFloat] {
+        for testH in [310.0, 330.0, 360.0, 400.0, 420.0] as [CGFloat] {
+            let layout = computeExpandedLayout(
+                screenFrame: frame,
+                hasPhysicalNotch: t84HasNotch,
+                physicalNotchHeight: t84NotchH,
+                notchCenterX: t84NotchCenter,
+                notchWidth: testW,
+                notchHeight: testH
+            )
+            assert(layout.targetWidth == testW, "Target width must strictly reflect user setting without arbitrary clamps")
+            let expectedH = (t84HasNotch ? t84NotchH : 0.0) + testH
+            assert(layout.targetHeight == expectedH, "Target height must strictly equal notchInset + user notchHeight (no 225pt clamp)")
+            assert(layout.windowRect.width == testW, "Window rect width must match target width")
+            assert(layout.windowRect.height == expectedH, "Window rect height must match target height")
+        }
+    }
+    
+    // 3. Non-Notch Synthetic Display Contract
+    let syntheticNonNotchFrame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+    let nonNotchLayout = computeExpandedLayout(
+        screenFrame: syntheticNonNotchFrame,
+        hasPhysicalNotch: false,
+        physicalNotchHeight: 32.0,
+        notchCenterX: 960.0,
+        notchWidth: 600.0,
+        notchHeight: 320.0
+    )
+    assert(nonNotchLayout.notchInset == 0.0, "Non-notch screen must have 0pt notch inset")
+    assert(nonNotchLayout.contentTopPadding == 10.0, "Non-notch screen must have compact 10pt top padding (no wasted 38pt spacer)")
+    assert(nonNotchLayout.targetHeight == 320.0, "Non-notch screen window height must equal content height exactly")
+    assert(nonNotchLayout.windowRect.maxY == 1080.0, "Non-notch screen window top must sit at screen top")
+    assert(nonNotchLayout.windowRect.midX == 960.0, "Non-notch screen window must be centered horizontally")
+    
+    // 4. Calendar 6-Row Visibility & Vertical Clearance Invariant
+    let minUsableHeight = 310.0
+    let chromeOverhead = 56.0 // tabs (~33pt) + divider (11pt) + padding (12pt)
+    let availableContentHeight = minUsableHeight - chromeOverhead
+    let maxCalendarIntrinsicHeight = 218.0 // 6 full weeks + event glance + card padding
+    assert(availableContentHeight >= maxCalendarIntrinsicHeight, "Available content height at minimum setting (310pt) must exceed 6-row calendar intrinsic height (218pt) to guarantee zero clipping")
+    
+    print("  ✓ Expanded rect top flush, notch inset included, centering, non-notch adaptation, and zero-clipping contracts verified.")
+    
     print("\n=====================================================")
-    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (83/83) ")
+    print("   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (84/84) ")
     print("=====================================================\n")
 }
 

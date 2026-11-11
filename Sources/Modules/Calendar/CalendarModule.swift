@@ -187,7 +187,28 @@ public struct CalendarHomeCardView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        ViewThatFits(in: .vertical) {
+            calendarCardContent(spacing: 5, padding: 10)
+            calendarCardContent(spacing: 2.5, padding: 6)
+            ScrollView(.vertical, showsIndicators: false) {
+                calendarCardContent(spacing: 3, padding: 6)
+            }
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .fill(DesignSystem.cardGradient)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
+                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+        )
+    }
+    
+    @ViewBuilder
+    private func calendarCardContent(spacing: CGFloat, padding: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: spacing) {
             // Month Navigation Header
             HStack {
                 Text(monthYearTitle)
@@ -350,17 +371,7 @@ public struct CalendarHomeCardView: View {
                 .transition(.opacity)
             }
         }
-        .padding(10)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                .fill(DesignSystem.cardGradient)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
-        )
+        .padding(padding)
     }
 }
 

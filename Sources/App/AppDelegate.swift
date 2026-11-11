@@ -145,8 +145,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         )
         .dropFirst()
         .sink { [weak self] _ in
-            guard let self = self, let panel = self.notchPanel else { return }
-            panel.updateFrame(for: NotchShellCoordinator.shared.state, animated: false)
+            guard let self = self, let _ = self.notchPanel else { return }
+            NotchShellCoordinator.shared.refreshLayouts()
         }
         .store(in: &cancellables)
     }

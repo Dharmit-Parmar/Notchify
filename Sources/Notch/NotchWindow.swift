@@ -134,51 +134,20 @@ public final class NotchPanel: NSPanel {
     }
     
     public static func calculateFrame(for state: NotchState, store: SettingsStore, screen: NSScreen) -> NSRect {
-        let screenFrame = screen.frame
         let geometry = NotchGeometry.current(for: screen)
         
-        let targetWidth: CGFloat
-        let targetHeight: CGFloat
-        
         if state == .expanded {
-            if store.dashboardLayoutFlow == .horizontalStrip && store.activeDashboardWidgets.count >= 4 {
-                targetWidth = max(store.notchWidth, 720.0)
-            } else {
-                targetWidth = store.notchWidth
-            }
-            
-            // Adaptive target height based on active module and dashboard widget count
-            if let activeId = ModuleRegistry.shared.activeModuleId {
-                switch activeId {
-                case "battery":
-                    targetHeight = min(store.notchHeight, 220.0)
-                case "airdrop":
-                    targetHeight = min(store.notchHeight, 240.0)
-                case "notifications":
-                    targetHeight = min(store.notchHeight, 260.0)
-                default:
-                    targetHeight = store.notchHeight
-                }
-            } else {
-                let activeWidgets = store.activeDashboardWidgets
-                if activeWidgets.isEmpty {
-                    targetHeight = 180.0
-                } else if store.dashboardLayoutFlow == .horizontalStrip {
-                    targetHeight = min(store.notchHeight, 225.0)
-                } else if store.dashboardLayoutFlow == .bentoQuad {
-                    let s2 = store.dashboardSlots.indices.contains(2) ? store.dashboardSlots[2] : nil
-                    let s3 = store.dashboardSlots.indices.contains(3) ? store.dashboardSlots[3] : nil
-                    if s2 == nil && s3 == nil {
-                        targetHeight = min(store.notchHeight, 225.0)
-                    } else {
-                        targetHeight = store.notchHeight
-                    }
-                } else if store.dashboardLayoutFlow == .focusDominant && activeWidgets.count <= 2 {
-                    targetHeight = min(store.notchHeight, 230.0)
-                } else {
-                    targetHeight = store.notchHeight
-                }
-            }
+            let layout = NotchGeometry.expandedLayout(
+                geometry: geometry,
+                notchWidth: store.notchWidth,
+                notchHeight: store.notchHeight,
+                attachment: store.positionAttachment,
+                horizontalOffset: store.horizontalNotchOffset,
+                verticalOffset: store.verticalNotchOffset,
+                dashboardLayoutFlow: store.dashboardLayoutFlow,
+                activeWidgetsCount: store.activeDashboardWidgets.count
+            )
+            return layout.windowRect
         } else {
             let layout = NotchGeometry.collapsedLayout(
                 geometry: geometry,
@@ -196,19 +165,6 @@ public final class NotchPanel: NSPanel {
             )
             return layout.windowRect
         }
-        
-        let x = (geometry.notchCenterX + store.horizontalNotchOffset) - (targetWidth / 2.0)
-        let topY: CGFloat
-        switch store.positionAttachment {
-        case .hardwareNotch, .custom:
-            topY = screenFrame.maxY + store.verticalNotchOffset
-        case .belowMenuBar:
-            topY = screenFrame.maxY - geometry.topInset + store.verticalNotchOffset
-        }
-        let clampedTopY = min(screenFrame.maxY, topY)
-        let y = clampedTopY - targetHeight
-        
-        return NSRect(x: x, y: y, width: targetWidth, height: targetHeight)
     }
     
     public func updateFrame(for state: NotchState, animated: Bool) {
@@ -229,7 +185,7 @@ public final class NotchPanel: NSPanel {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = duration
                 context.timingFunction = CAMediaTimingFunction(controlPoints: 0.20, 1.0, 0.32, 1.0)
-                self.animator().setFrame(targetRect, display: false)
+                self.animator().setFrame(targetRect, display: true)
             }
         } else {
             self.setFrame(targetRect, display: true)
@@ -260,10 +216,13 @@ public final class NotchHostingView<Content: View>: NSHostingView<Content> {
         let coordinator = NotchShellCoordinator.shared
         if coordinator.state == .collapsed {
             let layout = coordinator.currentCollapsedLayout
-            let localContentRect = convert(layout.contentRect, from: nil)
-            guard localContentRect.contains(point) else {
-                // Pass clicks through outside the content rect so menu bar items keep working!
-                return nil
+            if let window = self.window {
+                let windowRect = window.convertFromScreen(layout.contentRect)
+                let localContentRect = self.convert(windowRect, from: nil)
+                guard localContentRect.contains(point) else {
+                    // Pass clicks through outside the content rect so menu bar items keep working!
+                    return nil
+                }
             }
         }
         return super.hitTest(point)

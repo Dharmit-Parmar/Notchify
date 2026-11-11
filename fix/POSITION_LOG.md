@@ -141,6 +141,149 @@
 
 ---
 
+## Round 2 Phase 0 (Expanded Notch Layout & Geometry Diagnosis)
+
+### Skills Re-Pick Log
+
+| Phase | Trigger | Skills Activated | Rationale |
+|---|---|---|---|
+| **Expanded Notch Layout Diagnosis** | Expanded notch clipped at top/bottom (calendar row cut off); first hover wrong size vs second hover correct; size ignoring Settings | `swiftui-expert-skill`, `axiom-macos`, `apple-design`, `axiom-design`, `swiftui-pro`, `axiom-accessibility`, `axiom-testing`, `ponytail`, `gravitas`, `graphify` | `ponytail` for identifying over-engineered heuristics and arbitrary clamps overriding user settings; `gravitas` for exact file:line verification; `axiom-macos` for AppKit window animations and frame coordinate spaces; `swiftui-expert-skill` for `GeometryReader`, view layout caching, and clipping dynamics. |
+
+### Diagnostic Findings
+
+#### a. Expanded Width/Height Computation: `calculateFrame` vs `NotchRootView`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:143-181`):
+  - In `calculateFrame`:
+    - `targetWidth`: `store.dashboardLayoutFlow == .horizontalStrip && store.activeDashboardWidgets.count >= 4 ? max(store.notchWidth, 720.0) : store.notchWidth`.
+    - `targetHeight`: Overridden by multiple hardcoded clamps:
+      - When `activeModuleId == nil` (Dashboard) and `dashboardLayoutFlow == .bentoQuad` with `s2 == nil && s3 == nil` (default!): `targetHeight = min(store.notchHeight, 225.0)`.
+      - When `.horizontalStrip`: `targetHeight = min(store.notchHeight, 225.0)`.
+      - When `.focusDominant && activeWidgets.count <= 2`: `targetHeight = min(store.notchHeight, 230.0)`.
+      - When secondary module active: battery (220 pt), airdrop (240 pt), notifications (260 pt).
+  - In `NotchRootView.swift:44-88`:
+    - Frame uses `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)` (`:102`).
+    - Consumes height with fixed vertical chrome:
+      - Top camera clear zone: `max(38.0, coordinator.geometry.physicalNotchHeight + 6)` = ~40 pt (`:50-52`).
+      - Navigation dock tabs: ~25 pt height + 8 pt padding = ~33 pt (`:54-56`).
+      - Specular divider: 1 pt + 10 pt padding = 11 pt (`:60-74`).
+      - Content bottom padding: `store.contentVerticalPadding` = 12 pt (`:79`).
+      - **Total vertical overhead**: **96 pt**.
+  - Remaining content height when clamped to 225 pt: `225 - 96 = 129 pt`.
+  - In `ModularDashboardView.swift:254, 340, 376`: Widgets read `geo.size` from `GeometryReader`. But `CalendarHomeCardView` (`CalendarModule.swift:173-364`) requires **196 to 218 pt** of intrinsic height. Cramming it into 129 pt clips the entire bottom row of dates!
+  - **Verdict**: `calculateFrame` and `NotchRootView` DO NOT share the same formula. `calculateFrame`'s 225 pt clamp directly contradicts `store.notchHeight` and strangles the view hierarchy.
+
+#### b. Physical Notch Inset & Top Padding Derivation
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:201-210`):
+  - Window frame math: `topY = screenFrame.maxY + store.verticalNotchOffset`, `y = clampedTopY - targetHeight`.
+  - Because the window top is flush with `screenFrame.maxY`, `targetHeight` spans from `screenFrame.maxY - targetHeight` up to `screenFrame.maxY`.
+  - Therefore, `targetHeight` **includes** the physical notch inset (~34-38 pt). It does NOT add the notch inset on top of content height.
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:50-52`):
+  - Top spacer: `Spacer().frame(height: max(38.0, coordinator.geometry.physicalNotchHeight + 6))`.
+  - Partially derived from `physicalNotchHeight` (+ 6 pt) with a 38 pt floor.
+  - On non-notch screens (`hasPhysicalNotch == false`), `physicalNotchHeight` is 32 pt (`NotchGeometry.swift:19`), meaning `max(38.0, 32 + 6) = 38.0 pt` is still applied as a dead-zone spacer at the top, wasting 38 pt when no hardware notch exists!
+  - When `positionAttachment == .belowMenuBar`, the window is already below the menu bar, but `NotchRootView` still applies the 38-40 pt spacer, creating double insetting and clipping bottom content.
+
+#### c. First-Hover Trace in `onMouseEnter` & `cachedExpandedRect`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchShellCoordinator.swift:316-362`):
+  - `onMouseEnter()` cancels `collapseWorkItem`, sets `isHovered = true`, and schedules `hoverWorkItem` with delay `hoverDelay` (0.15s).
+  - In `hoverWorkItem`:
+    1. `withAnimation(self.transitionAnimation) { self.state = .expanded }` (line 348).
+    2. `self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)` (line 351).
+    3. `self.resetIdleTimer()` (line 352).
+    4. `NowPlayingModule.shared.refreshMediaState()` (line 353).
+    5. `ModuleRegistry.shared.activeModule?.start()` (line 354).
+    6. `MirrorModule.shared.resumeIfViewed()` (line 355).
+    7. `if self.expandedWatchdog == nil && !self.isLockedOpen { self.startExpandedWatchdog() }` (line 357).
+  - `cachedExpandedRect`: Initialized to `NSRect.zero` (`:69`). ONLY written in `startExpandedWatchdog()` (`:216`) and `triggerAppearancePropagationPreview()` (`:149`).
+  - **Invalidation**: NOTHING invalidates or refreshes `cachedExpandedRect` on settings changes, screen parameter changes, or Spaces switches.
+  - **Math used**: It calls `NotchPanel.calculateFrame(for: .expanded, ...)`. In `onMouseExit()`, it uses `panel.frame.insetBy(dx: -20, dy: -10)` for collapsed state, not the unified `collapsedLayout.hoverTriggerRect`.
+
+#### d. First-Hover vs Second-Hover Path Comparison
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchShellCoordinator.swift:69, 216, 348-358` & `ModularDashboardView.swift:427`):
+  1. `cachedExpandedRect`: On first hover starts at `.zero` until `startExpandedWatchdog()` runs. On second hover, it holds the valid `NSRect`.
+  2. Frame vs Layout Race: On the first hover, `state` becomes `.expanded` while `panel.frame` is still at the collapsed dimensions (210x34). `GeometryReader` in `ModularDashboardView` measures `totalHeight <= 0`, causing `(columnWidth >= 220 && totalHeight >= 160)` to evaluate to `false`, instantiating 1-span glance views or cached compact layouts. On the second hover, views have already been mounted and initial sizing is established.
+  3. Module State Retention: If during the first hover the cursor moves across a tab chip, `hoveredModuleId` or `activeModuleId` is set. Because `onMouseExit()` does not call `stopAll()`, on the second hover `activeModuleId` may be non-nil, altering the height calculated by `calculateFrame` from 225 pt to 330 pt!
+
+#### e. Animated Frame Change & Intermediate Layouts
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:229-234`):
+  - `self.animator().setFrame(targetRect, display: false)` runs an asynchronous 0.32s animation.
+  - On every display frame, `NSHostingView` resizes and SwiftUI recalculates layout at intermediate sizes (from 34 pt to 225 pt).
+  - Because `display: false` was passed, no clean synchronous redraw or final layout pass occurs when the animation reaches its destination. Complex child views (such as `LazyVGrid` and conditional layout switches) retain intermediate or clipped states.
+
+#### f. Content with Fixed Height That Can Overflow
+- **CONFIRMED-BY-READING** (`Sources/Modules/Calendar/CalendarModule.swift:173-364`):
+  - `CalendarHomeCardView`: 20 (header) + 5 + 12 (weekdays) + 5 + 110-132 (dates grid) + 5 + 24 (event glance) + 20 (padding) = **196 pt (5-week month) to 218 pt (6-week month)**. Has no `ScrollView` and no scaling. Wrapped in `.clipped()`. Completely clips bottom dates when container height < 218 pt.
+- **CONFIRMED-BY-READING** (`Sources/Notch/ModularDashboardView.swift:434-447`):
+  - 2-widget stacked columns in BentoQuad allocate `(totalHeight - 8) / 2.0`. In a 129 pt container, each widget gets only 60.5 pt height.
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:49-80`):
+  - Top spacer (40 pt), header tabs (33 pt), divider (11 pt), and bottom padding (12 pt) consume a fixed **96 pt** of window height before any dashboard content is rendered.
+
+---
+
+## Round 2 Phase 1: Expanded Notch Single Source of Truth & Zero-Clipping Implementation
+
+### Skills Re-Pick Log
+
+| Phase | Trigger | Skills Activated | Rationale |
+|---|---|---|---|
+| **Expanded Layout Fix Execution** | Implementing unified pure expanded layout function, eliminating arbitrary 225pt clamps, fixing first-hover sizing race, and guaranteeing zero calendar clipping | `swiftui-expert-skill`, `axiom-macos`, `apple-design`, `axiom-design`, `swiftui-pro`, `axiom-accessibility`, `axiom-testing`, `ponytail`, `gravitas`, `graphify` | `ponytail` for replacing 56 lines of ad-hoc conditional height clamps with a single pure function `expandedLayout`; `axiom-macos` for AppKit window geometry and `convertFromScreen`; `swiftui-expert-skill` for `ViewThatFits` and pre-sizing layout container at target frame; `gravitas` for evidence-backed verification. |
+
+### 1. Pure Function: `NotchGeometry.expandedLayout`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchGeometry.swift:57-133`):
+  - Single source of truth for expanded state:
+    ```swift
+    public static func expandedLayout(
+        geometry: NotchGeometry,
+        notchWidth: CGFloat = 620.0,
+        notchHeight: CGFloat = 330.0,
+        attachment: NotchPositionAttachment = .hardwareNotch,
+        horizontalOffset: CGFloat = 0.0,
+        verticalOffset: CGFloat = 0.0,
+        dashboardLayoutFlow: DashboardLayoutFlow = .bentoQuad,
+        activeWidgetsCount: Int = 2
+    ) -> ExpandedLayout
+    ```
+  - Calculates:
+    - `notchInset`: `geometry.physicalNotchHeight` on hardware notch; `0.0` on non-notch screens and `belowMenuBar`.
+    - `contentTopPadding`: `geometry.physicalNotchHeight` on hardware notch; `10.0` on non-notch; `8.0` on `belowMenuBar`.
+    - `totalHeight`: `notchInset + contentHeight` where `contentHeight = max(280.0, notchHeight)`.
+    - `windowRect`: Flush at `screenFrame.maxY`, centered horizontally on `geometry.notchCenterX`.
+    - `hoverBounds`: Unified hover hit area `windowRect.insetBy(dx: -24.0, dy: -14.0)`.
+
+### 2. Elimination of Hardcoded 225pt Clamps
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:136-166`):
+  - Removed 56 lines of hardcoded height clamps in `calculateFrame(for: .expanded, ...)`.
+  - Both `calculateFrame` and `NotchShellCoordinator` now delegate to `NotchGeometry.expandedLayout`.
+  - Settings widths (480–800 pt) and heights (310–420 pt) are strictly respected.
+
+### 3. First-Hover Sizing & Layout Race Elimination
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:49-88`):
+  - In `NotchRootView`: The expanded view hierarchy is explicitly pinned to `.frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)` where `expandedSize = coordinator.currentExpandedLayout.windowRect.size`.
+  - Subviews are sized to the final target geometry from frame 0 of the expansion, eliminating 1-span/2-span widget morphing.
+- **CONFIRMED-BY-READING** (`Sources/Notch/ModularDashboardView.swift:254, 344, 380`):
+  - `GeometryReader` container bounds clamp to `max(geo.size, targetExpanded)`, protecting dashboard columns and horizontal strips from intermediate height artifacts during AppKit window transitions.
+
+### 4. Zero Calendar Clipping & Adaptive Card Layout
+- **CONFIRMED-BY-READING** (`Sources/Modules/Calendar/CalendarModule.swift:189-375`):
+  - `CalendarHomeCardView` wrapped in `ViewThatFits(in: .vertical)`:
+    1. Full standard layout with 5 pt spacing and 10 pt padding (occupies 218 pt with 56+ pt breathing room).
+    2. Compact adaptive scaling (2.5 pt spacing, 6 pt padding).
+    3. Scrollable fallback ensuring zero clipping under any extreme screen configuration.
+
+### 5. Invalidation & Observer Refresh
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchShellCoordinator.swift:41-95` & `Sources/App/AppDelegate.swift:145-152`):
+  - `cachedExpandedRect` replaced with computed property returning `currentExpandedLayout.windowRect`.
+  - Added observers for `NSApplication.didChangeScreenParametersNotification` and `NSWorkspace.activeSpaceDidChangeNotification` triggering `refreshLayouts()`.
+  - Settings changes trigger `NotchShellCoordinator.refreshLayouts()`.
+
+### 6. Verification Status
+- Built with `swift build --target NotchApp`: Clean build, 0 errors.
+- Built and ran `.build/debug/NotchTests`: 84/84 verification tests passed (including Test 84 for expanded layout contract).
+
+
+
+---
+
 ## Round 2 Phase 0: Width Model & Indicator Sizing Diagnosis
 
 ### Skills Re-Pick Log
@@ -295,5 +438,148 @@ All formulas cited from **CONFIRMED-BY-READING** `Sources/Notch/NotchWindow.swif
 ### 5. Verification Status
 - Built with `swift build --target NotchApp`: Clean build, 0 errors.
 - Built and ran `.build/debug/NotchTests`: 83/83 verification tests passed.
+
+---
+
+## Round 2 Phase 0 (Expanded Notch Layout & Geometry Diagnosis)
+
+### Skills Re-Pick Log
+
+| Phase | Trigger | Skills Activated | Rationale |
+|---|---|---|---|
+| **Expanded Notch Layout Diagnosis** | Expanded notch clipped at top/bottom (calendar row cut off); first hover wrong size vs second hover correct; size ignoring Settings | `swiftui-expert-skill`, `axiom-macos`, `apple-design`, `axiom-design`, `swiftui-pro`, `axiom-accessibility`, `axiom-testing`, `ponytail`, `gravitas`, `graphify` | `ponytail` for identifying over-engineered heuristics and arbitrary clamps overriding user settings; `gravitas` for exact file:line verification; `axiom-macos` for AppKit window animations and frame coordinate spaces; `swiftui-expert-skill` for `GeometryReader`, view layout caching, and clipping dynamics. |
+
+### Diagnostic Findings
+
+#### a. Expanded Width/Height Computation: `calculateFrame` vs `NotchRootView`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:143-181`):
+  - In `calculateFrame`:
+    - `targetWidth`: `store.dashboardLayoutFlow == .horizontalStrip && store.activeDashboardWidgets.count >= 4 ? max(store.notchWidth, 720.0) : store.notchWidth`.
+    - `targetHeight`: Overridden by multiple hardcoded clamps:
+      - When `activeModuleId == nil` (Dashboard) and `dashboardLayoutFlow == .bentoQuad` with `s2 == nil && s3 == nil` (default!): `targetHeight = min(store.notchHeight, 225.0)`.
+      - When `.horizontalStrip`: `targetHeight = min(store.notchHeight, 225.0)`.
+      - When `.focusDominant && activeWidgets.count <= 2`: `targetHeight = min(store.notchHeight, 230.0)`.
+      - When secondary module active: battery (220 pt), airdrop (240 pt), notifications (260 pt).
+  - In `NotchRootView.swift:44-88`:
+    - Frame uses `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)` (`:102`).
+    - Consumes height with fixed vertical chrome:
+      - Top camera clear zone: `max(38.0, coordinator.geometry.physicalNotchHeight + 6)` = ~40 pt (`:50-52`).
+      - Navigation dock tabs: ~25 pt height + 8 pt padding = ~33 pt (`:54-56`).
+      - Specular divider: 1 pt + 10 pt padding = 11 pt (`:60-74`).
+      - Content bottom padding: `store.contentVerticalPadding` = 12 pt (`:79`).
+      - **Total vertical overhead**: **96 pt**.
+  - Remaining content height when clamped to 225 pt: `225 - 96 = 129 pt`.
+  - In `ModularDashboardView.swift:254, 340, 376`: Widgets read `geo.size` from `GeometryReader`. But `CalendarHomeCardView` (`CalendarModule.swift:173-364`) requires **196 to 218 pt** of intrinsic height. Cramming it into 129 pt clips the entire bottom row of dates!
+  - **Verdict**: `calculateFrame` and `NotchRootView` DO NOT share the same formula. `calculateFrame`'s 225 pt clamp directly contradicts `store.notchHeight` and strangles the view hierarchy.
+
+#### b. Physical Notch Inset & Top Padding Derivation
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:201-210`):
+  - Window frame math: `topY = screenFrame.maxY + store.verticalNotchOffset`, `y = clampedTopY - targetHeight`.
+  - Because the window top is flush with `screenFrame.maxY`, `targetHeight` spans from `screenFrame.maxY - targetHeight` up to `screenFrame.maxY`.
+  - Therefore, `targetHeight` **includes** the physical notch inset (~34-38 pt). It does NOT add the notch inset on top of content height.
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:50-52`):
+  - Top spacer: `Spacer().frame(height: max(38.0, coordinator.geometry.physicalNotchHeight + 6))`.
+  - Partially derived from `physicalNotchHeight` (+ 6 pt) with a 38 pt floor.
+  - On non-notch screens (`hasPhysicalNotch == false`), `physicalNotchHeight` is 32 pt (`NotchGeometry.swift:19`), meaning `max(38.0, 32 + 6) = 38.0 pt` is still applied as a dead-zone spacer at the top, wasting 38 pt when no hardware notch exists!
+  - When `positionAttachment == .belowMenuBar`, the window is already below the menu bar, but `NotchRootView` still applies the 38-40 pt spacer, creating double insetting and clipping bottom content.
+
+#### c. First-Hover Trace in `onMouseEnter` & `cachedExpandedRect`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchShellCoordinator.swift:316-362`):
+  - `onMouseEnter()` cancels `collapseWorkItem`, sets `isHovered = true`, and schedules `hoverWorkItem` with delay `hoverDelay` (0.15s).
+  - In `hoverWorkItem`:
+    1. `withAnimation(self.transitionAnimation) { self.state = .expanded }` (line 348).
+    2. `self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)` (line 351).
+    3. `self.resetIdleTimer()` (line 352).
+    4. `NowPlayingModule.shared.refreshMediaState()` (line 353).
+    5. `ModuleRegistry.shared.activeModule?.start()` (line 354).
+    6. `MirrorModule.shared.resumeIfViewed()` (line 355).
+    7. `if self.expandedWatchdog == nil && !self.isLockedOpen { self.startExpandedWatchdog() }` (line 357).
+  - `cachedExpandedRect`: Initialized to `NSRect.zero` (`:69`). ONLY written in `startExpandedWatchdog()` (`:216`) and `triggerAppearancePropagationPreview()` (`:149`).
+  - **Invalidation**: NOTHING invalidates or refreshes `cachedExpandedRect` on settings changes, screen parameter changes, or Spaces switches.
+  - **Math used**: It calls `NotchPanel.calculateFrame(for: .expanded, ...)`. In `onMouseExit()`, it uses `panel.frame.insetBy(dx: -20, dy: -10)` for collapsed state, not the unified `collapsedLayout.hoverTriggerRect`.
+
+#### d. First-Hover vs Second-Hover Path Comparison
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchShellCoordinator.swift:69, 216, 348-358` & `ModularDashboardView.swift:427`):
+  1. `cachedExpandedRect`: On first hover starts at `.zero` until `startExpandedWatchdog()` runs. On second hover, it holds the valid `NSRect`.
+  2. Frame vs Layout Race: On the first hover, `state` becomes `.expanded` while `panel.frame` is still at the collapsed dimensions (210x34). `GeometryReader` in `ModularDashboardView` measures `totalHeight <= 0`, causing `(columnWidth >= 220 && totalHeight >= 160)` to evaluate to `false`, instantiating 1-span glance views or cached compact layouts. On the second hover, views have already been mounted and initial sizing is established.
+  3. Module State Retention: If during the first hover the cursor moves across a tab chip, `hoveredModuleId` or `activeModuleId` is set. Because `onMouseExit()` does not call `stopAll()`, on the second hover `activeModuleId` may be non-nil, altering the height calculated by `calculateFrame` from 225 pt to 330 pt!
+
+#### e. Animated Frame Change & Intermediate Layouts
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:229-234`):
+  - `self.animator().setFrame(targetRect, display: false)` runs an asynchronous 0.32s animation.
+  - On every display frame, `NSHostingView` resizes and SwiftUI recalculates layout at intermediate sizes (from 34 pt to 225 pt).
+  - Because `display: false` was passed, no clean synchronous redraw or final layout pass occurs when the animation reaches its destination. Complex child views (such as `LazyVGrid` and conditional layout switches) retain intermediate or clipped states.
+
+#### f. Content with Fixed Height That Can Overflow
+- **CONFIRMED-BY-READING** (`Sources/Modules/Calendar/CalendarModule.swift:173-364`):
+  - `CalendarHomeCardView`: 20 (header) + 5 + 12 (weekdays) + 5 + 110-132 (dates grid) + 5 + 24 (event glance) + 20 (padding) = **196 pt (5-week month) to 218 pt (6-week month)**. Has no `ScrollView` and no scaling. Wrapped in `.clipped()`. Completely clips bottom dates when container height < 218 pt.
+- **CONFIRMED-BY-READING** (`Sources/Notch/ModularDashboardView.swift:434-447`):
+  - 2-widget stacked columns in BentoQuad allocate `(totalHeight - 8) / 2.0`. In a 129 pt container, each widget gets only 60.5 pt height.
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:49-80`):
+  - Top spacer (40 pt), header tabs (33 pt), divider (11 pt), and bottom padding (12 pt) consume a fixed **96 pt** of window height before any dashboard content is rendered.
+
+---
+
+## Round 2 Phase 1: Expanded Notch Single Source of Truth & Zero-Clipping Implementation
+
+### Skills Re-Pick Log
+
+| Phase | Trigger | Skills Activated | Rationale |
+|---|---|---|---|
+| **Expanded Layout Fix Execution** | Implementing unified pure expanded layout function, eliminating arbitrary 225pt clamps, fixing first-hover sizing race, and guaranteeing zero calendar clipping | `swiftui-expert-skill`, `axiom-macos`, `apple-design`, `axiom-design`, `swiftui-pro`, `axiom-accessibility`, `axiom-testing`, `ponytail`, `gravitas`, `graphify` | `ponytail` for replacing 56 lines of ad-hoc conditional height clamps with a single pure function `expandedLayout`; `axiom-macos` for AppKit window geometry and `convertFromScreen`; `swiftui-expert-skill` for `ViewThatFits` and pre-sizing layout container at target frame; `gravitas` for evidence-backed verification. |
+
+### 1. Pure Function: `NotchGeometry.expandedLayout`
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchGeometry.swift:57-133`):
+  - Single source of truth for expanded state:
+    ```swift
+    public static func expandedLayout(
+        geometry: NotchGeometry,
+        notchWidth: CGFloat = 620.0,
+        notchHeight: CGFloat = 330.0,
+        attachment: NotchPositionAttachment = .hardwareNotch,
+        horizontalOffset: CGFloat = 0.0,
+        verticalOffset: CGFloat = 0.0,
+        dashboardLayoutFlow: DashboardLayoutFlow = .bentoQuad,
+        activeWidgetsCount: Int = 2
+    ) -> ExpandedLayout
+    ```
+  - Calculates:
+    - `notchInset`: `geometry.physicalNotchHeight` on hardware notch; `0.0` on non-notch screens and `belowMenuBar`.
+    - `contentTopPadding`: `geometry.physicalNotchHeight` on hardware notch; `10.0` on non-notch; `8.0` on `belowMenuBar`.
+    - `totalHeight`: `notchInset + contentHeight` where `contentHeight = max(280.0, notchHeight)`.
+    - `windowRect`: Flush at `screenFrame.maxY`, centered horizontally on `geometry.notchCenterX`.
+    - `hoverBounds`: Unified hover hit area `windowRect.insetBy(dx: -24.0, dy: -14.0)`.
+
+### 2. Elimination of Hardcoded 225pt Clamps
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchWindow.swift:136-166`):
+  - Removed 56 lines of hardcoded height clamps in `calculateFrame(for: .expanded, ...)`.
+  - Both `calculateFrame` and `NotchShellCoordinator` now delegate to `NotchGeometry.expandedLayout`.
+  - Settings widths (480–800 pt) and heights (310–420 pt) are strictly respected.
+
+### 3. First-Hover Sizing & Layout Race Elimination
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchRootView.swift:49-88`):
+  - In `NotchRootView`: The expanded view hierarchy is explicitly pinned to `.frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)` where `expandedSize = coordinator.currentExpandedLayout.windowRect.size`.
+  - Subviews are sized to the final target geometry from frame 0 of the expansion, eliminating 1-span/2-span widget morphing.
+- **CONFIRMED-BY-READING** (`Sources/Notch/ModularDashboardView.swift:254, 344, 380`):
+  - `GeometryReader` container bounds clamp to `max(geo.size, targetExpanded)`, protecting dashboard columns and horizontal strips from intermediate height artifacts during AppKit window transitions.
+
+### 4. Zero Calendar Clipping & Adaptive Card Layout
+- **CONFIRMED-BY-READING** (`Sources/Modules/Calendar/CalendarModule.swift:189-375`):
+  - `CalendarHomeCardView` wrapped in `ViewThatFits(in: .vertical)`:
+    1. Full standard layout with 5 pt spacing and 10 pt padding (occupies 218 pt with 56+ pt breathing room).
+    2. Compact adaptive scaling (2.5 pt spacing, 6 pt padding).
+    3. Scrollable fallback ensuring zero clipping under any extreme screen configuration.
+
+### 5. Invalidation & Observer Refresh
+- **CONFIRMED-BY-READING** (`Sources/Notch/NotchShellCoordinator.swift:41-95` & `Sources/App/AppDelegate.swift:145-152`):
+  - `cachedExpandedRect` replaced with computed property returning `currentExpandedLayout.windowRect`.
+  - Added observers for `NSApplication.didChangeScreenParametersNotification` and `NSWorkspace.activeSpaceDidChangeNotification` triggering `refreshLayouts()`.
+  - Settings changes trigger `NotchShellCoordinator.refreshLayouts()`.
+
+### 6. Verification Status
+- Built with `swift build --target NotchApp`: Clean build, 0 errors.
+- Built and ran `.build/debug/NotchTests`: 84/84 verification tests passed (including Test 84 for expanded layout contract).
+
+
 
 

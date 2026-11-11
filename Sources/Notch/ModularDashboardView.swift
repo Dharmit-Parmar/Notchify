@@ -252,10 +252,13 @@ public struct ModularDashboardView: View {
     // MARK: - Layout Flow 1: 4 Side-by-Side Horizontal Strip
     private func horizontalStripView(_ widgets: [DashboardWidgetType]) -> some View {
         GeometryReader { geo in
+            let targetExpanded = NotchShellCoordinator.shared.currentExpandedLayout
+            let totalWidth = max(geo.size.width, targetExpanded.targetWidth - (store.contentHorizontalPadding * 2.0))
+            let totalHeight = max(geo.size.height, targetExpanded.contentRect.height - 96.0)
             let count = widgets.count
             let spacing: CGFloat = 8.0
             let totalSpacing = CGFloat(max(0, count - 1)) * spacing
-            let availableWidth = max(0, geo.size.width - totalSpacing)
+            let availableWidth = max(0, totalWidth - totalSpacing)
             
             HStack(spacing: spacing) {
                 ForEach(widgets) { widget in
@@ -283,7 +286,7 @@ public struct ModularDashboardView: View {
                     }()
                     
                     Self.renderWidget(type: widget, span: widgetSpan)
-                        .frame(width: max(0, widgetWidth), height: geo.size.height)
+                        .frame(width: max(0, widgetWidth), height: totalHeight)
                         .clipped()
                 }
             }
@@ -338,8 +341,9 @@ public struct ModularDashboardView: View {
         
         return AnyView(
             GeometryReader { geo in
-                let totalWidth = geo.size.width
-                let totalHeight = geo.size.height
+                let targetExpanded = NotchShellCoordinator.shared.currentExpandedLayout
+                let totalWidth = max(geo.size.width, targetExpanded.targetWidth - (store.contentHorizontalPadding * 2.0))
+                let totalHeight = max(geo.size.height, targetExpanded.contentRect.height - 96.0)
                 let dividerSpacing: CGFloat = 12.0
                 let availableWidth = max(0, totalWidth - dividerSpacing)
                 let split = max(0.20, min(0.80, store.dashboardSplitRatio))
@@ -374,8 +378,9 @@ public struct ModularDashboardView: View {
     // MARK: - Layout Flow 4: Focus (Dominant 70% + Companion 30%)
     private func focusDominantView(_ widgets: [DashboardWidgetType]) -> some View {
         GeometryReader { geo in
-            let totalWidth = geo.size.width
-            let totalHeight = geo.size.height
+            let targetExpanded = NotchShellCoordinator.shared.currentExpandedLayout
+            let totalWidth = max(geo.size.width, targetExpanded.targetWidth - (store.contentHorizontalPadding * 2.0))
+            let totalHeight = max(geo.size.height, targetExpanded.contentRect.height - 96.0)
             let dividerSpacing: CGFloat = 12.0
             let availableWidth = max(0, totalWidth - dividerSpacing)
             

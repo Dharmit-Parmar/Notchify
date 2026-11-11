@@ -58,6 +58,32 @@ public final class NotchShellCoordinator: ObservableObject {
         )
     }
     
+    public var currentExpandedLayout: ExpandedLayout {
+        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        let geom = NotchGeometry.current(for: screen)
+        let store = SettingsStore.shared
+        return NotchGeometry.expandedLayout(
+            geometry: geom,
+            notchWidth: store.notchWidth,
+            notchHeight: store.notchHeight,
+            attachment: store.positionAttachment,
+            horizontalOffset: store.horizontalNotchOffset,
+            verticalOffset: store.verticalNotchOffset,
+            dashboardLayoutFlow: store.dashboardLayoutFlow,
+            activeWidgetsCount: store.activeDashboardWidgets.count
+        )
+    }
+    
+    public var cachedExpandedRect: NSRect {
+        currentExpandedLayout.windowRect
+    }
+    
+    public func refreshLayouts() {
+        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        self.geometry = NotchGeometry.current(for: screen)
+        self.panel?.updateFrame(for: self.state, animated: false)
+    }
+    
     public func updateEventDrivenWings() {
         guard state == .collapsed, SettingsStore.shared.collapsedNotchMode == .wingsOnEvents else { return }
         panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
@@ -66,8 +92,8 @@ public final class NotchShellCoordinator: ObservableObject {
     private var hoverWorkItem: DispatchWorkItem?
     private var collapseWorkItem: DispatchWorkItem?
     private var expandedWatchdog: Timer?
-    private var cachedExpandedRect: NSRect = .zero
     private var screenObserver: NSObjectProtocol?
+    private var spaceObserver: NSObjectProtocol?
     
     private init() {
         screenObserver = NotificationCenter.default.addObserver(
@@ -77,8 +103,18 @@ public final class NotchShellCoordinator: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                self.geometry = NotchGeometry.current()
-                self.panel?.updateFrame(for: self.state, animated: false)
+                self.refreshLayouts()
+            }
+        }
+        
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.refreshLayouts()
             }
         }
     }
@@ -145,13 +181,6 @@ public final class NotchShellCoordinator: ObservableObject {
         if AppDelegate.isSettingsOpen && !SettingsStore.shared.keepOpenWhileSettingsActive {
             return
         }
-        if let panel = self.panel {
-            cachedExpandedRect = NotchPanel.calculateFrame(
-                for: .expanded,
-                store: SettingsStore.shared,
-                screen: panel.currentScreen
-            )
-        }
         appearancePreviewWorkItem?.cancel()
         isAppearancePreviewActive = true
         
@@ -212,14 +241,6 @@ public final class NotchShellCoordinator: ObservableObject {
         stopExpandedWatchdog()
         guard state == .expanded, !isLockedOpen else { return }
         
-        if let panel = self.panel {
-            cachedExpandedRect = NotchPanel.calculateFrame(
-                for: .expanded,
-                store: SettingsStore.shared,
-                screen: panel.currentScreen
-            )
-        }
-        
         // 0.15s interval: highly responsive to cursor without thrashing CPU
         let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -232,7 +253,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 }
                 guard let panel = self.panel else { return }
                 let mouseLoc = NSEvent.mouseLocation
-                let effectiveBounds = panel.frame.union(self.cachedExpandedRect)
+                let effectiveBounds = panel.frame.union(self.currentExpandedLayout.hoverBounds)
                 let containsMouse = effectiveBounds.contains(mouseLoc)
                 
                 if !containsMouse {
@@ -366,10 +387,9 @@ public final class NotchShellCoordinator: ObservableObject {
         
         if let panel = self.panel {
             let mouseLoc = NSEvent.mouseLocation
-            let expandedRect = cachedExpandedRect
             let effectiveBounds = (state == .expanded)
-                ? panel.frame.union(expandedRect).insetBy(dx: -24, dy: -14)
-                : panel.frame.insetBy(dx: -20, dy: -10)
+                ? panel.frame.union(currentExpandedLayout.hoverBounds)
+                : currentCollapsedLayout.hoverTriggerRect
             if effectiveBounds.contains(mouseLoc) {
                 // The cursor is physically still inside or adjacent to the notch window!
                 return
@@ -389,10 +409,9 @@ public final class NotchShellCoordinator: ObservableObject {
             self.collapseWorkItem = nil
             if let panel = self.panel {
                 let mouseLoc = NSEvent.mouseLocation
-                let expandedRect = self.cachedExpandedRect
                 let effectiveBounds = (self.state == .expanded)
-                    ? panel.frame.union(expandedRect).insetBy(dx: -24, dy: -14)
-                    : panel.frame.insetBy(dx: -20, dy: -10)
+                    ? panel.frame.union(self.currentExpandedLayout.hoverBounds)
+                    : self.currentCollapsedLayout.hoverTriggerRect
                 if effectiveBounds.contains(mouseLoc) {
                     self.isHovered = true
                     return
