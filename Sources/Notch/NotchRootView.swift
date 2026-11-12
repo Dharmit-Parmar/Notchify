@@ -114,37 +114,31 @@ public struct NotchRootView: View {
             }
         }
         .contentShape(Rectangle())
-        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
+        .onDrop(of: [.fileURL], isTargeted: $coordinator.isFileDragTargeted) { providers in
             coordinator.fileDropWasAccepted = true
-            coordinator.onFileDropFinished()
-            
-            for provider in providers {
-                if provider.canLoadObject(ofClass: URL.self) {
-                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                        guard let url else { return }
-                        DispatchQueue.main.async {
-                            if registry.activeModuleId == "airdrop" {
-                                AirDropModule.shared.shareFiles([url])
-                            } else {
-                                ShelfModule.shared.addItem(url)
-                            }
-                        }
-                    }
-                } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                    provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                        let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                        guard let url else { return }
-                        DispatchQueue.main.async {
-                            if registry.activeModuleId == "airdrop" {
-                                AirDropModule.shared.shareFiles([url])
-                            } else {
-                                ShelfModule.shared.addItem(url)
-                            }
-                        }
+            let group = DispatchGroup()
+            let collector = URLCollector()
+            for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                group.enter()
+                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    defer { group.leave() }
+                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                    if let url {
+                        collector.append(url)
                     }
                 }
             }
-            return true
+            group.notify(queue: .main) {
+                if registry.activeModuleId == "airdrop" {
+                    AirDropModule.shared.shareFiles(collector.urls)
+                } else {
+                    for u in collector.urls {
+                        ShelfModule.shared.addItem(u)
+                    }
+                }
+                coordinator.onFileDropFinished()
+            }
+            return !providers.isEmpty
         }
         .onChange(of: coordinator.isFileDragTargeted) { _, targeted in
             if targeted {
@@ -647,47 +641,33 @@ public struct UniversalTabDropDelegate: DropDelegate {
             return true
         }
         
-        let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
-        var handled = false
+        let providers = info.itemProviders(for: [.fileURL])
+        guard !providers.isEmpty else { return false }
         
-        for p in providers {
-            if p.canLoadObject(ofClass: URL.self) {
-                handled = true
-                _ = p.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url else { return }
-                    DispatchQueue.main.async {
-                        FeedbackManager.playDrop()
-                        if targetId == "airdrop" {
-                            AirDropModule.shared.shareFiles([url])
-                            self.registry.selectFileDropTarget(for: "airdrop")
-                        } else {
-                            ShelfModule.shared.addItem(url)
-                            self.registry.selectFileDropTarget(for: "shelf")
-                        }
-                    }
-                }
-            } else if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                handled = true
-                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                    guard let url else { return }
-                    DispatchQueue.main.async {
-                        FeedbackManager.playDrop()
-                        if targetId == "airdrop" {
-                            AirDropModule.shared.shareFiles([url])
-                            self.registry.selectFileDropTarget(for: "airdrop")
-                        } else {
-                            ShelfModule.shared.addItem(url)
-                            self.registry.selectFileDropTarget(for: "shelf")
-                        }
-                    }
+        let group = DispatchGroup()
+        let collector = URLCollector()
+        for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            group.enter()
+            p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                defer { group.leave() }
+                let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                if let url {
+                    collector.append(url)
                 }
             }
         }
-        
-        if handled {
+        group.notify(queue: .main) {
+            FeedbackManager.playDrop()
+            if targetId == "airdrop" {
+                AirDropModule.shared.shareFiles(collector.urls)
+                self.registry.selectFileDropTarget(for: "airdrop")
+            } else {
+                for u in collector.urls {
+                    ShelfModule.shared.addItem(u)
+                }
+                self.registry.selectFileDropTarget(for: "shelf")
+            }
             NotchShellCoordinator.shared.onFileDropFinished()
-            return true
         }
         return true
     }

@@ -213,17 +213,11 @@ public final class NotchHostingView<Content: View>: NSHostingView<Content> {
     }
     
     public override func hitTest(_ point: NSPoint) -> NSView? {
-        let coordinator = NotchShellCoordinator.shared
-        if coordinator.state == .collapsed {
-            let layout = coordinator.currentCollapsedLayout
-            if let window = self.window {
-                let windowRect = window.convertFromScreen(layout.contentRect)
-                let localContentRect = self.convert(windowRect, from: nil)
-                guard localContentRect.contains(point) else {
-                    // Pass clicks through outside the content rect so menu bar items keep working!
-                    return nil
-                }
-            }
+        let c = NotchShellCoordinator.shared
+        if c.state == .collapsed && !c.isFileDraggingActive {
+            let inWindow = superview?.convert(point, to: nil) ?? point
+            let onScreen = window?.convertPoint(toScreen: inWindow) ?? inWindow
+            guard c.currentCollapsedLayout.hoverTriggerRect.contains(onScreen) else { return nil }
         }
         return super.hitTest(point)
     }

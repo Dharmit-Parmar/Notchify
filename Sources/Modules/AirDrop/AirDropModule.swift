@@ -2,18 +2,31 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - Thread-Safe URL Collector for Multi-Provider Drops
+public final class URLCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    public private(set) var urls: [URL] = []
+    
+    public init() {}
+    
+    public func append(_ url: URL) {
+        lock.lock()
+        urls.append(url)
+        lock.unlock()
+    }
+}
+
 // MARK: - AirDrop Dedicated Sharing Delegate
-@MainActor
-public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate {
+public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate, @unchecked Sendable {
     public static let shared = AirDropSharingDelegate()
     
     public func sharingService(_ sharingService: NSSharingService, sourceWindowForShareItems items: [Any], sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>) -> NSWindow? {
         sharingContentScope.pointee = .full
-        return NotchShellCoordinator.shared.panel
+        return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel }
     }
     
     public func sharingService(_ sharingService: NSSharingService, sourceFrameOnScreenForShareItem item: Any) -> NSRect {
-        return NotchShellCoordinator.shared.panel?.frame ?? .zero
+        return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel?.frame ?? .zero }
     }
     
     public func sharingService(_ sharingService: NSSharingService, willShareItems items: [Any]) {
@@ -25,6 +38,7 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate {
     
     public func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
         DispatchQueue.main.async {
+            AirDropModule.shared.markSharingSheetClosed()
             AirDropModule.shared.isBeaming = false
             AirDropModule.shared.statusMessage = "Shared \(items.count) item(s) successfully"
             FeedbackManager.playSuccess()
@@ -33,8 +47,27 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate {
     
     public func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) {
         DispatchQueue.main.async {
+            AirDropModule.shared.markSharingSheetClosed()
             AirDropModule.shared.isBeaming = false
-            AirDropModule.shared.statusMessage = "AirDrop transfer complete"
+            let desc = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            AirDropModule.shared.statusMessage = desc.isEmpty ? "Cancelled" : desc
+        }
+    }
+}
+
+// MARK: - AirDrop System Sharing Picker Delegate
+public final class AirDropPickerDelegate: NSObject, NSSharingServicePickerDelegate, @unchecked Sendable {
+    public static let shared = AirDropPickerDelegate()
+    
+    public func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker, didChoose service: NSSharingService?) {
+        if let service = service {
+            service.delegate = AirDropSharingDelegate.shared
+        } else {
+            DispatchQueue.main.async {
+                AirDropModule.shared.markSharingSheetClosed()
+                AirDropModule.shared.isBeaming = false
+                AirDropModule.shared.statusMessage = "Cancelled"
+            }
         }
     }
 }
@@ -54,11 +87,26 @@ public final class AirDropModule: NotchModule {
     @Published public var isBeaming: Bool = false
     
     private let sharingDelegate = AirDropSharingDelegate.shared
+    private var isSharingSheetActive = false
     
     public init() {}
     
     public func start() {}
     public func stop() {}
+    
+    public func markSharingSheetOpened() {
+        guard !isSharingSheetActive else { return }
+        isSharingSheetActive = true
+        NotchShellCoordinator.shared.registerPopoverOpened()
+        NotchShellCoordinator.shared.panel?.level = .floating
+    }
+    
+    public func markSharingSheetClosed() {
+        guard isSharingSheetActive else { return }
+        isSharingSheetActive = false
+        NotchShellCoordinator.shared.panel?.level = .popUpMenu
+        NotchShellCoordinator.shared.registerPopoverClosed()
+    }
     
     public func shareFiles(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
@@ -81,12 +129,10 @@ public final class AirDropModule: NotchModule {
         
         if let airDrop = NSSharingService(named: .sendViaAirDrop), airDrop.canPerform(withItems: urls) {
             airDrop.delegate = sharingDelegate
+            markSharingSheetOpened()
             airDrop.perform(withItems: urls)
             statusMessage = "Select recipient in AirDrop sheet"
             FeedbackManager.playSuccess()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                self?.isBeaming = false
-            }
             return
         }
         
@@ -97,7 +143,9 @@ public final class AirDropModule: NotchModule {
     public func showSharingPickerFallback(for urls: [URL]) {
         guard !urls.isEmpty else { return }
         DispatchQueue.main.async {
+            self.markSharingSheetOpened()
             let picker = NSSharingServicePicker(items: urls)
+            picker.delegate = AirDropPickerDelegate.shared
             if let targetView = NotchShellCoordinator.shared.panel?.contentView {
                 picker.show(relativeTo: targetView.bounds, of: targetView, preferredEdge: .minY)
                 self.statusMessage = "Select AirDrop in sharing menu"
@@ -267,29 +315,24 @@ public struct AirDropExpandedView: View {
         .padding(4)
         .contentShape(Rectangle())
         // Active Drop Target for ENTIRE AirDrop Screen (Radar + Drop Box + Info)
-        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
-            var handled = false
-            for p in providers {
-                if p.canLoadObject(ofClass: URL.self) {
-                    handled = true
-                    _ = p.loadObject(ofClass: URL.self) { url, _ in
-                        guard let url else { return }
-                        DispatchQueue.main.async {
-                            module.shareFiles([url])
-                        }
-                    }
-                } else if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                    handled = true
-                    p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                        let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                        guard let url else { return }
-                        DispatchQueue.main.async {
-                            module.shareFiles([url])
-                        }
+        .onDrop(of: [.fileURL], isTargeted: $module.isDropTargeted) { providers in
+            let group = DispatchGroup()
+            let collector = URLCollector()
+            for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                group.enter()
+                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    defer { group.leave() }
+                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                    if let url {
+                        collector.append(url)
                     }
                 }
             }
-            return handled
+            group.notify(queue: .main) {
+                module.shareFiles(collector.urls)
+                NotchShellCoordinator.shared.onFileDropFinished()
+            }
+            return !providers.isEmpty
         }
     }
 }
