@@ -114,25 +114,14 @@ public struct NotchRootView: View {
             }
         }
         .contentShape(Rectangle())
-        .onDrop(of: [.fileURL], isTargeted: $coordinator.isFileDragTargeted) { providers in
+        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
             coordinator.fileDropWasAccepted = true
-            let group = DispatchGroup()
-            let collector = URLCollector()
-            for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                group.enter()
-                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    defer { group.leave() }
-                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                    if let url {
-                        collector.append(url)
-                    }
-                }
-            }
-            group.notify(queue: .main) {
+            URLCollector.extractURLs(from: providers) { urls in
+                guard !urls.isEmpty else { return }
                 if registry.activeModuleId == "airdrop" {
-                    AirDropModule.shared.shareFiles(collector.urls)
+                    AirDropModule.shared.shareFiles(urls)
                 } else {
-                    for u in collector.urls {
+                    for u in urls {
                         ShelfModule.shared.addItem(u)
                     }
                 }
@@ -617,23 +606,24 @@ public struct UniversalTabDropDelegate: DropDelegate {
         let targetId = moduleId
         
         // 1. Tab Reordering drop completion
-        if let provider = info.itemProviders(for: [.text]).first,
-           !info.hasItemsConforming(to: [.fileURL, .pdf, .image, .movie, .audio, .archive]) {
-            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, _) in
-                var foundStr: String? = nil
-                if let data = item as? Data {
-                    foundStr = String(data: data, encoding: .utf8)
-                } else if let str = item as? String {
-                    foundStr = str
-                }
-                if let text = foundStr, text.hasPrefix("tab:") {
-                    let sourceId = String(text.dropFirst(4))
-                    if sourceId != targetId {
-                        DispatchQueue.main.async {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                self.registry.moveModule(from: sourceId, to: targetId)
+        if info.hasItemsConforming(to: [.text]) && !info.hasItemsConforming(to: [.fileURL, .item, .data, .content]) {
+            if let provider = info.itemProviders(for: [.text]).first {
+                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, _) in
+                    var foundStr: String? = nil
+                    if let data = item as? Data {
+                        foundStr = String(data: data, encoding: .utf8)
+                    } else if let str = item as? String {
+                        foundStr = str
+                    }
+                    if let text = foundStr, text.hasPrefix("tab:") {
+                        let sourceId = String(text.dropFirst(4))
+                        if sourceId != targetId {
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                    self.registry.moveModule(from: sourceId, to: targetId)
+                                }
+                                FeedbackManager.playDrop()
                             }
-                            FeedbackManager.playDrop()
                         }
                     }
                 }
@@ -641,28 +631,17 @@ public struct UniversalTabDropDelegate: DropDelegate {
             return true
         }
         
-        let providers = info.itemProviders(for: [.fileURL])
+        let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
         guard !providers.isEmpty else { return false }
         
-        let group = DispatchGroup()
-        let collector = URLCollector()
-        for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            group.enter()
-            p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                defer { group.leave() }
-                let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                if let url {
-                    collector.append(url)
-                }
-            }
-        }
-        group.notify(queue: .main) {
+        URLCollector.extractURLs(from: providers) { urls in
+            guard !urls.isEmpty else { return }
             FeedbackManager.playDrop()
             if targetId == "airdrop" {
-                AirDropModule.shared.shareFiles(collector.urls)
+                AirDropModule.shared.shareFiles(urls)
                 self.registry.selectFileDropTarget(for: "airdrop")
             } else {
-                for u in collector.urls {
+                for u in urls {
                     ShelfModule.shared.addItem(u)
                 }
                 self.registry.selectFileDropTarget(for: "shelf")
@@ -677,23 +656,24 @@ public struct UniversalTabDropDelegate: DropDelegate {
         let targetId = moduleId
         
         // 1. Check if this is an internal tab reordering drag (only plain text with "tab:" prefix)
-        if let provider = info.itemProviders(for: [.text]).first,
-           !info.hasItemsConforming(to: [.fileURL, .pdf, .image, .movie, .audio, .archive]) {
-            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, error) in
-                var foundStr: String? = nil
-                if let data = item as? Data {
-                    foundStr = String(data: data, encoding: .utf8)
-                } else if let str = item as? String {
-                    foundStr = str
-                }
-                if let text = foundStr, text.hasPrefix("tab:") {
-                    let sourceId = String(text.dropFirst(4))
-                    if sourceId != targetId {
-                        DispatchQueue.main.async {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                self.registry.moveModule(from: sourceId, to: targetId)
+        if info.hasItemsConforming(to: [.text]) && !info.hasItemsConforming(to: [.fileURL, .item, .data, .content]) {
+            if let provider = info.itemProviders(for: [.text]).first {
+                provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { (item, error) in
+                    var foundStr: String? = nil
+                    if let data = item as? Data {
+                        foundStr = String(data: data, encoding: .utf8)
+                    } else if let str = item as? String {
+                        foundStr = str
+                    }
+                    if let text = foundStr, text.hasPrefix("tab:") {
+                        let sourceId = String(text.dropFirst(4))
+                        if sourceId != targetId {
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                    self.registry.moveModule(from: sourceId, to: targetId)
+                                }
+                                FeedbackManager.playHover()
                             }
-                            FeedbackManager.playHover()
                         }
                     }
                 }

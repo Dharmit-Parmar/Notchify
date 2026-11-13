@@ -494,6 +494,30 @@ func runAllVerificationTests() {
     assert(scope == .full, "Sharing scope must be configured to full")
     assert(testDel.sourceWindowProvided == true, "Delegate must handle sourceWindow request")
     
+    // Verify non-deadlocking delegate implementation pattern on main thread
+    class SafeAirDropSharingDelegate: NSObject, NSSharingServiceDelegate {
+        func sharingService(_ sharingService: NSSharingService, sourceWindowForShareItems items: [Any], sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>) -> NSWindow? {
+            sharingContentScope.pointee = .full
+            if Thread.isMainThread {
+                return nil
+            } else {
+                return DispatchQueue.main.sync { nil }
+            }
+        }
+        func sharingService(_ sharingService: NSSharingService, sourceFrameOnScreenForShareItem item: Any) -> NSRect {
+            if Thread.isMainThread {
+                return .zero
+            } else {
+                return DispatchQueue.main.sync { .zero }
+            }
+        }
+    }
+    let safeDel = SafeAirDropSharingDelegate()
+    var safeScope = NSSharingService.SharingContentScope.item
+    _ = safeDel.sharingService(NSSharingService(named: .sendViaAirDrop)!, sourceWindowForShareItems: [testPDF], sharingContentScope: &safeScope)
+    assert(safeScope == .full, "Sharing scope must be full")
+    _ = safeDel.sharingService(NSSharingService(named: .sendViaAirDrop)!, sourceFrameOnScreenForShareItem: testPDF)
+    
     try? FileManager.default.removeItem(at: testPDF)
     print("  ✓ AirDrop sharing delegate & full drop stage verified.")
     

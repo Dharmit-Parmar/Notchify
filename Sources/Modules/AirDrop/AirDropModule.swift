@@ -11,8 +11,51 @@ public final class URLCollector: @unchecked Sendable {
     
     public func append(_ url: URL) {
         lock.lock()
-        urls.append(url)
+        if !urls.contains(url) {
+            urls.append(url)
+        }
         lock.unlock()
+    }
+    
+    public static func extractURLs(from providers: [NSItemProvider], completion: @escaping @MainActor @Sendable ([URL]) -> Void) {
+        guard !providers.isEmpty else {
+            Task { @MainActor in
+                completion([])
+            }
+            return
+        }
+        
+        let collector = URLCollector()
+        let group = DispatchGroup()
+        
+        for p in providers {
+            if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                group.enter()
+                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    defer { group.leave() }
+                    let url = (item as? URL) ?? (item as? Data).flatMap({ URL(dataRepresentation: $0, relativeTo: nil) })
+                    if let url {
+                        collector.append(url)
+                    } else if let str = item as? String, let url = URL(string: str), url.isFileURL {
+                        collector.append(url)
+                    }
+                }
+            } else if p.canLoadObject(ofClass: URL.self) {
+                group.enter()
+                _ = p.loadObject(ofClass: URL.self) { item, _ in
+                    defer { group.leave() }
+                    if let url = item {
+                        collector.append(url)
+                    }
+                }
+            }
+        }
+        
+        group.notify(queue: .main) {
+            Task { @MainActor in
+                completion(collector.urls)
+            }
+        }
     }
 }
 
@@ -22,11 +65,19 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate, @
     
     public func sharingService(_ sharingService: NSSharingService, sourceWindowForShareItems items: [Any], sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>) -> NSWindow? {
         sharingContentScope.pointee = .full
-        return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel }
+        if Thread.isMainThread {
+            return NotchShellCoordinator.shared.panel
+        } else {
+            return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel }
+        }
     }
     
     public func sharingService(_ sharingService: NSSharingService, sourceFrameOnScreenForShareItem item: Any) -> NSRect {
-        return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel?.frame ?? .zero }
+        if Thread.isMainThread {
+            return NotchShellCoordinator.shared.panel?.frame ?? .zero
+        } else {
+            return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel?.frame ?? .zero }
+        }
     }
     
     public func sharingService(_ sharingService: NSSharingService, willShareItems items: [Any]) {
@@ -161,9 +212,17 @@ public final class AirDropModule: NotchModule {
         openPanel.allowsMultipleSelection = true
         openPanel.canChooseDirectories = true
         openPanel.canChooseFiles = true
+        openPanel.prompt = "AirDrop"
         
-        if openPanel.runModal() == .OK {
-            shareFiles(openPanel.urls)
+        markSharingSheetOpened()
+        NSApp.activate(ignoringOtherApps: true)
+        openPanel.begin { [weak self] response in
+            guard let self = self else { return }
+            if response == .OK {
+                self.shareFiles(openPanel.urls)
+            } else {
+                self.markSharingSheetClosed()
+            }
         }
     }
     
@@ -264,6 +323,10 @@ public struct AirDropExpandedView: View {
                     .padding(notchTight ? 4 : 8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: notchTight ? 56 : 72)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    module.openFilePicker()
+                }
                 
                 // Action Buttons & Recent History
                 HStack(spacing: 8) {
@@ -315,21 +378,10 @@ public struct AirDropExpandedView: View {
         .padding(4)
         .contentShape(Rectangle())
         // Active Drop Target for ENTIRE AirDrop Screen (Radar + Drop Box + Info)
-        .onDrop(of: [.fileURL], isTargeted: $module.isDropTargeted) { providers in
-            let group = DispatchGroup()
-            let collector = URLCollector()
-            for p in providers where p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                group.enter()
-                p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    defer { group.leave() }
-                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                    if let url {
-                        collector.append(url)
-                    }
-                }
-            }
-            group.notify(queue: .main) {
-                module.shareFiles(collector.urls)
+        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+            URLCollector.extractURLs(from: providers) { urls in
+                guard !urls.isEmpty else { return }
+                module.shareFiles(urls)
                 NotchShellCoordinator.shared.onFileDropFinished()
             }
             return !providers.isEmpty
