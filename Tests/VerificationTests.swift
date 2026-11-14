@@ -5436,6 +5436,7 @@ func runAllVerificationTests() {
     // --- Subtest 8: Receive Listener Control ---
     print("  -> Subtest 8: Receive Listener Control...")
     settings.resetToDefaults()
+    settings.tcpPort = 0 // Ephemeral port to avoid conflict with running host instances
     assert(!LocalShareServer.shared.isRunning, "Server must not be running initially")
     
     modState.syncReceiveMode(true)
@@ -5453,6 +5454,7 @@ func runAllVerificationTests() {
     }
     assert(!modState.isReceiveActive, "isReceiveActive must be false when Receive mode is disabled")
     assert(!LocalShareServer.shared.isRunning, "Server listener must be stopped when Receive mode is disabled")
+    settings.resetToDefaults()
     print("    ✓ Receive mode toggle and server listener lifecycle verified.")
     
     // --- Subtest 9: Foreground Discovery Lifecycle ---
@@ -6061,17 +6063,27 @@ func runAllVerificationTests() {
     prepHTTPReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
     prepHTTPReq.httpBody = try! JSONEncoder().encode(prepReqObj)
     
+    final class ThreadSafeBox<T>: @unchecked Sendable {
+        private var val: T
+        private let lock = NSLock()
+        init(_ val: T) { self.val = val }
+        var value: T {
+            get { lock.lock(); defer { lock.unlock() }; return val }
+            set { lock.lock(); defer { lock.unlock() }; val = newValue }
+        }
+    }
+    
     let prepSem = DispatchSemaphore(value: 0)
-    var prepRespObj: LocalSharePrepareUploadResponse?
+    let prepRespBox = ThreadSafeBox<LocalSharePrepareUploadResponse?>(nil)
     intSession.dataTask(with: prepHTTPReq) { data, resp, _ in
         if let http = resp as? HTTPURLResponse, http.statusCode == 200, let data = data {
-            prepRespObj = try? JSONDecoder().decode(LocalSharePrepareUploadResponse.self, from: data)
+            prepRespBox.value = try? JSONDecoder().decode(LocalSharePrepareUploadResponse.self, from: data)
         }
         prepSem.signal()
     }.resume()
     _ = prepSem.wait(timeout: .now() + 3.0)
     
-    guard let prepResp = prepRespObj else {
+    guard let prepResp = prepRespBox.value else {
         fatalError("Failed to prepare upload session")
     }
     assert(prepResp.files.count == 2, "Server must return tokens for both files")
@@ -6087,13 +6099,13 @@ func runAllVerificationTests() {
     upload1Req.httpBody = dataFile1
     
     let up1Sem = DispatchSemaphore(value: 0)
-    var up1Status = 0
+    let up1StatusBox = ThreadSafeBox<Int>(0)
     intSession.dataTask(with: upload1Req) { _, resp, _ in
-        if let http = resp as? HTTPURLResponse { up1Status = http.statusCode }
+        if let http = resp as? HTTPURLResponse { up1StatusBox.value = http.statusCode }
         up1Sem.signal()
     }.resume()
     _ = up1Sem.wait(timeout: .now() + 3.0)
-    assert(up1Status == 200, "Upload file 1 must return HTTP 200")
+    assert(up1StatusBox.value == 200, "Upload file 1 must return HTTP 200")
     
     // 3. Upload file 2
     let upload2URL = URL(string: "http://127.0.0.1:\(intPort)\(LocalShareEndpoints.upload)?sessionId=\(prepResp.sessionId)&fileId=f2&token=\(token2)")!
@@ -6104,13 +6116,13 @@ func runAllVerificationTests() {
     upload2Req.httpBody = dataFile2
     
     let up2Sem = DispatchSemaphore(value: 0)
-    var up2Status = 0
+    let up2StatusBox = ThreadSafeBox<Int>(0)
     intSession.dataTask(with: upload2Req) { _, resp, _ in
-        if let http = resp as? HTTPURLResponse { up2Status = http.statusCode }
+        if let http = resp as? HTTPURLResponse { up2StatusBox.value = http.statusCode }
         up2Sem.signal()
     }.resume()
     _ = up2Sem.wait(timeout: .now() + 3.0)
-    assert(up2Status == 200, "Upload file 2 must return HTTP 200")
+    assert(up2StatusBox.value == 200, "Upload file 2 must return HTTP 200")
     
     // 4. Verify received files on disk and quarantine attribute
     let sessionFolder = testReceiveDir.appendingPathComponent("session-\(prepResp.sessionId)")
@@ -6130,13 +6142,13 @@ func runAllVerificationTests() {
     
     // 5. Anti-replay verification: Attempting upload with consumed token must return HTTP 403
     let replaySem = DispatchSemaphore(value: 0)
-    var replayStatus = 0
+    let replayStatusBox = ThreadSafeBox<Int>(0)
     intSession.dataTask(with: upload1Req) { _, resp, _ in
-        if let http = resp as? HTTPURLResponse { replayStatus = http.statusCode }
+        if let http = resp as? HTTPURLResponse { replayStatusBox.value = http.statusCode }
         replaySem.signal()
     }.resume()
     _ = replaySem.wait(timeout: .now() + 3.0)
-    assert(replayStatus == 403, "Replay upload with consumed token must be rejected with HTTP 403")
+    assert(replayStatusBox.value == 403, "Replay upload with consumed token must be rejected with HTTP 403")
     
     intServer.stop()
     print("    ✓ End-to-end multi-file loopback upload & quarantine verified.")
