@@ -715,6 +715,47 @@
   - `swift run NotchTests --localshare-only`: Tests 103, 104, 105 (Subtests 1-23) passing (exit code 0).
   - Working Tree: Clean on `fix/localshare`.
 
+---
+
+## Stage 4E: Targeted Security, Redirect, Pinning, Lifecycle & Validation Remediation (Batch 1: 5 Bugs)
+
+### Skills Selection Log
+- **BUG-1**: `ponytail` (mandatory, minimalist ladder), `axiom-security` (unauthenticated JSON vs TLS identity trust boundaries), `security-audit` (authorization bypass analysis).
+- **BUG-2**: `ponytail` (mandatory), `axiom-security` (cross-origin / rogue peer redirection defense), `axiom-networking` (URLSessionTaskDelegate redirection interception).
+- **BUG-3**: `ponytail` (mandatory), `axiom-security` (fail-closed certificate verification), `security-audit` (pinning bypass analysis).
+- **BUG-5**: `ponytail` (mandatory), `axiom-networking` (URLSessionTask lifecycle and cancellation), `axiom-concurrency` (safe cancellation continuation).
+- **BUG-4**: `ponytail` (mandatory), `axiom-concurrency` (session coordinator state machine synchronization), `axiom-data` (session artifact cleanup).
+- **BUG-6**: `ponytail` (mandatory), `axiom-security` (input validation and integer overflow defense), `axiom-networking` (HTTP 204 No Content / 400 Bad Request handling).
+
+### Bug Reports
+
+1. **BUG-1**:
+   - bug id: BUG-1 | root cause: unauthenticated JSON fingerprint in prepareReq bypasses interactive acceptance | files:lines changed: LocalShareServer.swift:525-535 | callers checked: LocalShareSettings.swift, LocalShareSettingsView.swift | what could still be affected: users with autoAcceptFavorites enabled will now see the interactive Accept/Decline prompt for all transfers | confirmation: incoming transfer from a favorite peer now shows Accept/Decline prompt instead of automatically accepting without user confirmation.
+
+2. **BUG-2**:
+   - bug id: BUG-2 | root cause: URLSession delegate did not implement willPerformHTTPRedirection, following peer HTTP redirects by default | files:lines changed: LocalShareClient.swift:304-322 | callers checked: prepareUpload, uploadFile, cancelSession in LocalShareClient | what could still be affected: none; redirects are rejected per LocalSend security spec | confirmation: peer returning 301/302/307/308 will have its redirect aborted rather than followed.
+
+3. **BUG-3**:
+   - bug id: BUG-3 | root cause: LocalSharePeerPinningDelegate checked expectedFingerprint.isEmpty and accepted any server certificate without validation | files:lines changed: LocalShareClient.swift:347-350 | callers checked: prepareUpload, uploadFile, cancelSession in LocalShareClient | what could still be affected: outgoing connection to a peer with an empty fingerprint string will now be rejected instead of accepted blindly | confirmation: connecting to a peer with empty fingerprint now cancels the authentication challenge.
+
+4. **BUG-5**:
+   - bug id: BUG-5 | root cause: uploadFile used urlSession.upload without storing active task in session.setActiveTask | files:lines changed: LocalShareClient.swift:235-263 | callers checked: cancelSession, cancelActiveTransfer in LocalShareModule | what could still be affected: none; cancellation now immediately aborts in-flight URLSession upload task | confirmation: cancelling an active client session immediately stops streaming and completes with sessionCancelled.
+
+5. **BUG-4**:
+   - bug id: BUG-4 | root cause: LocalShareSessionCoordinator.reset cleared activeSession without transitioning it to cancelled | files:lines changed: LocalShareSession.swift:401-411 | callers checked: LocalShareServer.stop() | what could still be affected: none; session progress monitors now terminate gracefully upon server reset | confirmation: stopping LocalShareServer now moves activeSession to .cancelled(reason: "Server reset") and removes temporary session artifacts.
+
+6. **BUG-6**:
+   - bug id: BUG-6 | root cause: handlePrepareUploadRoute did not reject empty lists, negative sizes, or check integer overflow on aggregate size | files:lines changed: LocalShareServer.swift:462-488, LocalShareProtocol.swift:139-144, LocalShareSecurity.swift:9 | callers checked: prepareUpload in LocalShareClient, handlePrepareUploadRoute in LocalShareServer | what could still be affected: none; empty file list returns 204 No Content per protocol; negative/overflow sizes return 400 | confirmation: sending an empty files map now receives HTTP 204; sending negative file size receives HTTP 400.
+
+### Commit Log & Undo Commands
+- `f649952` — `fix(localshare): BUG-1 disable unauthenticated JSON fingerprint auto-accept` -> `git revert f649952`
+- `5da2afe` — `fix(localshare): BUG-2 reject HTTP redirects in peer client delegate` -> `git revert 5da2afe`
+- `388a1c5` — `fix(localshare): BUG-3 fail closed on empty expected fingerprint in peer pinning delegate` -> `git revert 388a1c5`
+- `8a586d3` — `fix(localshare): BUG-5 register and cancel active upload task in client session` -> `git revert 8a586d3`
+- `89b5eaa` — `fix(localshare): BUG-4 transition active session to cancelled upon coordinator reset` -> `git revert 89b5eaa`
+- `094df64` — `fix(localshare): BUG-6 validate incoming file metadata and safe aggregate size` -> `git revert 094df64`
+
+
 
 
 
