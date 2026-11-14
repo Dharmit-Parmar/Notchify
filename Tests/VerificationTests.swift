@@ -5862,6 +5862,57 @@ func runAllVerificationTests() {
     assert(!postConsumedVal, "validateToken after token consumed must be rejected permanently")
     print("    ✓ Concurrent upload token replay rejection & reservation verified.")
     
+    // --- Subtest 5 (Finding 5 Regression): Asynchronous NWListener State Propagation ---
+    print("  -> Subtest 5: Asynchronous NWListener State Propagation to UI...")
+    final class ThreadSafeStateCollector: @unchecked Sendable {
+        private let lock = NSLock()
+        var states: [LocalShareServerState] = []
+        func append(_ state: LocalShareServerState) {
+            lock.lock()
+            states.append(state)
+            lock.unlock()
+        }
+        func containsRunning() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return states.contains(where: { if case .running = $0 { return true } else { return false } })
+        }
+        func containsStopped() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return states.contains(where: { if case .stopped = $0 { return true } else { return false } })
+        }
+    }
+    let collector = ThreadSafeStateCollector()
+    let previousStateHook = LocalShareServer.shared.onStateChanged
+    LocalShareServer.shared.onStateChanged = { state in
+        collector.append(state)
+    }
+    
+    // Start ephemeral server
+    try! LocalShareServer.shared.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
+    let startDeadline105 = Date().addingTimeInterval(2.0)
+    while !LocalShareServer.shared.isRunning && Date() < startDeadline105 {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    }
+    assert(LocalShareServer.shared.isRunning, "Server must be running after start")
+    
+    // Stop server
+    LocalShareServer.shared.stop()
+    let stopDeadline105 = Date().addingTimeInterval(2.0)
+    while LocalShareServer.shared.isRunning && Date() < stopDeadline105 {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    }
+    assert(!LocalShareServer.shared.isRunning, "Server must be stopped after stop")
+    
+    // Verify callback was invoked with running and stopped states
+    assert(collector.containsRunning(), "onStateChanged must receive .running state when listener activates")
+    assert(collector.containsStopped(), "onStateChanged must receive .stopped state when listener stops")
+    
+    // Restore previous hook
+    LocalShareServer.shared.onStateChanged = previousStateHook
+    print("    ✓ Asynchronous server listener state propagation verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")

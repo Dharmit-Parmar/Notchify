@@ -150,6 +150,25 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
     // MARK: - Incoming Request Server Hooks
     
     private func configureServerHooks() {
+        LocalShareServer.shared.onStateChanged = { [weak self] newState in
+            Task { @MainActor in
+                guard let self = self else { return }
+                switch newState {
+                case .running:
+                    self.isReceiveActive = true
+                    self.updateStatusMessage()
+                case .stopped:
+                    self.isReceiveActive = false
+                    self.updateStatusMessage()
+                case .failed(let err):
+                    self.isReceiveActive = false
+                    self.statusMessage = "Receiver error: \(err)"
+                case .starting:
+                    break
+                }
+            }
+        }
+        
         LocalShareServer.shared.onIncomingSessionOffered = { [weak self] session, completion in
             Task { @MainActor in
                 guard let self = self else {

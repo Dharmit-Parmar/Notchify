@@ -44,6 +44,9 @@ public final class LocalShareServer: @unchecked Sendable {
     // Explicit Acceptance Gate Hook: (Session, Completion(Bool))
     public var onIncomingSessionOffered: (@Sendable (LocalShareSession, @escaping @Sendable (Bool) -> Void) -> Void)?
     
+    // Server State Update Callback
+    public var onStateChanged: (@Sendable (LocalShareServerState) -> Void)?
+    
     private let rateLimiter = LocalShareRateLimiter(maxRequests: 10, windowDuration: 1.0)
     
     public init() {}
@@ -121,29 +124,39 @@ public final class LocalShareServer: @unchecked Sendable {
         let activeListener = self.listener
         self.listener = nil
         self.state = .stopped
+        let callback = onStateChanged
         lock.unlock()
         
         activeListener?.cancel()
         LocalShareSessionCoordinator.shared.reset()
+        callback?(.stopped)
     }
     
     private func handleListenerStateUpdate(_ newState: NWListener.State) {
+        let reportedState: LocalShareServerState
         lock.lock()
-        defer { lock.unlock() }
         switch newState {
         case .ready:
             let actualPort = listener?.port?.rawValue ?? 0
             self.state = .running(port: actualPort)
+            reportedState = self.state
         case .failed(let error):
             self.state = .failed(error.localizedDescription)
             self.listener?.cancel()
             self.listener = nil
+            reportedState = self.state
         case .cancelled:
             self.state = .stopped
             self.listener = nil
+            reportedState = self.state
         default:
-            break
+            lock.unlock()
+            return
         }
+        let callback = onStateChanged
+        lock.unlock()
+        
+        callback?(reportedState)
     }
     
     // MARK: - Connection & Request Handling
