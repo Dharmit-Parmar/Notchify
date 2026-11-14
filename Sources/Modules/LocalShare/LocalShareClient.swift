@@ -152,7 +152,7 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await session.data(for: request, delegate: delegate)
         } catch {
             let nsError = error as NSError
             NSLog("[LocalShareClient] prepareUpload failed to %@:%d%@ Domain: %@ Code: %ld Description: %@", cleanHost, peer.port, LocalShareEndpoints.prepareUpload, nsError.domain, Int(nsError.code), nsError.localizedDescription)
@@ -360,6 +360,23 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
+        handleAuthenticationChallenge(challenge, completionHandler: completionHandler)
+    }
+    
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        handleAuthenticationChallenge(challenge, completionHandler: completionHandler)
+    }
+    
+    private func handleAuthenticationChallenge(
+        _ challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        NSLog("[LocalShareClient] Auth challenge received for method: %@", challenge.protectionSpace.authenticationMethod)
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               let serverTrust = challenge.protectionSpace.serverTrust else {
             completionHandler(.performDefaultHandling, nil)
@@ -372,19 +389,23 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         
         // 2. Extract leaf certificate
         guard let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate],
-              let leafCert = certChain.first else {
+              let leaf = certChain.first else {
+            NSLog("[LocalShareClient] Failed to extract leaf certificate from SecTrust (error=%@)", String(describing: secError))
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
         
-        let certDER = SecCertificateCopyData(leafCert) as Data
+        let certDER = SecCertificateCopyData(leaf) as Data
+        let digest = SHA256.hash(data: certDER)
+        let actualHex = digest.map { String(format: "%02x", $0) }.joined()
+        
+        NSLog("[LocalShareClient] Comparing peer certificate fingerprint. Expected: %@, Actual: %@", expectedFingerprint, actualHex)
         
         // 3. Verify SHA-256 certificate fingerprint matches peer discovery identity (fail closed)
         if !expectedFingerprint.isEmpty && LocalShareSecurity.isFingerprintValid(peerCertDER: certDER, expectedFingerprint: expectedFingerprint) {
+            NSLog("[LocalShareClient] Fingerprint matched. Accepting peer server trust.")
             completionHandler(.useCredential, URLCredential(trust: serverTrust))
         } else {
-            let digest = SHA256.hash(data: certDER)
-            let actualHex = digest.map { String(format: "%02x", $0) }.joined()
             NSLog("[LocalShareClient] Peer certificate fingerprint mismatch! Expected: %@, Actual: %@", expectedFingerprint, actualHex)
             completionHandler(.cancelAuthenticationChallenge, nil)
         }

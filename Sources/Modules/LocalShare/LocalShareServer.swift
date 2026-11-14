@@ -416,6 +416,7 @@ public final class LocalShareServer: @unchecked Sendable {
     // MARK: - Route Dispatcher
     
     private func routeRequest(connection: NWConnection, request: LocalShareHTTPRequest) {
+        NSLog("[LocalShareServer] Received %@ %@ from %@", request.method, request.path, request.remoteIP)
         // Enforce rate limiting per client IP
         guard rateLimiter.isAllowed(ip: request.remoteIP) else {
             sendRawResponse(connection: connection, statusCode: 429, reason: "Too Many Requests", body: nil)
@@ -838,6 +839,7 @@ public final class LocalShareServer: @unchecked Sendable {
         contentType: String = "text/plain"
     ) {
         let bodyLength = body?.count ?? 0
+        NSLog("[LocalShareServer] Sending HTTP %ld %@ (%ld bytes) to %@", statusCode, reason, bodyLength, "\(connection.endpoint)")
         var header = "HTTP/1.1 \(statusCode) \(reason)\r\n"
         header += "Content-Type: \(contentType)\r\n"
         header += "Content-Length: \(bodyLength)\r\n"
