@@ -262,10 +262,17 @@ public final class LocalShareServer: @unchecked Sendable {
                 }
                 
                 if bodyData.count < expectedLength && !isComplete {
-                    self.receiveHTTPPayload(connection: connection, accumulatedData: buffer, timeoutBox: nil)
+                    let targetConnection = connection
+                    let bodyTimeoutItem = DispatchWorkItem { [weak targetConnection] in
+                        targetConnection?.cancel()
+                    }
+                    let bodyBox = LocalShareTimeoutBox(bodyTimeoutItem)
+                    self.queue.asyncAfter(deadline: .now() + 15.0, execute: bodyTimeoutItem)
+                    self.receiveHTTPPayload(connection: connection, accumulatedData: buffer, timeoutBox: bodyBox)
                     return
                 }
                 
+                timeoutBox?.cancel()
                 self.routeRequest(connection: connection, request: request)
             } else if buffer.count > 65536 {
                 // Safeguard against unbounded slowloris header accumulation
@@ -523,6 +530,9 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         
+        let maxDuration = max(30.0, min(LocalShareSecurity.totalSessionTimeoutSeconds, Double(expectedTotal) / 10_000.0))
+        let transferDeadline = Date().addingTimeInterval(maxDuration)
+        
         continueReceivingUpload(
             connection: connection,
             session: session,
@@ -531,7 +541,8 @@ public final class LocalShareServer: @unchecked Sendable {
             writer: streamWriter,
             meta: meta,
             expectedTotal: expectedTotal,
-            receivedBytes: currentBytes
+            receivedBytes: currentBytes,
+            transferDeadline: transferDeadline
         )
     }
     
@@ -543,9 +554,32 @@ public final class LocalShareServer: @unchecked Sendable {
         writer: LocalShareFileStreamWriter,
         meta: LocalShareFileMetadata,
         expectedTotal: Int64,
-        receivedBytes: Int64
+        receivedBytes: Int64,
+        transferDeadline: Date
     ) {
+        if Date() > transferDeadline {
+            session.releaseTokenReservation(token: token)
+            session.removeActiveWriter(for: fileId)
+            writer.abort()
+            session.markFileFailed(fileId: fileId, error: "Transfer Deadline Exceeded")
+            sendRawResponse(connection: connection, statusCode: 408, reason: "Request Timeout", body: nil)
+            return
+        }
+        
+        let targetConn = connection
+        let targetSess = session
+        let idleWorkItem = DispatchWorkItem { [weak targetConn, weak targetSess] in
+            targetSess?.releaseTokenReservation(token: token)
+            targetSess?.removeActiveWriter(for: fileId)
+            writer.abort()
+            targetSess?.markFileFailed(fileId: fileId, error: "Upload Inactivity Timeout")
+            targetConn?.cancel()
+        }
+        let idleBox = LocalShareTimeoutBox(idleWorkItem)
+        queue.asyncAfter(deadline: .now() + 30.0, execute: idleWorkItem)
+        
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
+            idleBox.cancel()
             guard let self = self else { return }
             if error != nil {
                 session.releaseTokenReservation(token: token)
@@ -596,7 +630,8 @@ public final class LocalShareServer: @unchecked Sendable {
                     writer: writer,
                     meta: meta,
                     expectedTotal: expectedTotal,
-                    receivedBytes: updatedBytes
+                    receivedBytes: updatedBytes,
+                    transferDeadline: transferDeadline
                 )
             }
         }
