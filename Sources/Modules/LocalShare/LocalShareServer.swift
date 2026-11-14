@@ -197,6 +197,16 @@ public final class LocalShareServer: @unchecked Sendable {
         }
     }
     
+    /// Safely restarts the server listener on the specified port.
+    public func restart(port: UInt16) {
+        stop()
+        do {
+            try start(port: port)
+        } catch {
+            NSLog("[LocalShareServer] Failed to restart server on port %d: %@", port, error.localizedDescription)
+        }
+    }
+    
     private func handleListenerStateUpdate(_ newState: NWListener.State) {
         let reportedState: LocalShareServerState
         lock.lock()

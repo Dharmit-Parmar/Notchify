@@ -151,7 +151,7 @@ public final class LocalShareSettings: ObservableObject {
     @Published public var tcpPort: UInt16 {
         didSet {
             UserDefaults.standard.set(Int(tcpPort), forKey: "NotchApp_LocalShare_Port")
-            LocalShareDiscovery.shared.localPort = tcpPort
+            LocalShareServer.shared.restart(port: tcpPort)
         }
     }
     
