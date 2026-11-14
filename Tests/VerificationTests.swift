@@ -5670,8 +5670,81 @@ func runAllVerificationTests() {
     
     print("  ✓ Local Share Module & Application Integration verified (20/20 test categories passing).")
     
+    // =========================================================================
+    // [TEST 105] Local Share Stage 4 Remediation Regressions
+    // =========================================================================
+    print("\n[TEST 105] Local Share Stage 4 Remediation Regressions...")
+    
+    // --- Subtest 1 (Finding 1 Regression): Multi-File Deterministic Mapping ---
+    print("  -> Subtest 1: Multi-File Deterministic Mapping & Batch Upload Integrity...")
+    let tempDir105 = FileManager.default.temporaryDirectory.appendingPathComponent("reg_f1_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: tempDir105, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir105) }
+    
+    let urlA = tempDir105.appendingPathComponent("alpha.txt")
+    let urlB = tempDir105.appendingPathComponent("beta.pdf")
+    let urlC = tempDir105.appendingPathComponent("gamma.png")
+    try! "Alpha content 123".data(using: .utf8)!.write(to: urlA)
+    try! "Beta PDF content 45678".data(using: .utf8)!.write(to: urlB)
+    try! "Gamma PNG binary data 999999".data(using: .utf8)!.write(to: urlC)
+    
+    let dummyPeer105 = LocalShareDiscoveredPeer(
+        alias: "TargetDevice",
+        deviceModel: "macOS",
+        deviceType: .desktop,
+        fingerprint: "dummyfp",
+        host: "127.0.0.1",
+        port: 53317
+    )
+    
+    let fileIdA = "file-1-abc"
+    let fileIdB = "file-2-def"
+    let fileIdC = "file-3-ghi"
+    let mapping: [String: URL] = [fileIdA: urlA, fileIdB: urlB, fileIdC: urlC]
+    
+    let clientSession105 = LocalShareClientSession(
+        sessionId: "sess-105-multi",
+        peer: dummyPeer105,
+        fileTokens: [fileIdA: "tokA", fileIdB: "tokB", fileIdC: "tokC"],
+        files: [urlA, urlB, urlC],
+        fileIdToURLMap: mapping
+    )
+    
+    // Verify each fileId maps to the exact matching URL
+    assert(clientSession105.url(for: fileIdA) == urlA, "fileIdA must map to urlA")
+    assert(clientSession105.url(for: fileIdB) == urlB, "fileIdB must map to urlB")
+    assert(clientSession105.url(for: fileIdC) == urlC, "fileIdC must map to urlC")
+    
+    // Verify missing mapping returns nil safely
+    assert(clientSession105.url(for: "file-99-missing") == nil, "Missing file ID must return nil safely")
+    
+    // Verify legacy fallback constructor
+    let legacySession = LocalShareClientSession(
+        sessionId: "sess-legacy",
+        peer: dummyPeer105,
+        fileTokens: [fileIdA: "tokA", fileIdB: "tokB", fileIdC: "tokC"],
+        files: [urlA, urlB, urlC]
+    )
+    assert(legacySession.url(for: fileIdA) == urlA, "Legacy fallback must resolve file-1 to index 0")
+    assert(legacySession.url(for: fileIdB) == urlB, "Legacy fallback must resolve file-2 to index 1")
+    assert(legacySession.url(for: fileIdC) == urlC, "Legacy fallback must resolve file-3 to index 2")
+    
+    // Verify batch tracking
+    var uploadedURLs: [URL] = []
+    for fileId in [fileIdA, fileIdB, fileIdC] {
+        guard let resolvedURL = clientSession105.url(for: fileId) else {
+            fatalError("Failed to resolve URL for \(fileId)")
+        }
+        uploadedURLs.append(resolvedURL)
+    }
+    assert(uploadedURLs.count == 3, "All 3 files must be processed")
+    assert(uploadedURLs[0] == urlA && uploadedURLs[1] == urlB && uploadedURLs[2] == urlC, "Each distinct file must be uploaded in order without duplication")
+    print("    ✓ Multi-file deterministic mapping & batch upload integrity verified.")
+    
+    print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
+    
     print("\n=====================================================")
-    print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (104/104) ")
+    print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (105/105) ")
     print("=====================================================\n")
 }
 

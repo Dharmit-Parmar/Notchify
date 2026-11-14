@@ -306,7 +306,9 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
                 }
                 
                 for (fileId, token) in prepResp.files {
-                    guard let fileURL = filesToSend.first(where: { _ in true }) else { continue } // Match file
+                    guard let fileURL = clientSession.url(for: fileId) else {
+                        throw LocalShareError.serverError("Missing file URL mapping for fileId: \(fileId)")
+                    }
                     try await LocalShareClient.shared.uploadFile(
                         session: clientSession,
                         fileURL: fileURL,

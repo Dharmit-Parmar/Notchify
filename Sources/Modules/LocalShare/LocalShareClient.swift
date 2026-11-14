@@ -9,6 +9,7 @@ public final class LocalShareClientSession: @unchecked Sendable {
     public let peer: LocalShareDiscoveredPeer
     public let fileTokens: [String: String]
     public let files: [URL]
+    public let fileIdToURLMap: [String: URL]
     
     private let lock = NSLock()
     private var isCancelled = false
@@ -18,12 +19,25 @@ public final class LocalShareClientSession: @unchecked Sendable {
         sessionId: String,
         peer: LocalShareDiscoveredPeer,
         fileTokens: [String: String],
-        files: [URL]
+        files: [URL],
+        fileIdToURLMap: [String: URL] = [:]
     ) {
         self.sessionId = sessionId
         self.peer = peer
         self.fileTokens = fileTokens
         self.files = files
+        self.fileIdToURLMap = fileIdToURLMap
+    }
+    
+    public func url(for fileId: String) -> URL? {
+        if let mapped = fileIdToURLMap[fileId] { return mapped }
+        if fileId.hasPrefix("file-"), let dashIdx = fileId.dropFirst(5).firstIndex(of: "-") {
+            let numStr = fileId[fileId.index(fileId.startIndex, offsetBy: 5)..<dashIdx]
+            if let idx = Int(numStr), idx >= 1, idx <= files.count {
+                return files[idx - 1]
+            }
+        }
+        return nil
     }
     
     public func setActiveTask(_ task: URLSessionTask?) {
@@ -72,8 +86,10 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         
         // 1. Build file metadata map and precompute hashes
         var metadataMap: [String: LocalShareFileMetadata] = [:]
+        var idToURLMap: [String: URL] = [:]
         for (index, url) in fileURLs.enumerated() {
             let fileId = "file-\(index + 1)-\(UUID().uuidString.prefix(6))"
+            idToURLMap[fileId] = url
             let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
             let size = Int64(values?.fileSize ?? 0)
             let mimeType = values?.contentType?.preferredMIMEType ?? "application/octet-stream"
@@ -139,7 +155,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
                 sessionId: resp.sessionId,
                 peer: peer,
                 fileTokens: resp.files,
-                files: fileURLs
+                files: fileURLs,
+                fileIdToURLMap: idToURLMap
             )
             return (clientSession, resp)
         case 204:
