@@ -6388,6 +6388,101 @@ func runAllVerificationTests() {
     assert(testModState.isScanning, "isScanning must be true immediately after calling rescan()")
     print("    ✓ LocalShare rescan and device refresh verified.")
     
+    // --- Subtest 18: TLS Identity & Network Identity Creation ---
+    print("  -> Subtest 18: TLS Identity & Network Identity Creation...")
+    let idMgr18 = LocalShareIdentityManager.shared
+    let secIdent = idMgr18.getSecIdentity()
+    assert(secIdent != nil, "getSecIdentity() must return non-nil SecIdentity")
+    let netIdent = idMgr18.createNetworkIdentity()
+    assert(netIdent != nil, "createNetworkIdentity() must return non-nil sec_identity_t")
+    print("    ✓ TLS Identity & Network Identity creation verified.")
+    
+    // --- Subtest 19: Data Protection Keychain Invariants & In-Memory Caching ---
+    print("  -> Subtest 19: Data Protection Keychain Invariants & In-Memory Caching...")
+    let idMgr19 = LocalShareIdentityManager.shared
+    let certDer19 = idMgr19.certificateDER
+    let fp19 = idMgr19.certificateFingerprint
+    assert(!certDer19.isEmpty, "Certificate DER must be cached and non-empty")
+    assert(!fp19.isEmpty, "Certificate fingerprint must be cached and non-empty")
+    assert(idMgr19.certificateFingerprint == fp19, "Subsequent fingerprint access must match cache")
+    
+    let settings19 = LocalShareSettings.shared
+    let testPin = "482910"
+    let savedPin = settings19.savePinToKeychain(testPin)
+    assert(savedPin, "savePinToKeychain must succeed via Data Protection Keychain")
+    let loadedPin = settings19.loadPinFromKeychain()
+    assert(loadedPin == testPin, "loadPinFromKeychain must return the saved PIN")
+    settings19.savePinToKeychain("")
+    assert(settings19.loadPinFromKeychain() == "", "Empty PIN must clear keychain entry")
+    print("    ✓ Data Protection Keychain invariants & in-memory caching verified.")
+    
+    // --- Subtest 20: Device Alias Space Preservation & Settings Propagation ---
+    print("  -> Subtest 20: Device Alias Space Preservation & Settings Propagation...")
+    let settings20 = LocalShareSettings.shared
+    let spacedAlias = "MacBook Studio Pro"
+    settings20.alias = spacedAlias
+    assert(settings20.alias == spacedAlias, "Alias with internal spaces must be preserved")
+    assert(LocalShareServer.shared.serverAlias == spacedAlias, "Server alias must sync")
+    assert(LocalShareDiscovery.shared.localAlias == spacedAlias, "Discovery alias must sync")
+    assert(LocalShareClient.shared.localAlias == spacedAlias, "Client alias must sync")
+    
+    settings20.resetToDefaults()
+    print("    ✓ Device alias space preservation & settings propagation verified.")
+    
+    // --- Subtest 21: Network Host & IP Normalization Pipeline ---
+    print("  -> Subtest 21: Network Host & IP Normalization Pipeline...")
+    assert(LocalShareSecurity.normalizeIP("192.168.1.55%en0") == "192.168.1.55", "Interface scope %en0 must be stripped")
+    assert(LocalShareSecurity.normalizeIP("::ffff:192.168.1.55") == "192.168.1.55", "IPv4-mapped IPv6 prefix must be stripped")
+    assert(LocalShareSecurity.normalizeIP("10.0.0.1") == "10.0.0.1", "Standard IPv4 must be unchanged")
+    
+    // Verify validateToken matches scoped session IP against non-scoped client IP
+    let testSessionDir = FileManager.default.temporaryDirectory.appendingPathComponent("token_norm_test_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: testSessionDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: testSessionDir) }
+    
+    let testMeta = LocalShareFileMetadata(id: "file-norm-1", fileName: "test.txt", size: 10, fileType: "text/plain", sha256: nil)
+    let scopedSession = try! LocalShareSessionCoordinator.shared.offerIncomingSession(
+        sessionId: "sess-ip-norm",
+        peerInfo: testInfo103,
+        peerIP: "192.168.1.55%en0",
+        sessionDirectory: testSessionDir,
+        filesMetadata: ["file-norm-1": testMeta]
+    )
+    let tokensMap = scopedSession.generateFileTokens()
+    let tokenVal = tokensMap["file-norm-1"]!
+    
+    let isValidToken = scopedSession.validateToken(fileId: "file-norm-1", token: tokenVal, clientIP: "192.168.1.55")
+    assert(isValidToken, "Token validation must succeed between scoped peerIP (192.168.1.55%en0) and non-scoped clientIP (192.168.1.55)")
+    LocalShareSessionCoordinator.shared.reset()
+    print("    ✓ Network host & IP normalization pipeline verified.")
+    
+    // --- Subtest 22: Incoming Register Route Discovery Ingestion ---
+    print("  -> Subtest 22: Incoming Register Route Discovery Ingestion...")
+    let regPeer = LocalShareDiscoveredPeer(
+        alias: "Incoming-Pixel-Device",
+        deviceModel: "Pixel 8",
+        deviceType: .mobile,
+        fingerprint: "pixel_fp_1234567890abcdef",
+        host: "192.168.1.75",
+        port: 53317,
+        protocol: "https",
+        download: false,
+        lastSeen: Date()
+    )
+    LocalShareDiscovery.shared.registerDiscoveredPeer(regPeer)
+    let peersList = LocalShareDiscovery.shared.activePeers
+    assert(peersList.contains(where: { $0.fingerprint == "pixel_fp_1234567890abcdef" }), "Incoming peer must be registered in discovery registry")
+    print("    ✓ Incoming register route discovery ingestion verified.")
+    
+    // --- Subtest 23: Peer Certificate Fingerprint Normalization ---
+    print("  -> Subtest 23: Peer Certificate Fingerprint Normalization...")
+    let rawHexFP = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
+    let colonFP = "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+    let prefixFP = "SHA256:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+    assert(LocalShareSecurity.normalizeFingerprint(colonFP) == rawHexFP, "Colon formatting must normalize to lowercase hex")
+    assert(LocalShareSecurity.normalizeFingerprint(prefixFP) == rawHexFP, "SHA256: prefix must normalize to lowercase hex")
+    print("    ✓ Peer certificate fingerprint normalization verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     if localShareOnly {
