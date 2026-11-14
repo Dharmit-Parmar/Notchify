@@ -344,8 +344,8 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         
         let certDER = SecCertificateCopyData(leafCert) as Data
         
-        // 3. Verify SHA-256 certificate fingerprint matches peer discovery identity (or TOFU if unset)
-        if expectedFingerprint.isEmpty || LocalShareSecurity.isFingerprintValid(peerCertDER: certDER, expectedFingerprint: expectedFingerprint) {
+        // 3. Verify SHA-256 certificate fingerprint matches peer discovery identity (fail closed)
+        if !expectedFingerprint.isEmpty && LocalShareSecurity.isFingerprintValid(peerCertDER: certDER, expectedFingerprint: expectedFingerprint) {
             completionHandler(.useCredential, URLCredential(trust: serverTrust))
         } else {
             completionHandler(.cancelAuthenticationChallenge, nil)
