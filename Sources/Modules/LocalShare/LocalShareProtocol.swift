@@ -136,9 +136,12 @@ public struct LocalSharePrepareUploadRequest: Codable, Sendable, Equatable {
         self.files = files
     }
     
-    /// Total byte size across all files in the request.
+    /// Total byte size across all files in the request, guarded against integer overflow.
     public var totalSize: Int64 {
-        files.values.reduce(0) { $0 + $1.size }
+        files.values.reduce(Int64(0)) { acc, file in
+            let (sum, overflow) = acc.addingReportingOverflow(max(0, file.size))
+            return overflow ? Int64.max : sum
+        }
     }
 }
 

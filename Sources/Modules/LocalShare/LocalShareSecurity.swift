@@ -7,6 +7,7 @@ public enum LocalShareSecurity {
     // MARK: - Security Caps & Limits
     public static let maxFilesPerSession: Int = 500
     public static let maxFileSize: Int64 = 50 * 1024 * 1024 * 1024 // 50 GB
+    public static let maxTotalSessionSize: Int64 = 100 * 1024 * 1024 * 1024 // 100 GB aggregate session limit
     public static let maxRequestBodySize: Int = 1024 * 1024 // 1 MB JSON limit
     public static let minFreeDiskBuffer: Int64 = 500 * 1024 * 1024 // 500 MB safety margin
     public static let maxAliasLength: Int = 32

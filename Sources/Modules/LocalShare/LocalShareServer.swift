@@ -459,22 +459,34 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         
-        // 3. Security Caps: File count and individual file size
+        // 3. Security Caps: File count and individual/aggregate file size
+        guard !prepareReq.files.isEmpty else {
+            sendRawResponse(connection: connection, statusCode: 204, reason: "No Content", body: nil)
+            return
+        }
+        
         guard prepareReq.files.count <= LocalShareSecurity.maxFilesPerSession else {
             sendRawResponse(connection: connection, statusCode: 400, reason: "Too Many Files", body: nil)
             return
         }
         
+        var calculatedTotal: Int64 = 0
         for file in prepareReq.files.values {
-            if file.size > LocalShareSecurity.maxFileSize {
-                sendRawResponse(connection: connection, statusCode: 400, reason: "File Too Large", body: nil)
+            if file.size < 0 || file.size > LocalShareSecurity.maxFileSize {
+                sendRawResponse(connection: connection, statusCode: 400, reason: "Invalid File Size", body: nil)
                 return
             }
+            let (newTotal, overflow) = calculatedTotal.addingReportingOverflow(file.size)
+            if overflow || newTotal > LocalShareSecurity.maxTotalSessionSize {
+                sendRawResponse(connection: connection, statusCode: 400, reason: "Aggregate Size Exceeded", body: nil)
+                return
+            }
+            calculatedTotal = newTotal
         }
         
         // 4. Pre-transfer disk space check
         let targetDir = LocalShareFileManager.shared.activeReceiveDirectory
-        guard LocalShareSecurity.hasSufficientDiskSpace(requiredBytes: prepareReq.totalSize, at: targetDir) else {
+        guard LocalShareSecurity.hasSufficientDiskSpace(requiredBytes: calculatedTotal, at: targetDir) else {
             sendRawResponse(connection: connection, statusCode: 403, reason: "Insufficient Disk Space", body: nil)
             return
         }
