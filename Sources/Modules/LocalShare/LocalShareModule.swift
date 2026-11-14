@@ -2,11 +2,12 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 import Combine
+import UserNotifications
 import LocalShare
 
 // MARK: - LocalShare Main Application Module
 @MainActor
-public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCenterDelegate {
+public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCenterDelegate {
     public static let shared = LocalShareModule()
     
     // NotchModule Conformance
@@ -51,7 +52,9 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
             }
         }
         
-        NSUserNotificationCenter.default.delegate = self
+        if Bundle.main.bundleIdentifier != nil {
+            UNUserNotificationCenter.current().delegate = self
+        }
     }
     
     // MARK: - Lifecycle Management
@@ -454,44 +457,73 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
     // MARK: - Collapsed Notch Notification Delegate
     
     private func postIncomingNotification(for session: LocalShareSession) {
-        let notif = NSUserNotification()
-        notif.identifier = "localshare_incoming_\(session.sessionId)"
-        notif.title = "Local Share"
-        notif.subtitle = "Incoming Transfer from \(session.peerInfo.alias)"
-        notif.informativeText = "\(session.filesMetadata.count) file(s)"
-        notif.hasActionButton = true
-        notif.actionButtonTitle = "Accept"
-        notif.otherButtonTitle = "Decline"
-        NSUserNotificationCenter.default.deliver(notif)
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "Local Share"
+        content.subtitle = "Incoming Transfer from \(session.peerInfo.alias)"
+        content.body = "\(session.filesMetadata.count) file(s)"
+        content.categoryIdentifier = "localshare_incoming_transfer"
+        content.sound = .default
+        
+        let acceptAction = UNNotificationAction(identifier: "ACCEPT_ACTION", title: "Accept", options: .foreground)
+        let declineAction = UNNotificationAction(identifier: "DECLINE_ACTION", title: "Decline", options: .destructive)
+        let category = UNNotificationCategory(
+            identifier: "localshare_incoming_transfer",
+            actions: [acceptAction, declineAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
+        
+        let request = UNNotificationRequest(
+            identifier: "localshare_incoming_\(session.sessionId)",
+            content: content,
+            trigger: nil
+        )
+        center.add(request) { _ in }
     }
     
-    nonisolated public func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
-        center.removeDeliveredNotification(notification)
+    nonisolated public func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let identifier = response.notification.request.identifier
+        guard identifier.hasPrefix("localshare_incoming_") else {
+            completionHandler()
+            return
+        }
         
-        guard notification.identifier?.hasPrefix("localshare_incoming_") == true else { return }
-        
-        let isAction = (notification.activationType == .actionButtonClicked)
-        let isContents = (notification.activationType == .contentsClicked)
-        
+        let actionId = response.actionIdentifier
         Task { @MainActor in
-            if isAction {
+            if actionId == "ACCEPT_ACTION" {
                 // User clicked "Accept"
                 withAnimation {
                     NotchShellCoordinator.shared.state = .expanded
                     ModuleRegistry.shared.selectFileDropTarget(for: "localshare")
                 }
                 LocalShareModule.shared.acceptIncomingTransfer()
-            } else if isContents {
+            } else if actionId == UNNotificationDefaultActionIdentifier {
                 // User clicked notification body -> expand notch and present card
                 withAnimation {
                     NotchShellCoordinator.shared.state = .expanded
                     ModuleRegistry.shared.selectFileDropTarget(for: "localshare")
                 }
             } else {
-                // Declined
+                // Declined or dismissed
                 LocalShareModule.shared.declineIncomingTransfer()
             }
         }
+        completionHandler()
+    }
+    
+    nonisolated public func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
     
     // MARK: - View Builders
