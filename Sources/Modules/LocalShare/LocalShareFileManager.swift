@@ -161,7 +161,7 @@ public final class LocalShareFileStreamWriter: @unchecked Sendable {
         try? fileHandle.close()
         
         // 1. Verify byte size
-        if expectedSize > 0 && bytesWritten != expectedSize {
+        if bytesWritten != expectedSize {
             try? FileManager.default.removeItem(at: destinationURL)
             throw LocalShareError.serverError("Received size mismatch (expected \(expectedSize), got \(bytesWritten))")
         }

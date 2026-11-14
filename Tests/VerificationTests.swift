@@ -5787,6 +5787,45 @@ func runAllVerificationTests() {
     LocalShareDiscovery.shared.sendDirectRegisterReply(to: dummyAnnouncePeer)
     print("    ✓ Direct register reply TLS delegate & self-signed acceptance verified.")
     
+    // --- Subtest 3 (Finding 3 Regression): Zero-Byte Declared File Size Validation ---
+    print("  -> Subtest 3: Zero-Byte Declared File Size Verification & Mismatch Rejection...")
+    let testFolder105_3 = FileManager.default.temporaryDirectory.appendingPathComponent("reg_f3_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: testFolder105_3, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: testFolder105_3) }
+    
+    // Case 1: 0-byte declared, 0 bytes written -> must succeed
+    let destZeroValid = testFolder105_3.appendingPathComponent("zero_valid.txt")
+    let writerZeroValid = try! LocalShareFileStreamWriter(destinationURL: destZeroValid)
+    try! writerZeroValid.finalize(expectedSha256: nil, expectedSize: 0)
+    assert(FileManager.default.fileExists(atPath: destZeroValid.path), "Valid 0-byte file must exist after finalization")
+    
+    // Case 2: 0-byte declared, 15 bytes written -> must fail and remove file
+    let destZeroInvalid = testFolder105_3.appendingPathComponent("zero_invalid.txt")
+    let writerZeroInvalid = try! LocalShareFileStreamWriter(destinationURL: destZeroInvalid)
+    try! writerZeroInvalid.writeChunk(Data("Illegal payload".utf8))
+    var threwZeroMismatch = false
+    do {
+        try writerZeroInvalid.finalize(expectedSha256: nil, expectedSize: 0)
+    } catch {
+        threwZeroMismatch = true
+    }
+    assert(threwZeroMismatch, "Writer must throw size mismatch error when payload is written to 0-byte declared file")
+    assert(!FileManager.default.fileExists(atPath: destZeroInvalid.path), "Invalid 0-byte destination file must be purged")
+    
+    // Case 3: 10-byte declared, 5 bytes written -> must fail and remove file
+    let destSizeMismatch = testFolder105_3.appendingPathComponent("size_mismatch.txt")
+    let writerMismatch = try! LocalShareFileStreamWriter(destinationURL: destSizeMismatch)
+    try! writerMismatch.writeChunk(Data("12345".utf8))
+    var threwNonZeroMismatch = false
+    do {
+        try writerMismatch.finalize(expectedSha256: nil, expectedSize: 10)
+    } catch {
+        threwNonZeroMismatch = true
+    }
+    assert(threwNonZeroMismatch, "Writer must throw size mismatch when declared 10 but received 5 bytes")
+    assert(!FileManager.default.fileExists(atPath: destSizeMismatch.path), "Mismatched destination file must be purged")
+    print("    ✓ Zero-byte and non-zero byte size integrity verification verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")
