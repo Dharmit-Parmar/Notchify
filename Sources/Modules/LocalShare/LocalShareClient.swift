@@ -266,15 +266,16 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         defer { urlSession.finishTasksAndInvalidate() }
         
         var uploadTask: URLSessionUploadTask?
+        defer {
+            if let t = uploadTask {
+                session.removeActiveTask(t)
+            }
+        }
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
-                    var taskRef: URLSessionUploadTask?
-                    taskRef = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
-                        if let t = taskRef {
-                            session.removeActiveTask(t)
-                        }
+                    let task = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
                         if let error = error {
                             let nsError = error as NSError
                             NSLog("[LocalShareClient] uploadFile failed for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), nsError.localizedDescription)
@@ -285,17 +286,12 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
                             continuation.resume(throwing: LocalShareError.connectionFailed("No HTTP response"))
                         }
                     }
-                    if let t = taskRef {
-                        uploadTask = t
-                        session.addActiveTask(t)
-                        t.resume()
-                    }
+                    uploadTask = task
+                    session.addActiveTask(task)
+                    task.resume()
                 }
             } onCancel: {
                 uploadTask?.cancel()
-                if let t = uploadTask {
-                    session.removeActiveTask(t)
-                }
             }
         } catch is CancellationError {
             throw LocalShareError.sessionCancelled
