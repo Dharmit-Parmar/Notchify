@@ -35,7 +35,7 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
         loadRecentHistory()
         configureServerHooks()
         
-        LocalShareDiscovery.shared.onPeersUpdated = { [weak self] peers in
+        _ = LocalShareDiscovery.shared.addPeersObserver { [weak self] peers in
             Task { @MainActor in
                 self?.discoveredPeers = peers
             }
@@ -116,7 +116,7 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
     // MARK: - Incoming Transfer Hooks
     
     private func configureServerHooks() {
-        LocalShareServer.shared.onStateChanged = { [weak self] newState in
+        _ = LocalShareServer.shared.addStateObserver { [weak self] newState in
             Task { @MainActor in
                 guard let self = self else { return }
                 switch newState {
@@ -135,14 +135,17 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
             }
         }
         
-        LocalShareServer.shared.onIncomingSessionOffered = { [weak self] session, completion in
-            Task { @MainActor in
-                guard let self = self else {
-                    completion(false)
-                    return
+        // Only attach fallback incoming transfer hook if authoritative UI module has not attached
+        if LocalShareServer.shared.onIncomingSessionOffered == nil {
+            LocalShareServer.shared.onIncomingSessionOffered = { [weak self] session, completion in
+                Task { @MainActor in
+                    guard let self = self else {
+                        completion(false)
+                        return
+                    }
+                    self.incomingSession = session
+                    self.pendingAcceptanceCompletion = completion
                 }
-                self.incomingSession = session
-                self.pendingAcceptanceCompletion = completion
             }
         }
     }

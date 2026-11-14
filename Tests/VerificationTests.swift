@@ -5926,6 +5926,35 @@ func runAllVerificationTests() {
     assert(shouldSuppressNotification(notchState: "expanded", activeModuleId: "localshare"), "Expanded notch on localshare must suppress notification to prevent redundancy")
     print("    ✓ Notification delivery & suppression contracts verified.")
     
+    // --- Subtest 7 (Finding 7 Regression): Multi-Observer Registration & Hook Collision Prevention ---
+    print("  -> Subtest 7: Multi-Observer Registration & Hook Collision Prevention...")
+    final class MultiObserverTracker: @unchecked Sendable {
+        private let lock = NSLock()
+        var observer1States: [LocalShareServerState] = []
+        var observer2States: [LocalShareServerState] = []
+        func add1(_ s: LocalShareServerState) { lock.lock(); observer1States.append(s); lock.unlock() }
+        func add2(_ s: LocalShareServerState) { lock.lock(); observer2States.append(s); lock.unlock() }
+        var count1: Int { lock.lock(); defer { lock.unlock() }; return observer1States.count }
+        var count2: Int { lock.lock(); defer { lock.unlock() }; return observer2States.count }
+    }
+    let tracker7 = MultiObserverTracker()
+    let id1 = LocalShareServer.shared.addStateObserver { tracker7.add1($0) }
+    let id2 = LocalShareServer.shared.addStateObserver { tracker7.add2($0) }
+    
+    // Trigger state change
+    LocalShareServer.shared.stop()
+    assert(tracker7.count1 >= 1 && tracker7.count2 >= 1, "Both independent observers must receive state change without collision")
+    
+    // Remove observer 1 and test observer 2 still receives
+    LocalShareServer.shared.removeStateObserver(id: id1)
+    let preCount2 = tracker7.count2
+    let preCount1 = tracker7.count1
+    LocalShareServer.shared.stop()
+    assert(tracker7.count1 == preCount1, "Removed observer 1 must not receive subsequent updates")
+    assert(tracker7.count2 > preCount2, "Active observer 2 must continue receiving updates")
+    LocalShareServer.shared.removeStateObserver(id: id2)
+    print("    ✓ Multi-observer registration & hook collision prevention verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")

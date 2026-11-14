@@ -17,9 +17,24 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     
     // Discovered Peers Registry: Fingerprint -> Peer
     private var peersMap: [String: LocalShareDiscoveredPeer] = [:]
+    private var peerObservers: [UUID: @Sendable ([LocalShareDiscoveredPeer]) -> Void] = [:]
     public var onPeersUpdated: (@Sendable ([LocalShareDiscoveredPeer]) -> Void)?
     
     public init() {}
+    
+    public func addPeersObserver(_ observer: @escaping @Sendable ([LocalShareDiscoveredPeer]) -> Void) -> UUID {
+        let id = UUID()
+        lock.lock()
+        peerObservers[id] = observer
+        lock.unlock()
+        return id
+    }
+    
+    public func removePeersObserver(id: UUID) {
+        lock.lock()
+        peerObservers.removeValue(forKey: id)
+        lock.unlock()
+    }
     
     // MARK: - Lifecycle Management
     
@@ -156,9 +171,14 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         lock.lock()
         peersMap[peer.fingerprint] = peer
         let updatedList = peersMap.values.sorted { $0.alias < $1.alias }
+        let observers = Array(peerObservers.values)
+        let legacyHandler = onPeersUpdated
         lock.unlock()
         
-        onPeersUpdated?(updatedList)
+        legacyHandler?(updatedList)
+        for obs in observers {
+            obs(updatedList)
+        }
     }
     
     // MARK: - Direct Unicast Register Reply

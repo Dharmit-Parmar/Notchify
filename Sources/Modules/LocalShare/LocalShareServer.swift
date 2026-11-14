@@ -45,7 +45,22 @@ public final class LocalShareServer: @unchecked Sendable {
     public var onIncomingSessionOffered: (@Sendable (LocalShareSession, @escaping @Sendable (Bool) -> Void) -> Void)?
     
     // Server State Update Callback
+    private var stateObservers: [UUID: @Sendable (LocalShareServerState) -> Void] = [:]
     public var onStateChanged: (@Sendable (LocalShareServerState) -> Void)?
+    
+    public func addStateObserver(_ observer: @escaping @Sendable (LocalShareServerState) -> Void) -> UUID {
+        let id = UUID()
+        lock.lock()
+        stateObservers[id] = observer
+        lock.unlock()
+        return id
+    }
+    
+    public func removeStateObserver(id: UUID) {
+        lock.lock()
+        stateObservers.removeValue(forKey: id)
+        lock.unlock()
+    }
     
     private let rateLimiter = LocalShareRateLimiter(maxRequests: 10, windowDuration: 1.0)
     
@@ -125,11 +140,15 @@ public final class LocalShareServer: @unchecked Sendable {
         self.listener = nil
         self.state = .stopped
         let callback = onStateChanged
+        let observers = Array(stateObservers.values)
         lock.unlock()
         
         activeListener?.cancel()
         LocalShareSessionCoordinator.shared.reset()
         callback?(.stopped)
+        for obs in observers {
+            obs(.stopped)
+        }
     }
     
     private func handleListenerStateUpdate(_ newState: NWListener.State) {
@@ -154,9 +173,13 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         let callback = onStateChanged
+        let observers = Array(stateObservers.values)
         lock.unlock()
         
         callback?(reportedState)
+        for obs in observers {
+            obs(reportedState)
+        }
     }
     
     // MARK: - Connection & Request Handling

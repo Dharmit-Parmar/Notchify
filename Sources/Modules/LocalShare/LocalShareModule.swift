@@ -44,8 +44,8 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
         loadRecentHistory()
         configureServerHooks()
         
-        // Connect discovery update callback
-        LocalShareDiscovery.shared.onPeersUpdated = { [weak self] peers in
+        // Connect discovery update callback via multi-observer
+        _ = LocalShareDiscovery.shared.addPeersObserver { [weak self] peers in
             Task { @MainActor in
                 self?.discoveredPeers = peers
             }
@@ -150,7 +150,7 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
     // MARK: - Incoming Request Server Hooks
     
     private func configureServerHooks() {
-        LocalShareServer.shared.onStateChanged = { [weak self] newState in
+        _ = LocalShareServer.shared.addStateObserver { [weak self] newState in
             Task { @MainActor in
                 guard let self = self else { return }
                 switch newState {
