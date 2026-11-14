@@ -5826,6 +5826,42 @@ func runAllVerificationTests() {
     assert(!FileManager.default.fileExists(atPath: destSizeMismatch.path), "Mismatched destination file must be purged")
     print("    ✓ Zero-byte and non-zero byte size integrity verification verified.")
     
+    // --- Subtest 4 (Finding 4 Regression): Concurrent Upload-Token Replay & Reservation ---
+    print("  -> Subtest 4: Concurrent Upload-Token Replay & Atomic Reservation...")
+    let testSession105_4 = LocalShareSession(
+        sessionId: "sess-105-replay",
+        peerInfo: LocalShareDeviceInfo(alias: "Sender", deviceModel: "macOS", deviceType: .desktop, fingerprint: "senderfp"),
+        peerIP: "192.168.1.50",
+        isIncoming: true,
+        sessionDirectory: nil,
+        filesMetadata: [
+            "file-token-1": LocalShareFileMetadata(id: "file-token-1", fileName: "payload.bin", size: 1024, fileType: "bin", sha256: nil)
+        ]
+    )
+    let generatedTokens = testSession105_4.generateFileTokens()
+    let token105_4 = generatedTokens["file-token-1"]!
+    
+    // First validation should succeed and atomically reserve the token
+    let firstVal = testSession105_4.validateToken(fileId: "file-token-1", token: token105_4, clientIP: "192.168.1.50")
+    assert(firstVal, "First validateToken call must succeed and reserve token")
+    
+    // Concurrent validation before completion must be rejected
+    let concurrentVal = testSession105_4.validateToken(fileId: "file-token-1", token: token105_4, clientIP: "192.168.1.50")
+    assert(!concurrentVal, "Concurrent validateToken with active in-progress reservation must be rejected")
+    
+    // Release reservation (simulating aborted transfer or retry)
+    testSession105_4.releaseTokenReservation(token: token105_4)
+    let retryVal = testSession105_4.validateToken(fileId: "file-token-1", token: token105_4, clientIP: "192.168.1.50")
+    assert(retryVal, "validateToken after releasing reservation must succeed")
+    
+    // Mark token consumed (transfer finished)
+    testSession105_4.markTokenConsumed(fileId: "file-token-1", token: token105_4)
+    
+    // Subsequent validation must fail permanently (anti-replay)
+    let postConsumedVal = testSession105_4.validateToken(fileId: "file-token-1", token: token105_4, clientIP: "192.168.1.50")
+    assert(!postConsumedVal, "validateToken after token consumed must be rejected permanently")
+    print("    ✓ Concurrent upload token replay rejection & reservation verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")

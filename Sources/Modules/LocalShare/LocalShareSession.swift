@@ -67,6 +67,7 @@ public final class LocalShareSession: @unchecked Sendable {
     private var state: LocalShareSessionState = .idle
     private var fileTokens: [String: String] = [:]
     private var consumedTokens: Set<String> = []
+    private var inProgressTokens: Set<String> = []
     private var fileProgressMap: [String: LocalShareFileProgress] = [:]
     private var activeWriter: LocalShareFileStreamWriter?
     private let createdAt = Date()
@@ -130,6 +131,7 @@ public final class LocalShareSession: @unchecked Sendable {
     }
     
     /// Validates an incoming upload request's file token and client IP.
+    /// Atomically reserves the token in `inProgressTokens` to prevent concurrent replays.
     public func validateToken(fileId: String, token: String, clientIP: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -144,17 +146,31 @@ public final class LocalShareSession: @unchecked Sendable {
             return false
         }
         
+        // Ensure token is not already in-progress concurrently
+        guard !inProgressTokens.contains(token) else {
+            return false
+        }
+        
         guard let expected = fileTokens[fileId], expected == token else {
             return false
         }
         
+        inProgressTokens.insert(token)
         return true
+    }
+    
+    /// Releases an in-progress token reservation if the upload fails or terminates before completion.
+    public func releaseTokenReservation(token: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        inProgressTokens.remove(token)
     }
     
     /// Marks a token as consumed upon successful completion of a file upload.
     public func markTokenConsumed(fileId: String, token: String) {
         lock.lock()
         defer { lock.unlock() }
+        inProgressTokens.remove(token)
         consumedTokens.insert(token)
         lastActivity = Date()
     }
