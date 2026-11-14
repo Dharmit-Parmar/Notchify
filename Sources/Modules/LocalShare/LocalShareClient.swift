@@ -232,7 +232,34 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         let urlSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { urlSession.finishTasksAndInvalidate() }
         
-        let (data, response) = try await urlSession.upload(for: request, fromFile: fileURL)
+        var uploadTask: URLSessionUploadTask?
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    let t = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
+                        session.setActiveTask(nil)
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else if let data = data, let response = response {
+                            continuation.resume(returning: (data, response))
+                        } else {
+                            continuation.resume(throwing: LocalShareError.connectionFailed("No HTTP response"))
+                        }
+                    }
+                    uploadTask = t
+                    session.setActiveTask(t)
+                    t.resume()
+                }
+            } onCancel: {
+                uploadTask?.cancel()
+                session.setActiveTask(nil)
+            }
+        } catch is CancellationError {
+            throw LocalShareError.sessionCancelled
+        } catch let urlErr as URLError where urlErr.code == .cancelled {
+            throw LocalShareError.sessionCancelled
+        }
         
         guard let http = response as? HTTPURLResponse else {
             throw LocalShareError.connectionFailed("No HTTP response")
