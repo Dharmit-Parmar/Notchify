@@ -193,8 +193,8 @@ public final class LocalShareFileStreamWriter: @unchecked Sendable {
         guard !isFinalized else { return }
         isFinalized = true
         
-        try? fileHandle.synchronize()
-        try? fileHandle.close()
+        try fileHandle.synchronize()
+        try fileHandle.close()
         
         // 1. Verify byte size
         if bytesWritten != expectedSize {

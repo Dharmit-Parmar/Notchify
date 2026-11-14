@@ -614,6 +614,22 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         
+        let declaredLength = request.headers["content-length"] ?? "MISSING"
+
+        NSLog(
+            """
+            [LocalShareServer] UPLOAD METADATA
+            File ID: %@
+            Expected file size: %lld
+            HTTP Content-Length: %@
+            Initial body bytes: %ld
+            """,
+            fileId,
+            meta.size,
+            declaredLength,
+            initialBody.count
+        )
+        
         let sanitizedName = LocalShareSecurity.sanitizeFilename(meta.fileName)
         let streamWriter: LocalShareFileStreamWriter
         do {
@@ -795,11 +811,38 @@ public final class LocalShareServer: @unchecked Sendable {
             session.markFileFailed(fileId: fileId, error: "Checksum Mismatch")
             sendRawResponse(connection: connection, statusCode: 422, reason: "Unprocessable Entity", body: nil)
         } catch {
+            let nsError = error as NSError
+
+            NSLog(
+                """
+                [LocalShareServer] FILE FINALIZATION FAILED
+                File ID: %@
+                Expected size: %lld bytes
+                Error domain: %@
+                Error code: %ld
+                Error description: %@
+                """,
+                fileId,
+                meta.size,
+                nsError.domain,
+                nsError.code,
+                error.localizedDescription
+            )
+
             session.releaseTokenReservation(token: token)
             session.removeActiveWriter(for: fileId)
             writer.abort()
-            session.markFileFailed(fileId: fileId, error: error.localizedDescription)
-            sendRawResponse(connection: connection, statusCode: 500, reason: "Finalize Error", body: nil)
+            session.markFileFailed(
+                fileId: fileId,
+                error: error.localizedDescription
+            )
+
+            sendRawResponse(
+                connection: connection,
+                statusCode: 500,
+                reason: "Finalize Error",
+                body: Data("File finalization failed".utf8)
+            )
         }
     }
     
