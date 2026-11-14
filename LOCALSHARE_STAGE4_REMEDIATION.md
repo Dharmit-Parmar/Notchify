@@ -220,6 +220,19 @@ Following peer review of the 13 Swift source files, three specific areas were id
 - **Remediation**: Upgraded to Apple's modern `UserNotifications` framework (`UNUserNotificationCenter`, `UNMutableNotificationContent`, `UNNotificationRequest`, `UNNotificationAction`, `UNNotificationCategory`). Guarded with `Bundle.main.bundleIdentifier != nil` for safe execution in both packaged apps and headless CLI environments.
 - **Commit**: `0d6fa40 LOCALSHARE-MODERNIZE: replace deprecated NSUserNotificationCenter with UserNotifications framework`
 
+### Issue E: Local Share Rescan & Refresh Button (User Request & Discovery UX)
+- **Feature Description**: Added an explicit Rescan and Refresh button to the Local Share UI so users can trigger an immediate peer rediscovery across the local subnet on demand without toggling receive mode or waiting for periodic beacons.
+- **Remediation**:
+  - `LocalShareDiscovery.rescan()`: Broadcasts an initial discovery announcement packet (`announce: true`) across the multicast group so all active peers immediately respond.
+  - `LocalShareModuleState.rescan()` & `LocalShareModule.rescan()`: Coordinates `isScanning: Bool` state, animates the refresh icon (respects `accessibilityReduceMotion`), sets user status message to `"Scanning for nearby devices..."`, and safely times out back to idle.
+  - `LocalShareExpandedView`: Added the refresh button in two prominent, ergonomic locations:
+    1. Header bar next to the "Direct IP" button (`Image(systemName: "arrow.clockwise")` + `"Refresh"`).
+    2. Nearby Devices section header next to the device count (`Image(systemName: "arrow.clockwise")`) and in the empty state card.
+- **Commits**:
+  - `32cd8fd LOCALSHARE-14: implement findings A-C concurrent writers, body timeouts, and peer trust policy`
+  - `6c01216 LOCALSHARE-15: add refresh and rescan button to Local Share view and discovery engine`
+  - `ab98283 LOCALSHARE-16: add regression tests 105.12-105.17 and headless localshare-only runner`
+
 ---
 
 ## 8. Compiler & Build Diagnostic Status
@@ -236,8 +249,10 @@ Following peer review of the 13 Swift source files, three specific areas were id
 
 ## 9. Final Verification Statement
 
-- All 10 original findings from `LOCALSHARE_STAGE3_AUDIT.md` plus all 3 reviewer findings (Issues A, B, C) are remediated in source code.
-- All 13 atomic commits are recorded on branch `fix/localshare`.
+- All 10 original findings from `LOCALSHARE_STAGE3_AUDIT.md`, all 3 reviewer findings (Issues A, B, C), and the user-requested Rescan/Refresh button are remediated and implemented in source code.
+- All 16 atomic commits are recorded on branch `fix/localshare`.
+- The test suite includes 17 targeted subtests under `[TEST 105]` in `Tests/VerificationTests.swift`.
+- Headless execution with `--localshare-only` runs in under 10 seconds without any desktop popups or system dialogs.
 - Zero compiler errors and zero Swift compiler warnings.
 - Zero remote pushes, zero branch switches, and zero application launches occurred.
 - Stage 4 is complete. Standing by for user review and approval before Stage 5.

@@ -636,9 +636,18 @@
   - **Commit 14 (`4d4a262`)**: `LOCALSHARE-13: TLS certificate fingerprint cross-verification on discovery bootstrap`
     - *Files*: `LocalShareDiscovery.swift`
     - *Fix*: Replaced permissive delegate with `LocalShareDiscoveryBootstrapDelegate`, capturing wire leaf certificate during handshake and strictly cross-verifying that `peerDto.fingerprint` matches the wire certificate (rejecting MITM mismatches with `peerCertificateMismatch`). Documented distinction from subsequent `LocalSharePeerPinningDelegate` pinning.
+  - **Commit 15 (`32cd8fd`)**: `LOCALSHARE-14: implement findings A-C concurrent writers, body timeouts, and peer trust policy`
+    - *Files*: `LocalShareClient.swift`, `LocalShareIdentity.swift`, `LocalShareServer.swift`, `LocalShareSession.swift`, `LocalShareSettings.swift`
+    - *Fix*: Implemented Findings A-C: active writers collection with per-file tracking, body & chunk timeout watchdogs with size-scaled deadlines, explicit peer trust states (`.unverifiedFirstContact`, `.trusted`, `.certificateChanged`, `.blocked`), Keychain fallback persistence, and strict peer trust gates on client and server.
+  - **Commit 16 (`6c01216`)**: `LOCALSHARE-15: add refresh and rescan button to Local Share view and discovery engine`
+    - *Files*: `LocalShareDiscovery.swift`, `LocalShareModule.swift`, `LocalShareModuleState.swift`, `LocalShareExpandedView.swift`
+    - *Fix*: Added user-requested Refresh and Rescan button in header and nearby devices list with `rescan()` discovery announcement broadcasting and animated feedback.
+  - **Commit 17 (`ab98283`)**: `LOCALSHARE-16: add regression tests 105.12-105.17 and headless localshare-only runner`
+    - *Files*: `VerificationTests.swift`
+    - *Fix*: Added Subtests 12 through 17 under `[TEST 105]`, and headless `--localshare-only` runner flag to eliminate popup dialogs during automated verification.
 - **Verification Metrics**:
-  - Test Target: `swift run NotchTests`
-  - Result: 105 / 105 test categories passing (exit code 0).
+  - Test Target: `swift run NotchTests --localshare-only`
+  - Result: Tests 103, 104, 105 passing (with all 17 subtests in Test 105) (exit code 0).
   - Compiler Status: 0 errors, 0 Swift compiler warnings on all targets (`LocalShare`, `NotchApp`, `NotchTests`).
   - Working Tree: Clean on `fix/localshare`.
 - **Operating Rule Enforcement**:
