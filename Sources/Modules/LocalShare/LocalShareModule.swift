@@ -176,8 +176,9 @@ public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCe
                     return
                 }
                 
-                // Check if notch is currently collapsed
-                if NotchShellCoordinator.shared.state == .collapsed {
+                // Check if Local Share tab is currently visible in expanded notch
+                let isLocalShareVisible = (NotchShellCoordinator.shared.state == .expanded && ModuleRegistry.shared.activeModuleId == "localshare")
+                if !isLocalShareVisible {
                     self.postIncomingNotification(for: session)
                 }
                 

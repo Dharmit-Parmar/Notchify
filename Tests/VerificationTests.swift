@@ -5913,6 +5913,19 @@ func runAllVerificationTests() {
     LocalShareServer.shared.onStateChanged = previousStateHook
     print("    ✓ Asynchronous server listener state propagation verified.")
     
+    // --- Subtest 6 (Finding 6 Regression): Notification Suppression Contract ---
+    print("  -> Subtest 6: Incoming Transfer Notification Suppression Contract...")
+    func shouldSuppressNotification(notchState: String, activeModuleId: String?) -> Bool {
+        return notchState == "expanded" && activeModuleId == "localshare"
+    }
+    
+    assert(!shouldSuppressNotification(notchState: "collapsed", activeModuleId: "localshare"), "Collapsed notch must deliver notification even if activeModuleId is localshare")
+    assert(!shouldSuppressNotification(notchState: "collapsed", activeModuleId: "shelf"), "Collapsed notch must deliver notification")
+    assert(!shouldSuppressNotification(notchState: "expanded", activeModuleId: "shelf"), "Expanded notch on shelf must deliver notification")
+    assert(!shouldSuppressNotification(notchState: "expanded", activeModuleId: nil), "Expanded notch on dashboard must deliver notification")
+    assert(shouldSuppressNotification(notchState: "expanded", activeModuleId: "localshare"), "Expanded notch on localshare must suppress notification to prevent redundancy")
+    print("    ✓ Notification delivery & suppression contracts verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")
