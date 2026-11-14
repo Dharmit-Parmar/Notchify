@@ -23,6 +23,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     @Published public var statusMessage: String = "Ready to share with nearby devices"
     @Published public var isDropTargeted: Bool = false
     @Published public var isReceiveActive: Bool = false
+    @Published public var isScanning: Bool = false
     @Published public var discoveredPeers: [LocalShareDiscoveredPeer] = []
     @Published public var selectedFiles: [URL] = []
     
@@ -91,6 +92,19 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     
     public func stopDiscovery() {
         LocalShareDiscovery.shared.stop()
+    }
+    
+    public func rescan() {
+        guard !isScanning else { return }
+        isScanning = true
+        statusMessage = "Scanning for nearby devices..."
+        LocalShareDiscovery.shared.rescan()
+        
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            self.isScanning = false
+            self.updateStatusMessage()
+        }
     }
     
     public func syncReceiveMode(_ enabled: Bool) {

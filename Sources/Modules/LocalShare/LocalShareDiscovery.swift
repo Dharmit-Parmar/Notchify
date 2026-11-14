@@ -280,6 +280,14 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         defer { lock.unlock() }
         peersMap.removeAll()
     }
+    
+    /// Rescans for nearby LocalShare / LocalSend peers on the local subnet by broadcasting an initial announcement.
+    public func rescan() {
+        if !isDiscoveryActive {
+            start(alias: localAlias, port: localPort, enableMulticast: true)
+        }
+        sendAnnouncement(isInitial: true)
+    }
 }
 
 // MARK: - Trust-On-First-Use (TOFU) Discovery Bootstrap Delegate

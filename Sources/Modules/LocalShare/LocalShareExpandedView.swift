@@ -110,6 +110,27 @@ public struct LocalShareExpandedView: View {
                                 .font(.system(size: notchCompact ? 11.5 : 12.5, weight: .bold, design: .rounded))
                                 .foregroundColor(DesignSystem.primaryText)
                             Spacer()
+                            
+                            Button(action: {
+                                module.rescan()
+                            }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 8.5))
+                                        .rotationEffect(.degrees(module.isScanning ? 360 : 0))
+                                        .animation(reduceMotion || !module.isScanning ? nil : .linear(duration: 0.8).repeatForever(autoreverses: false), value: module.isScanning)
+                                    Text(module.isScanning ? "Scanning" : "Refresh")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundColor(DesignSystem.secondaryText)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(DesignSystem.surfaceFill))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(module.isScanning)
+                            .accessibilityLabel("Refresh and Rescan Nearby Devices")
+                            
                             Button(action: {
                                 uiState.showingManualIPSheet.toggle()
                             }) {
@@ -338,13 +359,27 @@ public struct LocalShareExpandedView: View {
     
     private var nearbyPeersSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(spacing: 6) {
                 Text("Nearby Devices (\(module.discoveredPeers.count))")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundColor(DesignSystem.primaryText)
+                
+                Button(action: {
+                    module.rescan()
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundColor(DesignSystem.secondaryText)
+                        .rotationEffect(.degrees(module.isScanning ? 360 : 0))
+                        .animation(reduceMotion || !module.isScanning ? nil : .linear(duration: 0.8).repeatForever(autoreverses: false), value: module.isScanning)
+                }
+                .buttonStyle(.plain)
+                .disabled(module.isScanning)
+                .accessibilityLabel("Rescan Nearby Devices")
+                
                 Spacer()
                 if module.discoveredPeers.isEmpty {
-                    Text("Searching LAN...")
+                    Text(module.isScanning ? "Scanning LAN..." : "Searching LAN...")
                         .font(.system(size: 9))
                         .foregroundColor(DesignSystem.secondaryText)
                 }
@@ -358,6 +393,16 @@ public struct LocalShareExpandedView: View {
                     Text("No devices found. Open LocalSend or Local Share on other devices.")
                         .font(.system(size: 9))
                         .foregroundColor(DesignSystem.secondaryText)
+                    
+                    Spacer()
+                    
+                    Button("Refresh") {
+                        module.rescan()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(module.themeColor)
+                    .disabled(module.isScanning)
                 }
                 .padding(.vertical, 6)
             } else {
