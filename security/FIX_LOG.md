@@ -645,14 +645,26 @@
   - **Commit 17 (`ab98283`)**: `LOCALSHARE-16: add regression tests 105.12-105.17 and headless localshare-only runner`
     - *Files*: `VerificationTests.swift`
     - *Fix*: Added Subtests 12 through 17 under `[TEST 105]`, and headless `--localshare-only` runner flag to eliminate popup dialogs during automated verification.
+  - **Commit 18 (`2db474e`)**: `LOCALSHARE-17: stabilize keychain access with modern Data Protection Keychain and in-memory caching`
+    - *Files*: `LocalShareIdentity.swift`, `LocalShareSettings.swift`
+    - *Fix*: Enforced `kSecUseDataProtectionKeychain as String: true` and `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` across all Keychain operations. Added in-memory caching for Identity, certificate DER, fingerprint, and PIN. Initialized `_pinCode = Published(initialValue:)` in `init()` to avoid startup `didSet` re-save cascades. Added non-sensitive diagnostic logging. Eliminates repeated macOS Keychain authorization prompts.
+  - **Commit 19 (`ef85c3c`)**: `LOCALSHARE-18: add alias draft buffer and live commit with network announcement propagation`
+    - *Files*: `LocalShareSettingsView.swift`
+    - *Fix*: Introduced `LocalShareSettingsUIState` ObservableObject providing an `aliasDraft` buffer so spaces and multi-word names can be typed without being stripped on each keystroke. Added "Save" button, `.onSubmit` commit, temporary "Saved" badge, and network announcement broadcasting via `LocalShareDiscovery.shared.sendAnnouncement(isInitial: true)`.
+  - **Commit 20 (`5afca94`)**: `LOCALSHARE-19: normalize scoped hosts and IPs, ingest registered peers, and add LocalNetwork usage description`
+    - *Files*: `LocalShareClient.swift`, `LocalShareDiscovery.swift`, `LocalShareSecurity.swift`, `LocalShareServer.swift`, `LocalShareSession.swift`, `Resources/Info.plist`, `Package.swift`
+    - *Fix*: Added `LocalShareSecurity.normalizeIP` and `normalizeFingerprint`. Stripped interface scopes (`%en0`) and `::ffff:` from URLs and IPs across client, server, discovery, and token validation. Ingested peers registering via `POST /api/localsend/v2/register` into discovery registry. Added `NSLocalNetworkUsageDescription` to `Resources/Info.plist`.
+  - **Commit 21 (`cf2e447`)**: `LOCALSHARE-20: add regression tests 105.18-105.23 for Stage 4B functional recovery`
+    - *Files*: `VerificationTests.swift`
+    - *Fix*: Added Subtests 18 through 23 under `[TEST 105]`, verifying TLS Identity creation, Data Protection Keychain invariants, alias space preservation, IP normalization, register route ingestion, and fingerprint normalization.
 - **Verification Metrics**:
   - Test Target: `swift run NotchTests --localshare-only`
-  - Result: Tests 103, 104, 105 passing (with all 17 subtests in Test 105) (exit code 0).
+  - Result: Tests 103, 104, 105 passing (with all 23 subtests in Test 105) (exit code 0).
   - Compiler Status: 0 errors, 0 Swift compiler warnings on all targets (`LocalShare`, `NotchApp`, `NotchTests`).
   - Working Tree: Clean on `fix/localshare`.
 - **Operating Rule Enforcement**:
   - Remediations complete. Zero GUI automation, zero remote pushes, zero process popups.
-  - Stopped at Stage 4 completion awaiting user approval before Stage 5.
+  - Stopped at Stage 4B completion awaiting user approval before Stage 5.
 
 
 

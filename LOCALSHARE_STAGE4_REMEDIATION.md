@@ -247,12 +247,74 @@ Following peer review of the 13 Swift source files, three specific areas were id
 
 ---
 
-## 9. Final Verification Statement
+---
 
-- All 10 original findings from `LOCALSHARE_STAGE3_AUDIT.md`, all 3 reviewer findings (Issues A, B, C), and the user-requested Rescan/Refresh button are remediated and implemented in source code.
-- All 16 atomic commits are recorded on branch `fix/localshare`.
-- The test suite includes 17 targeted subtests under `[TEST 105]` in `Tests/VerificationTests.swift`.
-- Headless execution with `--localshare-only` runs in under 10 seconds without any desktop popups or system dialogs.
-- Zero compiler errors and zero Swift compiler warnings.
-- Zero remote pushes, zero branch switches, and zero application launches occurred.
-- Stage 4 is complete. Standing by for user review and approval before Stage 5.
+## 10. Stage 4B — Functional Recovery & Keychain Stabilization
+
+### Problem 1: Sending Files to Other Devices Fails
+- **Root Cause**:
+  1. `NWEndpoint.Host` on macOS formats interface-scoped hosts as `192.168.1.55%en0`. When `LocalShareClient` constructed URLs via `URLComponents(string: "https://\(peer.host):\(peer.port)/...")`, RFC 3986 parsing rejected unescaped `%`, returning `nil` and aborting all outbound calls with `LocalShareError.invalidURL`.
+  2. `LocalShareClient.prepareUpload` had `myInfo.port` hardcoded to `53317` instead of reading the active server port from `LocalShareDiscovery.shared.localPort`.
+  3. `LocalShareSecurity.isFingerprintValid` performed case-insensitive exact string match against raw hex without stripping optional `SHA256:` prefix or colon formatting (`aa:bb:...`), causing TLS pinning rejections for standard LocalSend peers.
+- **Remediation**:
+  - `LocalShareClient`: Strips `%<scope>` from `peer.host` prior to URL construction across `prepareUpload`, `uploadFile`, and `cancelSession`.
+  - Dynamic Port: Synchronized `myInfo.port` with `LocalShareDiscovery.shared.localPort`.
+  - `LocalShareSecurity.normalizeFingerprint`: Normalizes fingerprints by stripping `sha256:` / `sha-256:` prefixes, colons, hyphens, and whitespace.
+
+### Problem 2: Receiving Files from Other Devices Fails
+- **Root Cause**:
+  1. In `LocalShareServer.handleRegisterRoute`, the server decoded the peer registration payload as `let _ = try? JSONDecoder().decode(LocalShareRegisterDto.self, from: request.body)` and discarded it, failing to register discovered peers who announce via unicast register.
+  2. In `LocalShareSession.validateToken`, `peerIP == clientIP` failed if one connection had interface scope `%en0` or IPv4-mapped IPv6 prefix `::ffff:`, rejecting uploads with HTTP 403.
+  3. In `LocalShareServer.handleInfoRoute`, port and protocol were omitted from `LocalShareDeviceInfo`.
+  4. `Resources/Info.plist` lacked `NSLocalNetworkUsageDescription`.
+- **Remediation**:
+  - In `handleRegisterRoute`, decoded peer DTO and registered discovered peer directly into `LocalShareDiscovery.shared.registerDiscoveredPeer`.
+  - In `LocalShareSecurity.normalizeIP`, added automatic stripping of `%<scope>` and `::ffff:` prefix for robust token validation and rate limiting.
+  - In `handleInfoRoute`, populated active bound port and protocol.
+  - In `Resources/Info.plist`, added `NSLocalNetworkUsageDescription`.
+
+### Problem 3: Device Alias Cannot Be Changed
+- **Root Cause**:
+  1. `LocalShareSecurity.sanitizeAlias` trimmed whitespace on every keystroke. When typing a space (e.g., "Mac Book"), the space was stripped immediately. When backspacing to clear, it immediately reverted to "Unknown Device".
+  2. In `LocalShareSettings.alias.didSet`, when `alias != sanitized`, it assigned `alias = sanitized` and returned early, skipping persistence.
+  3. `LocalShareSettingsView` bound `TextField` directly to `$settings.alias` with no draft buffer.
+  4. Alias changes never triggered discovery announcements to the network.
+- **Remediation**:
+  - Implemented `LocalShareSettingsUIState` ObservableObject providing an `aliasDraft` buffer so spaces, backspaces, and multi-word names can be typed freely.
+  - Added dedicated "Save" button, `.onSubmit` commit, and temporary "Saved" badge.
+  - Updated "Reset to Mac Name" to sync both draft and store.
+  - In `LocalShareSettings.alias.didSet`, ensured persistent storage, singleton updates, and network announcement broadcast via `LocalShareDiscovery.shared.sendAnnouncement(isInitial: true)`.
+
+### Problem 4: Repeated macOS Keychain Prompts (6–7 Times)
+- **Root Cause**:
+  1. `LocalShareIdentity.swift` and `LocalShareSettings.swift` omitted `kSecUseDataProtectionKeychain as String: true`, causing macOS to route generic password operations to the legacy File-Based Keychain (`login.keychain-db`).
+  2. Legacy file-based ACLs mismatch between ad-hoc builds and CLI runners, triggering repeated system authorization dialogs ("NotchApp wants to access key... in your keychain").
+  3. `LocalShareSettings.init()` assigned `self.pinCode = loadPinFromKeychain()`, which fired `didSet` during startup and triggered redundant delete and add operations on the keychain.
+- **Remediation**:
+  - Enforced `kSecUseDataProtectionKeychain as String: true` and `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` across all Keychain queries.
+  - In `LocalShareSettings.init()`, initialized `_pinCode = Published(initialValue: ...)` to prevent startup `didSet` re-save cascades.
+  - Implemented in-memory caching on `LocalShareIdentityManager` (`cachedCertificateDER`, `cachedFingerprint`, `cachedIdentity`) and `LocalShareSettings` (`cachedPin`). Once loaded, zero Keychain hits occur during app lifetime.
+  - Added non-sensitive diagnostic logging (account and OSStatus code only; never secrets).
+
+---
+
+## 11. Final Verification & Regression Status
+
+- **Atomic Commits**:
+  - `2db474e LOCALSHARE-17: stabilize keychain access with modern Data Protection Keychain and in-memory caching`
+  - `ef85c3c LOCALSHARE-18: add alias draft buffer and live commit with network announcement propagation`
+  - `5afca94 LOCALSHARE-19: normalize scoped hosts and IPs, ingest registered peers, and add LocalNetwork usage description`
+  - `cf2e447 LOCALSHARE-20: add regression tests 105.18-105.23 for Stage 4B functional recovery`
+- **Verification Suite**:
+  - `swift run NotchTests --localshare-only`
+  - Subtests 105.18 - 105.23 passing:
+    - Subtest 18: TLS Identity & Network Identity Creation
+    - Subtest 19: Data Protection Keychain Invariants & In-Memory Caching
+    - Subtest 20: Device Alias Space Preservation & Settings Propagation
+    - Subtest 21: Network Host & IP Normalization Pipeline
+    - Subtest 22: Incoming Register Route Discovery Ingestion
+    - Subtest 23: Peer Certificate Fingerprint Normalization
+  - Full suite status: Tests 103, 104, 105 passing cleanly in under 2 seconds.
+  - Zero desktop popups, zero GUI automation, zero process dialogs.
+  - Clean build on `NotchApp` and `LocalShare`.
+- **Standing by for user confirmation before Stage 5.**
