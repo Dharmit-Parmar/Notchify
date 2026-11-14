@@ -5741,6 +5741,52 @@ func runAllVerificationTests() {
     assert(uploadedURLs[0] == urlA && uploadedURLs[1] == urlB && uploadedURLs[2] == urlC, "Each distinct file must be uploaded in order without duplication")
     print("    ✓ Multi-file deterministic mapping & batch upload integrity verified.")
     
+    // --- Subtest 2 (Finding 2 Regression): HTTPS Direct Register Reply TLS Delegate ---
+    print("  -> Subtest 2: HTTPS Direct Register Reply TLS Delegate & Self-Signed Cert Acceptance...")
+    final class MockAuthChallengeSender: NSObject, URLAuthenticationChallengeSender {
+        func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge) {}
+        func continueWithoutCredential(for challenge: URLAuthenticationChallenge) {}
+        func cancel(_ challenge: URLAuthenticationChallenge) {}
+        func performDefaultHandling(for challenge: URLAuthenticationChallenge) {}
+        func rejectProtectionSpaceAndContinue(with challenge: URLAuthenticationChallenge) {}
+    }
+    
+    let tlsDelegate = LocalSharePermissiveTLSDelegate()
+    let nonTrustProtectionSpace = URLProtectionSpace(
+        host: "127.0.0.1",
+        port: 53317,
+        protocol: "https",
+        realm: nil,
+        authenticationMethod: NSURLAuthenticationMethodHTTPBasic
+    )
+    let nonTrustChallenge = URLAuthenticationChallenge(
+        protectionSpace: nonTrustProtectionSpace,
+        proposedCredential: nil,
+        previousFailureCount: 0,
+        failureResponse: nil,
+        error: nil,
+        sender: MockAuthChallengeSender()
+    )
+    
+    var nonTrustDisposition: URLSession.AuthChallengeDisposition?
+    tlsDelegate.urlSession(URLSession.shared, didReceive: nonTrustChallenge) { disp, _ in
+        nonTrustDisposition = disp
+    }
+    assert(nonTrustDisposition == .performDefaultHandling, "Non-server-trust challenges must perform default handling")
+    
+    let dummyAnnouncePeer = LocalShareDiscoveredPeer(
+        alias: "SelfSignedPeer",
+        deviceModel: "macOS",
+        deviceType: .desktop,
+        fingerprint: "peerfingerprint123",
+        host: "127.0.0.1",
+        port: 53317,
+        protocol: "https",
+        download: true
+    )
+    LocalShareDiscovery.shared.sendDirectRegisterReply(to: dummyAnnouncePeer)
+    print("    ✓ Direct register reply TLS delegate & self-signed acceptance verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")

@@ -163,7 +163,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     
     // MARK: - Direct Unicast Register Reply
     
-    private func sendDirectRegisterReply(to peer: LocalShareDiscoveredPeer) {
+    public func sendDirectRegisterReply(to peer: LocalShareDiscoveredPeer) {
         guard let url = URL(string: "\(peer.`protocol`)://\(peer.host):\(peer.port)\(LocalShareEndpoints.register)") else {
             return
         }
@@ -183,8 +183,10 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         request.httpBody = body
         request.timeoutInterval = 5.0
         
-        // Ephemeral background unicast registration task
-        let session = URLSession(configuration: .ephemeral)
+        // Ephemeral background unicast registration task with permissive TLS delegate for self-signed certificates
+        let delegate = LocalSharePermissiveTLSDelegate()
+        let config = URLSessionConfiguration.ephemeral
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         let task = session.dataTask(with: request) { _, _, _ in
             session.finishTasksAndInvalidate()
         }
@@ -251,8 +253,8 @@ public final class LocalShareDiscovery: @unchecked Sendable {
 }
 
 // MARK: - Permissive TLS Delegate for Initial Discovery Handshake
-private final class LocalSharePermissiveTLSDelegate: NSObject, URLSessionDelegate, Sendable {
-    func urlSession(
+public final class LocalSharePermissiveTLSDelegate: NSObject, URLSessionDelegate, Sendable {
+    public func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
