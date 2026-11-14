@@ -74,6 +74,15 @@ public final class LocalShareServer: @unchecked Sendable {
         return state
     }
     
+    public var boundPort: UInt16? {
+        lock.lock()
+        defer { lock.unlock() }
+        if case .running(let port) = state {
+            return port
+        }
+        return listener?.port?.rawValue
+    }
+    
     public var isRunning: Bool {
         if case .running = currentState { return true }
         return false
@@ -184,15 +193,40 @@ public final class LocalShareServer: @unchecked Sendable {
     
     // MARK: - Connection & Request Handling
     
-    private func handleIncomingConnection(_ connection: NWConnection) {
-        connection.start(queue: queue)
-        receiveHTTPPayload(connection: connection, accumulatedData: Data())
+    private final class LocalShareTimeoutBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var item: DispatchWorkItem?
+        
+        init(_ item: DispatchWorkItem?) {
+            self.item = item
+        }
+        
+        func cancel() {
+            lock.lock()
+            defer { lock.unlock() }
+            item?.cancel()
+            item = nil
+        }
     }
     
-    private func receiveHTTPPayload(connection: NWConnection, accumulatedData: Data) {
+    private func handleIncomingConnection(_ connection: NWConnection) {
+        connection.start(queue: queue)
+        
+        // 15-second Slowloris pre-header timeout watchdog
+        let timeoutWorkItem = DispatchWorkItem { [weak connection] in
+            connection?.cancel()
+        }
+        let box = LocalShareTimeoutBox(timeoutWorkItem)
+        queue.asyncAfter(deadline: .now() + 15.0, execute: timeoutWorkItem)
+        
+        receiveHTTPPayload(connection: connection, accumulatedData: Data(), timeoutBox: box)
+    }
+    
+    private func receiveHTTPPayload(connection: NWConnection, accumulatedData: Data, timeoutBox: LocalShareTimeoutBox? = nil) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
             guard let self = self else { return }
             if error != nil {
+                timeoutBox?.cancel()
                 connection.cancel()
                 return
             }
@@ -205,6 +239,7 @@ public final class LocalShareServer: @unchecked Sendable {
             // Check if full HTTP header has arrived (\r\n\r\n or fallback \n\n)
             let headerEndRange = buffer.range(of: Data("\r\n\r\n".utf8)) ?? buffer.range(of: Data("\n\n".utf8))
             if let headerEndRange = headerEndRange {
+                timeoutBox?.cancel()
                 let headerData = buffer.subdata(in: 0..<headerEndRange.lowerBound)
                 let bodyData = buffer.subdata(in: headerEndRange.upperBound..<buffer.count)
                 
@@ -227,19 +262,21 @@ public final class LocalShareServer: @unchecked Sendable {
                 }
                 
                 if bodyData.count < expectedLength && !isComplete {
-                    self.receiveHTTPPayload(connection: connection, accumulatedData: buffer)
+                    self.receiveHTTPPayload(connection: connection, accumulatedData: buffer, timeoutBox: nil)
                     return
                 }
                 
                 self.routeRequest(connection: connection, request: request)
             } else if buffer.count > 65536 {
                 // Safeguard against unbounded slowloris header accumulation
+                timeoutBox?.cancel()
                 self.sendRawResponse(connection: connection, statusCode: 431, reason: "Request Header Fields Too Large", body: nil)
             } else if isComplete {
+                timeoutBox?.cancel()
                 connection.cancel()
             } else {
                 // Continue accumulating headers
-                self.receiveHTTPPayload(connection: connection, accumulatedData: buffer)
+                self.receiveHTTPPayload(connection: connection, accumulatedData: buffer, timeoutBox: timeoutBox)
             }
         }
     }

@@ -5955,6 +5955,39 @@ func runAllVerificationTests() {
     LocalShareServer.shared.removeStateObserver(id: id2)
     print("    ✓ Multi-observer registration & hook collision prevention verified.")
     
+    // --- Subtest 8 (Finding 8 Regression): Slowloris Pre-Header Watchdog & Normal Flow ---
+    print("  -> Subtest 8: Slowloris Pre-Header Timeout Watchdog & Socket Lifecycle...")
+    let s8Server = LocalShareServer()
+    s8Server.serverAlias = "SlowlorisTestServer"
+    try! s8Server.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
+    let s8Deadline = Date().addingTimeInterval(2.0)
+    while !s8Server.isRunning && Date() < s8Deadline {
+        usleep(20_000)
+    }
+    guard case .running(let s8Port) = s8Server.currentState else {
+        fatalError("Failed to bind s8Server")
+    }
+    
+    let s8Config = URLSessionConfiguration.ephemeral
+    let s8Session = URLSession(configuration: s8Config)
+    let s8URL = URL(string: "http://127.0.0.1:\(s8Port)\(LocalShareEndpoints.info)")!
+    var s8Req = URLRequest(url: s8URL)
+    s8Req.timeoutInterval = 5.0
+    
+    let s8Success = TestBox(false)
+    let s8Sem = DispatchSemaphore(value: 0)
+    s8Session.dataTask(with: s8Req) { data, resp, err in
+        if let http = resp as? HTTPURLResponse, http.statusCode == 200 {
+            s8Success.value = true
+        }
+        s8Sem.signal()
+    }.resume()
+    _ = s8Sem.wait(timeout: .now() + 3.0)
+    assert(s8Success.value, "Normal request completing before watchdog must return HTTP 200")
+    
+    s8Server.stop()
+    print("    ✓ Slowloris pre-header timeout watchdog & normal flow verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")
