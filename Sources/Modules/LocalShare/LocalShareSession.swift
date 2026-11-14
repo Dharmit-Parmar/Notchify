@@ -69,7 +69,7 @@ public final class LocalShareSession: @unchecked Sendable {
     private var consumedTokens: Set<String> = []
     private var inProgressTokens: Set<String> = []
     private var fileProgressMap: [String: LocalShareFileProgress] = [:]
-    private var activeWriter: LocalShareFileStreamWriter?
+    private var activeWriters: [String: LocalShareFileStreamWriter] = [:]
     private let createdAt = Date()
     private var lastActivity = Date()
     
@@ -229,19 +229,51 @@ public final class LocalShareSession: @unchecked Sendable {
         return min(1.0, max(0.0, Double(transferred) / Double(total)))
     }
     
-    // MARK: - Active Writer Tracking
+    // MARK: - Active Writer Tracking (Per-File Synchronized Collection)
     
+    public func registerActiveWriter(_ writer: LocalShareFileStreamWriter, for fileId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.activeWriters[fileId] = writer
+    }
+    
+    public func removeActiveWriter(for fileId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.activeWriters.removeValue(forKey: fileId)
+    }
+    
+    public func abortActiveWriter(for fileId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if let writer = activeWriters.removeValue(forKey: fileId) {
+            writer.abort()
+        }
+    }
+    
+    public func abortAllActiveWriters() {
+        lock.lock()
+        defer { lock.unlock() }
+        for (_, writer) in activeWriters {
+            writer.abort()
+        }
+        activeWriters.removeAll()
+    }
+    
+    /// Backward-compatible single-writer setter mapping to "default" slot
     public func setActiveWriter(_ writer: LocalShareFileStreamWriter?) {
         lock.lock()
         defer { lock.unlock() }
-        self.activeWriter = writer
+        if let w = writer {
+            activeWriters["default"] = w
+        } else {
+            activeWriters.removeValue(forKey: "default")
+        }
     }
     
+    /// Backward-compatible abort calling abortAllActiveWriters
     public func abortActiveWriter() {
-        lock.lock()
-        defer { lock.unlock() }
-        activeWriter?.abort()
-        activeWriter = nil
+        abortAllActiveWriters()
     }
     
     // MARK: - Timeouts

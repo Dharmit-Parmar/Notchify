@@ -492,7 +492,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 fileName: sanitizedName,
                 sessionDirectory: sessionDir
             )
-            session.setActiveWriter(streamWriter)
+            session.registerActiveWriter(streamWriter, for: fileId)
             session.transition(to: .receiving)
         } catch {
             session.releaseTokenReservation(token: token)
@@ -511,6 +511,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 session.updateProgress(fileId: fileId, bytesReceived: currentBytes)
             } catch {
                 session.releaseTokenReservation(token: token)
+                session.removeActiveWriter(for: fileId)
                 streamWriter.abort()
                 sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
                 return
@@ -548,6 +549,7 @@ public final class LocalShareServer: @unchecked Sendable {
             guard let self = self else { return }
             if error != nil {
                 session.releaseTokenReservation(token: token)
+                session.removeActiveWriter(for: fileId)
                 writer.abort()
                 connection.cancel()
                 return
@@ -561,6 +563,7 @@ public final class LocalShareServer: @unchecked Sendable {
                     session.updateProgress(fileId: fileId, bytesReceived: updatedBytes)
                 } catch {
                     session.releaseTokenReservation(token: token)
+                    session.removeActiveWriter(for: fileId)
                     writer.abort()
                     self.sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
                     return
@@ -568,6 +571,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 
                 if updatedBytes > expectedTotal {
                     session.releaseTokenReservation(token: token)
+                    session.removeActiveWriter(for: fileId)
                     writer.abort()
                     self.sendRawResponse(connection: connection, statusCode: 400, reason: "Payload Exceeded", body: nil)
                     return
@@ -610,19 +614,19 @@ public final class LocalShareServer: @unchecked Sendable {
             try writer.finalize(expectedSha256: meta.sha256, expectedSize: meta.size)
             session.markTokenConsumed(fileId: fileId, token: token)
             session.markFileCompleted(fileId: fileId)
-            session.setActiveWriter(nil)
+            session.removeActiveWriter(for: fileId)
             sendRawResponse(connection: connection, statusCode: 200, reason: "OK", body: nil)
         } catch LocalShareError.checksumMismatch {
             session.releaseTokenReservation(token: token)
+            session.removeActiveWriter(for: fileId)
             writer.abort()
             session.markFileFailed(fileId: fileId, error: "Checksum Mismatch")
-            session.setActiveWriter(nil)
             sendRawResponse(connection: connection, statusCode: 422, reason: "Unprocessable Entity", body: nil)
         } catch {
             session.releaseTokenReservation(token: token)
+            session.removeActiveWriter(for: fileId)
             writer.abort()
             session.markFileFailed(fileId: fileId, error: error.localizedDescription)
-            session.setActiveWriter(nil)
             sendRawResponse(connection: connection, statusCode: 500, reason: "Finalize Error", body: nil)
         }
     }

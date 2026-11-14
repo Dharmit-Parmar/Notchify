@@ -6153,6 +6153,43 @@ func runAllVerificationTests() {
     intServer.stop()
     print("    ✓ End-to-end multi-file loopback upload & quarantine verified.")
     
+    // --- Subtest 11: Concurrent Multi-File Writers Collection & Abort ---
+    print("  -> Subtest 11: Concurrent Multi-File Writers Collection & Abort...")
+    let multiWriterDir = FileManager.default.temporaryDirectory.appendingPathComponent("multi_writer_test_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: multiWriterDir, withIntermediateDirectories: true)
+    
+    let f1Meta = LocalShareFileMetadata(id: "fileA", fileName: "photoA.png", size: 1024, fileType: "image/png", sha256: nil)
+    let f2Meta = LocalShareFileMetadata(id: "fileB", fileName: "documentB.pdf", size: 2048, fileType: "application/pdf", sha256: nil)
+    let multiSession = LocalShareSession(
+        sessionId: "sess-multi-writers",
+        peerInfo: peerDevInfo,
+        peerIP: "127.0.0.1",
+        isIncoming: true,
+        sessionDirectory: multiWriterDir,
+        filesMetadata: ["fileA": f1Meta, "fileB": f2Meta]
+    )
+    
+    let wA = try! LocalShareFileManager.shared.beginFileStream(fileName: "photoA.png", sessionDirectory: multiWriterDir)
+    let wB = try! LocalShareFileManager.shared.beginFileStream(fileName: "documentB.pdf", sessionDirectory: multiWriterDir)
+    multiSession.registerActiveWriter(wA, for: "fileA")
+    multiSession.registerActiveWriter(wB, for: "fileB")
+    
+    try! wA.writeChunk("Chunk of photo A".data(using: .utf8)!)
+    try! wB.writeChunk("Chunk of doc B".data(using: .utf8)!)
+    
+    let partialPathA = wA.destinationURL
+    let partialPathB = wB.destinationURL
+    assert(FileManager.default.fileExists(atPath: partialPathA.path), "Target file A must exist while writing")
+    assert(FileManager.default.fileExists(atPath: partialPathB.path), "Target file B must exist while writing")
+    
+    // Abort all active writers upon session cancellation
+    multiSession.abortAllActiveWriters()
+    
+    assert(!FileManager.default.fileExists(atPath: partialPathA.path), "Target file A must be purged upon abortAllActiveWriters")
+    assert(!FileManager.default.fileExists(atPath: partialPathB.path), "Target file B must be purged upon abortAllActiveWriters")
+    try? FileManager.default.removeItem(at: multiWriterDir)
+    print("    ✓ Concurrent active writers collection tracking and simultaneous abort verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")
