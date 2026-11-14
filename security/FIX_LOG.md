@@ -747,6 +747,9 @@
 6. **BUG-6**:
    - bug id: BUG-6 | root cause: handlePrepareUploadRoute did not reject empty lists, negative sizes, or check integer overflow on aggregate size | files:lines changed: LocalShareServer.swift:462-488, LocalShareProtocol.swift:139-144, LocalShareSecurity.swift:9 | callers checked: prepareUpload in LocalShareClient, handlePrepareUploadRoute in LocalShareServer | what could still be affected: none; empty file list returns 204 No Content per protocol; negative/overflow sizes return 400 | confirmation: sending an empty files map now receives HTTP 204; sending negative file size receives HTTP 400.
 
+7. **BUG-CONN-LOST**:
+   - bug id: BUG-CONN-LOST | root cause: LocalShareServer.sendRawResponse called connection.cancel() inside .contentProcessed without .finalMessage / isComplete: true, causing kernel TCP RST/abrupt socket abort before the HTTP response could be read by peer URLSession (NSURLErrorNetworkConnectionLost -1005) | files:lines changed: LocalShareServer.swift:142-145, 250-295, 328-355, 705-750, 850-865; LocalShareClient.swift:154-162, 240-270, 380-390 | callers checked: LocalShareServer, LocalShareClient, LocalShareModule | what could still be affected: none; connections now gracefully transmit EOF with deferred cleanup; diagnostics trace state without secret leakage | confirmation: clean swift build --target NotchApp, graceful .finalMessage transmission.
+
 ### Commit Log & Undo Commands
 - `f649952` — `fix(localshare): BUG-1 disable unauthenticated JSON fingerprint auto-accept` -> `git revert f649952`
 - `5da2afe` — `fix(localshare): BUG-2 reject HTTP redirects in peer client delegate` -> `git revert 5da2afe`
@@ -754,6 +757,7 @@
 - `8a586d3` — `fix(localshare): BUG-5 register and cancel active upload task in client session` -> `git revert 8a586d3`
 - `89b5eaa` — `fix(localshare): BUG-4 transition active session to cancelled upon coordinator reset` -> `git revert 89b5eaa`
 - `094df64` — `fix(localshare): BUG-6 validate incoming file metadata and safe aggregate size` -> `git revert 094df64`
+- `3423271` — `fix(localshare): stabilize connection lifecycle and add transfer diagnostics` -> `git revert 3423271`
 
 
 
