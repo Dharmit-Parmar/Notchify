@@ -249,6 +249,96 @@ public final class LocalShareServer: @unchecked Sendable {
         }
     }
     
+    // MARK: - HTTP Chunked Transfer Decoder
+    private final class HTTPChunkDecoder: @unchecked Sendable {
+        private enum State {
+            case readingSize
+            case readingData(remaining: Int)
+            case readingCRLF
+            case readingTrailers
+            case finished
+        }
+        
+        private var state: State = .readingSize
+        private var buffer = Data()
+        private(set) var isFinished: Bool = false
+        
+        func feed(_ rawData: Data) throws -> Data {
+            buffer.append(rawData)
+            var output = Data()
+            
+            while !buffer.isEmpty && !isFinished {
+                switch state {
+                case .readingSize:
+                    guard let newlineIndex = buffer.firstIndex(of: 0x0A) else {
+                        return output
+                    }
+                    var sizeLineData = buffer.subdata(in: buffer.startIndex..<newlineIndex)
+                    if sizeLineData.last == 0x0D {
+                        sizeLineData.removeLast()
+                    }
+                    buffer.removeSubrange(buffer.startIndex...newlineIndex)
+                    
+                    guard let lineStr = String(data: sizeLineData, encoding: .ascii) else {
+                        throw LocalShareError.serverError("Invalid chunk size encoding")
+                    }
+                    let cleanLine = lineStr.trimmingCharacters(in: .whitespaces)
+                    if cleanLine.isEmpty {
+                        continue
+                    }
+                    let sizeHex = cleanLine.components(separatedBy: ";").first?.trimmingCharacters(in: .whitespaces) ?? ""
+                    guard let chunkSize = Int(sizeHex, radix: 16) else {
+                        throw LocalShareError.serverError("Malformed chunk size hex: \(cleanLine)")
+                    }
+                    
+                    if chunkSize == 0 {
+                        state = .readingTrailers
+                    } else {
+                        state = .readingData(remaining: chunkSize)
+                    }
+                    
+                case .readingData(let remaining):
+                    let available = min(buffer.count, remaining)
+                    let chunkBytes = buffer.subdata(in: buffer.startIndex..<(buffer.startIndex + available))
+                    output.append(chunkBytes)
+                    buffer.removeSubrange(buffer.startIndex..<(buffer.startIndex + available))
+                    let newRemaining = remaining - available
+                    if newRemaining == 0 {
+                        state = .readingCRLF
+                    } else {
+                        state = .readingData(remaining: newRemaining)
+                    }
+                    
+                case .readingCRLF:
+                    guard let newlineIndex = buffer.firstIndex(of: 0x0A) else {
+                        return output
+                    }
+                    buffer.removeSubrange(buffer.startIndex...newlineIndex)
+                    state = .readingSize
+                    
+                case .readingTrailers:
+                    guard let newlineIndex = buffer.firstIndex(of: 0x0A) else {
+                        return output
+                    }
+                    var trailerLine = buffer.subdata(in: buffer.startIndex..<newlineIndex)
+                    if trailerLine.last == 0x0D {
+                        trailerLine.removeLast()
+                    }
+                    buffer.removeSubrange(buffer.startIndex...newlineIndex)
+                    if trailerLine.isEmpty {
+                        state = .finished
+                        isFinished = true
+                    }
+                    
+                case .finished:
+                    return output
+                }
+            }
+            
+            return output
+        }
+    }
+    
     private func handleIncomingConnection(_ connection: NWConnection) {
         let endpointDesc = "\(connection.endpoint)"
         connection.stateUpdateHandler = { state in
@@ -648,19 +738,41 @@ public final class LocalShareServer: @unchecked Sendable {
         let expectedTotal = meta.size
         var currentBytes: Int64 = 0
         
+        let isChunked = request.headers["transfer-encoding"]?.lowercased().contains("chunked") == true
+            || (request.headers["content-length"] == nil)
+        let chunkDecoder = isChunked ? HTTPChunkDecoder() : nil
+        
         // Write initial body chunk if already in memory
         if !initialBody.isEmpty {
-            do {
-                try streamWriter.writeChunk(initialBody)
-                currentBytes += Int64(initialBody.count)
-                session.updateProgress(fileId: fileId, bytesReceived: currentBytes)
-            } catch {
-                session.releaseTokenReservation(token: token)
-                session.removeActiveWriter(for: fileId)
-                streamWriter.abort()
-                session.markFileFailed(fileId: fileId, error: "Write Error: \(error.localizedDescription)")
-                sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
-                return
+            let payloadData: Data
+            if let decoder = chunkDecoder {
+                do {
+                    payloadData = try decoder.feed(initialBody)
+                } catch {
+                    session.releaseTokenReservation(token: token)
+                    session.removeActiveWriter(for: fileId)
+                    streamWriter.abort()
+                    session.markFileFailed(fileId: fileId, error: "Chunk Decode Error: \(error.localizedDescription)")
+                    sendRawResponse(connection: connection, statusCode: 400, reason: "Chunk Decode Error", body: nil)
+                    return
+                }
+            } else {
+                payloadData = initialBody
+            }
+            
+            if !payloadData.isEmpty {
+                do {
+                    try streamWriter.writeChunk(payloadData)
+                    currentBytes += Int64(payloadData.count)
+                    session.updateProgress(fileId: fileId, bytesReceived: currentBytes)
+                } catch {
+                    session.releaseTokenReservation(token: token)
+                    session.removeActiveWriter(for: fileId)
+                    streamWriter.abort()
+                    session.markFileFailed(fileId: fileId, error: "Write Error: \(error.localizedDescription)")
+                    sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
+                    return
+                }
             }
         }
         
@@ -681,7 +793,8 @@ public final class LocalShareServer: @unchecked Sendable {
             meta: meta,
             expectedTotal: expectedTotal,
             receivedBytes: currentBytes,
-            transferDeadline: transferDeadline
+            transferDeadline: transferDeadline,
+            chunkDecoder: chunkDecoder
         )
     }
     
@@ -694,7 +807,8 @@ public final class LocalShareServer: @unchecked Sendable {
         meta: LocalShareFileMetadata,
         expectedTotal: Int64,
         receivedBytes: Int64,
-        transferDeadline: Date
+        transferDeadline: Date,
+        chunkDecoder: HTTPChunkDecoder?
     ) {
         if Date() > transferDeadline {
             session.releaseTokenReservation(token: token)
@@ -732,30 +846,48 @@ public final class LocalShareServer: @unchecked Sendable {
             
             var updatedBytes = receivedBytes
             if let content = content, !content.isEmpty {
-                do {
-                    try writer.writeChunk(content)
-                    updatedBytes += Int64(content.count)
-                    session.updateProgress(fileId: fileId, bytesReceived: updatedBytes)
-                } catch {
-                    session.releaseTokenReservation(token: token)
-                    session.removeActiveWriter(for: fileId)
-                    writer.abort()
-                    session.markFileFailed(fileId: fileId, error: "Write Error: \(error.localizedDescription)")
-                    self.sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
-                    return
+                let payloadData: Data
+                if let decoder = chunkDecoder {
+                    do {
+                        payloadData = try decoder.feed(content)
+                    } catch {
+                        session.releaseTokenReservation(token: token)
+                        session.removeActiveWriter(for: fileId)
+                        writer.abort()
+                        session.markFileFailed(fileId: fileId, error: "Chunk Decode Error: \(error.localizedDescription)")
+                        self.sendRawResponse(connection: connection, statusCode: 400, reason: "Chunk Decode Error", body: nil)
+                        return
+                    }
+                } else {
+                    payloadData = content
                 }
                 
-                if updatedBytes > expectedTotal {
-                    session.releaseTokenReservation(token: token)
-                    session.removeActiveWriter(for: fileId)
-                    writer.abort()
-                    session.markFileFailed(fileId: fileId, error: "Payload Exceeded")
-                    self.sendRawResponse(connection: connection, statusCode: 400, reason: "Payload Exceeded", body: nil)
-                    return
+                if !payloadData.isEmpty {
+                    do {
+                        try writer.writeChunk(payloadData)
+                        updatedBytes += Int64(payloadData.count)
+                        session.updateProgress(fileId: fileId, bytesReceived: updatedBytes)
+                    } catch {
+                        session.releaseTokenReservation(token: token)
+                        session.removeActiveWriter(for: fileId)
+                        writer.abort()
+                        session.markFileFailed(fileId: fileId, error: "Write Error: \(error.localizedDescription)")
+                        self.sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
+                        return
+                    }
+                    
+                    if updatedBytes > expectedTotal {
+                        session.releaseTokenReservation(token: token)
+                        session.removeActiveWriter(for: fileId)
+                        writer.abort()
+                        session.markFileFailed(fileId: fileId, error: "Payload Exceeded")
+                        self.sendRawResponse(connection: connection, statusCode: 400, reason: "Payload Exceeded", body: nil)
+                        return
+                    }
                 }
             }
             
-            if isComplete && updatedBytes < expectedTotal {
+            if (isComplete || chunkDecoder?.isFinished == true) && updatedBytes < expectedTotal {
                 NSLog("[LocalShareServer] Premature connection closure for file %@ from %@ (received %lld of %lld bytes)", fileId, "\(connection.endpoint)", updatedBytes, expectedTotal)
                 session.releaseTokenReservation(token: token)
                 session.removeActiveWriter(for: fileId)
@@ -784,7 +916,8 @@ public final class LocalShareServer: @unchecked Sendable {
                     meta: meta,
                     expectedTotal: expectedTotal,
                     receivedBytes: updatedBytes,
-                    transferDeadline: transferDeadline
+                    transferDeadline: transferDeadline,
+                    chunkDecoder: chunkDecoder
                 )
             }
         }
