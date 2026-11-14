@@ -147,6 +147,23 @@ public struct LocalShareExpandedView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Connect to Direct IP")
+                            
+                            Button(action: {
+                                module.shareClipboardText()
+                            }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "doc.on.clipboard")
+                                        .font(.system(size: 8.5))
+                                    Text("Clipboard")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundColor(DesignSystem.secondaryText)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(DesignSystem.surfaceFill))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Share text snippet from clipboard")
                         }
                         
                         Text(module.statusMessage)

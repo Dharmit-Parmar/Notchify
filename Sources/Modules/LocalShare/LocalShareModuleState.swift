@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 
 // MARK: - LocalShare Module State & Engine (Target: LocalShare Library)
 @MainActor
@@ -244,15 +245,54 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
     
     // MARK: - Outgoing Transfers
     
+    private func expandDirectoriesIfNeeded(in urls: [URL]) -> [URL] {
+        var expanded: [URL] = []
+        let fm = FileManager.default
+        for url in urls {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                if let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+                    for case let fileURL as URL in enumerator {
+                        if let res = try? fileURL.resourceValues(forKeys: [.isRegularFileKey]), res.isRegularFile == true {
+                            expanded.append(fileURL)
+                        }
+                    }
+                }
+            } else {
+                expanded.append(url)
+            }
+        }
+        return expanded
+    }
+    
     public func startSending(files: [URL]) {
-        guard !files.isEmpty else { return }
-        for f in files {
+        let expanded = expandDirectoriesIfNeeded(in: files)
+        guard !expanded.isEmpty else { return }
+        for f in expanded {
             if !selectedFiles.contains(f) {
                 selectedFiles.append(f)
             }
         }
         startDiscovery()
         updateStatusMessage()
+    }
+    
+    public func shareClipboardText() {
+        guard let text = NSPasteboard.general.string(forType: .string),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            statusMessage = "Clipboard is empty"
+            return
+        }
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "Snippet_\(Int(Date().timeIntervalSince1970)).txt"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        do {
+            try text.write(to: fileURL, atomically: true, encoding: .utf8)
+            startSending(files: [fileURL])
+            statusMessage = "Ready to send text snippet"
+        } catch {
+            statusMessage = "Failed to prepare text snippet"
+        }
     }
     
     public func removeSelectedFile(_ url: URL) {
