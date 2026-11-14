@@ -150,6 +150,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
             if let identity = assembleIdentity(certDER: certData, privateKeyRaw: keyData) {
                 cachedCertificateDER = certData
                 cachedIdentity = identity
+                let digest = SHA256.hash(data: certData)
+                cachedFingerprint = digest.map { String(format: "%02x", $0) }.joined()
                 saveFallbackData(certData, account: certAccount)
                 saveFallbackData(keyData, account: keyAccount)
                 return (certData, identity)
@@ -162,6 +164,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
            let identity = assembleIdentity(certDER: fallbackCert, privateKeyRaw: fallbackKey) {
             cachedCertificateDER = fallbackCert
             cachedIdentity = identity
+            let digest = SHA256.hash(data: fallbackCert)
+            cachedFingerprint = digest.map { String(format: "%02x", $0) }.joined()
             _ = saveKeychainData(fallbackCert, account: certAccount)
             _ = saveKeychainData(fallbackKey, account: keyAccount)
             return (fallbackCert, identity)
@@ -179,6 +183,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         let identity = assembleIdentity(certDER: certDER, privateKeyRaw: keyRaw)
         cachedCertificateDER = certDER
         cachedIdentity = identity
+        let digest = SHA256.hash(data: certDER)
+        cachedFingerprint = digest.map { String(format: "%02x", $0) }.joined()
         return (certDER, identity)
     }
     
@@ -257,20 +263,43 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         return ctx
     }
     
-    @discardableResult
-    private func saveKeychainData(_ data: Data, account: String) -> Bool {
-        let query: [String: Any] = [
+    private func logKeychain(op: String, account: String, status: OSStatus) {
+        #if DEBUG
+        if status != errSecSuccess && status != errSecItemNotFound {
+            print("[LocalShareIdentity] Keychain \(op) for account '\(account)' returned OSStatus \(status)")
+        }
+        #endif
+    }
+    
+    private func cleanLegacyFileBasedKeychain(account: String) {
+        let legacyQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: account,
             kSecUseAuthenticationContext as String: nonInteractiveContext()
         ]
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(legacyQuery as CFDictionary)
+    }
+    
+    @discardableResult
+    private func saveKeychainData(_ data: Data, account: String) -> Bool {
+        cleanLegacyFileBasedKeychain(account: account)
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: account,
+            kSecUseDataProtectionKeychain as String: true,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
+        ]
+        let delStatus = SecItemDelete(query as CFDictionary)
+        logKeychain(op: "deleteBeforeAdd", account: account, status: delStatus)
         
         var newQuery = query
         newQuery[kSecValueData as String] = data
         newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(newQuery as CFDictionary, nil)
+        logKeychain(op: "add", account: account, status: status)
         return status == errSecSuccess
     }
     
@@ -281,10 +310,12 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseDataProtectionKeychain as String: true,
             kSecUseAuthenticationContext as String: nonInteractiveContext()
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
+        logKeychain(op: "load", account: account, status: status)
         if status == errSecSuccess, let data = item as? Data {
             return data
         }
@@ -307,8 +338,22 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         cachedFingerprint = nil
         cachedCertificateDER = nil
         cachedIdentity = nil
-        let q1: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: serviceName, kSecAttrAccount as String: keyAccount]
-        let q2: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: serviceName, kSecAttrAccount as String: certAccount]
+        cleanLegacyFileBasedKeychain(account: keyAccount)
+        cleanLegacyFileBasedKeychain(account: certAccount)
+        let q1: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: keyAccount,
+            kSecUseDataProtectionKeychain as String: true,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
+        ]
+        let q2: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: certAccount,
+            kSecUseDataProtectionKeychain as String: true,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
+        ]
         SecItemDelete(q1 as CFDictionary)
         SecItemDelete(q2 as CFDictionary)
         UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(keyAccount)")
