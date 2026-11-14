@@ -154,6 +154,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            let nsError = error as NSError
+            NSLog("[LocalShareClient] prepareUpload failed to %@:%d%@ Domain: %@ Code: %ld Description: %@", cleanHost, peer.port, LocalShareEndpoints.prepareUpload, nsError.domain, Int(nsError.code), nsError.localizedDescription)
             let scrubbed = LocalShareSecurity.scrubSecrets(from: error.localizedDescription)
             throw LocalShareError.connectionFailed(scrubbed)
         }
@@ -240,6 +242,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
                     let t = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
                         session.setActiveTask(nil)
                         if let error = error {
+                            let nsError = error as NSError
+                            NSLog("[LocalShareClient] uploadFile failed for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), nsError.localizedDescription)
                             continuation.resume(throwing: error)
                         } else if let data = data, let response = response {
                             continuation.resume(returning: (data, response))
@@ -259,6 +263,10 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             throw LocalShareError.sessionCancelled
         } catch let urlErr as URLError where urlErr.code == .cancelled {
             throw LocalShareError.sessionCancelled
+        } catch {
+            let nsError = error as NSError
+            NSLog("[LocalShareClient] uploadFile caught error for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), nsError.localizedDescription)
+            throw error
         }
         
         guard let http = response as? HTTPURLResponse else {
@@ -375,6 +383,9 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         if !expectedFingerprint.isEmpty && LocalShareSecurity.isFingerprintValid(peerCertDER: certDER, expectedFingerprint: expectedFingerprint) {
             completionHandler(.useCredential, URLCredential(trust: serverTrust))
         } else {
+            let digest = SHA256.hash(data: certDER)
+            let actualHex = digest.map { String(format: "%02x", $0) }.joined()
+            NSLog("[LocalShareClient] Peer certificate fingerprint mismatch! Expected: %@, Actual: %@", expectedFingerprint, actualHex)
             completionHandler(.cancelAuthenticationChallenge, nil)
         }
     }

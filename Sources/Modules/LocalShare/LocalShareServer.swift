@@ -142,6 +142,8 @@ public final class LocalShareServer: @unchecked Sendable {
             sec_protocol_options_set_min_tls_protocol_version(tlsOptions.securityProtocolOptions, .TLSv12)
             if let networkIdentity = LocalShareIdentityManager.shared.createNetworkIdentity() {
                 sec_protocol_options_set_local_identity(tlsOptions.securityProtocolOptions, networkIdentity)
+            } else {
+                NSLog("[LocalShareServer] CRITICAL: Failed to create Network TLS identity!")
             }
             
             // 2. Configure TCP parameters
@@ -248,11 +250,34 @@ public final class LocalShareServer: @unchecked Sendable {
     }
     
     private func handleIncomingConnection(_ connection: NWConnection) {
+        let endpointDesc = "\(connection.endpoint)"
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .setup:
+                NSLog("[LocalShareServer] Connection to %@ setup", endpointDesc)
+            case .preparing:
+                NSLog("[LocalShareServer] Connection to %@ preparing (TLS/handshake)", endpointDesc)
+            case .ready:
+                NSLog("[LocalShareServer] Connection to %@ ready", endpointDesc)
+            case .waiting(let error):
+                NSLog("[LocalShareServer] Connection to %@ waiting: %@", endpointDesc, String(describing: error))
+            case .failed(let error):
+                NSLog("[LocalShareServer] Connection to %@ failed: %@", endpointDesc, String(describing: error))
+            case .cancelled:
+                NSLog("[LocalShareServer] Connection to %@ cancelled", endpointDesc)
+            @unknown default:
+                NSLog("[LocalShareServer] Connection to %@ unknown state", endpointDesc)
+            }
+        }
+        
         connection.start(queue: queue)
         
         // 15-second Slowloris pre-header timeout watchdog
         let timeoutWorkItem = DispatchWorkItem { [weak connection] in
-            connection?.cancel()
+            if let conn = connection {
+                NSLog("[LocalShareServer] Pre-header watchdog timed out for %@", "\(conn.endpoint)")
+                conn.cancel()
+            }
         }
         let box = LocalShareTimeoutBox(timeoutWorkItem)
         queue.asyncAfter(deadline: .now() + 15.0, execute: timeoutWorkItem)
@@ -263,7 +288,8 @@ public final class LocalShareServer: @unchecked Sendable {
     private func receiveHTTPPayload(connection: NWConnection, accumulatedData: Data, timeoutBox: LocalShareTimeoutBox? = nil) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
             guard let self = self else { return }
-            if error != nil {
+            if let error = error {
+                NSLog("[LocalShareServer] HTTP receive error from %@: %@", "\(connection.endpoint)", String(describing: error))
                 timeoutBox?.cancel()
                 connection.cancel()
                 return
@@ -302,7 +328,10 @@ public final class LocalShareServer: @unchecked Sendable {
                 if bodyData.count < expectedLength && !isComplete {
                     let targetConnection = connection
                     let bodyTimeoutItem = DispatchWorkItem { [weak targetConnection] in
-                        targetConnection?.cancel()
+                        if let conn = targetConnection {
+                            NSLog("[LocalShareServer] Body receive watchdog timed out for %@", "\(conn.endpoint)")
+                            conn.cancel()
+                        }
                     }
                     let bodyBox = LocalShareTimeoutBox(bodyTimeoutItem)
                     self.queue.asyncAfter(deadline: .now() + 15.0, execute: bodyTimeoutItem)
@@ -317,6 +346,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 timeoutBox?.cancel()
                 self.sendRawResponse(connection: connection, statusCode: 431, reason: "Request Header Fields Too Large", body: nil)
             } else if isComplete {
+                NSLog("[LocalShareServer] Connection closed by peer before complete HTTP headers from %@", "\(connection.endpoint)")
                 timeoutBox?.cancel()
                 connection.cancel()
             } else {
@@ -674,11 +704,11 @@ public final class LocalShareServer: @unchecked Sendable {
             idleBox.cancel()
             guard let self = self else { return }
             if let error = error {
+                NSLog("[LocalShareServer] Upload receive error for file %@ from %@: %@", fileId, "\(connection.endpoint)", String(describing: error))
                 session.releaseTokenReservation(token: token)
                 session.removeActiveWriter(for: fileId)
                 writer.abort()
                 session.markFileFailed(fileId: fileId, error: error.localizedDescription)
-                self.sendRawResponse(connection: connection, statusCode: 500, reason: "Upload Stream Error", body: nil)
                 connection.cancel()
                 return
             }
@@ -709,6 +739,7 @@ public final class LocalShareServer: @unchecked Sendable {
             }
             
             if isComplete && updatedBytes < expectedTotal {
+                NSLog("[LocalShareServer] Premature connection closure for file %@ from %@ (received %lld of %lld bytes)", fileId, "\(connection.endpoint)", updatedBytes, expectedTotal)
                 session.releaseTokenReservation(token: token)
                 session.removeActiveWriter(for: fileId)
                 writer.abort()
@@ -817,8 +848,17 @@ public final class LocalShareServer: @unchecked Sendable {
             responseData.append(body)
         }
         
-        connection.send(content: responseData, completion: .contentProcessed { _ in
-            connection.cancel()
+        connection.send(content: responseData, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self, weak connection] sendError in
+            if let sendError = sendError {
+                if let conn = connection {
+                    NSLog("[LocalShareServer] Response send error to %@: %@", "\(conn.endpoint)", String(describing: sendError))
+                    conn.cancel()
+                }
+            } else {
+                self?.queue.asyncAfter(deadline: .now() + 3.0) { [weak connection] in
+                    connection?.cancel()
+                }
+            }
         })
     }
 }
