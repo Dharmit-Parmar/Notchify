@@ -6359,11 +6359,9 @@ func runAllVerificationTests() {
     assert(!certDER.isEmpty, "Certificate DER must not be empty")
     assert(!fp.isEmpty, "Certificate fingerprint must not be empty")
     
-    let fallbackCert = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_localshare_x509_certificate")
-    let fallbackKey = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_localshare_p256_private_key")
-    assert(fallbackCert != nil, "Device certificate must be backed up to fallback storage")
-    assert(fallbackKey != nil, "Private key must be backed up to fallback storage")
-    assert(fallbackCert == certDER, "Fallback certificate must match active certificate DER")
+    // Fresh identities must not persist raw private keys into plaintext UserDefaults
+    let rawKeyFallback = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_localshare_p256_private_key")
+    assert(rawKeyFallback == nil, "Fresh identities must not write plaintext private keys to UserDefaults")
     print("    ✓ TLS identity fallback persistence & Keychain resilience verified.")
     
     // --- Subtest 16 (Finding C Regression): Discovery Bootstrap TLS Certificate Cross-Verification ---
@@ -6412,6 +6410,18 @@ func runAllVerificationTests() {
     assert(savedPin, "savePinToKeychain must succeed via Data Protection Keychain")
     let loadedPin = settings19.loadPinFromKeychain()
     assert(loadedPin == testPin, "loadPinFromKeychain must return the saved PIN")
+    
+    // Verify Bug 2: PIN sanitization writes back to pinCode
+    settings19.isPinEnabled = true
+    settings19.pinCode = "482910ab9999"
+    assert(settings19.pinCode == "482910ab", "PIN observer must sanitize pinCode and write back truncated 8-char value")
+    assert(LocalShareServer.shared.requiredPin == "482910ab", "Server PIN must match sanitized pinCode")
+    
+    // Verify Bug 3: update-first doesn't delete item when saving an update
+    let updatedPin = settings19.savePinToKeychain("99881122")
+    assert(updatedPin, "Updating existing PIN must succeed via SecItemUpdate")
+    assert(settings19.loadPinFromKeychain() == "99881122", "Updated PIN must match")
+    
     settings19.savePinToKeychain("")
     assert(settings19.loadPinFromKeychain() == "", "Empty PIN must clear keychain entry")
     print("    ✓ Data Protection Keychain invariants & in-memory caching verified.")
@@ -6425,6 +6435,13 @@ func runAllVerificationTests() {
     assert(LocalShareServer.shared.serverAlias == spacedAlias, "Server alias must sync")
     assert(LocalShareDiscovery.shared.localAlias == spacedAlias, "Discovery alias must sync")
     assert(LocalShareClient.shared.localAlias == spacedAlias, "Client alias must sync")
+    
+    // Verify Bug 1: Alias requiring sanitization synchronizes before updating property
+    settings20.alias = "   Padded Machine Name   "
+    assert(settings20.alias == "Padded Machine Name", "Sanitized alias must be assigned")
+    assert(LocalShareServer.shared.serverAlias == "Padded Machine Name", "Server alias must update even when sanitization was needed")
+    assert(LocalShareDiscovery.shared.localAlias == "Padded Machine Name", "Discovery alias must update even when sanitization was needed")
+    assert(LocalShareClient.shared.localAlias == "Padded Machine Name", "Client alias must update even when sanitization was needed")
     
     settings20.resetToDefaults()
     print("    ✓ Device alias space preservation & settings propagation verified.")

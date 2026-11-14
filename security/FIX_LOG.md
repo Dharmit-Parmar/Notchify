@@ -666,6 +666,37 @@
   - Remediations complete. Zero GUI automation, zero remote pushes, zero process popups.
   - Stopped at Stage 4B completion awaiting user approval before Stage 5.
 
+---
+
+## Stage 4C: Local Share Send/Receive Functional Recovery & Keychain Invariant Hardening
+
+- **Date**: 2026-11-14
+- **Trigger**: User reported inability to send or receive files, alongside five specific persistence & identity defects (Bugs 1-5).
+- **Root Causes Identified**:
+  1. *Host URL Formatting*: Unbracketed IPv6 and `::ffff:`-mapped IPv4 hosts caused `URLComponents(string:)` to fail and return `nil`, throwing `invalidURL` during prepare-upload, upload, and unicast register replies.
+  2. *App Transport Security (ATS)*: Missing `NSAppTransportSecurity` in `Info.plist` caused macOS `URLSession` to block local IP and self-signed TLS connections with error -1022.
+  3. *HTTP Route Matching on `/upload`*: Requests containing query strings (`/upload?sessionId=...`) failed exact-equality route checks, cascading into JSON handlers with strict body caps and triggering HTTP 413 "Payload Too Large" or 404.
+  4. *Dual-Stack IP Token Validation*: Multi-homed devices connecting via IPv6 for prepare-upload and IPv4 for stream uploads were rejected with HTTP 403.
+  5. *Module Lifecycle Inactivity*: Receiver listener was not initialized during `LocalShareModule.init()` or view `.onAppear`, leaving the server dormant when navigating into Local Share.
+  6. *Collapsed Notch Acceptance*: Incoming transfers without notification interaction timed out after 30 seconds because the notch did not expand to show the Accept/Decline card.
+  7. *Session File Isolation*: Received files remained in subfolders (`session-<UUID>`) instead of being promoted to the root `~/Downloads/LocalShare` directory.
+- **Remediations Implemented**:
+  - `LocalShareSecurity.swift`: Added `formatHostForURL(_:)` wrapping IPv6 in RFC 3986 brackets and stripping interface scopes and `::ffff:` prefixes.
+  - `LocalShareProtocol.swift`: Updated `baseURL` to use `formatHostForURL`.
+  - `LocalShareDiscovery.swift`: Standardized host formatting across discovery receive handlers, unicast register replies, and manual IP registration.
+  - `LocalShareClient.swift`: Routed all outbound endpoints through `formatHostForURL`; enabled TOFU acceptance when peer certificate fingerprint is unpinned on first contact.
+  - `LocalShareServer.swift`: Allowed prefix matching on `LocalShareEndpoints.upload`; implemented robust query string parser fallback in `parseHTTPRequest`; propagated bound port in register responses.
+  - `LocalShareSession.swift`: Added cross-stack IPv4/IPv6 dual-stack tolerance to `validateToken` while preserving single-use token anti-replay guarantees.
+  - `LocalShareFileManager.swift`: Added `promoteSessionFiles` to move completed files into `activeReceiveDirectory` with quarantine attribute application.
+  - `LocalShareModule.swift`: Initialized receiver in `init()`; auto-expanded notch on `onIncomingSessionOffered`; promoted completed session files.
+  - `LocalShareExpandedView.swift`: Added `.onAppear { module.start(); module.rescan() }`; wired peer row file picker directly to `sendFiles(to: peer)`.
+  - `Resources/Info.plist` & `NotchApp.app/Contents/Info.plist`: Added `NSAppTransportSecurity` with `NSAllowsArbitraryLoads: true` and `NSAllowsLocalNetworking: true`.
+  - `LocalShareIdentity.swift` & `LocalShareSettings.swift`: Applied Bugs 1–5 fixes: update-first Keychain persistence (`SecItemUpdate` -> `SecItemAdd`), safe migration of plaintext fallbacks, PIN sanitization writeback, and alias network propagation.
+- **Verification Metrics**:
+  - `swift run NotchTests --localshare-only`: Tests 103 (20/20), 104 (20/20), 105 (Subtests 1-23) passing (exit code 0).
+  - Target builds: `LocalShare` (0 errors), `NotchApp` (0 errors).
+  - Zero interactive desktop prompts.
+
 
 
 
