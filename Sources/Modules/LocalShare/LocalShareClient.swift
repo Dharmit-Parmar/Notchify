@@ -13,6 +13,7 @@ public final class LocalShareClientSession: @unchecked Sendable {
     
     private let lock = NSLock()
     private var isCancelled = false
+    private var activeTasks: Set<URLSessionTask> = []
     private var activeTask: URLSessionTask?
     
     public init(
@@ -40,19 +41,49 @@ public final class LocalShareClientSession: @unchecked Sendable {
         return nil
     }
     
+    public func addActiveTask(_ task: URLSessionTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        if isCancelled {
+            task.cancel()
+        } else {
+            activeTasks.insert(task)
+            activeTask = task
+        }
+    }
+    
+    public func removeActiveTask(_ task: URLSessionTask) {
+        lock.lock()
+        defer { lock.unlock() }
+        activeTasks.remove(task)
+        if activeTask == task {
+            activeTask = activeTasks.first
+        }
+    }
+    
     public func setActiveTask(_ task: URLSessionTask?) {
         lock.lock()
         defer { lock.unlock() }
         self.activeTask = task
+        if let t = task {
+            if isCancelled {
+                t.cancel()
+            } else {
+                activeTasks.insert(t)
+            }
+        }
     }
     
     public func markCancelled() {
         lock.lock()
         isCancelled = true
-        let task = activeTask
+        let tasks = activeTasks
+        activeTasks.removeAll()
         activeTask = nil
         lock.unlock()
-        task?.cancel()
+        for task in tasks {
+            task.cancel()
+        }
     }
     
     public var cancelled: Bool {
@@ -229,7 +260,7 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 300.0 // 5 minutes per file
         
-        let delegate = LocalSharePeerPinningDelegate(expectedFingerprint: peer.fingerprint)
+        let delegate = LocalSharePeerPinningDelegate(expectedFingerprint: peer.fingerprint, onProgress: onProgress)
         let config = URLSessionConfiguration.ephemeral
         let urlSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { urlSession.finishTasksAndInvalidate() }
@@ -239,8 +270,11 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         do {
             (data, response) = try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
-                    let t = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
-                        session.setActiveTask(nil)
+                    var taskRef: URLSessionUploadTask?
+                    taskRef = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
+                        if let t = taskRef {
+                            session.removeActiveTask(t)
+                        }
                         if let error = error {
                             let nsError = error as NSError
                             NSLog("[LocalShareClient] uploadFile failed for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), nsError.localizedDescription)
@@ -251,13 +285,17 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
                             continuation.resume(throwing: LocalShareError.connectionFailed("No HTTP response"))
                         }
                     }
-                    uploadTask = t
-                    session.setActiveTask(t)
-                    t.resume()
+                    if let t = taskRef {
+                        uploadTask = t
+                        session.addActiveTask(t)
+                        t.resume()
+                    }
                 }
             } onCancel: {
                 uploadTask?.cancel()
-                session.setActiveTask(nil)
+                if let t = uploadTask {
+                    session.removeActiveTask(t)
+                }
             }
         } catch is CancellationError {
             throw LocalShareError.sessionCancelled
@@ -287,6 +325,88 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             let bodyMsg = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
             throw LocalShareError.serverError(LocalShareSecurity.scrubSecrets(from: bodyMsg))
         }
+    }
+    
+    // MARK: - Controlled Parallel File Uploads
+    
+    private final class UploadProgressAccumulator: @unchecked Sendable {
+        private let lock = NSLock()
+        private var transferredBytesMap: [String: Int64] = [:]
+        private let totalBytesMap: [String: Int64]
+        let aggregateTotal: Int64
+        
+        init(totalBytesMap: [String: Int64]) {
+            self.totalBytesMap = totalBytesMap
+            self.aggregateTotal = totalBytesMap.values.reduce(Int64(0), +)
+            for (k, _) in totalBytesMap {
+                transferredBytesMap[k] = 0
+            }
+        }
+        
+        func update(fileId: String, fraction: Double) -> Double {
+            lock.lock()
+            defer { lock.unlock() }
+            let fileSize = totalBytesMap[fileId] ?? 0
+            transferredBytesMap[fileId] = Int64(Double(fileSize) * fraction)
+            let currentOverall = transferredBytesMap.values.reduce(Int64(0), +)
+            return aggregateTotal > 0 ? min(1.0, max(0.0, Double(currentOverall) / Double(aggregateTotal))) : 1.0
+        }
+    }
+    
+    /// Streams all files in the session with controlled parallelism (default concurrency limit = 2)
+    /// and reports smooth, aggregated overall progress across all files.
+    public func uploadFiles(
+        session: LocalShareClientSession,
+        prepResp: LocalSharePrepareUploadResponse,
+        maxConcurrency: Int = 2,
+        onOverallProgress: (@Sendable (Double) -> Void)? = nil
+    ) async throws {
+        let filesList = Array(prepResp.files)
+        guard !filesList.isEmpty else { return }
+        
+        var totalBytesMap: [String: Int64] = [:]
+        for (fileId, _) in filesList {
+            if let fileURL = session.url(for: fileId),
+               let size = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                totalBytesMap[fileId] = Int64(size)
+            } else {
+                totalBytesMap[fileId] = 0
+            }
+        }
+        
+        let accumulator = UploadProgressAccumulator(totalBytesMap: totalBytesMap)
+        
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            var submitted = 0
+            let limit = max(1, min(maxConcurrency, 4))
+            
+            for (fileId, token) in filesList {
+                guard let fileURL = session.url(for: fileId) else {
+                    throw LocalShareError.serverError("Missing file URL mapping for fileId: \(fileId)")
+                }
+                
+                if submitted >= limit {
+                    try await group.next()
+                }
+                
+                group.addTask {
+                    try await self.uploadFile(
+                        session: session,
+                        fileURL: fileURL,
+                        fileId: fileId,
+                        token: token
+                    ) { fileFraction in
+                        let overallFrac = accumulator.update(fileId: fileId, fraction: fileFraction)
+                        onOverallProgress?(overallFrac)
+                    }
+                }
+                submitted += 1
+            }
+            
+            while try await group.next() != nil {}
+        }
+        
+        onOverallProgress?(1.0)
     }
     
     // MARK: - Cancellation Call
@@ -338,10 +458,24 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
 // MARK: - Peer Certificate Fingerprint Pinning URLSessionDelegate
 private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     private let expectedFingerprint: String
+    private let onProgress: (@Sendable (Double) -> Void)?
     
-    init(expectedFingerprint: String) {
+    init(expectedFingerprint: String, onProgress: (@Sendable (Double) -> Void)? = nil) {
         self.expectedFingerprint = expectedFingerprint
+        self.onProgress = onProgress
         super.init()
+    }
+    
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        let fraction = min(1.0, max(0.0, Double(totalBytesSent) / Double(totalBytesExpectedToSend)))
+        onProgress?(fraction)
     }
     
     func urlSession(

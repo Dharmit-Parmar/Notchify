@@ -349,24 +349,18 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
                 self.activeClientSession = clientSession
                 self.statusMessage = "Sending to \(peer.alias)..."
                 
-                // 2. Stream files sequentially within the session
+                // 2. Stream files with controlled parallelism and aggregate progress
                 let totalBytes = filesToSend.reduce(Int64(0)) { acc, url in
                     acc + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
                 }
                 
-                for (fileId, token) in prepResp.files {
-                    guard let fileURL = clientSession.url(for: fileId) else {
-                        throw LocalShareError.serverError("Missing file URL mapping for fileId: \(fileId)")
-                    }
-                    try await LocalShareClient.shared.uploadFile(
-                        session: clientSession,
-                        fileURL: fileURL,
-                        fileId: fileId,
-                        token: token
-                    ) { fraction in
-                        Task { @MainActor in
-                            self.transferProgress = fraction
-                        }
+                try await LocalShareClient.shared.uploadFiles(
+                    session: clientSession,
+                    prepResp: prepResp,
+                    maxConcurrency: 2
+                ) { overallFraction in
+                    Task { @MainActor in
+                        self.transferProgress = overallFraction
                     }
                 }
                 

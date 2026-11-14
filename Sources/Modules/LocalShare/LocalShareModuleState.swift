@@ -284,19 +284,13 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
                 acc + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
             }
             
-            for (fileId, token) in prepResp.files {
-                guard let fileURL = clientSession.url(for: fileId) else {
-                    throw LocalShareError.serverError("Missing file URL mapping for fileId: \(fileId)")
-                }
-                try await LocalShareClient.shared.uploadFile(
-                    session: clientSession,
-                    fileURL: fileURL,
-                    fileId: fileId,
-                    token: token
-                ) { fraction in
-                    Task { @MainActor in
-                        self.transferProgress = fraction
-                    }
+            try await LocalShareClient.shared.uploadFiles(
+                session: clientSession,
+                prepResp: prepResp,
+                maxConcurrency: 2
+            ) { overallFraction in
+                Task { @MainActor in
+                    self.transferProgress = overallFraction
                 }
             }
             
