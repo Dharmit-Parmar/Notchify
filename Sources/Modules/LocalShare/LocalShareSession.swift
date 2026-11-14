@@ -223,6 +223,10 @@ public final class LocalShareSession: @unchecked Sendable {
             fileProgressMap[fileId] = p
         }
         state = .failed(.serverError(error))
+        for (_, writer) in activeWriters {
+            writer.abort()
+        }
+        activeWriters.removeAll()
         lastActivity = Date()
     }
     
@@ -326,8 +330,41 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
     
     private let lock = NSLock()
     private var activeSession: LocalShareSession?
+    private var watchdogTimer: DispatchSourceTimer?
+    private let watchdogQueue = DispatchQueue(label: "com.notch.localshare.session-watchdog", qos: .utility)
     
-    public init() {}
+    public init() {
+        startWatchdog()
+    }
+    
+    private func startWatchdog() {
+        let timer = DispatchSource.makeTimerSource(queue: watchdogQueue)
+        timer.schedule(deadline: .now() + 5.0, repeating: 5.0)
+        timer.setEventHandler { [weak self] in
+            self?.checkTimeouts()
+        }
+        timer.resume()
+        self.watchdogTimer = timer
+    }
+    
+    private func checkTimeouts() {
+        lock.lock()
+        guard let current = activeSession, current.isTimedOut() else {
+            lock.unlock()
+            return
+        }
+        let dirToClean = current.sessionDirectory
+        current.abortActiveWriter()
+        current.transition(to: .failed(.sessionCancelled))
+        self.activeSession = nil
+        lock.unlock()
+        
+        if let dir = dirToClean {
+            DispatchQueue.global(qos: .utility).async {
+                try? FileManager.default.removeItem(at: dir)
+            }
+        }
+    }
     
     /// Attempts to register an offered incoming transfer session. Fails if another session is active.
     public func offerIncomingSession(
@@ -342,12 +379,15 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         
         // Clean up timed out sessions
         if let current = activeSession, current.isTimedOut() {
+            let dirToClean = current.sessionDirectory
             current.abortActiveWriter()
             current.transition(to: .failed(.sessionCancelled))
-            if let dir = current.sessionDirectory {
-                try? FileManager.default.removeItem(at: dir)
-            }
             activeSession = nil
+            if let dir = dirToClean {
+                DispatchQueue.global(qos: .utility).async {
+                    try? FileManager.default.removeItem(at: dir)
+                }
+            }
         }
         
         // Enforce strict single active session rule (HTTP 409)
@@ -388,26 +428,41 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
     /// Explicitly cancels the active session and cleans up disk artifacts.
     public func cancelSession(sessionId: String, reason: String = "User cancelled") {
         lock.lock()
-        defer { lock.unlock() }
-        guard let current = activeSession, current.sessionId == sessionId else { return }
+        guard let current = activeSession, current.sessionId == sessionId else {
+            lock.unlock()
+            return
+        }
+        let dirToClean = current.sessionDirectory
         current.abortActiveWriter()
         current.transition(to: .cancelled(reason: reason))
-        if let dir = current.sessionDirectory {
-            try? FileManager.default.removeItem(at: dir)
-        }
         self.activeSession = nil
+        lock.unlock()
+        
+        if let dir = dirToClean {
+            DispatchQueue.global(qos: .utility).async {
+                try? FileManager.default.removeItem(at: dir)
+            }
+        }
     }
     
     public func reset() {
         lock.lock()
-        defer { lock.unlock() }
-        if let current = activeSession {
-            current.abortActiveWriter()
-            current.transition(to: .cancelled(reason: "Server reset"))
-            if let dir = current.sessionDirectory {
+        let current = activeSession
+        let dirToClean = current?.sessionDirectory
+        current?.abortActiveWriter()
+        current?.transition(to: .cancelled(reason: "Server reset"))
+        activeSession = nil
+        lock.unlock()
+        
+        if let dir = dirToClean {
+            DispatchQueue.global(qos: .utility).async {
                 try? FileManager.default.removeItem(at: dir)
             }
         }
-        activeSession = nil
+    }
+    
+    deinit {
+        watchdogTimer?.cancel()
+        watchdogTimer = nil
     }
 }
