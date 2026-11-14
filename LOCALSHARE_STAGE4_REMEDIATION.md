@@ -182,10 +182,62 @@ All 10 defects identified in `LOCALSHARE_STAGE3_AUDIT.md` have been fixed in pri
 
 ---
 
-## 6. Final Verification Statement
+## 7. Reviewer Feedback Remediation & Hardening (Issues A, B, C)
 
-- All 10 findings from `LOCALSHARE_STAGE3_AUDIT.md` are remediated in source code.
-- All 10 atomic commits are created and recorded on `fix/localshare`.
-- The comprehensive test suite (`swift run NotchTests`) executes cleanly with exit code 0 (`105/105` test categories passing).
+Following peer review of the 13 Swift source files, three specific areas were identified for hardening before final approval:
+
+### Issue A: Concurrent Uploads Using Different Tokens (P1 / Concurrency & Cleanup)
+- **Defect Description**: `LocalShareSession` stored only a single `activeWriter: LocalShareFileStreamWriter?`. When a client initiates concurrent uploads for multiple files using valid per-file tokens, subsequent writers overwrote the single reference, causing incomplete cleanup upon cancellation or timeout.
+- **Source Verification**: CONFIRMED-BY-READING `Sources/Modules/LocalShare/LocalShareSession.swift:72` & `LocalShareServer.swift:495`.
+- **Remediation**:
+  - Replaced the single writer property with a thread-safe dictionary keyed by file ID: `private var activeWriters: [String: LocalShareFileStreamWriter] = [:]`.
+  - Implemented `registerActiveWriter(_:for:)`, `removeActiveWriter(for:)`, `abortActiveWriter(for:)`, and `abortAllActiveWriters()`.
+  - Integrated registration and cleanup into `LocalShareServer.handleUploadRoute()`, `continueReceivingUpload()`, and `finalizeStreamAndRespond()`.
+  - Guaranteed that session cancellation via `LocalShareSessionCoordinator` aborts and purges all concurrent in-flight partial files simultaneously.
+- **Regression Test**: `[TEST 105]` Subtest 11 in `Tests/VerificationTests.swift:6153-6196` verifying concurrent multi-file writer tracking and simultaneous disk purge.
+- **Commit**: `d0c25e4 LOCALSHARE-11: synchronized active writers collection for concurrent uploads`
+
+### Issue B: Request Body & Streaming Slowloris Protections (P2 / Denial of Service)
+- **Defect Description**: The 15-second pre-header timeout was cancelled upon complete header reception. If a client sent valid headers and then trickled body bytes slowly on control routes (`/register`, `/prepare-upload`), or paused mid-stream on `/upload`, connections could remain open indefinitely.
+- **Source Verification**: CONFIRMED-BY-READING `Sources/Modules/LocalShare/LocalShareServer.swift:264-266` & `continueReceivingUpload()`.
+- **Remediation**:
+  - Attached a bounded 15-second timeout watchdog for accumulating incomplete request bodies on JSON control endpoints (`LocalShareServer.receiveHTTPPayload`).
+  - Added a per-chunk 30-second socket inactivity watchdog to `continueReceivingUpload`: if no bytes arrive for 30s, the connection is closed, the in-flight writer aborted, and the token reservation released.
+  - Implemented an overall transfer deadline scaled to file size: `let maxDuration = max(30.0, min(totalSessionTimeoutSeconds, Double(expectedTotal) / 10_000.0))` enforcing a minimum throughput policy (10 KB/s), capped at 900s.
+- **Commit**: `cf973e8 LOCALSHARE-12: bounded body timeouts and streaming upload idle watchdogs`
+
+### Issue C: Initial Discovery Bootstrap vs. Certificate Pinning (P2 / TLS Security)
+- **Defect Description**: `LocalSharePermissiveTLSDelegate` accepted any certificate during discovery without verifying that the certificate presented during TLS handshake matched the claimed fingerprint in the registration DTO (`peerDto.fingerprint`).
+- **Source Verification**: CONFIRMED-BY-READING `Sources/Modules/LocalShare/LocalShareDiscovery.swift:240-289`.
+- **Remediation**:
+  - Replaced `LocalSharePermissiveTLSDelegate` with `LocalShareDiscoveryBootstrapDelegate`, which extracts the leaf certificate DER from `serverTrust` during the initial handshake and calculates its SHA-256 fingerprint.
+  - In `LocalShareDiscovery.registerManualIP()`, added strict cross-verification asserting that `peerDto.fingerprint` matches the leaf certificate presented in TLS. Mismatches are immediately rejected with `LocalShareError.peerCertificateMismatch`.
+  - Clearly documented the distinction between Trust-On-First-Use (TOFU) discovery bootstrap and the strict pinning enforced by `LocalSharePeerPinningDelegate` on subsequent transfer connections.
+- **Commit**: `4d4a262 LOCALSHARE-13: TLS certificate fingerprint cross-verification on discovery bootstrap`
+
+### Issue D: Notification Modernization (Clean Compiler Diagnostics)
+- **Defect Description**: `LocalShareModule.swift` used deprecated `NSUserNotificationCenter` (macOS 11.0 deprecation).
+- **Remediation**: Upgraded to Apple's modern `UserNotifications` framework (`UNUserNotificationCenter`, `UNMutableNotificationContent`, `UNNotificationRequest`, `UNNotificationAction`, `UNNotificationCategory`). Guarded with `Bundle.main.bundleIdentifier != nil` for safe execution in both packaged apps and headless CLI environments.
+- **Commit**: `0d6fa40 LOCALSHARE-MODERNIZE: replace deprecated NSUserNotificationCenter with UserNotifications framework`
+
+---
+
+## 8. Compiler & Build Diagnostic Status
+
+| Target / Configuration | Compiler Errors | Swift Compiler Warnings | Linker Notes | Result |
+| :--- | :---: | :---: | :---: | :---: |
+| **LocalShare Target (Debug)** | 0 | 0 | 0 | Clean build |
+| **LocalShare Target (Release)** | 0 | 0 | 0 | Clean build |
+| **NotchApp Target (Debug)** | 0 | 0 | 2 (CommandLineTools SDK search path) | Clean build |
+| **NotchApp Target (Release)** | 0 | 0 | 2 (CommandLineTools SDK search path) | Clean build |
+| **NotchTests Target (Debug)** | 0 | 0 | 2 (CommandLineTools SDK search path) | Clean build |
+
+---
+
+## 9. Final Verification Statement
+
+- All 10 original findings from `LOCALSHARE_STAGE3_AUDIT.md` plus all 3 reviewer findings (Issues A, B, C) are remediated in source code.
+- All 13 atomic commits are recorded on branch `fix/localshare`.
+- Zero compiler errors and zero Swift compiler warnings.
 - Zero remote pushes, zero branch switches, and zero application launches occurred.
 - Stage 4 is complete. Standing by for user review and approval before Stage 5.

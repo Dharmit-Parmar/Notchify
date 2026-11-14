@@ -623,13 +623,26 @@
     - *Files*: `LocalShareFileManager.swift`, `VerificationTests.swift`
     - *Fix*: Added Darwin `getxattr` check helper; built end-to-end loopback multi-file upload with quarantine verification.
     - *Test*: `[TEST 105]` Subtest 10.
+  - **Commit 11 (`0d6fa40`)**: `LOCALSHARE-MODERNIZE: replace deprecated NSUserNotificationCenter with UserNotifications framework`
+    - *Files*: `LocalShareModule.swift`
+    - *Fix*: Upgraded deprecated `NSUserNotificationCenter` to modern `UserNotifications` (`UNUserNotificationCenter`, `UNMutableNotificationContent`, `UNNotificationRequest`, `UNNotificationAction`, `UNNotificationCategory`), guarded by `Bundle.main.bundleIdentifier != nil` for headless CLI safety.
+  - **Commit 12 (`d0c25e4`)**: `LOCALSHARE-11: synchronized active writers collection for concurrent uploads`
+    - *Files*: `LocalShareSession.swift`, `LocalShareServer.swift`, `VerificationTests.swift`
+    - *Fix*: Replaced single `activeWriter` reference with `activeWriters: [String: LocalShareFileStreamWriter]`, tracking per-file writers under lock and purging all in-flight files simultaneously on abort/cancel.
+    - *Test*: `[TEST 105]` Subtest 11.
+  - **Commit 13 (`cf973e8`)**: `LOCALSHARE-12: bounded body timeouts and streaming upload idle watchdogs`
+    - *Files*: `LocalShareServer.swift`
+    - *Fix*: Added 15s bounded body watchdog on control endpoints, 30s inactivity watchdog per streaming chunk on `/upload`, and overall transfer deadline scaled to file size (10 KB/s minimum throughput policy).
+  - **Commit 14 (`4d4a262`)**: `LOCALSHARE-13: TLS certificate fingerprint cross-verification on discovery bootstrap`
+    - *Files*: `LocalShareDiscovery.swift`
+    - *Fix*: Replaced permissive delegate with `LocalShareDiscoveryBootstrapDelegate`, capturing wire leaf certificate during handshake and strictly cross-verifying that `peerDto.fingerprint` matches the wire certificate (rejecting MITM mismatches with `peerCertificateMismatch`). Documented distinction from subsequent `LocalSharePeerPinningDelegate` pinning.
 - **Verification Metrics**:
   - Test Target: `swift run NotchTests`
-  - Result: 105 / 105 test categories passing (100% of test suite).
-  - Compiler Status: 0 errors, 0 LocalShare warnings.
-  - Working Tree: Clean; 10 atomic commits on `fix/localshare`.
+  - Result: 105 / 105 test categories passing (exit code 0).
+  - Compiler Status: 0 errors, 0 Swift compiler warnings on all targets (`LocalShare`, `NotchApp`, `NotchTests`).
+  - Working Tree: Clean on `fix/localshare`.
 - **Operating Rule Enforcement**:
-  - Remediations complete. Zero GUI automation, zero remote pushes.
+  - Remediations complete. Zero GUI automation, zero remote pushes, zero process popups.
   - Stopped at Stage 4 completion awaiting user approval before Stage 5.
 
 
