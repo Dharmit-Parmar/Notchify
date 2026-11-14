@@ -562,6 +562,77 @@
   - No application launch, no GUI automation.
   - Stopped at Stage 3 completion awaiting user approval before remediation.
 
+---
+
+## Stage 4 — Local Share Remediation & Final Hardening
+
+- **Date**: 2026-11-14
+- **Branch**: `fix/localshare`
+- **Scope**: Prioritized remediation of all 10 verified defects from `LOCALSHARE_STAGE3_AUDIT.md`, with per-finding regression testing and atomic commits.
+- **Skills Re-Picked & Applied**:
+  - `ponytail` (mandatory)
+  - `security-audit`
+  - `axiom-security`
+  - `gsd-secure-phase`
+  - `axiom-macos`
+  - `axiom-data`
+  - `axiom-networking`
+  - `axiom-concurrency`
+  - `swift-concurrency-pro`
+  - `axiom-testing`
+  - `gravitas`
+  - `graphify`
+- **Remediated Findings & Commits**:
+  - **Commit 1 (`1840682`)**: `LOCALSHARE-1: fix multi-file transfer mapping`
+    - *Files*: `LocalShareClient.swift`, `LocalShareModule.swift`, `LocalShareModuleState.swift`, `VerificationTests.swift`
+    - *Fix*: Added `fileIdToURLMap` to `LocalShareClientSession`; eliminated `filesToSend.first` predicate flaw.
+    - *Test*: `[TEST 105]` Subtest 1.
+  - **Commit 2 (`6210ccd`)**: `LOCALSHARE-2: add permissive TLS delegate for direct register reply`
+    - *Files*: `LocalShareDiscovery.swift`, `VerificationTests.swift`
+    - *Fix*: Configured `LocalSharePermissiveTLSDelegate` on ephemeral `URLSession` in `sendDirectRegisterReply`.
+    - *Test*: `[TEST 105]` Subtest 2.
+  - **Commit 3 (`e819605`)**: `LOCALSHARE-3: validate file size on zero-byte declared transfers`
+    - *Files*: `LocalShareFileManager.swift`, `VerificationTests.swift`
+    - *Fix*: Replaced `if expectedSize > 0 && bytesWritten != expectedSize` with `if bytesWritten != expectedSize`.
+    - *Test*: `[TEST 105]` Subtest 3.
+  - **Commit 4 (`d8fe32b`)**: `LOCALSHARE-4: prevent concurrent upload token replay`
+    - *Files*: `LocalShareSession.swift`, `LocalShareServer.swift`, `VerificationTests.swift`
+    - *Fix*: Added `inProgressTokens` atomic reservation in `validateToken`; rollback on stream error.
+    - *Test*: `[TEST 105]` Subtest 4.
+  - **Commit 5 (`fa96e86`)**: `LOCALSHARE-5: propagate asynchronous NWListener state to module UI`
+    - *Files*: `LocalShareServer.swift`, `LocalShareModule.swift`, `LocalShareModuleState.swift`, `VerificationTests.swift`
+    - *Fix*: Added `onStateChanged` callback and `boundPort` property to `LocalShareServer`; synchronized `isReceiveActive`.
+    - *Test*: `[TEST 105]` Subtest 5.
+  - **Commit 6 (`1caca3c`)**: `LOCALSHARE-6: notify on incoming transfer when notch is expanded to other tabs`
+    - *Files*: `LocalShareModule.swift`, `VerificationTests.swift`
+    - *Fix*: Replaced strict `state == .collapsed` check with tab visibility check `!(state == .expanded && activeModuleId == "localshare")`.
+    - *Test*: `[TEST 105]` Subtest 6.
+  - **Commit 7 (`150b516`)**: `LOCALSHARE-7: resolve split-state hook collision risk`
+    - *Files*: `LocalShareDiscovery.swift`, `LocalShareServer.swift`, `LocalShareModule.swift`, `LocalShareModuleState.swift`, `VerificationTests.swift`
+    - *Fix*: Implemented multi-observer pattern (`addStateObserver`, `addPeersObserver`); designated `LocalShareModule` as authoritative.
+    - *Test*: `[TEST 105]` Subtest 7.
+  - **Commit 8 (`8d28ae6`)**: `LOCALSHARE-8: add slowloris pre-header timeout`
+    - *Files*: `LocalShareServer.swift`, `VerificationTests.swift`
+    - *Fix*: Attached 15-second `LocalShareTimeoutBox` pre-header watchdog to incoming TCP sockets.
+    - *Test*: `[TEST 105]` Subtest 8.
+  - **Commit 9 (`15db559`)**: `LOCALSHARE-9: case-insensitive favorite fingerprint deduplication`
+    - *Files*: `LocalShareSettings.swift`, `LocalShareServer.swift`, `LocalShareExpandedView.swift`, `VerificationTests.swift`
+    - *Fix*: Deduplicated fingerprint insertion and lookup using `caseInsensitiveCompare`.
+    - *Test*: `[TEST 105]` Subtest 9.
+  - **Commit 10 (`1b1ef93`)**: `LOCALSHARE-10: add comprehensive integration tests`
+    - *Files*: `LocalShareFileManager.swift`, `VerificationTests.swift`
+    - *Fix*: Added Darwin `getxattr` check helper; built end-to-end loopback multi-file upload with quarantine verification.
+    - *Test*: `[TEST 105]` Subtest 10.
+- **Verification Metrics**:
+  - Test Target: `swift run NotchTests`
+  - Result: 105 / 105 test categories passing (100% of test suite).
+  - Compiler Status: 0 errors, 0 LocalShare warnings.
+  - Working Tree: Clean; 10 atomic commits on `fix/localshare`.
+- **Operating Rule Enforcement**:
+  - Remediations complete. Zero GUI automation, zero remote pushes.
+  - Stopped at Stage 4 completion awaiting user approval before Stage 5.
+
+
 
 
 

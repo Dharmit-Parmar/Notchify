@@ -418,3 +418,24 @@ In accordance with Stage 3 constraints:
 - **All findings are categorized with evidence, impact, and minimal remediation proposals.**
 
 Awaiting user approval before proceeding to Stage 4 (Remediation & Final Hardening).
+
+---
+
+## 15. Stage 4 Remediation Resolution (Post-Audit Status)
+
+All 10 findings documented above have been verified, remediated, and validated via dedicated regression subtests in Stage 4:
+
+| Finding ID | Priority | Description | Remediation Commit | Regression Test | Status |
+| :---: | :---: | :--- | :---: | :---: | :---: |
+| **Finding 1** | **P0** | Multi-file outgoing transfer corruption | `1840682` | `[TEST 105]` Subtest 1 | **Remediated** |
+| **Finding 2** | **P0** | HTTPS direct register reply TLS failure | `6210ccd` | `[TEST 105]` Subtest 2 | **Remediated** |
+| **Finding 3** | **P1** | Zero-byte file size verification bypass | `e819605` | `[TEST 105]` Subtest 3 | **Remediated** |
+| **Finding 4** | **P1** | Concurrent upload token replay race | `d8fe32b` | `[TEST 105]` Subtest 4 | **Remediated** |
+| **Finding 5** | **P2** | Asynchronous NWListener state propagation | `fa96e86` | `[TEST 105]` Subtest 5 | **Remediated** |
+| **Finding 6** | **P2** | Incoming transfer notification suppression | `1caca3c` | `[TEST 105]` Subtest 6 | **Remediated** |
+| **Finding 7** | **P3** | Split-state architecture hook collision | `150b516` | `[TEST 105]` Subtest 7 | **Remediated** |
+| **Finding 8** | **P3** | Slowloris pre-header socket timeout | `8d28ae6` | `[TEST 105]` Subtest 8 | **Remediated** |
+| **Finding 9** | **P4** | Case-insensitive favorite deduplication | `15db559` | `[TEST 105]` Subtest 9 | **Remediated** |
+| **Finding 10** | **P4** | Missing integration test coverage | `1b1ef93` | `[TEST 105]` Subtest 10 | **Remediated** |
+
+See `LOCALSHARE_STAGE4_REMEDIATION.md` for complete technical remediation details and verification records.
