@@ -103,6 +103,7 @@ xcuserdata/
 # 5. LOGS, DUMPS & SCRATCH FILES
 # ------------------------------------------------------------------------------
 *.log
+*.zip
 crashlog/
 /tmp/
 scratch/
