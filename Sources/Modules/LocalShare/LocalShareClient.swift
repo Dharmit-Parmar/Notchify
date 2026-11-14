@@ -377,6 +377,12 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
         NSLog("[LocalShareClient] Auth challenge received for method: %@", challenge.protectionSpace.authenticationMethod)
+        // Reject client certificate challenges — LocalSend does not require mutual TLS
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodClientCertificate {
+            NSLog("[LocalShareClient] Rejecting client certificate challenge (not required by LocalSend protocol)")
+            completionHandler(.rejectProtectionSpace, nil)
+            return
+        }
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               let serverTrust = challenge.protectionSpace.serverTrust else {
             completionHandler(.performDefaultHandling, nil)
