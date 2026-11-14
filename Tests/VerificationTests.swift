@@ -6265,6 +6265,21 @@ func runAllVerificationTests() {
     try! s12Writer2.finalize(expectedSha256: nil, expectedSize: 1024)
     sessionA.removeActiveWriter(for: fB_id)
     assert(sessionA.activeWriterCount == 0, "Active writer count must be 0")
+    
+    // Verify markFileFailed transitions session to .failed state
+    let failTestSession = LocalShareSession(
+        sessionId: "sess-fail-transition",
+        peerInfo: s12PeerInfo,
+        peerIP: "127.0.0.1",
+        isIncoming: true,
+        sessionDirectory: dirA,
+        filesMetadata: [fA_id: fCMeta1]
+    )
+    failTestSession.transition(to: .receiving)
+    failTestSession.markFileFailed(fileId: fA_id, error: "Network Error")
+    assert(failTestSession.currentState == .failed(.serverError("Network Error")), "markFileFailed must transition session to .failed")
+    assert(!failTestSession.currentState.isActive, "Failed session must report isActive == false")
+    
     print("    ✓ Independent lifecycle of concurrent writers & conflict detection verified.")
     
     // --- Subtest 13 (Finding B Regression): Body Watchdogs & Premature Disconnect Handling ---

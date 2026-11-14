@@ -697,6 +697,24 @@
   - Target builds: `LocalShare` (0 errors), `NotchApp` (0 errors).
   - Zero interactive desktop prompts.
 
+---
+
+## Stage 4D: Failed Upload Session State Transition & Error Response Hardening
+
+- **Date**: 2026-11-14
+- **Trigger**: User reported that a failed upload in `continueReceivingUpload()` closed the connection without recording the failure in the session or sending an HTTP error response, and that `markFileFailed()` recorded the file error without transitioning the session to `.failed`.
+- **Root Causes**:
+  1. `continueReceivingUpload()`: When `error != nil`, the server released the token and cancelled the connection, but never called `session.markFileFailed(fileId:error:)` and never sent an HTTP 500 error response.
+  2. `LocalShareSession.markFileFailed()`: Updated `fileProgressMap` with the error string but left `state` unchanged (e.g., remaining in `.receiving`), leaving the receiver in an active waiting state while the sender had already failed.
+- **Remediations**:
+  - `LocalShareSession.swift`: In `markFileFailed(fileId:error:)`, set `state = .failed(.serverError(error))` to properly transition the session to `.failed` and unblock the receiver UI.
+  - `LocalShareServer.swift`: In `continueReceivingUpload()`, when an error occurs, invoked `session.markFileFailed(fileId:error:)` and sent HTTP 500 "Upload Stream Error" prior to connection cancellation.
+  - `LocalShareServer.swift`: Added `session.markFileFailed` calls for initial body write errors, streaming write errors, and payload exceeded errors.
+  - `VerificationTests.swift`: Added assertion in Subtest 12 confirming `markFileFailed` transitions session state to `.failed` and sets `isActive == false`.
+- **Verification Metrics**:
+  - `swift run NotchTests --localshare-only`: Tests 103, 104, 105 (Subtests 1-23) passing (exit code 0).
+  - Working Tree: Clean on `fix/localshare`.
+
 
 
 

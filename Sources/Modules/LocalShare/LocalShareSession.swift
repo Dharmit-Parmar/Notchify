@@ -222,6 +222,7 @@ public final class LocalShareSession: @unchecked Sendable {
             p.error = error
             fileProgressMap[fileId] = p
         }
+        state = .failed(.serverError(error))
         lastActivity = Date()
     }
     

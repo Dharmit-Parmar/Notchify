@@ -606,6 +606,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 session.releaseTokenReservation(token: token)
                 session.removeActiveWriter(for: fileId)
                 streamWriter.abort()
+                session.markFileFailed(fileId: fileId, error: "Write Error: \(error.localizedDescription)")
                 sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
                 return
             }
@@ -667,10 +668,12 @@ public final class LocalShareServer: @unchecked Sendable {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] content, _, isComplete, error in
             idleBox.cancel()
             guard let self = self else { return }
-            if error != nil {
+            if let error = error {
                 session.releaseTokenReservation(token: token)
                 session.removeActiveWriter(for: fileId)
                 writer.abort()
+                session.markFileFailed(fileId: fileId, error: error.localizedDescription)
+                self.sendRawResponse(connection: connection, statusCode: 500, reason: "Upload Stream Error", body: nil)
                 connection.cancel()
                 return
             }
@@ -685,6 +688,7 @@ public final class LocalShareServer: @unchecked Sendable {
                     session.releaseTokenReservation(token: token)
                     session.removeActiveWriter(for: fileId)
                     writer.abort()
+                    session.markFileFailed(fileId: fileId, error: "Write Error: \(error.localizedDescription)")
                     self.sendRawResponse(connection: connection, statusCode: 500, reason: "Write Error", body: nil)
                     return
                 }
@@ -693,6 +697,7 @@ public final class LocalShareServer: @unchecked Sendable {
                     session.releaseTokenReservation(token: token)
                     session.removeActiveWriter(for: fileId)
                     writer.abort()
+                    session.markFileFailed(fileId: fileId, error: "Payload Exceeded")
                     self.sendRawResponse(connection: connection, statusCode: 400, reason: "Payload Exceeded", body: nil)
                     return
                 }
