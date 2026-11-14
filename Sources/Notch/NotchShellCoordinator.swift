@@ -15,6 +15,7 @@ public final class NotchShellCoordinator: ObservableObject {
             guard state != oldValue else { return }
             if state == .expanded && !isLockedOpen {
                 startExpandedWatchdog()
+                ProcessMemoryGovernor.shared.notifyStateChanged(isExpanded: true)
             } else if state == .collapsed {
                 stopExpandedWatchdog()
                 MirrorModule.shared.stop()
@@ -22,6 +23,7 @@ public final class NotchShellCoordinator: ObservableObject {
                 ModuleRegistry.shared.unloadInactiveModules()
                 NowPlayingModule.shared.evictArtworkOnCollapse()
                 NoteStorageManager.shared.saveImmediately()
+                ProcessMemoryGovernor.shared.notifyStateChanged(isExpanded: false)
             }
         }
     }
@@ -117,6 +119,8 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.refreshLayouts()
             }
         }
+        
+        ProcessMemoryGovernor.shared.start()
     }
     
     public var transitionAnimation: Animation? {
@@ -132,6 +136,7 @@ public final class NotchShellCoordinator: ObservableObject {
     private var idleDimWorkItem: DispatchWorkItem?
     
     public func resetIdleTimer() {
+        ProcessMemoryGovernor.shared.notifyUserActivity()
         idleDeadline = CACurrentMediaTime() + 4.0
         if isIdleDimmed {
             withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.20)) {

@@ -138,7 +138,7 @@ public final class AirDropModule: NotchModule {
     @Published public var isBeaming: Bool = false
     
     private let sharingDelegate = AirDropSharingDelegate.shared
-    private var isSharingSheetActive = false
+    public private(set) var isSharingSheetActive = false
     
     public init() {}
     
@@ -148,6 +148,7 @@ public final class AirDropModule: NotchModule {
     public func markSharingSheetOpened() {
         guard !isSharingSheetActive else { return }
         isSharingSheetActive = true
+        ProcessMemoryGovernor.shared.notifySystemPanelOpened()
         NotchShellCoordinator.shared.registerPopoverOpened()
         NotchShellCoordinator.shared.panel?.level = .floating
     }
@@ -155,6 +156,7 @@ public final class AirDropModule: NotchModule {
     public func markSharingSheetClosed() {
         guard isSharingSheetActive else { return }
         isSharingSheetActive = false
+        ProcessMemoryGovernor.shared.notifySystemPanelClosed()
         NotchShellCoordinator.shared.panel?.level = .popUpMenu
         NotchShellCoordinator.shared.registerPopoverClosed()
     }
