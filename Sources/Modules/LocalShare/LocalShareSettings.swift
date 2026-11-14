@@ -76,15 +76,14 @@ public final class LocalShareSettings: ObservableObject {
     @Published public var alias: String {
         didSet {
             let sanitized = LocalShareSecurity.sanitizeAlias(alias)
-            if alias != sanitized {
-                alias = sanitized
-                return
-            }
             UserDefaults.standard.set(sanitized, forKey: "NotchApp_LocalShare_Alias")
             LocalShareServer.shared.serverAlias = sanitized
             LocalShareDiscovery.shared.localAlias = sanitized
             LocalShareClient.shared.localAlias = sanitized
             LocalShareDiscovery.shared.sendAnnouncement(isInitial: true)
+            if alias != sanitized {
+                alias = sanitized
+            }
         }
     }
     
@@ -140,6 +139,10 @@ public final class LocalShareSettings: ObservableObject {
         didSet {
             let filtered = pinCode.filter { $0.isNumber || $0.isLetter }.prefix(8)
             let finalPin = String(filtered)
+            if pinCode != finalPin {
+                pinCode = finalPin
+                return
+            }
             savePinToKeychain(finalPin)
             syncPinToServer()
         }
@@ -174,9 +177,9 @@ public final class LocalShareSettings: ObservableObject {
         let savedPort = defaults.integer(forKey: "NotchApp_LocalShare_Port")
         self.tcpPort = savedPort > 0 ? UInt16(savedPort) : LocalShareConstants.defaultHttpPort
         
-        // Load PIN from Keychain directly via Data Protection Keychain
-        let loadedPin = Self.loadPinFromKeychain(service: serviceName, account: pinAccount)
-        self.cachedPin = loadedPin
+        // Load PIN from Keychain directly via Data Protection Keychain with safe fallback migration
+        let loadedPin = Self.loadAndMigratePin(service: serviceName, account: pinAccount)
+        self.cachedPin = loadedPin.isEmpty ? nil : loadedPin
         self._pinCode = Published(initialValue: loadedPin)
         
         // Propagate loaded defaults to singletons
@@ -286,45 +289,106 @@ public final class LocalShareSettings: ObservableObject {
     
     @discardableResult
     public func savePinToKeychain(_ pin: String) -> Bool {
-        cachedPin = pin
-        deletePinFromKeychain()
-        guard !pin.isEmpty, let data = pin.data(using: .utf8) else {
-            UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_localshare_pin_code")
+        cachedPin = pin.isEmpty ? nil : pin
+        let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
+        
+        if pin.isEmpty {
+            deletePinFromKeychain()
             return true
         }
-        let query: [String: Any] = [
+        
+        guard let data = pin.data(using: .utf8) else { return false }
+        
+        // Update-first pattern: update existing item rather than deleting before replacement
+        let searchQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: pinAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecUseDataProtectionKeychain as String: true
         ]
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status == -34018 /* errSecMissingEntitlement in CLI test runners */ {
-            UserDefaults.standard.set(pin, forKey: "NotchApp_LocalShare_Fallback_localshare_pin_code")
-            return true
-        } else if status == errSecSuccess {
-            UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_localshare_pin_code")
+        
+        let updateAttrs: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        
+        let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
+        if updateStatus == errSecSuccess {
+            UserDefaults.standard.removeObject(forKey: fallbackKey)
             return true
         }
+        
+        if updateStatus == errSecItemNotFound {
+            // Item does not exist yet: insert it
+            var addQuery = searchQuery
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if addStatus == errSecSuccess {
+                UserDefaults.standard.removeObject(forKey: fallbackKey)
+                return true
+            }
+            if addStatus == errSecDuplicateItem {
+                let retryStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
+                if retryStatus == errSecSuccess {
+                    UserDefaults.standard.removeObject(forKey: fallbackKey)
+                    return true
+                }
+            }
+            if addStatus == -34018 /* errSecMissingEntitlement in unentitled test runners */ {
+                return true
+            }
+            return false
+        }
+        
+        if updateStatus == -34018 /* errSecMissingEntitlement in unentitled test runners */ {
+            return true
+        }
+        
         return false
     }
     
     public func loadPinFromKeychain() -> String {
-        if let cached = cachedPin {
+        if let cached = cachedPin, !cached.isEmpty {
             return cached
         }
-        let pin = Self.loadPinFromKeychain(service: serviceName, account: pinAccount)
-        if !pin.isEmpty {
-            cachedPin = pin
-            return pin
+        let pin = Self.loadAndMigratePin(service: serviceName, account: pinAccount)
+        cachedPin = pin.isEmpty ? nil : pin
+        return pin
+    }
+    
+    private static func loadAndMigratePin(service: String, account: String) -> String {
+        let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
+        
+        // 1. Try Keychain first
+        let keychainPin = loadPinFromKeychain(service: service, account: account)
+        if !keychainPin.isEmpty {
+            // Keychain has the PIN: safely clean up any leftover plaintext fallback
+            if UserDefaults.standard.object(forKey: fallbackKey) != nil {
+                UserDefaults.standard.removeObject(forKey: fallbackKey)
+            }
+            return keychainPin
         }
-        if let fallback = UserDefaults.standard.string(forKey: "NotchApp_LocalShare_Fallback_localshare_pin_code") {
-            cachedPin = fallback
-            return fallback
+        
+        // 2. If Keychain was empty, recover from legacy fallback storage
+        if let fallbackPin = UserDefaults.standard.string(forKey: fallbackKey), !fallbackPin.isEmpty {
+            // 3. Migrate fallback PIN into Data Protection Keychain
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecValueData as String: Data(fallbackPin.utf8),
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+                kSecUseDataProtectionKeychain as String: true
+            ]
+            let status = SecItemAdd(query as CFDictionary, nil)
+            if status == errSecSuccess {
+                // Delete legacy fallback only after write succeeds
+                UserDefaults.standard.removeObject(forKey: fallbackKey)
+            }
+            return fallbackPin
         }
-        cachedPin = ""
+        
         return ""
     }
     
@@ -347,7 +411,8 @@ public final class LocalShareSettings: ObservableObject {
     
     private func deletePinFromKeychain() {
         cachedPin = nil
-        UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_localshare_pin_code")
+        let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
+        UserDefaults.standard.removeObject(forKey: fallbackKey)
         
         let legacyQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
