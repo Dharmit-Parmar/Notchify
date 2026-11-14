@@ -25,7 +25,11 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     @Published public var isReceiveActive: Bool = false
     @Published public var isScanning: Bool = false
     @Published public var discoveredPeers: [LocalShareDiscoveredPeer] = []
-    @Published public var selectedFiles: [URL] = []
+    @Published public var selectedFiles: [URL] = [] {
+        didSet {
+            LocalShareServer.shared.sharedDownloadFiles = selectedFiles
+        }
+    }
     
     // Active Transfer State
     @Published public var isSending: Bool = false

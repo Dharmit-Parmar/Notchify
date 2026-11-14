@@ -41,6 +41,21 @@ public final class LocalShareServer: @unchecked Sendable {
     public var autoAcceptFavorites: Bool = false
     public var favoriteFingerprints: Set<String> = []
     
+    // Shared files available for reverse-download via browser / download API
+    private var _sharedFiles: [URL] = []
+    public var sharedDownloadFiles: [URL] {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _sharedFiles
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _sharedFiles = newValue
+        }
+    }
+    
     // Explicit Peer Trust State Map
     private let trustLock = NSLock()
     private var _trustedPeers: [String: LocalShareTrustedPeer] = [:]
@@ -532,6 +547,12 @@ public final class LocalShareServer: @unchecked Sendable {
             handleCancelRoute(connection: connection, request: request)
         case ("GET", LocalShareEndpoints.info):
             handleInfoRoute(connection: connection, request: request)
+        case ("POST", LocalShareEndpoints.prepareDownload):
+            handlePrepareDownloadRoute(connection: connection, request: request)
+        case ("GET", LocalShareEndpoints.download):
+            handleDownloadRoute(connection: connection, request: request)
+        case ("GET", "/"), ("GET", "/index.html"), ("GET", "/download"):
+            handleWebDownloadPage(connection: connection, request: request)
         default:
             sendRawResponse(connection: connection, statusCode: 404, reason: "Not Found", body: nil)
         }
@@ -1005,6 +1026,130 @@ public final class LocalShareServer: @unchecked Sendable {
             protocol: "https"
         )
         sendJSONResponse(connection: connection, statusCode: 200, value: info)
+    }
+    
+    private func handlePrepareDownloadRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
+        if let required = requiredPin, !required.isEmpty {
+            let providedPin = request.queryParams["pin"]
+            if providedPin != required {
+                sendRawResponse(connection: connection, statusCode: 401, reason: "Unauthorized", body: nil)
+                return
+            }
+        }
+        
+        let files = self.sharedDownloadFiles
+        var metadataMap: [String: LocalShareFileMetadata] = [:]
+        for (index, url) in files.enumerated() {
+            let fileId = "dl-\(index + 1)-\(UUID().uuidString.prefix(6))"
+            let size = Int64((try? url.resourceValues(forKeys: [URLResourceKey.fileSizeKey]).fileSize) ?? 0)
+            metadataMap[fileId] = LocalShareFileMetadata(
+                id: fileId,
+                fileName: url.lastPathComponent,
+                size: size,
+                fileType: "application/octet-stream"
+            )
+        }
+        let resp = LocalSharePrepareUploadResponse(sessionId: UUID().uuidString, files: [:])
+        sendJSONResponse(connection: connection, statusCode: 200, value: resp)
+    }
+    
+    private func handleDownloadRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
+        if let idxStr = request.queryParams["index"], let idx = Int(idxStr) {
+            let files = self.sharedDownloadFiles
+            if idx >= 0 && idx < files.count {
+                let fileURL = files[idx]
+                sendFileResponse(connection: connection, fileURL: fileURL, fileName: fileURL.lastPathComponent)
+                return
+            }
+        }
+        sendRawResponse(connection: connection, statusCode: 404, reason: "File Not Found", body: nil)
+    }
+    
+    private func handleWebDownloadPage(connection: NWConnection, request: LocalShareHTTPRequest) {
+        let alias = LocalShareSecurity.sanitizeAlias(serverAlias)
+        let files = self.sharedDownloadFiles
+        
+        var html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Local Share - \(alias)</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #121214; color: #f0f0f2; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+                h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+                p { color: #a0a0a5; margin-top: 0; }
+                .card { background: #1c1c1f; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid #2c2c30; }
+                .file-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2c2c30; }
+                .file-item:last-child { border-bottom: none; }
+                .file-name { font-weight: 500; word-break: break-all; }
+                .file-size { color: #888890; font-size: 13px; }
+                .btn { display: inline-block; background: #007aff; color: white; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500; }
+                .btn:hover { background: #0062cc; }
+                .empty { text-align: center; color: #666670; padding: 24px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>Local Share</h1>
+            <p>Shared files from <strong>\(alias)</strong></p>
+            <div class="card">
+        """
+        
+        if files.isEmpty {
+            html += "<div class=\"empty\">No files currently shared for download.</div>"
+        } else {
+            for (idx, file) in files.enumerated() {
+                let name = file.lastPathComponent
+                let size = (try? file.resourceValues(forKeys: [URLResourceKey.fileSizeKey]).fileSize) ?? 0
+                let sizeStr = ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+                let downloadUrl = "/api/localsend/v2/download?index=\(idx)"
+                html += """
+                <div class="file-item">
+                    <div>
+                        <div class="file-name">\(name)</div>
+                        <div class="file-size">\(sizeStr)</div>
+                    </div>
+                    <a class="btn" href="\(downloadUrl)">Download</a>
+                </div>
+                """
+            }
+        }
+        
+        html += """
+            </div>
+        </body>
+        </html>
+        """
+        
+        sendRawResponse(connection: connection, statusCode: 200, reason: "OK", body: Data(html.utf8), contentType: "text/html; charset=utf-8")
+    }
+    
+    private func sendFileResponse(
+        connection: NWConnection,
+        fileURL: URL,
+        fileName: String
+    ) {
+        guard let fileData = try? Data(contentsOf: fileURL) else {
+            sendRawResponse(connection: connection, statusCode: 404, reason: "Not Found", body: nil)
+            return
+        }
+        let sanitizedName = LocalShareSecurity.sanitizeFilename(fileName)
+        let bodyLength = fileData.count
+        var header = "HTTP/1.1 200 OK\r\n"
+        header += "Content-Type: application/octet-stream\r\n"
+        header += "Content-Length: \(bodyLength)\r\n"
+        header += "Content-Disposition: attachment; filename=\"\(sanitizedName)\"\r\n"
+        header += "Connection: close\r\n\r\n"
+        
+        var responseData = Data(header.utf8)
+        responseData.append(fileData)
+        
+        connection.send(content: responseData, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { [weak self, weak connection] _ in
+            self?.queue.asyncAfter(deadline: .now() + 3.0) { [weak connection] in
+                connection?.cancel()
+            }
+        })
     }
     
     // MARK: - HTTP Response Builders
