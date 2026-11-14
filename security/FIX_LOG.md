@@ -750,6 +750,9 @@
 7. **BUG-CONN-LOST**:
    - bug id: BUG-CONN-LOST | root cause: LocalShareServer.sendRawResponse called connection.cancel() inside .contentProcessed without .finalMessage / isComplete: true, causing kernel TCP RST/abrupt socket abort before the HTTP response could be read by peer URLSession (NSURLErrorNetworkConnectionLost -1005) | files:lines changed: LocalShareServer.swift:142-145, 250-295, 328-355, 705-750, 850-865; LocalShareClient.swift:154-162, 240-270, 380-390 | callers checked: LocalShareServer, LocalShareClient, LocalShareModule | what could still be affected: none; connections now gracefully transmit EOF with deferred cleanup; diagnostics trace state without secret leakage | confirmation: clean swift build --target NotchApp, graceful .finalMessage transmission.
 
+8. **BUG-TLS-DELEGATE**:
+   - bug id: BUG-TLS-DELEGATE | root cause: LocalSharePeerPinningDelegate conformed to URLSessionTaskDelegate but did not implement urlSession(_:task:didReceive:completionHandler:), and session.data(for: request) omitted the task delegate parameter, causing self-signed TLS server trust challenges to bypass the pinning delegate and default-handle with socket termination (NSURLErrorNetworkConnectionLost -1005) | files:lines changed: LocalShareClient.swift:152-156, 360-405; LocalShareServer.swift:418-422, 840-845 | callers checked: LocalShareClient.prepareUpload, LocalShareClient.uploadFile, LocalShareServer.routeRequest, LocalShareServer.sendRawResponse | what could still be affected: none; server trust challenges are now intercepted at both session and task delegate levels, and full challenge evaluation is logged | confirmation: clean swift build --target NotchApp; dual delegate protocol conformance verified.
+
 ### Commit Log & Undo Commands
 - `f649952` — `fix(localshare): BUG-1 disable unauthenticated JSON fingerprint auto-accept` -> `git revert f649952`
 - `5da2afe` — `fix(localshare): BUG-2 reject HTTP redirects in peer client delegate` -> `git revert 5da2afe`
@@ -758,6 +761,7 @@
 - `89b5eaa` — `fix(localshare): BUG-4 transition active session to cancelled upon coordinator reset` -> `git revert 89b5eaa`
 - `094df64` — `fix(localshare): BUG-6 validate incoming file metadata and safe aggregate size` -> `git revert 094df64`
 - `3423271` — `fix(localshare): stabilize connection lifecycle and add transfer diagnostics` -> `git revert 3423271`
+- `a627b6d` — `fix(localshare): bind task delegate and handle task-level TLS challenges` -> `git revert a627b6d`
 
 
 
