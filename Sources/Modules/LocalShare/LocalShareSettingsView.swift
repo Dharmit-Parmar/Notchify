@@ -5,9 +5,21 @@ import LocalShare
 // MARK: - LocalShare Module Persistent Settings Store
 public typealias LocalShareSettingsStore = LocalShareSettings
 
+// MARK: - LocalShare Settings UI State
+@MainActor
+final class LocalShareSettingsUIState: ObservableObject {
+    @Published var aliasDraft: String = ""
+    @Published var showSavedFeedback: Bool = false
+    
+    init(initialAlias: String = "") {
+        self.aliasDraft = initialAlias
+    }
+}
+
 // MARK: - LocalShare Settings View (Integrated in Settings -> Tab Modules -> Advanced)
 public struct LocalShareSettingsView: View {
     @ObservedObject private var settings = LocalShareSettingsStore.shared
+    @StateObject private var uiState = LocalShareSettingsUIState()
     
     public init() {}
     
@@ -47,21 +59,41 @@ public struct LocalShareSettingsView: View {
             
             // 1. Device Alias
             VStack(alignment: .leading, spacing: 4) {
-                Text("Device Alias")
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundColor(SettingsInk.primary)
+                HStack {
+                    Text("Device Alias")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(SettingsInk.primary)
+                    if uiState.showSavedFeedback {
+                        Text("Saved")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundColor(.green)
+                            .transition(.opacity)
+                    }
+                }
                 Text("Display name visible to other devices on the local network.")
                     .font(.system(size: 9.5))
                     .foregroundColor(SettingsInk.secondary)
                 
-                HStack {
-                    TextField("Device Alias", text: $settings.alias)
+                HStack(spacing: 8) {
+                    TextField("Device Alias", text: $uiState.aliasDraft)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 11))
                         .frame(maxWidth: 240)
+                        .onSubmit {
+                            commitAlias()
+                        }
+                    
+                    Button("Save") {
+                        commitAlias()
+                    }
+                    .buttonStyle(.spring)
+                    .font(.system(size: 10))
                     
                     Button("Reset to Mac Name") {
-                        settings.alias = Host.current().localizedName ?? "MacBook"
+                        let defaultName = Host.current().localizedName ?? "MacBook"
+                        uiState.aliasDraft = defaultName
+                        settings.alias = defaultName
+                        triggerSavedFeedback()
                     }
                     .buttonStyle(.spring)
                     .font(.system(size: 10))
@@ -236,6 +268,38 @@ public struct LocalShareSettingsView: View {
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(SettingsInk.tint(0.03)))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.8))
+        .onAppear {
+            uiState.aliasDraft = settings.alias
+        }
+        .onChange(of: settings.alias) { _, newAlias in
+            if uiState.aliasDraft != newAlias {
+                uiState.aliasDraft = newAlias
+            }
+        }
+    }
+    
+    private func commitAlias() {
+        let clean = uiState.aliasDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty {
+            let fallback = Host.current().localizedName ?? "MacBook"
+            uiState.aliasDraft = fallback
+            settings.alias = fallback
+        } else {
+            settings.alias = uiState.aliasDraft
+            uiState.aliasDraft = settings.alias
+        }
+        triggerSavedFeedback()
+    }
+    
+    private func triggerSavedFeedback() {
+        withAnimation {
+            uiState.showSavedFeedback = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                uiState.showSavedFeedback = false
+            }
+        }
     }
     
     private func chooseCustomFolder() {
