@@ -5988,6 +5988,32 @@ func runAllVerificationTests() {
     s8Server.stop()
     print("    ✓ Slowloris pre-header timeout watchdog & normal flow verified.")
     
+    // --- Subtest 9 (Finding 9 Regression): Case-Insensitive Favorite Fingerprint Deduplication ---
+    print("  -> Subtest 9: Case-Insensitive Favorite Fingerprint Deduplication & Lookup...")
+    let settings9 = LocalShareSettings.shared
+    settings9.favoriteFingerprints = []
+    
+    settings9.addFavorite(fingerprint: "aa:bb:cc:dd:ee:ff")
+    assert(settings9.favoriteFingerprints.count == 1, "Initial favorite must be added")
+    
+    // Attempt adding uppercase duplicate
+    settings9.addFavorite(fingerprint: "AA:BB:CC:DD:EE:FF")
+    assert(settings9.favoriteFingerprints.count == 1, "Uppercase variant must be deduplicated")
+    
+    // Attempt adding mixed-case duplicate
+    settings9.addFavorite(fingerprint: "Aa:Bb:Cc:Dd:Ee:Ff")
+    assert(settings9.favoriteFingerprints.count == 1, "Mixed-case variant must be deduplicated")
+    
+    // Verify case-insensitive lookup
+    assert(settings9.isFavorite(fingerprint: "AA:BB:CC:DD:EE:FF"), "isFavorite must match uppercase query")
+    assert(settings9.isFavorite(fingerprint: "aa:bb:cc:dd:ee:ff"), "isFavorite must match lowercase query")
+    assert(!settings9.isFavorite(fingerprint: "11:22:33:44:55:66"), "isFavorite must return false for non-favorite")
+    
+    // Case-insensitive removal
+    settings9.removeFavorite(fingerprint: "AA:BB:CC:DD:EE:FF")
+    assert(settings9.favoriteFingerprints.isEmpty, "removeFavorite with uppercase query must remove lowercase entry")
+    print("    ✓ Case-insensitive favorite fingerprint deduplication & lookup verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")

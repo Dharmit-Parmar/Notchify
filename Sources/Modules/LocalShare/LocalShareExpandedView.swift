@@ -392,7 +392,7 @@ public struct LocalShareExpandedView: View {
                             .font(.system(size: 10, weight: .bold, design: .rounded))
                             .foregroundColor(DesignSystem.primaryText)
                             .lineLimit(1)
-                        if LocalShareSettingsStore.shared.favoriteFingerprints.contains(peer.fingerprint) {
+                        if LocalShareSettingsStore.shared.isFavorite(fingerprint: peer.fingerprint) {
                             Image(systemName: "star.fill")
                                 .font(.system(size: 8))
                                 .foregroundColor(.yellow)

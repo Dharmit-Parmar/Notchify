@@ -432,7 +432,7 @@ public final class LocalShareServer: @unchecked Sendable {
         }
         
         // 7. Acceptance Gate (Favorites or Interactive Prompt)
-        let isFav = favoriteFingerprints.contains(prepareReq.info.fingerprint)
+        let isFav = favoriteFingerprints.contains(where: { $0.caseInsensitiveCompare(prepareReq.info.fingerprint) == .orderedSame })
         if autoAcceptFavorites && isFav {
             session.transition(to: .accepted)
             let tokens = session.generateFileTokens()

@@ -162,8 +162,12 @@ public final class LocalShareSettings: ObservableObject {
     }
     
     public func addFavorite(fingerprint: String) {
-        guard !fingerprint.isEmpty, !favoriteFingerprints.contains(fingerprint) else { return }
+        guard !fingerprint.isEmpty, !isFavorite(fingerprint: fingerprint) else { return }
         favoriteFingerprints.append(fingerprint)
+    }
+    
+    public func isFavorite(fingerprint: String) -> Bool {
+        return favoriteFingerprints.contains(where: { $0.caseInsensitiveCompare(fingerprint) == .orderedSame })
     }
     
     public func removeFavorite(fingerprint: String) {
