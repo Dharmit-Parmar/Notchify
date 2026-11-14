@@ -120,6 +120,8 @@ public struct NotchRootView: View {
                 guard !urls.isEmpty else { return }
                 if registry.activeModuleId == "airdrop" {
                     AirDropModule.shared.shareFiles(urls)
+                } else if registry.activeModuleId == "localshare" {
+                    LocalShareModule.shared.startSending(files: urls)
                 } else {
                     for u in urls {
                         ShelfModule.shared.addItem(u)
@@ -450,6 +452,11 @@ public struct NotchRootView: View {
                 return "1-Click Wireless Sharing"
             }
             return AirDropModule.shared.statusMessage
+        case "localshare":
+            if let lazy = module as? LazyNotchModule, !lazy.isLoaded {
+                return "Local Network File Transfer"
+            }
+            return LocalShareModule.shared.statusMessage
         case "shelf":
             if let lazy = module as? LazyNotchModule, !lazy.isLoaded {
                 return "File workspace & stash"
@@ -640,6 +647,9 @@ public struct UniversalTabDropDelegate: DropDelegate {
             if targetId == "airdrop" {
                 AirDropModule.shared.shareFiles(urls)
                 self.registry.selectFileDropTarget(for: "airdrop")
+            } else if targetId == "localshare" {
+                LocalShareModule.shared.startSending(files: urls)
+                self.registry.selectFileDropTarget(for: "localshare")
             } else {
                 for u in urls {
                     ShelfModule.shared.addItem(u)

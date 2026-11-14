@@ -50,6 +50,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             factory: { AirDropModule.shared }
         )
         registry.registerLazy(
+            id: "localshare",
+            title: "Local Share",
+            iconName: "shareplay",
+            themeColor: Color(red: 0.20, green: 0.78, blue: 0.85),
+            factory: { LocalShareModule.shared }
+        )
+        registry.registerLazy(
             id: "shelf",
             title: "Shelf",
             iconName: "tray.2.fill",

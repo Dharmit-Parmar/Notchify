@@ -20,6 +20,7 @@ public extension NotchModule {
     var themeColor: Color {
         switch id {
         case "airdrop": return Color(red: 0.20, green: 0.60, blue: 1.00) // AirDrop Blue
+        case "localshare": return Color(red: 0.20, green: 0.78, blue: 0.85) // Local Share Cyan
         case "shelf": return Color(red: 0.98, green: 0.68, blue: 0.22) // Amber Studio
         case "thock": return Color(red: 0.25, green: 0.85, blue: 0.58) // Mechanical Emerald
         case "telegram": return Color(red: 0.22, green: 0.76, blue: 0.98) // Messages Cyan
@@ -376,6 +377,7 @@ public class SettingsStore: ObservableObject {
     
     @Published public var enabledModules: [String: Bool] = [
         "airdrop": true,
+        "localshare": true,
         "shelf": true,
         "thock": true,
         "battery": true,

@@ -1481,6 +1481,11 @@ public struct SettingsView: View {
                             TelegramSettingsBotRow(module: tg)
                         }
                     }
+                    
+                    Divider().background(SettingsInk.tint(0.06))
+                    
+                    // Local Share Configuration Card
+                    LocalShareSettingsView()
                 }
             }
         }

@@ -10,14 +10,36 @@ let package = Package(
     ],
     dependencies: [],
     targets: [
+        .target(
+            name: "LocalShare",
+            dependencies: [],
+            path: "Sources/Modules/LocalShare",
+            exclude: [
+                "LocalShareModule.swift",
+                "LocalShareExpandedView.swift",
+                "LocalShareSettingsView.swift"
+            ]
+        ),
         .executableTarget(
             name: "NotchApp",
-            dependencies: [],
-            path: "Sources"
+            dependencies: ["LocalShare"],
+            path: "Sources",
+            exclude: [
+                "Modules/LocalShare/LocalShareProtocol.swift",
+                "Modules/LocalShare/LocalShareIdentity.swift",
+                "Modules/LocalShare/LocalShareSecurity.swift",
+                "Modules/LocalShare/LocalShareFileManager.swift",
+                "Modules/LocalShare/LocalShareSession.swift",
+                "Modules/LocalShare/LocalShareServer.swift",
+                "Modules/LocalShare/LocalShareDiscovery.swift",
+                "Modules/LocalShare/LocalShareClient.swift",
+                "Modules/LocalShare/LocalShareSettings.swift",
+                "Modules/LocalShare/LocalShareModuleState.swift"
+            ]
         ),
         .executableTarget(
             name: "NotchTests",
-            dependencies: [],
+            dependencies: ["LocalShare"],
             path: "Tests",
             exclude: [
                 "CompanionFrameStripGenerator.swift",

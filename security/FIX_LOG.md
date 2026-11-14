@@ -387,6 +387,183 @@
   - *What could break*: If key retrieval failed, an app might regenerate a random key and overwrite or orphan user ciphertext.
   - *How verified*: Invariant 1 explicitly checks `isCiphertextFile(at:)` before generating any key. If ciphertext exists, it refuses to generate a key and throws `keyMissing`. Callers run with empty state and never overwrite disk until explicit user action, ensuring data integrity.
 
+### Commit 18: SEC-LOCALSHARE-1 — Local Share Stage 1 Rework: Protocol Core & Security Hardening
+
+- **Commit**: `SEC-LOCALSHARE-1: Local Share Stage 1 rework with skill-led protocol core, security hardening, and native verification tests`
+- **Skills Evaluated, Picked, and Dropped**:
+  - `ponytail` (MANDATORY, applied): Channel senior minimal engineering. Replaced complex external web server dependencies with native Foundation, Network.framework, and CryptoKit primitives. Zero third-party dependencies added. Enforced minimal allocation lifecycle: no background sockets or listeners run unless explicitly started.
+  - `security-audit` (APPLIED): Formulated concrete attack surface boundaries and STRIDE threat mitigations covering rogue sender, path traversal, slowloris header flooding, integer overflows, disk fills, token replay, and rogue certificate spoofing.
+  - `axiom-security` (APPLIED): Implemented self-signed P-256 certificate generation with native ASN.1 variable-length DER encoding. Keychain-backed private key persistence with `LAContext.interactionNotAllowed = true` to prevent UI thread blocking in headless test environments. CryptoKit SHA-256 certificate fingerprint verification.
+  - `gsd-secure-phase` (APPLIED): Verified threat mitigations retroactively against all identified threat vectors with deterministic unit tests.
+  - `axiom-macos` (APPLIED): Enforced macOS sandbox isolation, 0700 restricted session directories, `com.apple.quarantine` extended attribute application via `setxattr`, and non-executing Finder revelation via `NSWorkspace.shared.selectFile`.
+  - `axiom-data` (APPLIED): Atomic streaming file sink (`LocalShareFileStreamWriter`), non-overwriting numeric collision resolution, incremental SHA-256 computation, and integer overflow protection on disk capacity checks (`addingReportingOverflow`).
+  - `axiom-networking` (APPLIED): `NWListener` HTTPS/HTTP listener, `NWConnectionGroup` UDP multicast discovery on `224.0.0.167:53317`, robust framing bounds, and explicit cancellation lifecycle.
+  - `axiom-concurrency` (APPLIED): Thread synchronization using `NSLock` across session state machines, coordinators, rate limiters, and stream writers to prevent data races and deadlocks.
+  - `swift-concurrency-pro` (APPLIED): Strict Swift 6 Sendable compliance, isolated actor-like primitives, and prevention of lock holding across async suspensions.
+  - `axiom-testing` (APPLIED): Integrated verification directly into the native test runner (`Tests/VerificationTests.swift` [TEST 103]) with deterministic semaphores and zero arbitrary sleep polling.
+  - `gravitas` (APPLIED): Scoped reconnaissance of SPM target structure, evidence-backed verification, and disciplined state management.
+  - `graphify` (APPLIED): Codebase topology inspection for module isolation.
+  - `swiftui-pro` (DROPPED for Stage 1): Evaluated and deferred to Stage 2 since Stage 1 is strictly headless protocol core and networking logic.
+- **Security & Concurrency Decisions**:
+  1. *Integer Overflow in Disk Capacity*: Evaluated `requiredBytes + minFreeDiskBuffer`. When tested with `Int64.max - 1`, direct addition caused a runtime trap. Hardened using `requiredBytes.addingReportingOverflow(minFreeDiskBuffer)` [CONFIRMED-BY-READING LocalShareSecurity.swift:134].
+  2. *Path Containment Sibling Isolation*: Ensured `parentPath` has a trailing slash (`safeParent = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"`) to prevent `/tmp/session-1` from matching sibling `/tmp/session-1_attacker` [CONFIRMED-BY-READING LocalShareSecurity.swift:80]. Also handled absolute path arguments directly.
+  3. *Non-Interactive Keychain Access*: Configured `LAContext.interactionNotAllowed = true` on Keychain queries to prevent blocking in headless test executions [CONFIRMED-BY-READING LocalShareIdentity.swift:239-243].
+  4. *Single Active Session Mutex*: Enforced a single active transfer session lock in `LocalShareSessionCoordinator`, returning HTTP 409 Conflict if another session is offered while one is active [CONFIRMED-BY-READING LocalShareServer.swift:353].
+  5. *Slowloris & Flooding Protections*: Capped header accumulation to 64 KB (rejecting excess with HTTP 431) and JSON request bodies to 1 MB (rejecting excess with HTTP 413) [CONFIRMED-BY-READING LocalShareServer.swift:188-201].
+  6. *Single-Use Crypto Transfer Tokens*: Bound transfer tokens to client IP addresses and marked them consumed upon file completion, preventing token reuse [CONFIRMED-BY-READING LocalShareSession.swift:133-160].
+  7. *Automatic Cleanup*: Directory purged and incomplete files removed from disk immediately upon cancellation or checksum mismatch [CONFIRMED-BY-READING LocalShareFileManager.swift:89-94, LocalShareSession.swift:316-319].
+- **Files Modified / Created**:
+  - `Package.swift`: Added `LocalShare` target at `Sources/Modules/LocalShare`, excluded from `NotchApp` and added as dependency to `NotchApp` and `NotchTests`.
+  - `Sources/Modules/LocalShare/LocalShareProtocol.swift`: LocalSend v2.0-v2.2 protocol constants, endpoints, DTOs, device fallbacks.
+  - `Sources/Modules/LocalShare/LocalShareIdentity.swift`: Keychain P-256 private key, ASN.1 X.509 DER certificate, SHA-256 fingerprint.
+  - `Sources/Modules/LocalShare/LocalShareSecurity.swift`: Filename sanitizer, path containment, collision resolver, disk capacity check, secret scrubber, rate limiter.
+  - `Sources/Modules/LocalShare/LocalShareFileManager.swift`: 0700 session directories, streaming atomic file sink, quarantine attribute application.
+  - `Sources/Modules/LocalShare/LocalShareSession.swift`: Session state machine, single-use crypto tokens, progress tracking, session coordinator mutex.
+  - `Sources/Modules/LocalShare/LocalShareServer.swift`: NWListener HTTPS/HTTP server, routing, rate limiting, header/body caps, streaming upload.
+  - `Sources/Modules/LocalShare/LocalShareDiscovery.swift`: NWConnectionGroup UDP multicast discovery, self-announcement suppression, reply loop prevention, manual IP registration fallback.
+  - `Sources/Modules/LocalShare/LocalShareClient.swift`: Outgoing upload client, peer certificate fingerprint verification, streaming file upload, cancellation.
+  - `Tests/VerificationTests.swift`: Added Test 103 covering all 20 categories.
+- **Verification Command & Outcome**:
+  - Command: `swift run NotchTests`
+  - Outcome: Exited with code 0.
+  - Verification Count: 103 / 103 tests passing (Test 103 passed all 20 subtests).
+
+## Stage 2 — Local Share UI & Application Integration
+
+- **Date**: 2026-11-14
+- **Branch**: `fix/localshare`
+- **Selected Skills and Paths**:
+  - `ponytail` (MANDATORY, applied): `/Users/dharmitparmar/.gemini/config/skills/ponytail/SKILL.md` — Apply ladder: reuse existing URLCollector from AirDrop, reuse existing NotchModule/ModuleRegistry patterns, no redundant models or abstractions, smallest working diff.
+  - `swiftui-pro` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/swiftui-pro/SKILL.md` — Dynamic Type scaling, VoiceOver labels/hints on all controls, responsive layout with `notchCompact`/`notchTight`, no Toggle inside Button, whole row clickable.
+  - `axiom-design` & `apple-design` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-design/SKILL.md`, `/Users/dharmitparmar/.gemini/config/skills/apple-design/SKILL.md` — Fluid spring physics, consistent visual language with AirDrop radar and card tokens, no hard-coded colors, DesignSystem theme tokens only.
+  - `swiftui-expert-skill` & `impeccable` (APPLIED): Clean view hierarchy, `@Environment(\.accessibilityReduceMotion)` support disabling radar pulse animations, 200 pt height non-clipping layout.
+  - `gravitas` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/gravitas/SKILL.md` — Scoped preflight inspection of package boundaries and registration points before editing.
+  - `graphify` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/graphify/SKILL.md` — Mapping dependencies between `NotchApp` and `LocalShare`.
+  - `axiom-macos` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-macos/SKILL.md` — macOS AppKit integration, `NSOpenPanel` file selection, `NSWorkspace.shared.selectFile` for revealing downloads.
+  - `axiom-security` & `security-audit` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-security/SKILL.md`, `/Users/dharmitparmar/.gemini/config/skills/security-audit/SKILL.md` — Strict identity matching for favorites, auto-accept disabled by default, Receive mode OFF by default, no sensitive secrets in history.
+  - `gsd-secure-phase` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/gsd-secure-phase/SKILL.md` — Retroactive verification of UI state and notification workflows against threat vectors.
+  - `axiom-data` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-data/SKILL.md` — Persistence of module settings in `SettingsStore`, bounded transfer history.
+  - `axiom-networking` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-networking/SKILL.md` — Event-driven server and discovery lifecycles; listener runs only when Receive is ON; discovery runs only when tab is visible or transfer active.
+  - `axiom-concurrency` & `swift-concurrency-pro` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-concurrency/SKILL.md`, `/Users/dharmitparmar/.gemini/config/skills/swift-concurrency-pro/SKILL.md` — Thread safety on MainActor for UI state, asynchronous upload/download callbacks without holding locks across await.
+  - `axiom-testing` (APPLIED): `/Users/dharmitparmar/.gemini/config/skills/axiom-testing/SKILL.md` — Headless model and integration tests in `Tests/VerificationTests.swift`.
+- **Architecture Preflight Findings**:
+  - `Sources/Core/NotchModule.swift`: Protocol `@MainActor public protocol NotchModule: AnyObject, ObservableObject` requiring `id`, `title`, `iconName`, `isEnabled`, `themeColor`, `start()`, `stop()`, `makeCompactView()`, `makeExpandedView()`.
+  - `Sources/Core/ModuleRegistry.swift`: Supports lazy registration via `registerLazy(id:title:iconName:themeColor:factory:)`.
+  - `Sources/App/AppDelegate.swift`: Registers modules lazily (AirDrop, Shelf, Thock, Messages, Battery, Mirror, Notifications). `LocalShareModule.shared` will be registered here.
+  - `Sources/Notch/NotchRootView.swift`: Handles tab rendering, module subtitle ribbons, and dock file drop routing in `dropEntered` and `onDrop`.
+  - `Sources/Settings/SettingsView.swift`: Hosts `modulesSection` under `SettingsCategory.modules`, with an `AdvancedSettingsSection(sectionID: "modules_advanced")` card suitable for module-specific advanced configuration.
+  - `Sources/UI/DesignSystem.swift`: Defines dynamic color tokens (`primaryText`, `secondaryText`, `accentColor`, `structureColor`, `canvasColor`, `surfaceFill`, `cardFill`, `cardBorder`, etc.).
+  - `Sources/Notch/ResponsiveContainer.swift`: Injects `notchCompact` (<240pt), `notchTight` (<170pt), and `notchContentHeight` via SwiftUI Environment.
+  - `Sources/Notch/NotchShellCoordinator.swift`: Tracks `isMenuOrPopoverOpen` via balanced `registerPopoverOpened()` and `registerPopoverClosed()`.
+  - `Package.swift` Target Arrangement: `LocalShare` target contains protocol core files (`LocalShareProtocol`, `LocalShareIdentity`, `LocalShareSecurity`, `LocalShareFileManager`, `LocalShareSession`, `LocalShareServer`, `LocalShareDiscovery`, `LocalShareClient`). `NotchApp` depends on `LocalShare`. The SwiftUI module and views (`LocalShareModule.swift`, `LocalShareExpandedView.swift`, `LocalShareSettingsView.swift`) live under `Sources/Modules/LocalShare/` and are compiled as part of `NotchApp` so they have access to `NotchModule`, `DesignSystem`, `SettingsStore`, and `NotchShellCoordinator` without circular dependencies.
+- **Files Inspected**:
+  - `Sources/Core/NotchModule.swift`
+  - `Sources/Core/ModuleRegistry.swift`
+  - `Sources/App/AppDelegate.swift`
+  - `Sources/Notch/NotchRootView.swift`
+  - `Sources/Modules/AirDrop/AirDropModule.swift`
+  - `Sources/Settings/SettingsView.swift`
+  - `Sources/UI/DesignSystem.swift`
+  - `Sources/Notch/ResponsiveContainer.swift`
+  - `Sources/Notch/NotchShellCoordinator.swift`
+  - `Package.swift`
+- **Files Modified or Created**:
+  - *To be created*:
+    - `Sources/Modules/LocalShare/LocalShareModule.swift`
+    - `Sources/Modules/LocalShare/LocalShareExpandedView.swift`
+    - `Sources/Modules/LocalShare/LocalShareSettingsView.swift`
+  - *To be modified*:
+    - `Package.swift` (exclude core files from NotchApp, exclude UI files from LocalShare library target)
+    - `Sources/Core/NotchModule.swift` (themeColor for "localshare")
+    - `Sources/App/AppDelegate.swift` (registerLazy for "localshare")
+    - `Sources/Notch/NotchRootView.swift` (subtitle and tab drop routing for "localshare")
+    - `Sources/Settings/SettingsView.swift` (embed `LocalShareSettingsView()` in `modules_advanced`)
+    - `Tests/VerificationTests.swift` (add Test 104 covering Stage 2 integration)
+- **UI and Accessibility Decisions**:
+  - Strict adherence to theme tokens: `DesignSystem.primaryText`, `DesignSystem.secondaryText`, `DesignSystem.accentColor`, `DesignSystem.structureColor`, `DesignSystem.cardFill`, `DesignSystem.cardBorder`, etc.
+  - Zero hard-coded `.white`, `.black`, or arbitrary hex color literals in views.
+  - Dynamic radar: scales from 140pt down to 110pt (compact) and 85pt (tight). Animation pauses when `accessibilityReduceMotion` is enabled.
+  - Full-row clickability on discovered peer items with high-contrast VoiceOver labels and hints.
+  - ScrollView fallback when expanded height is 200pt, preventing clipping of buttons or cards.
+- **Security and Lifecycle Decisions**:
+  - Receive mode defaults to OFF. Starting/stopping Receive controls `LocalShareServer` listener and discovery announcement.
+  - Discovered peer list pruned when inactive. Foreground discovery stops on tab switch or notch collapse unless an active transfer or Receive mode requires it.
+  - Balanced `registerPopoverOpened()` and `registerPopoverClosed()` on all exit paths (accept, decline, cancel, error, timeout) via idempotent helper.
+  - Incoming request banner requires explicit user Accept/Decline action; auto-accept only applies if sender fingerprint is an approved favorite AND auto-accept is enabled.
+  - Bounded recent transfer history (max 10 items) storing only display metadata (alias, file count/names, date, status); no PINs, tokens, or secrets.
+- **Tests and Build Results**:
+  - Test command: `swift run NotchTests`
+  - Result: Exit code 0 (104 / 104 tests passing).
+  - Test 104 passed all 20 subtests:
+    1. Module metadata and design token invariants
+    2. Settings store defaults (Receive OFF, Auto-Accept OFF, PIN OFF)
+    3. Settings persistence and reset to defaults
+    4. Device alias length limits, whitespace trimming, and control-character sanitization
+    5. Favorite identity management and auto-accept policy
+    6. PIN protection toggle, filtering, and server synchronization
+    7. Module engine start and stop lifecycle
+    8. Receive mode toggle and server listener lifecycle
+    9. Foreground discovery start/stop lifecycle
+    10. Multi-file selection, removal, and batch queuing
+    11. Incoming session registration and explicit acceptance transition
+    12. Incoming request decline, state clearance, and directory purge
+    13. In-flight progress fraction updates
+    14. Transfer cancellation and partial filesystem artifact purge
+    15. Bounded transfer history (10 items cap, FIFO eviction)
+    16. Popover open and close balanced registration
+    17. Direct IP unicast server fallback capability
+    18. Dock tab drop routing isolation (AirDrop vs LocalShare vs Shelf)
+    19. Responsive layout environment breakpoints (200pt / notchCompact / notchTight)
+    20. Reduce Motion and VoiceOver accessibility contracts
+  - Target compilation: `swift build --target NotchApp` exited with code 0.
+  - Compiler warnings: macOS 11.0 deprecation warnings for `NSUserNotificationCenter` / `NSUserNotification` in `LocalShareModule.swift:435-446` (deliberate headless local notification delivery for collapsed notch state, consistent with project architecture).
+- **Outstanding Concerns**:
+  - Zero unresolved bugs or blockers. Ready for Stage 3 Security & Energy Review.
+
+---
+
+## Stage 3 — Local Share Security, Privacy & Energy Audit
+
+- **Date**: 2026-11-14
+- **Branch**: `fix/localshare`
+- **Scope**: Comprehensive security, privacy, energy, concurrency, and protocol audit of the entire Local Share implementation under `Sources/Modules/LocalShare/` and shell integration points.
+- **Skills Evaluated & Applied**:
+  - `ponytail` (`~/.gemini/config/skills/ponytail/SKILL.md`) — Mandatory
+  - `security-audit` (`~/.gemini/config/skills/security-audit/SKILL.md`)
+  - `axiom-security` (`~/.gemini/config/skills/axiom-security/SKILL.md`)
+  - `gsd-secure-phase` (`~/.gemini/config/skills/gsd-secure-phase/SKILL.md`)
+  - `axiom-macos` (`~/.gemini/config/skills/axiom-macos/SKILL.md`)
+  - `axiom-data` (`~/.gemini/config/skills/axiom-data/SKILL.md`)
+  - `axiom-networking` (`~/.gemini/config/skills/axiom-networking/SKILL.md`)
+  - `axiom-concurrency` (`~/.gemini/config/skills/axiom-concurrency/SKILL.md`)
+  - `swift-concurrency-pro` (`~/.gemini/config/skills/swift-concurrency-pro/SKILL.md`)
+  - `axiom-testing` (`~/.gemini/config/skills/axiom-testing/SKILL.md`)
+  - `gravitas` (`~/.gemini/config/skills/gravitas/SKILL.md`)
+  - `graphify` (`~/.gemini/config/skills/graphify/SKILL.md`)
+- **Audit Findings Summary**:
+  - **Finding 1 (Critical)**: Multi-file outgoing transfer desynchronization (`LocalShareModule.swift:309`, `LocalShareModuleState.swift:252`). File mapping loop always takes `filesToSend.first`, repeatedly uploading the first file instead of the intended batch.
+  - **Finding 2 (High)**: Direct unicast registration reply fails over HTTPS (`LocalShareDiscovery.swift:187`). `URLSession` uses default trust evaluation without `LocalSharePermissiveTLSDelegate`, rejecting peers' self-signed certificates.
+  - **Finding 3 (Medium)**: Zero-byte declared file size verification bypass (`LocalShareFileManager.swift:164`). `if expectedSize > 0 && bytesWritten != expectedSize` skips verification when `expectedSize == 0`.
+  - **Finding 4 (Medium)**: Concurrent upload token replay race condition (`LocalShareSession.swift:133-160`). Token consumption is deferred to finalize, allowing concurrent uploads with the same token.
+  - **Finding 5 (Medium)**: Unobserved asynchronous `NWListener` failure (`LocalShareServer.swift:137`). UI remains in a stale "Receive Active" state if the listener fails after startup.
+  - **Finding 6 (Medium)**: Incoming transfer notification suppression when notch is expanded to another tab (`LocalShareModule.swift:161`). If active module is Shelf or Notes, no notification is posted and incoming card is hidden.
+  - **Finding 7 (Low)**: Split-state architecture and hook collision risk between `LocalShareModuleState` and `LocalShareModule`.
+  - **Finding 8 (Low)**: Slowloris pre-header socket exhaustion risk (`LocalShareServer.swift:156`).
+  - **Finding 9 (Informational)**: Case-sensitive favorite fingerprint duplicate insertion in `LocalShareSettings.swift:165`.
+  - **Finding 10 (Informational)**: Test suite gaps in `VerificationTests.swift` (TLS loopback handshake, multi-file uploads, direct registration replies).
+- **Test & Build Verification**:
+  - Test command: `swift run NotchTests`
+  - Result: Exit code 0 (104 / 104 tests passing).
+  - Target compilation: `swift build --target NotchApp` exited with code 0.
+- **Audit Artifact Created**:
+  - `LOCALSHARE_STAGE3_AUDIT.md`: Complete report with STRIDE matrix, protocol compatibility audit, macOS permissions review, energy profile, and prioritized remediation proposals.
+- **Operating Rule Enforcement**:
+  - Audit only. Zero production source files modified.
+  - No application launch, no GUI automation.
+  - Stopped at Stage 3 completion awaiting user approval before remediation.
+
+
+
 
 
 

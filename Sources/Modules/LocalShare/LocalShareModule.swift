@@ -1,0 +1,495 @@
+import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
+import Combine
+import LocalShare
+
+// MARK: - LocalShare Main Application Module
+@MainActor
+public final class LocalShareModule: NSObject, NotchModule, NSUserNotificationCenterDelegate {
+    public static let shared = LocalShareModule()
+    
+    // NotchModule Conformance
+    public let id = "localshare"
+    public let title = "Local Share"
+    public let iconName = "shareplay"
+    @Published public var isEnabled: Bool = true
+    public var themeColor: Color {
+        Color(red: 0.20, green: 0.78, blue: 0.85)
+    }
+    
+    // Status and UI Observables
+    @Published public var statusMessage: String = "Ready to share with nearby devices"
+    @Published public var isDropTargeted: Bool = false
+    @Published public var isReceiveActive: Bool = false
+    @Published public var discoveredPeers: [LocalShareDiscoveredPeer] = []
+    @Published public var selectedFiles: [URL] = []
+    
+    // Active Transfer State
+    @Published public var isSending: Bool = false
+    @Published public var isReceiving: Bool = false
+    @Published public var transferProgress: Double = 0.0
+    @Published public var activePeerAlias: String? = nil
+    @Published public var incomingSession: LocalShareSession? = nil
+    @Published public var recentTransfers: [LocalShareHistoryItem] = []
+    
+    // Popover & Sheet Coordination
+    private var isTransferSheetActive = false
+    private var activeClientSession: LocalShareClientSession?
+    private var pendingAcceptanceCompletion: ((Bool) -> Void)?
+    private let historyStorageKey = "NotchApp_LocalShare_RecentTransfers"
+    
+    public override init() {
+        super.init()
+        loadRecentHistory()
+        configureServerHooks()
+        
+        // Connect discovery update callback
+        LocalShareDiscovery.shared.onPeersUpdated = { [weak self] peers in
+            Task { @MainActor in
+                self?.discoveredPeers = peers
+            }
+        }
+        
+        NSUserNotificationCenter.default.delegate = self
+    }
+    
+    // MARK: - Lifecycle Management
+    
+    public func start() {
+        // If receive mode is enabled in settings, start server listener
+        if LocalShareSettingsStore.shared.isReceiveEnabled {
+            startReceiver()
+        }
+        
+        // Start foreground discovery while module is active
+        startDiscovery()
+    }
+    
+    public func stop() {
+        // Stop foreground discovery if no active transfer in flight
+        if !isSending && !isReceiving {
+            stopDiscovery()
+        }
+        
+        // Stop receiver listener if receive is disabled
+        if !LocalShareSettingsStore.shared.isReceiveEnabled {
+            stopReceiver()
+        }
+    }
+    
+    public func startDiscovery() {
+        LocalShareDiscovery.shared.start(
+            alias: LocalShareSettingsStore.shared.alias,
+            port: LocalShareSettingsStore.shared.tcpPort,
+            enableMulticast: true
+        )
+    }
+    
+    public func stopDiscovery() {
+        LocalShareDiscovery.shared.stop()
+    }
+    
+    public func syncReceiveMode(_ enabled: Bool) {
+        if enabled {
+            startReceiver()
+        } else {
+            stopReceiver()
+        }
+    }
+    
+    private func startReceiver() {
+        do {
+            try LocalShareServer.shared.start(
+                port: LocalShareSettingsStore.shared.tcpPort,
+                bindInterface: .localNetwork,
+                enableTLS: true
+            )
+            isReceiveActive = true
+            updateStatusMessage()
+        } catch {
+            isReceiveActive = false
+            statusMessage = "Receiver error: \(error.localizedDescription)"
+        }
+    }
+    
+    private func stopReceiver() {
+        LocalShareServer.shared.stop()
+        isReceiveActive = false
+        updateStatusMessage()
+    }
+    
+    private func updateStatusMessage() {
+        if isSending {
+            statusMessage = "Sending to \(activePeerAlias ?? "peer")..."
+        } else if isReceiving {
+            statusMessage = "Receiving from \(activePeerAlias ?? "peer")..."
+        } else if isReceiveActive {
+            statusMessage = "Waiting for nearby Local Share devices"
+        } else {
+            statusMessage = "Receive OFF — Ready to send"
+        }
+    }
+    
+    // MARK: - Popover Lifecycle (registerPopoverOpened / Closed)
+    
+    public func markTransferActive() {
+        guard !isTransferSheetActive else { return }
+        isTransferSheetActive = true
+        NotchShellCoordinator.shared.registerPopoverOpened()
+        NotchShellCoordinator.shared.panel?.level = .floating
+    }
+    
+    public func markTransferFinished() {
+        guard isTransferSheetActive else { return }
+        isTransferSheetActive = false
+        NotchShellCoordinator.shared.panel?.level = .popUpMenu
+        NotchShellCoordinator.shared.registerPopoverClosed()
+    }
+    
+    // MARK: - Incoming Request Server Hooks
+    
+    private func configureServerHooks() {
+        LocalShareServer.shared.onIncomingSessionOffered = { [weak self] session, completion in
+            Task { @MainActor in
+                guard let self = self else {
+                    completion(false)
+                    return
+                }
+                
+                // Check if notch is currently collapsed
+                if NotchShellCoordinator.shared.state == .collapsed {
+                    self.postIncomingNotification(for: session)
+                }
+                
+                self.incomingSession = session
+                self.pendingAcceptanceCompletion = completion
+                self.markTransferActive()
+                FeedbackManager.playHover()
+            }
+        }
+    }
+    
+    public func acceptIncomingTransfer() {
+        guard let session = incomingSession, let completion = pendingAcceptanceCompletion else { return }
+        pendingAcceptanceCompletion = nil
+        self.isReceiving = true
+        self.activePeerAlias = session.peerInfo.alias
+        self.statusMessage = "Receiving from \(session.peerInfo.alias)..."
+        completion(true)
+        FeedbackManager.playSuccess()
+        
+        // Track progress in background
+        observeIncomingSessionProgress(session)
+    }
+    
+    public func declineIncomingTransfer() {
+        guard let completion = pendingAcceptanceCompletion else { return }
+        pendingAcceptanceCompletion = nil
+        let session = incomingSession
+        self.incomingSession = nil
+        completion(false)
+        markTransferFinished()
+        updateStatusMessage()
+        
+        if let session = session {
+            LocalShareSessionCoordinator.shared.cancelSession(sessionId: session.sessionId, reason: "Declined by user")
+            addHistoryItem(
+                peerAlias: session.peerInfo.alias,
+                fileNames: session.filesMetadata.values.map { $0.fileName },
+                totalBytes: session.filesMetadata.values.reduce(0) { $0 + $1.size },
+                isOutgoing: false,
+                statusText: "Declined"
+            )
+        }
+    }
+    
+    private func observeIncomingSessionProgress(_ session: LocalShareSession) {
+        Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                guard let self = self else { return }
+                let state = session.currentState
+                self.transferProgress = session.overallFraction
+                
+                switch state {
+                case .completed:
+                    self.isReceiving = false
+                    self.incomingSession = nil
+                    self.statusMessage = "Transfer complete"
+                    self.markTransferFinished()
+                    FeedbackManager.playSuccess()
+                    
+                    self.addHistoryItem(
+                        peerAlias: session.peerInfo.alias,
+                        fileNames: session.filesMetadata.values.map { $0.fileName },
+                        totalBytes: session.filesMetadata.values.reduce(0) { $0 + $1.size },
+                        isOutgoing: false,
+                        statusText: "Completed"
+                    )
+                    return
+                case .failed(let err):
+                    self.isReceiving = false
+                    self.incomingSession = nil
+                    self.statusMessage = "Receive failed: \(err.localizedDescription)"
+                    self.markTransferFinished()
+                    
+                    self.addHistoryItem(
+                        peerAlias: session.peerInfo.alias,
+                        fileNames: session.filesMetadata.values.map { $0.fileName },
+                        totalBytes: session.filesMetadata.values.reduce(0) { $0 + $1.size },
+                        isOutgoing: false,
+                        statusText: "Failed"
+                    )
+                    return
+                case .cancelled:
+                    self.isReceiving = false
+                    self.incomingSession = nil
+                    self.statusMessage = "Transfer cancelled"
+                    self.markTransferFinished()
+                    return
+                default:
+                    break
+                }
+            }
+        }
+    }
+    
+    // MARK: - Outgoing File Transfer
+    
+    public func startSending(files: [URL]) {
+        guard !files.isEmpty else { return }
+        for f in files {
+            if !selectedFiles.contains(f) {
+                selectedFiles.append(f)
+            }
+        }
+        
+        // Select Local Share tab in registry
+        ModuleRegistry.shared.selectFileDropTarget(for: "localshare")
+        startDiscovery()
+        updateStatusMessage()
+    }
+    
+    public func removeSelectedFile(_ url: URL) {
+        selectedFiles.removeAll(where: { $0 == url })
+    }
+    
+    public func clearSelectedFiles() {
+        selectedFiles.removeAll()
+    }
+    
+    public func sendFiles(to peer: LocalShareDiscoveredPeer, pin: String? = nil) {
+        guard !selectedFiles.isEmpty else { return }
+        let filesToSend = self.selectedFiles
+        self.isSending = true
+        self.activePeerAlias = peer.alias
+        self.transferProgress = 0.0
+        self.statusMessage = "Connecting to \(peer.alias)..."
+        markTransferActive()
+        FeedbackManager.playSend()
+        
+        Task {
+            do {
+                // 1. Prepare upload in a single session
+                let (clientSession, prepResp) = try await LocalShareClient.shared.prepareUpload(
+                    to: peer,
+                    fileURLs: filesToSend,
+                    pin: pin
+                )
+                self.activeClientSession = clientSession
+                self.statusMessage = "Sending to \(peer.alias)..."
+                
+                // 2. Stream files sequentially within the session
+                let totalBytes = filesToSend.reduce(Int64(0)) { acc, url in
+                    acc + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                }
+                
+                for (fileId, token) in prepResp.files {
+                    guard let fileURL = filesToSend.first(where: { _ in true }) else { continue } // Match file
+                    try await LocalShareClient.shared.uploadFile(
+                        session: clientSession,
+                        fileURL: fileURL,
+                        fileId: fileId,
+                        token: token
+                    ) { fraction in
+                        Task { @MainActor in
+                            self.transferProgress = fraction
+                        }
+                    }
+                }
+                
+                // Success
+                self.isSending = false
+                self.activeClientSession = nil
+                self.selectedFiles.removeAll()
+                self.statusMessage = "Sent \(filesToSend.count) file(s) to \(peer.alias)"
+                self.markTransferFinished()
+                FeedbackManager.playSuccess()
+                
+                self.addHistoryItem(
+                    peerAlias: peer.alias,
+                    fileNames: filesToSend.map { $0.lastPathComponent },
+                    totalBytes: totalBytes,
+                    isOutgoing: true,
+                    statusText: "Completed"
+                )
+            } catch {
+                self.isSending = false
+                self.activeClientSession = nil
+                self.statusMessage = "Send failed: \(error.localizedDescription)"
+                self.markTransferFinished()
+                
+                self.addHistoryItem(
+                    peerAlias: peer.alias,
+                    fileNames: filesToSend.map { $0.lastPathComponent },
+                    totalBytes: 0,
+                    isOutgoing: true,
+                    statusText: "Failed"
+                )
+            }
+        }
+    }
+    
+    public func cancelActiveTransfer() {
+        if let client = activeClientSession {
+            Task {
+                await LocalShareClient.shared.cancelSession(client)
+            }
+            activeClientSession = nil
+        }
+        
+        if let session = incomingSession {
+            LocalShareSessionCoordinator.shared.cancelSession(sessionId: session.sessionId, reason: "Cancelled by user")
+            incomingSession = nil
+        }
+        
+        isSending = false
+        isReceiving = false
+        statusMessage = "Transfer cancelled"
+        markTransferFinished()
+        updateStatusMessage()
+    }
+    
+    // MARK: - File Picker & Finder Revelation
+    
+    public func openFilePicker() {
+        FeedbackManager.playClick()
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select Files for Local Share"
+        openPanel.allowsMultipleSelection = true
+        openPanel.canChooseDirectories = false
+        openPanel.canChooseFiles = true
+        openPanel.prompt = "Select"
+        
+        markTransferActive()
+        NSApp.activate(ignoringOtherApps: true)
+        openPanel.begin { [weak self] response in
+            guard let self = self else { return }
+            self.markTransferFinished()
+            if response == .OK {
+                self.startSending(files: openPanel.urls)
+            }
+        }
+    }
+    
+    public func openReceiveFolder() {
+        let dir = LocalShareFileManager.shared.activeReceiveDirectory
+        _ = try? LocalShareFileManager.shared.ensureBaseDirectoryExists()
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: dir.path)
+    }
+    
+    // MARK: - Bounded Recent History
+    
+    private func addHistoryItem(peerAlias: String, fileNames: [String], totalBytes: Int64, isOutgoing: Bool, statusText: String) {
+        let item = LocalShareHistoryItem(
+            peerAlias: peerAlias,
+            fileNames: fileNames,
+            totalBytes: totalBytes,
+            isOutgoing: isOutgoing,
+            statusText: statusText
+        )
+        recentTransfers.insert(item, at: 0)
+        if recentTransfers.count > 10 {
+            recentTransfers = Array(recentTransfers.prefix(10))
+        }
+        saveRecentHistory()
+    }
+    
+    private func saveRecentHistory() {
+        if let data = try? JSONEncoder().encode(recentTransfers) {
+            UserDefaults.standard.set(data, forKey: historyStorageKey)
+        }
+    }
+    
+    private func loadRecentHistory() {
+        if let data = UserDefaults.standard.data(forKey: historyStorageKey),
+           let items = try? JSONDecoder().decode([LocalShareHistoryItem].self, from: data) {
+            self.recentTransfers = items
+        }
+    }
+    
+    // MARK: - Collapsed Notch Notification Delegate
+    
+    private func postIncomingNotification(for session: LocalShareSession) {
+        let notif = NSUserNotification()
+        notif.identifier = "localshare_incoming_\(session.sessionId)"
+        notif.title = "Local Share"
+        notif.subtitle = "Incoming Transfer from \(session.peerInfo.alias)"
+        notif.informativeText = "\(session.filesMetadata.count) file(s)"
+        notif.hasActionButton = true
+        notif.actionButtonTitle = "Accept"
+        notif.otherButtonTitle = "Decline"
+        NSUserNotificationCenter.default.deliver(notif)
+    }
+    
+    nonisolated public func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
+        center.removeDeliveredNotification(notification)
+        
+        guard notification.identifier?.hasPrefix("localshare_incoming_") == true else { return }
+        
+        let isAction = (notification.activationType == .actionButtonClicked)
+        let isContents = (notification.activationType == .contentsClicked)
+        
+        Task { @MainActor in
+            if isAction {
+                // User clicked "Accept"
+                withAnimation {
+                    NotchShellCoordinator.shared.state = .expanded
+                    ModuleRegistry.shared.selectFileDropTarget(for: "localshare")
+                }
+                LocalShareModule.shared.acceptIncomingTransfer()
+            } else if isContents {
+                // User clicked notification body -> expand notch and present card
+                withAnimation {
+                    NotchShellCoordinator.shared.state = .expanded
+                    ModuleRegistry.shared.selectFileDropTarget(for: "localshare")
+                }
+            } else {
+                // Declined
+                LocalShareModule.shared.declineIncomingTransfer()
+            }
+        }
+    }
+    
+    // MARK: - View Builders
+    
+    public func makeCompactView() -> AnyView {
+        AnyView(
+            HStack(spacing: 4) {
+                Image(systemName: "shareplay")
+                    .font(.system(size: 9))
+                    .foregroundColor(themeColor)
+                Text("Local Share")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundColor(DesignSystem.primaryText)
+            }
+        )
+    }
+    
+    public func makeExpandedView() -> AnyView {
+        AnyView(
+            LocalShareExpandedView(module: self)
+        )
+    }
+}

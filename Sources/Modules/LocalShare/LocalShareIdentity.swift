@@ -1,0 +1,288 @@
+import Foundation
+import Security
+import CryptoKit
+import Network
+import LocalAuthentication
+
+// MARK: - LocalShare ASN.1 DER Encoding Helpers
+private enum ASN1 {
+    static func length(_ length: Int) -> Data {
+        if length < 128 {
+            return Data([UInt8(length)])
+        } else if length < 256 {
+            return Data([0x81, UInt8(length)])
+        } else {
+            return Data([0x82, UInt8(length >> 8), UInt8(length & 0xFF)])
+        }
+    }
+    
+    static func sequence(_ elements: [Data]) -> Data {
+        let body = elements.reduce(Data(), +)
+        var result = Data([0x30])
+        result.append(length(body.count))
+        result.append(body)
+        return result
+    }
+    
+    static func set(_ elements: [Data]) -> Data {
+        let body = elements.reduce(Data(), +)
+        var result = Data([0x31])
+        result.append(length(body.count))
+        result.append(body)
+        return result
+    }
+    
+    static func integer(_ value: Int) -> Data {
+        if value < 128 {
+            return Data([0x02, 0x01, UInt8(value)])
+        }
+        var val = value
+        var bytes: [UInt8] = []
+        while val > 0 {
+            bytes.insert(UInt8(val & 0xFF), at: 0)
+            val >>= 8
+        }
+        if let first = bytes.first, first >= 0x80 {
+            bytes.insert(0x00, at: 0)
+        }
+        var result = Data([0x02])
+        result.append(length(bytes.count))
+        result.append(contentsOf: bytes)
+        return result
+    }
+    
+    static func bitString(_ data: Data) -> Data {
+        var result = Data([0x03])
+        result.append(length(data.count + 1))
+        result.append(0x00) // 0 unused bits
+        result.append(data)
+        return result
+    }
+    
+    static func oid(_ bytes: [UInt8]) -> Data {
+        var result = Data([0x06])
+        result.append(length(bytes.count))
+        result.append(contentsOf: bytes)
+        return result
+    }
+    
+    static func printableString(_ str: String) -> Data {
+        let utf = Data(str.utf8)
+        var result = Data([0x13])
+        result.append(length(utf.count))
+        result.append(utf)
+        return result
+    }
+    
+    static func utcTime(_ dateStr: String) -> Data {
+        let utf = Data(dateStr.utf8)
+        var result = Data([0x17])
+        result.append(length(utf.count))
+        result.append(utf)
+        return result
+    }
+}
+
+// MARK: - Native TLS Identity Manager
+public final class LocalShareIdentityManager: @unchecked Sendable {
+    public static let shared = LocalShareIdentityManager()
+    
+    private let lock = NSLock()
+    private let serviceName = "com.notch.NotchApp.LocalShare"
+    private let keyAccount = "localshare_p256_private_key"
+    private let certAccount = "localshare_x509_certificate"
+    
+    private var cachedFingerprint: String?
+    private var cachedCertificateDER: Data?
+    private var cachedIdentity: SecIdentity?
+    
+    public init() {}
+    
+    // MARK: - Public Identity Accessors
+    
+    /// Returns the SHA-256 fingerprint of the self-signed certificate (lowercase hex).
+    public var certificateFingerprint: String {
+        lock.lock()
+        defer { lock.unlock() }
+        if let fp = cachedFingerprint {
+            return fp
+        }
+        let (certData, _) = loadOrGenerateIdentityLocked()
+        let digest = SHA256.hash(data: certData)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        cachedFingerprint = hex
+        return hex
+    }
+    
+    /// Returns the DER-encoded X.509 certificate data.
+    public var certificateDER: Data {
+        lock.lock()
+        defer { lock.unlock() }
+        if let der = cachedCertificateDER {
+            return der
+        }
+        let (certData, _) = loadOrGenerateIdentityLocked()
+        return certData
+    }
+    
+    /// Returns a SecIdentityRef suitable for TLS listeners and clients.
+    public func getSecIdentity() -> SecIdentity? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let ident = cachedIdentity {
+            return ident
+        }
+        let (_, ident) = loadOrGenerateIdentityLocked()
+        return ident
+    }
+    
+    /// Creates a Network.framework sec_identity_t for NWProtocolTLS.Options.
+    public func createNetworkIdentity() -> sec_identity_t? {
+        guard let secIdentity = getSecIdentity() else { return nil }
+        return sec_identity_create(secIdentity)
+    }
+    
+    // MARK: - Internal Key & Certificate Generation / Persistence
+    
+    private func loadOrGenerateIdentityLocked() -> (Data, SecIdentity?) {
+        if let certData = loadKeychainData(account: certAccount),
+           let keyData = loadKeychainData(account: keyAccount) {
+            if let identity = assembleIdentity(certDER: certData, privateKeyRaw: keyData) {
+                cachedCertificateDER = certData
+                cachedIdentity = identity
+                return (certData, identity)
+            }
+        }
+        
+        let privateKey = P256.Signing.PrivateKey()
+        let certDER = buildSelfSignedCertificateDER(privateKey: privateKey)
+        let keyRaw = privateKey.x963Representation
+        
+        saveKeychainData(certDER, account: certAccount)
+        saveKeychainData(keyRaw, account: keyAccount)
+        
+        let identity = assembleIdentity(certDER: certDER, privateKeyRaw: keyRaw)
+        cachedCertificateDER = certDER
+        cachedIdentity = identity
+        return (certDER, identity)
+    }
+    
+    private func assembleIdentity(certDER: Data, privateKeyRaw: Data) -> SecIdentity? {
+        guard let cert = SecCertificateCreateWithData(nil, certDER as CFData) else {
+            return nil
+        }
+        
+        let keyAttributes: [String: Any] = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate
+        ]
+        guard let secKey = SecKeyCreateWithData(privateKeyRaw as CFData, keyAttributes as CFDictionary, nil) else {
+            return nil
+        }
+        
+        return SecIdentityCreate(kCFAllocatorDefault, cert, secKey)
+    }
+    
+    private func buildSelfSignedCertificateDER(privateKey: P256.Signing.PrivateKey) -> Data {
+        // ecdsaWithSHA256: 1.2.840.10045.4.3.2 -> 2A 86 48 CE 3D 04 03 02
+        let ecdsaWithSHA256OID = ASN1.oid([0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x02])
+        let algId = ASN1.sequence([ecdsaWithSHA256OID])
+        
+        // ecPublicKey: 1.2.840.10045.2.1 -> 2A 86 48 CE 3D 02 01
+        let ecPublicKeyOID = ASN1.oid([0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01])
+        // secp256r1: 1.2.840.10045.3.1.7 -> 2A 86 48 CE 3D 03 01 07
+        let secp256r1OID = ASN1.oid([0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x03, 0x01, 0x07])
+        let ecKeyAlgId = ASN1.sequence([ecPublicKeyOID, secp256r1OID])
+        
+        let rawPub = privateKey.publicKey.x963Representation
+        let spki = ASN1.sequence([ecKeyAlgId, ASN1.bitString(rawPub)])
+        
+        // Common Name RDN: CN=LocalShare
+        // id-at-commonName: 2.5.4.3 -> 55 04 03
+        let cnOID = ASN1.oid([0x55, 0x04, 0x03])
+        let rdn = ASN1.set([ASN1.sequence([cnOID, ASN1.printableString("LocalShare")])])
+        let name = ASN1.sequence([rdn])
+        
+        // 10-year validity window
+        let validity = ASN1.sequence([ASN1.utcTime("240101000000Z"), ASN1.utcTime("350101000000Z")])
+        let serial = ASN1.integer(Int.random(in: 1000...999999))
+        
+        // Version 3: [0] EXPLICIT INTEGER (2)
+        let versionTag = Data([0xA0, 0x03, 0x02, 0x01, 0x02])
+        
+        let tbs = ASN1.sequence([
+            versionTag,
+            serial,
+            algId,
+            name,
+            validity,
+            name,
+            spki
+        ])
+        
+        let signatureData: Data
+        if let sig = try? privateKey.signature(for: tbs) {
+            signatureData = sig.derRepresentation
+        } else {
+            signatureData = Data()
+        }
+        
+        return ASN1.sequence([
+            tbs,
+            algId,
+            ASN1.bitString(signatureData)
+        ])
+    }
+    
+    // MARK: - Keychain Persistence
+    
+    private func nonInteractiveContext() -> LAContext {
+        let ctx = LAContext()
+        ctx.interactionNotAllowed = true
+        return ctx
+    }
+    
+    private func saveKeychainData(_ data: Data, account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: account,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
+        ]
+        SecItemDelete(query as CFDictionary)
+        
+        var newQuery = query
+        newQuery[kSecValueData as String] = data
+        newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        SecItemAdd(newQuery as CFDictionary, nil)
+    }
+    
+    private func loadKeychainData(account: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: nonInteractiveContext()
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data {
+            return data
+        }
+        return nil
+    }
+    
+    public func resetIdentityForTesting() {
+        lock.lock()
+        defer { lock.unlock() }
+        cachedFingerprint = nil
+        cachedCertificateDER = nil
+        cachedIdentity = nil
+        let q1: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: serviceName, kSecAttrAccount as String: keyAccount]
+        let q2: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: serviceName, kSecAttrAccount as String: certAccount]
+        SecItemDelete(q1 as CFDictionary)
+        SecItemDelete(q2 as CFDictionary)
+    }
+}
