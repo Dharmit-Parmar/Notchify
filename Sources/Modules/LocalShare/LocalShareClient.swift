@@ -128,7 +128,7 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         let bodyData = try JSONEncoder().encode(prepareReq)
         
         // 2. Build URL with optional pin query parameter
-        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        let cleanHost = LocalShareSecurity.formatHostForURL(peer.host)
         var urlComponents = URLComponents(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.prepareUpload)")
         if let pin = pin, !pin.isEmpty {
             urlComponents?.queryItems = [URLQueryItem(name: "pin", value: pin)]
@@ -209,7 +209,7 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         }
         
         let peer = session.peer
-        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        let cleanHost = LocalShareSecurity.formatHostForURL(peer.host)
         guard var components = URLComponents(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.upload)") else {
             throw LocalShareError.invalidURL
         }
@@ -261,7 +261,7 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         session.markCancelled()
         
         let peer = session.peer
-        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        let cleanHost = LocalShareSecurity.formatHostForURL(peer.host)
         guard var components = URLComponents(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.cancel)") else {
             return
         }
@@ -333,8 +333,8 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         
         let certDER = SecCertificateCopyData(leafCert) as Data
         
-        // 3. Verify SHA-256 certificate fingerprint matches peer discovery identity
-        if LocalShareSecurity.isFingerprintValid(peerCertDER: certDER, expectedFingerprint: expectedFingerprint) {
+        // 3. Verify SHA-256 certificate fingerprint matches peer discovery identity (or TOFU if unset)
+        if expectedFingerprint.isEmpty || LocalShareSecurity.isFingerprintValid(peerCertDER: certDER, expectedFingerprint: expectedFingerprint) {
             completionHandler(.useCredential, URLCredential(trust: serverTrust))
         } else {
             completionHandler(.cancelAuthenticationChallenge, nil)

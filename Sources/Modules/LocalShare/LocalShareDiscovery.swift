@@ -106,7 +106,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
                 if let endpoint = message.remoteEndpoint, case .hostPort(let host, _) = endpoint {
                     remoteHost = "\(host)"
                 }
-                let cleanHost = remoteHost.components(separatedBy: "%").first ?? remoteHost
+                let cleanHost = LocalShareSecurity.normalizeIP(remoteHost)
                 self.handleIncomingMulticastPacket(data: content, fromHost: cleanHost)
             }
             
@@ -187,7 +187,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     // MARK: - Direct Unicast Register Reply
     
     public func sendDirectRegisterReply(to peer: LocalShareDiscoveredPeer) {
-        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        let cleanHost = LocalShareSecurity.formatHostForURL(peer.host)
         guard let url = URL(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.register)") else {
             return
         }
@@ -224,7 +224,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         host: String,
         port: UInt16 = LocalShareConstants.defaultHttpPort
     ) async throws -> LocalShareDiscoveredPeer {
-        let cleanHost = host.components(separatedBy: "%").first ?? host
+        let cleanHost = LocalShareSecurity.formatHostForURL(host)
         guard let url = URL(string: "https://\(cleanHost):\(port)\(LocalShareEndpoints.register)") else {
             throw LocalShareError.invalidURL
         }

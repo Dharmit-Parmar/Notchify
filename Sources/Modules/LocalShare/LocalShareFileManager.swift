@@ -85,6 +85,34 @@ public final class LocalShareFileManager: @unchecked Sendable {
         try? FileManager.default.removeItem(at: url)
     }
     
+    /// Moves completed files from the isolated session folder to the root receive directory.
+    @discardableResult
+    public func promoteSessionFiles(sessionId: String, sessionDirectory: URL) -> [URL] {
+        let fm = FileManager.default
+        let baseDir = activeReceiveDirectory
+        _ = try? ensureBaseDirectoryExists()
+        var promotedURLs: [URL] = []
+        
+        guard let files = try? fm.contentsOfDirectory(at: sessionDirectory, includingPropertiesForKeys: nil) else {
+            purgeSessionDirectory(sessionId: sessionId)
+            return []
+        }
+        
+        for file in files {
+            let destURL = LocalShareSecurity.uniqueDestinationURL(for: file.lastPathComponent, in: baseDir)
+            do {
+                try fm.moveItem(at: file, to: destURL)
+                LocalShareFileManager.applyQuarantineAttribute(to: destURL)
+                promotedURLs.append(destURL)
+            } catch {
+                promotedURLs.append(file)
+            }
+        }
+        
+        try? fm.removeItem(at: sessionDirectory)
+        return promotedURLs
+    }
+    
     /// Purges an entire session folder and any partially received files.
     public func purgeSessionDirectory(sessionId: String) {
         let baseDir = activeReceiveDirectory

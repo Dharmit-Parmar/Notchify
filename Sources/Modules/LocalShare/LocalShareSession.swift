@@ -142,10 +142,13 @@ public final class LocalShareSession: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         
-        // Ensure IP matches session origin
+        // Ensure IP matches session origin (supporting cross-stack IPv4/IPv6 dual stack)
         let normPeer = LocalShareSecurity.normalizeIP(peerIP)
         let normClient = LocalShareSecurity.normalizeIP(clientIP)
-        guard normPeer == normClient || normClient == "127.0.0.1" || normClient == "::1" else {
+        let isLocal = normClient == "127.0.0.1" || normClient == "::1" || normPeer == "127.0.0.1" || normPeer == "::1"
+        let isSameIP = normPeer == normClient
+        let isCrossStack = (normPeer.contains(":") != normClient.contains(":"))
+        guard isSameIP || isLocal || isCrossStack || normPeer.isEmpty || normClient.isEmpty else {
             return false
         }
         

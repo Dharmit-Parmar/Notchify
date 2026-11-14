@@ -287,7 +287,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 }
                 
                 // For /upload, process streaming direct to disk
-                if request.path == LocalShareEndpoints.upload {
+                if request.path == LocalShareEndpoints.upload || request.path.hasPrefix(LocalShareEndpoints.upload) {
                     self.handleUploadRoute(connection: connection, request: request, initialBody: bodyData)
                     return
                 }
@@ -341,11 +341,23 @@ public final class LocalShareServer: @unchecked Sendable {
         let method = requestParts[0].uppercased()
         let rawURL = requestParts[1]
         
-        let urlComponents = URLComponents(string: rawURL)
-        let path = urlComponents?.path ?? rawURL
+        let urlComponents = URLComponents(string: rawURL) ?? URLComponents(string: "http://localhost" + (rawURL.hasPrefix("/") ? rawURL : "/" + rawURL))
+        let pathWithoutQuery = rawURL.components(separatedBy: "?").first ?? rawURL
+        let path = urlComponents?.path ?? pathWithoutQuery
         var queryParams: [String: String] = [:]
         urlComponents?.queryItems?.forEach { item in
             queryParams[item.name] = item.value ?? ""
+        }
+        if queryParams.isEmpty, let qIdx = rawURL.firstIndex(of: "?") {
+            let queryString = String(rawURL[rawURL.index(after: qIdx)...])
+            for pair in queryString.components(separatedBy: "&") {
+                let parts = pair.components(separatedBy: "=")
+                if !parts.isEmpty, !parts[0].isEmpty {
+                    let key = parts[0]
+                    let val = parts.count > 1 ? (parts[1].removingPercentEncoding ?? parts[1]) : ""
+                    queryParams[key] = val
+                }
+            }
         }
         
         var headers: [String: String] = [:]
@@ -423,7 +435,9 @@ public final class LocalShareServer: @unchecked Sendable {
         
         let responseDto = LocalShareRegisterDto(
             alias: LocalShareSecurity.sanitizeAlias(serverAlias),
-            fingerprint: LocalShareIdentityManager.shared.certificateFingerprint
+            fingerprint: LocalShareIdentityManager.shared.certificateFingerprint,
+            port: Int(boundPort ?? LocalShareConstants.defaultHttpPort),
+            protocol: "https"
         )
         sendJSONResponse(connection: connection, statusCode: 200, value: responseDto)
     }

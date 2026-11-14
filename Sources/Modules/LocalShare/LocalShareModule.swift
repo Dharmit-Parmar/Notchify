@@ -56,6 +56,10 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         if Bundle.main.bundleIdentifier != nil {
             UNUserNotificationCenter.current().delegate = self
         }
+        
+        if LocalShareSettingsStore.shared.isReceiveEnabled {
+            startReceiver()
+        }
     }
     
     // MARK: - Lifecycle Management
@@ -197,6 +201,10 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
                 let isLocalShareVisible = (NotchShellCoordinator.shared.state == .expanded && ModuleRegistry.shared.activeModuleId == "localshare")
                 if !isLocalShareVisible {
                     self.postIncomingNotification(for: session)
+                    withAnimation {
+                        NotchShellCoordinator.shared.state = .expanded
+                        ModuleRegistry.shared.selectFileDropTarget(for: "localshare")
+                    }
                 }
                 
                 self.incomingSession = session
@@ -256,6 +264,10 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
                     self.statusMessage = "Transfer complete"
                     self.markTransferFinished()
                     FeedbackManager.playSuccess()
+                    
+                    if let sessionDir = session.sessionDirectory {
+                        LocalShareFileManager.shared.promoteSessionFiles(sessionId: session.sessionId, sessionDirectory: sessionDir)
+                    }
                     
                     self.addHistoryItem(
                         peerAlias: session.peerInfo.alias,
@@ -412,7 +424,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     
     // MARK: - File Picker & Finder Revelation
     
-    public func openFilePicker() {
+    public func openFilePicker(thenSendTo peer: LocalShareDiscoveredPeer? = nil) {
         FeedbackManager.playClick()
         let openPanel = NSOpenPanel()
         openPanel.title = "Select Files for Local Share"
@@ -428,6 +440,9 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
             self.markTransferFinished()
             if response == .OK {
                 self.startSending(files: openPanel.urls)
+                if let targetPeer = peer {
+                    self.sendFiles(to: targetPeer)
+                }
             }
         }
     }

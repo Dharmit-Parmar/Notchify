@@ -183,6 +183,15 @@ public enum LocalShareSecurity {
         }
         return ip
     }
+
+    /// Formats an IP address or hostname for safe inclusion in an RFC 3986 URL, wrapping IPv6 in brackets.
+    public static func formatHostForURL(_ host: String) -> String {
+        let clean = normalizeIP(host)
+        if clean.contains(":") && !clean.hasPrefix("[") && !clean.hasSuffix("]") {
+            return "[\(clean)]"
+        }
+        return clean
+    }
     
     // MARK: - Secret & Path Redaction
     /// Scrubs authentication tokens, session IDs, PINs, and local user home paths from error messages and logs.

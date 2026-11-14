@@ -234,7 +234,8 @@ public struct LocalShareDiscoveredPeer: Identifiable, Sendable, Equatable {
     }
     
     public var baseURL: URL? {
-        URL(string: "\(`protocol`)://\(host):\(port)")
+        let cleanHost = LocalShareSecurity.formatHostForURL(host)
+        return URL(string: "\(`protocol`)://\(cleanHost):\(port)")
     }
 }
 

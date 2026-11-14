@@ -200,6 +200,10 @@ public struct LocalShareExpandedView: View {
             }
             return !providers.isEmpty
         }
+        .onAppear {
+            module.start()
+            module.rescan()
+        }
     }
     
     // MARK: - Subviews
@@ -418,7 +422,7 @@ public struct LocalShareExpandedView: View {
     private func peerRow(_ peer: LocalShareDiscoveredPeer) -> some View {
         Button(action: {
             if module.selectedFiles.isEmpty {
-                module.openFilePicker()
+                module.openFilePicker(thenSendTo: peer)
             } else {
                 module.sendFiles(to: peer)
             }
