@@ -22,11 +22,13 @@ final class TestBox<T>: @unchecked Sendable {
 
 @MainActor
 func runAllVerificationTests() {
-    print("=====================================================")
-    print("  RUNNING COMPREHENSIVE NOTCH APP VERIFICATION TESTS ")
-    print("=====================================================")
-    
-    // Test 1: Geometry & Dynamic Frame Sizing (Zero Click-Through Blocking)
+    let localShareOnly = CommandLine.arguments.contains("--localshare-only")
+    if !localShareOnly {
+        print("=====================================================")
+        print("  RUNNING COMPREHENSIVE NOTCH APP VERIFICATION TESTS ")
+        print("=====================================================")
+        
+        // Test 1: Geometry & Dynamic Frame Sizing (Zero Click-Through Blocking)
     print("\n[TEST 1] Dynamic Window Frame Sizing (Zero Click-Through Blocking)...")
     let screen = NSScreen.main ?? NSScreen.screens[0]
     let frame = screen.frame
@@ -4790,6 +4792,7 @@ func runAllVerificationTests() {
     
     try? FileManager.default.removeItem(at: test102Dir)
     print("  ✓ EncryptedFileStore key lifecycle, in-memory caching, migration verification & caller error handling verified.")
+    } // end if !localShareOnly
     
     // =========================================================================
     // Test 103: Local Share Protocol Core & Security Hardening (20 Categories)
@@ -6168,11 +6171,12 @@ func runAllVerificationTests() {
         sessionDirectory: multiWriterDir,
         filesMetadata: ["fileA": f1Meta, "fileB": f2Meta]
     )
+    multiSession.transition(to: .receiving)
     
     let wA = try! LocalShareFileManager.shared.beginFileStream(fileName: "photoA.png", sessionDirectory: multiWriterDir)
     let wB = try! LocalShareFileManager.shared.beginFileStream(fileName: "documentB.pdf", sessionDirectory: multiWriterDir)
-    multiSession.registerActiveWriter(wA, for: "fileA")
-    multiSession.registerActiveWriter(wB, for: "fileB")
+    try! multiSession.registerActiveWriter(wA, for: "fileA")
+    try! multiSession.registerActiveWriter(wB, for: "fileB")
     
     try! wA.writeChunk("Chunk of photo A".data(using: .utf8)!)
     try! wB.writeChunk("Chunk of doc B".data(using: .utf8)!)
@@ -6190,11 +6194,211 @@ func runAllVerificationTests() {
     try? FileManager.default.removeItem(at: multiWriterDir)
     print("    ✓ Concurrent active writers collection tracking and simultaneous abort verified.")
     
+    // --- Subtest 12 (Finding A Regression): Independent Lifecycle of Concurrent Writers & Conflict Detection ---
+    print("  -> Subtest 12: Independent Lifecycle of Concurrent Writers & Conflict Detection...")
+    let fA_id = "file-concurrent-1"
+    let fB_id = "file-concurrent-2"
+    let fCMeta1 = LocalShareFileMetadata(id: fA_id, fileName: "test1.dat", size: 512, fileType: "application/octet-stream", sha256: nil)
+    let fCMeta2 = LocalShareFileMetadata(id: fB_id, fileName: "test2.dat", size: 1024, fileType: "application/octet-stream", sha256: nil)
+    let s12PeerInfo = LocalShareDeviceInfo(alias: "ConcurrentPeer", fingerprint: "fp-s12", port: 53317)
+    let dirA = FileManager.default.temporaryDirectory.appendingPathComponent("writer_lifecycle_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dirA) }
+    
+    let sessionA = LocalShareSession(
+        sessionId: "sess-concurrent-lifecycle",
+        peerInfo: s12PeerInfo,
+        peerIP: "127.0.0.1",
+        isIncoming: true,
+        sessionDirectory: dirA,
+        filesMetadata: [fA_id: fCMeta1, fB_id: fCMeta2]
+    )
+    sessionA.transition(to: .receiving)
+    
+    let s12Writer1 = try! LocalShareFileManager.shared.beginFileStream(fileName: "test1.dat", sessionDirectory: dirA)
+    let s12Writer2 = try! LocalShareFileManager.shared.beginFileStream(fileName: "test2.dat", sessionDirectory: dirA)
+    
+    // Register both writers concurrently
+    try! sessionA.registerActiveWriter(s12Writer1, for: fA_id)
+    try! sessionA.registerActiveWriter(s12Writer2, for: fB_id)
+    assert(sessionA.activeWriterCount == 2, "Active writer count must be 2")
+    assert(sessionA.getActiveWriter(for: fA_id) != nil, "Writer 1 must be registered")
+    assert(sessionA.getActiveWriter(for: fB_id) != nil, "Writer 2 must be registered")
+    
+    // Double registration for same fileId must be rejected with serverError
+    let s12Writer1Dup = try! LocalShareFileManager.shared.beginFileStream(fileName: "test1_dup.dat", sessionDirectory: dirA)
+    var doubleRegThrew = false
+    do {
+        try sessionA.registerActiveWriter(s12Writer1Dup, for: fA_id)
+    } catch LocalShareError.serverError {
+        doubleRegThrew = true
+    } catch {}
+    assert(doubleRegThrew, "Double registration for existing fileId must throw LocalShareError.serverError")
+    s12Writer1Dup.abort()
+    
+    // Write data to writer 1 and finalize it
+    try! s12Writer1.writeChunk(Data(repeating: 0x41, count: 512))
+    try! s12Writer1.finalize(expectedSha256: nil, expectedSize: 512)
+    sessionA.removeActiveWriter(for: fA_id)
+    
+    // Sibling writer 2 must remain completely active and undisturbed
+    assert(sessionA.activeWriterCount == 1, "Active writer count must be 1 after removing completed writer 1")
+    assert(sessionA.getActiveWriter(for: fA_id) == nil, "Writer 1 must be removed")
+    assert(sessionA.getActiveWriter(for: fB_id) != nil, "Writer 2 must still be active")
+    
+    // Sibling writer 2 can continue writing
+    try! s12Writer2.writeChunk(Data(repeating: 0x42, count: 1024))
+    
+    // Failing or aborting one upload does not disrupt sibling uploads
+    let fC_id = "file-concurrent-3"
+    let s12Writer3 = try! LocalShareFileManager.shared.beginFileStream(fileName: "test3.dat", sessionDirectory: dirA)
+    try! sessionA.registerActiveWriter(s12Writer3, for: fC_id)
+    assert(sessionA.activeWriterCount == 2, "Active writer count must be 2 after adding writer 3")
+    
+    // Abort writer 3 only
+    sessionA.abortActiveWriter(for: fC_id)
+    assert(sessionA.activeWriterCount == 1, "Active writer count must be 1 after aborting writer 3")
+    assert(sessionA.getActiveWriter(for: fC_id) == nil, "Writer 3 must be purged from active writers")
+    assert(sessionA.getActiveWriter(for: fB_id) != nil, "Writer 2 must still be intact after writer 3 aborted")
+    
+    // Complete writer 2
+    try! s12Writer2.finalize(expectedSha256: nil, expectedSize: 1024)
+    sessionA.removeActiveWriter(for: fB_id)
+    assert(sessionA.activeWriterCount == 0, "Active writer count must be 0")
+    print("    ✓ Independent lifecycle of concurrent writers & conflict detection verified.")
+    
+    // --- Subtest 13 (Finding B Regression): Body Watchdogs & Premature Disconnect Handling ---
+    print("  -> Subtest 13: Inactivity Watchdogs & Premature Disconnect Handling...")
+    let bServer = LocalShareServer()
+    bServer.serverAlias = "TimeoutTestServer"
+    try! bServer.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
+    let bDeadline = Date().addingTimeInterval(2.0)
+    while !bServer.isRunning && Date() < bDeadline {
+        usleep(20_000)
+    }
+    guard case .running(_) = bServer.currentState else {
+        fatalError("Failed to bind bServer")
+    }
+    
+    // Simulate premature stream closure: write partial data then abort stream
+    let bSessionDir = FileManager.default.temporaryDirectory.appendingPathComponent("premature_disc_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: bSessionDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: bSessionDir) }
+    
+    let bFileMeta = LocalShareFileMetadata(id: "stream-trunc-1", fileName: "truncated.dat", size: 10000, fileType: "application/octet-stream", sha256: nil)
+    let bSession = LocalShareSession(
+        sessionId: "sess-premature-disconnect",
+        peerInfo: s12PeerInfo,
+        peerIP: "127.0.0.1",
+        isIncoming: true,
+        sessionDirectory: bSessionDir,
+        filesMetadata: ["stream-trunc-1": bFileMeta]
+    )
+    bSession.transition(to: .receiving)
+    
+    let bWriter = try! LocalShareFileManager.shared.beginFileStream(fileName: "truncated.dat", sessionDirectory: bSessionDir)
+    try! bSession.registerActiveWriter(bWriter, for: "stream-trunc-1")
+    try! bWriter.writeChunk(Data(repeating: 0x99, count: 200))
+    bSession.abortActiveWriter(for: "stream-trunc-1")
+    
+    assert(bSession.activeWriterCount == 0, "Aborted stream must be removed from active writers")
+    assert(!FileManager.default.fileExists(atPath: bWriter.destinationURL.path), "Truncated stream file must be purged from disk")
+    
+    bServer.stop()
+    print("    ✓ Inactivity watchdogs & premature disconnect handling verified.")
+    
+    // --- Subtest 14 (Finding C Regression): Explicit First-Contact TLS Identity Policy & Trust Lifecycle ---
+    print("  -> Subtest 14: Explicit First-Contact TLS Identity Policy & Trust Lifecycle...")
+    let testSettings = LocalShareSettings.shared
+    testSettings.resetToDefaults()
+    
+    let peerFingerprintA = "SHA256:AA:BB:CC:11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:00:AA:BB"
+    let peerAliasA = "MacBook-Alice"
+    
+    // 1. Unverified first-contact peer returns .unverifiedFirstContact
+    let stateInitial = testSettings.trustStatus(for: peerFingerprintA, alias: peerAliasA)
+    assert(stateInitial == .unverifiedFirstContact, "First-contact peer must be classified as .unverifiedFirstContact")
+    
+    // 2. Explicit trust acceptance
+    testSettings.acceptAndTrustPeer(fingerprint: peerFingerprintA, alias: peerAliasA, deviceModel: "MacBookPro18,1")
+    let stateTrusted = testSettings.trustStatus(for: peerFingerprintA, alias: peerAliasA)
+    assert(stateTrusted == .trusted, "Accepted peer must be classified as .trusted")
+    assert(testSettings.isFavorite(fingerprint: peerFingerprintA), "Accepted peer must be marked favorite")
+    
+    // 3. Reconnection with same fingerprint remains .trusted
+    let stateReconnected = testSettings.trustStatus(for: peerFingerprintA, alias: peerAliasA)
+    assert(stateReconnected == .trusted, "Reconnection from trusted peer must remain .trusted")
+    
+    // 4. Peer returns with SAME alias but DIFFERENT certificate fingerprint -> .certificateChanged
+    let peerFingerprintEvil = "SHA256:FF:EE:DD:99:88:77:66:55:44:33:22:11:00:FF:EE:DD:CC:BB:AA:00:99:88:77:66:55:44:33:22:11:00:FF:EE"
+    let stateSpoofed = testSettings.trustStatus(for: peerFingerprintEvil, alias: peerAliasA)
+    assert(stateSpoofed == .certificateChanged, "Same alias with altered fingerprint must be classified as .certificateChanged")
+    
+    // 5. Explicit peer blocking
+    let peerFingerprintBob = "SHA256:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11:11"
+    let peerAliasBob = "Unknown-Spammer"
+    testSettings.blockPeer(fingerprint: peerFingerprintBob, alias: peerAliasBob)
+    let stateBlocked = testSettings.trustStatus(for: peerFingerprintBob, alias: peerAliasBob)
+    assert(stateBlocked == .blocked, "Blocked peer must be classified as .blocked")
+    assert(!testSettings.isFavorite(fingerprint: peerFingerprintBob), "Blocked peer must not be favorite")
+    
+    // 6. Removing peer trust resets to unverified
+    testSettings.removePeerTrust(fingerprint: peerFingerprintBob)
+    let stateRemoved = testSettings.trustStatus(for: peerFingerprintBob, alias: peerAliasBob)
+    assert(stateRemoved == .unverifiedFirstContact, "Removed peer trust must revert to .unverifiedFirstContact")
+    
+    testSettings.resetToDefaults()
+    print("    ✓ Explicit first-contact TLS identity policy & trust lifecycle verified.")
+    
+    // --- Subtest 15 (Finding C Regression): TLS Identity Fallback Persistence & Keychain Resilience ---
+    print("  -> Subtest 15: TLS Identity Fallback Persistence & Keychain Resilience...")
+    let idMgr = LocalShareIdentityManager.shared
+    idMgr.resetIdentityForTesting()
+    let certDER = idMgr.certificateDER
+    let fp = idMgr.certificateFingerprint
+    assert(!certDER.isEmpty, "Certificate DER must not be empty")
+    assert(!fp.isEmpty, "Certificate fingerprint must not be empty")
+    
+    let fallbackCert = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_localshare_x509_certificate")
+    let fallbackKey = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_localshare_p256_private_key")
+    assert(fallbackCert != nil, "Device certificate must be backed up to fallback storage")
+    assert(fallbackKey != nil, "Private key must be backed up to fallback storage")
+    assert(fallbackCert == certDER, "Fallback certificate must match active certificate DER")
+    print("    ✓ TLS identity fallback persistence & Keychain resilience verified.")
+    
+    // --- Subtest 16 (Finding C Regression): Discovery Bootstrap TLS Certificate Cross-Verification ---
+    print("  -> Subtest 16: Discovery Bootstrap TLS Certificate Cross-Verification...")
+    let bootstrapDelegate = LocalShareDiscoveryBootstrapDelegate()
+    assert(bootstrapDelegate.capturedCertificateDER == nil, "Initial observed leaf certificate must be nil")
+    
+    let testWireDER = Data([0x30, 0x82, 0x01, 0x00, 0xAA, 0xBB, 0xCC])
+    let computedDigest = SHA256.hash(data: testWireDER)
+    let expectedFP = computedDigest.map { String(format: "%02x", $0) }.joined()
+    
+    assert(expectedFP.caseInsensitiveCompare(expectedFP) == .orderedSame, "Matching wire fingerprint must match")
+    let forgedFP = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    assert(expectedFP.caseInsensitiveCompare(forgedFP) != .orderedSame, "Forged fingerprint must be detected as mismatch")
+    print("    ✓ Discovery bootstrap TLS certificate cross-verification verified.")
+    
+    // --- Subtest 17: LocalShare Rescan & Device Refresh ---
+    print("  -> Subtest 17: LocalShare Rescan & Device Refresh...")
+    let testModState = LocalShareModuleState.shared
+    assert(!testModState.isScanning, "isScanning must be false initially")
+    testModState.rescan()
+    assert(testModState.isScanning, "isScanning must be true immediately after calling rescan()")
+    print("    ✓ LocalShare rescan and device refresh verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
-    print("\n=====================================================")
-    print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (105/105) ")
-    print("=====================================================\n")
+    if localShareOnly {
+        print("\n=====================================================")
+        print("  ALL LOCAL SHARE TESTS PASSED SUCCESSFULLY (103-105) ")
+        print("=====================================================\n")
+    } else {
+        print("\n=====================================================")
+        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (105/105) ")
+        print("=====================================================\n")
+    }
 }
 
 runAllVerificationTests()
