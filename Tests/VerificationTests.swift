@@ -6014,6 +6014,133 @@ func runAllVerificationTests() {
     assert(settings9.favoriteFingerprints.isEmpty, "removeFavorite with uppercase query must remove lowercase entry")
     print("    ✓ Case-insensitive favorite fingerprint deduplication & lookup verified.")
     
+    // --- Subtest 10 (Finding 10 Integration): End-to-End Multi-File Loopback Upload & Quarantine ---
+    print("  -> Subtest 10: End-to-End Multi-File Loopback Upload & Quarantine...")
+    let testReceiveDir = FileManager.default.temporaryDirectory.appendingPathComponent("int_rec_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: testReceiveDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: testReceiveDir) }
+    LocalShareFileManager.shared.setCustomReceiveFolder(testReceiveDir)
+    
+    let intServer = LocalShareServer()
+    intServer.serverAlias = "IntegrationTarget"
+    intServer.autoAcceptFavorites = true
+    let clientFP = "int_client_fp_123"
+    intServer.favoriteFingerprints = [clientFP]
+    try! intServer.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
+    
+    let intDeadline = Date().addingTimeInterval(2.0)
+    while !intServer.isRunning && Date() < intDeadline {
+        usleep(20_000)
+    }
+    guard case .running(let intPort) = intServer.currentState else {
+        fatalError("Failed to bind intServer")
+    }
+    
+    let intConfig = URLSessionConfiguration.ephemeral
+    let intSession = URLSession(configuration: intConfig)
+    
+    // Prepare 2 files
+    let dataFile1 = Data("Integration payload for file 1 - text data".utf8)
+    let hash1 = SHA256.hash(data: dataFile1).map { String(format: "%02x", $0) }.joined()
+    
+    let dataFile2 = Data("{\"status\": \"active\", \"version\": 2, \"items\": [1,2,3]}".utf8)
+    let hash2 = SHA256.hash(data: dataFile2).map { String(format: "%02x", $0) }.joined()
+    
+    let meta1 = LocalShareFileMetadata(id: "f1", fileName: "notes.txt", size: Int64(dataFile1.count), fileType: "text/plain", sha256: hash1)
+    let meta2 = LocalShareFileMetadata(id: "f2", fileName: "payload.json", size: Int64(dataFile2.count), fileType: "application/json", sha256: hash2)
+    
+    let prepReqObj = LocalSharePrepareUploadRequest(
+        info: LocalShareDeviceInfo(alias: "IntegrationClient", fingerprint: clientFP),
+        files: ["f1": meta1, "f2": meta2]
+    )
+    
+    // 1. POST /api/localsend/v2/prepare-upload
+    let prepURL = URL(string: "http://127.0.0.1:\(intPort)\(LocalShareEndpoints.prepareUpload)")!
+    var prepHTTPReq = URLRequest(url: prepURL)
+    prepHTTPReq.httpMethod = "POST"
+    prepHTTPReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    prepHTTPReq.httpBody = try! JSONEncoder().encode(prepReqObj)
+    
+    let prepSem = DispatchSemaphore(value: 0)
+    var prepRespObj: LocalSharePrepareUploadResponse?
+    intSession.dataTask(with: prepHTTPReq) { data, resp, _ in
+        if let http = resp as? HTTPURLResponse, http.statusCode == 200, let data = data {
+            prepRespObj = try? JSONDecoder().decode(LocalSharePrepareUploadResponse.self, from: data)
+        }
+        prepSem.signal()
+    }.resume()
+    _ = prepSem.wait(timeout: .now() + 3.0)
+    
+    guard let prepResp = prepRespObj else {
+        fatalError("Failed to prepare upload session")
+    }
+    assert(prepResp.files.count == 2, "Server must return tokens for both files")
+    let token1 = prepResp.files["f1"]!
+    let token2 = prepResp.files["f2"]!
+    
+    // 2. Upload file 1
+    let upload1URL = URL(string: "http://127.0.0.1:\(intPort)\(LocalShareEndpoints.upload)?sessionId=\(prepResp.sessionId)&fileId=f1&token=\(token1)")!
+    var upload1Req = URLRequest(url: upload1URL)
+    upload1Req.httpMethod = "POST"
+    upload1Req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+    upload1Req.setValue("\(dataFile1.count)", forHTTPHeaderField: "Content-Length")
+    upload1Req.httpBody = dataFile1
+    
+    let up1Sem = DispatchSemaphore(value: 0)
+    var up1Status = 0
+    intSession.dataTask(with: upload1Req) { _, resp, _ in
+        if let http = resp as? HTTPURLResponse { up1Status = http.statusCode }
+        up1Sem.signal()
+    }.resume()
+    _ = up1Sem.wait(timeout: .now() + 3.0)
+    assert(up1Status == 200, "Upload file 1 must return HTTP 200")
+    
+    // 3. Upload file 2
+    let upload2URL = URL(string: "http://127.0.0.1:\(intPort)\(LocalShareEndpoints.upload)?sessionId=\(prepResp.sessionId)&fileId=f2&token=\(token2)")!
+    var upload2Req = URLRequest(url: upload2URL)
+    upload2Req.httpMethod = "POST"
+    upload2Req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+    upload2Req.setValue("\(dataFile2.count)", forHTTPHeaderField: "Content-Length")
+    upload2Req.httpBody = dataFile2
+    
+    let up2Sem = DispatchSemaphore(value: 0)
+    var up2Status = 0
+    intSession.dataTask(with: upload2Req) { _, resp, _ in
+        if let http = resp as? HTTPURLResponse { up2Status = http.statusCode }
+        up2Sem.signal()
+    }.resume()
+    _ = up2Sem.wait(timeout: .now() + 3.0)
+    assert(up2Status == 200, "Upload file 2 must return HTTP 200")
+    
+    // 4. Verify received files on disk and quarantine attribute
+    let sessionFolder = testReceiveDir.appendingPathComponent("session-\(prepResp.sessionId)")
+    let recFile1 = sessionFolder.appendingPathComponent("notes.txt")
+    let recFile2 = sessionFolder.appendingPathComponent("payload.json")
+    
+    assert(FileManager.default.fileExists(atPath: recFile1.path), "Received file 1 must exist on disk")
+    assert(FileManager.default.fileExists(atPath: recFile2.path), "Received file 2 must exist on disk")
+    
+    let recData1 = try! Data(contentsOf: recFile1)
+    let recData2 = try! Data(contentsOf: recFile2)
+    assert(recData1 == dataFile1, "Received file 1 data must match sent data exactly")
+    assert(recData2 == dataFile2, "Received file 2 data must match sent data exactly")
+    
+    assert(LocalShareFileManager.hasQuarantineAttribute(at: recFile1), "Received file 1 must have com.apple.quarantine attribute")
+    assert(LocalShareFileManager.hasQuarantineAttribute(at: recFile2), "Received file 2 must have com.apple.quarantine attribute")
+    
+    // 5. Anti-replay verification: Attempting upload with consumed token must return HTTP 403
+    let replaySem = DispatchSemaphore(value: 0)
+    var replayStatus = 0
+    intSession.dataTask(with: upload1Req) { _, resp, _ in
+        if let http = resp as? HTTPURLResponse { replayStatus = http.statusCode }
+        replaySem.signal()
+    }.resume()
+    _ = replaySem.wait(timeout: .now() + 3.0)
+    assert(replayStatus == 403, "Replay upload with consumed token must be rejected with HTTP 403")
+    
+    intServer.stop()
+    print("    ✓ End-to-end multi-file loopback upload & quarantine verified.")
+    
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
     print("\n=====================================================")

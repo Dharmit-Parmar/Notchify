@@ -110,6 +110,14 @@ public final class LocalShareFileManager: @unchecked Sendable {
             _ = setxattr(fsPath, "com.apple.quarantine", quarantineValue, quarantineValue.utf8.count, 0, 0)
         }
     }
+    
+    /// Checks if macOS quarantine attribute is present on the file.
+    public static func hasQuarantineAttribute(at url: URL) -> Bool {
+        url.withUnsafeFileSystemRepresentation { fsPath in
+            guard let fsPath = fsPath else { return false }
+            return getxattr(fsPath, "com.apple.quarantine", nil, 0, 0, 0) >= 0
+        }
+    }
 }
 
 // MARK: - Streaming File Writer with Incremental SHA-256 Verification
