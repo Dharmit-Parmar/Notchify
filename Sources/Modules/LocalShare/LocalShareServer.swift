@@ -525,15 +525,8 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         
-        let isFav = (trustState == .trusted) || favoriteFingerprints.contains(where: { $0.caseInsensitiveCompare(senderFp) == .orderedSame })
-        if autoAcceptFavorites && isFav {
-            session.transition(to: .accepted)
-            let tokens = session.generateFileTokens()
-            let resp = LocalSharePrepareUploadResponse(sessionId: sessionId, files: tokens)
-            sendJSONResponse(connection: connection, statusCode: 200, value: resp)
-            return
-        }
-        
+        // Note: Auto-accept from unauthenticated JSON fingerprint is disabled to prevent spoofed auto-acceptance.
+        // All incoming sessions must route through the interactive prompt gate.
         if let gate = onIncomingSessionOffered {
             gate(session) { [weak self] accepted in
                 guard let self = self else { return }
