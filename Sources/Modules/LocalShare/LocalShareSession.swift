@@ -401,7 +401,13 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
     public func reset() {
         lock.lock()
         defer { lock.unlock() }
-        activeSession?.abortActiveWriter()
+        if let current = activeSession {
+            current.abortActiveWriter()
+            current.transition(to: .cancelled(reason: "Server reset"))
+            if let dir = current.sessionDirectory {
+                try? FileManager.default.removeItem(at: dir)
+            }
+        }
         activeSession = nil
     }
 }
