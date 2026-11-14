@@ -301,12 +301,23 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
 }
 
 // MARK: - Peer Certificate Fingerprint Pinning URLSessionDelegate
-private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate, Sendable {
+private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
     private let expectedFingerprint: String
     
     init(expectedFingerprint: String) {
         self.expectedFingerprint = expectedFingerprint
         super.init()
+    }
+    
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        // Disallow all peer-supplied HTTP redirects (LocalSend security requirement)
+        completionHandler(nil)
     }
     
     func urlSession(
