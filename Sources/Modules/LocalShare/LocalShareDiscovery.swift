@@ -19,6 +19,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     
     // Discovered Peers Registry: Fingerprint -> Peer
     private var peersMap: [String: LocalShareDiscoveredPeer] = [:]
+    private let maxPeersCount = 100
     private var peerObservers: [UUID: @Sendable ([LocalShareDiscoveredPeer]) -> Void] = [:]
     public var onPeersUpdated: (@Sendable ([LocalShareDiscoveredPeer]) -> Void)?
     
@@ -38,13 +39,21 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         lock.unlock()
     }
     
+    private func pruneExpiredPeersLocked(cutoff: Date = Date().addingTimeInterval(-60)) {
+        peersMap = peersMap.filter { $0.value.lastSeen > cutoff }
+        if peersMap.count > maxPeersCount {
+            let sortedByLastSeen = peersMap.sorted { $0.value.lastSeen > $1.value.lastSeen }
+            peersMap = Dictionary(uniqueKeysWithValues: sortedByLastSeen.prefix(maxPeersCount).map { ($0.key, $0.value) })
+        }
+    }
+    
     // MARK: - Lifecycle Management
     
     public var activePeers: [LocalShareDiscoveredPeer] {
         lock.lock()
         defer { lock.unlock() }
-        let cutoff = Date().addingTimeInterval(-60) // 60s timeout
-        return peersMap.values.filter { $0.lastSeen > cutoff }.sorted { $0.alias < $1.alias }
+        pruneExpiredPeersLocked()
+        return peersMap.values.sorted { $0.alias < $1.alias }
     }
     
     public var isDiscoveryActive: Bool {
@@ -110,14 +119,35 @@ public final class LocalShareDiscovery: @unchecked Sendable {
                 self.handleIncomingMulticastPacket(data: content, fromHost: cleanHost)
             }
             
-            group.stateUpdateHandler = { state in
-                // Handle state changes if needed
+            group.stateUpdateHandler = { [weak self] state in
+                guard let self = self else { return }
+                switch state {
+                case .ready:
+                    NSLog("[LocalShareDiscovery] Multicast group ready")
+                case .failed(let error):
+                    NSLog("[LocalShareDiscovery] Multicast group failed: %@", error.localizedDescription)
+                    self.lock.lock()
+                    self.multicastGroup = nil
+                    self.isRunning = false
+                    self.lock.unlock()
+                case .cancelled:
+                    self.lock.lock()
+                    self.multicastGroup = nil
+                    self.isRunning = false
+                    self.lock.unlock()
+                default:
+                    break
+                }
             }
             
             self.multicastGroup = group
             group.start(queue: queue)
         } catch {
-            // Silently fail if multicast is blocked on the network interface
+            NSLog("[LocalShareDiscovery] Multicast group setup failed: %@", error.localizedDescription)
+            self.lock.lock()
+            self.isRunning = false
+            self.multicastGroup = nil
+            self.lock.unlock()
         }
     }
     
@@ -172,6 +202,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     
     public func registerDiscoveredPeer(_ peer: LocalShareDiscoveredPeer) {
         lock.lock()
+        pruneExpiredPeersLocked()
         peersMap[peer.fingerprint] = peer
         let updatedList = peersMap.values.sorted { $0.alias < $1.alias }
         let observers = Array(peerObservers.values)
