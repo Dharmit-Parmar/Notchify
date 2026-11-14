@@ -150,16 +150,31 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
             if let identity = assembleIdentity(certDER: certData, privateKeyRaw: keyData) {
                 cachedCertificateDER = certData
                 cachedIdentity = identity
+                saveFallbackData(certData, account: certAccount)
+                saveFallbackData(keyData, account: keyAccount)
                 return (certData, identity)
             }
+        }
+        
+        // Inspect fallback storage to prevent accidental identity regeneration upon transient Keychain error
+        if let fallbackCert = loadFallbackData(account: certAccount),
+           let fallbackKey = loadFallbackData(account: keyAccount),
+           let identity = assembleIdentity(certDER: fallbackCert, privateKeyRaw: fallbackKey) {
+            cachedCertificateDER = fallbackCert
+            cachedIdentity = identity
+            _ = saveKeychainData(fallbackCert, account: certAccount)
+            _ = saveKeychainData(fallbackKey, account: keyAccount)
+            return (fallbackCert, identity)
         }
         
         let privateKey = P256.Signing.PrivateKey()
         let certDER = buildSelfSignedCertificateDER(privateKey: privateKey)
         let keyRaw = privateKey.x963Representation
         
-        saveKeychainData(certDER, account: certAccount)
-        saveKeychainData(keyRaw, account: keyAccount)
+        _ = saveKeychainData(certDER, account: certAccount)
+        _ = saveKeychainData(keyRaw, account: keyAccount)
+        saveFallbackData(certDER, account: certAccount)
+        saveFallbackData(keyRaw, account: keyAccount)
         
         let identity = assembleIdentity(certDER: certDER, privateKeyRaw: keyRaw)
         cachedCertificateDER = certDER
@@ -234,7 +249,7 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         ])
     }
     
-    // MARK: - Keychain Persistence
+    // MARK: - Keychain & Fallback Persistence
     
     private func nonInteractiveContext() -> LAContext {
         let ctx = LAContext()
@@ -242,7 +257,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         return ctx
     }
     
-    private func saveKeychainData(_ data: Data, account: String) {
+    @discardableResult
+    private func saveKeychainData(_ data: Data, account: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
@@ -254,7 +270,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         var newQuery = query
         newQuery[kSecValueData as String] = data
         newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        SecItemAdd(newQuery as CFDictionary, nil)
+        let status = SecItemAdd(newQuery as CFDictionary, nil)
+        return status == errSecSuccess
     }
     
     private func loadKeychainData(account: String) -> Data? {
@@ -274,6 +291,16 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         return nil
     }
     
+    private func saveFallbackData(_ data: Data, account: String) {
+        let key = "NotchApp_LocalShare_Fallback_\(account)"
+        UserDefaults.standard.set(data, forKey: key)
+    }
+    
+    private func loadFallbackData(account: String) -> Data? {
+        let key = "NotchApp_LocalShare_Fallback_\(account)"
+        return UserDefaults.standard.data(forKey: key)
+    }
+    
     public func resetIdentityForTesting() {
         lock.lock()
         defer { lock.unlock() }
@@ -284,5 +311,7 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         let q2: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: serviceName, kSecAttrAccount as String: certAccount]
         SecItemDelete(q1 as CFDictionary)
         SecItemDelete(q2 as CFDictionary)
+        UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(keyAccount)")
+        UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(certAccount)")
     }
 }

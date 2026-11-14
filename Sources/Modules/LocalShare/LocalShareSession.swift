@@ -110,6 +110,12 @@ public final class LocalShareSession: @unchecked Sendable {
         defer { lock.unlock() }
         self.state = newState
         self.lastActivity = Date()
+        if !newState.isActive {
+            for (_, writer) in activeWriters {
+                writer.abort()
+            }
+            activeWriters.removeAll()
+        }
     }
     
     // MARK: - Token Management (Single-Use per File)
@@ -231,16 +237,35 @@ public final class LocalShareSession: @unchecked Sendable {
     
     // MARK: - Active Writer Tracking (Per-File Synchronized Collection)
     
-    public func registerActiveWriter(_ writer: LocalShareFileStreamWriter, for fileId: String) {
+    public func registerActiveWriter(_ writer: LocalShareFileStreamWriter, for fileId: String) throws {
         lock.lock()
         defer { lock.unlock() }
+        guard state.isActive else {
+            throw LocalShareError.sessionCancelled
+        }
+        if activeWriters[fileId] != nil {
+            throw LocalShareError.serverError("Upload writer already active for fileId \(fileId)")
+        }
         self.activeWriters[fileId] = writer
     }
     
-    public func removeActiveWriter(for fileId: String) {
+    @discardableResult
+    public func removeActiveWriter(for fileId: String) -> LocalShareFileStreamWriter? {
         lock.lock()
         defer { lock.unlock() }
-        self.activeWriters.removeValue(forKey: fileId)
+        return self.activeWriters.removeValue(forKey: fileId)
+    }
+    
+    public func getActiveWriter(for fileId: String) -> LocalShareFileStreamWriter? {
+        lock.lock()
+        defer { lock.unlock() }
+        return self.activeWriters[fileId]
+    }
+    
+    public var activeWriterCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return self.activeWriters.count
     }
     
     public func abortActiveWriter(for fileId: String) {

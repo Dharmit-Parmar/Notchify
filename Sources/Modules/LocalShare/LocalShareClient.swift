@@ -84,6 +84,18 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             throw LocalShareError.invalidBody
         }
         
+        // Verify peer trust state before initiating transfer
+        let trustState = LocalShareServer.shared.trustStatus(for: peer.fingerprint, alias: peer.alias)
+        if trustState == .certificateChanged {
+            throw LocalShareError.peerCertificateMismatch(
+                expected: "Previously trusted identity certificate",
+                found: peer.fingerprint
+            )
+        }
+        if trustState == .blocked {
+            throw LocalShareError.rejected
+        }
+        
         // 1. Build file metadata map and precompute hashes
         var metadataMap: [String: LocalShareFileMetadata] = [:]
         var idToURLMap: [String: URL] = [:]

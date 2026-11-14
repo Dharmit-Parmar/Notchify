@@ -41,6 +41,41 @@ public final class LocalShareServer: @unchecked Sendable {
     public var autoAcceptFavorites: Bool = false
     public var favoriteFingerprints: Set<String> = []
     
+    // Explicit Peer Trust State Map
+    private let trustLock = NSLock()
+    private var _trustedPeers: [String: LocalShareTrustedPeer] = [:]
+    public var trustedPeers: [String: LocalShareTrustedPeer] {
+        get {
+            trustLock.lock()
+            defer { trustLock.unlock() }
+            return _trustedPeers
+        }
+        set {
+            trustLock.lock()
+            _trustedPeers = newValue
+            trustLock.unlock()
+        }
+    }
+    
+    public func trustStatus(for fingerprint: String, alias: String?) -> LocalSharePeerTrustState {
+        trustLock.lock()
+        defer { trustLock.unlock() }
+        
+        if let record = _trustedPeers.values.first(where: { $0.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame }) {
+            return record.trustState
+        }
+        
+        if let alias = alias, !alias.isEmpty {
+            if let prior = _trustedPeers.values.first(where: { $0.alias.caseInsensitiveCompare(alias) == .orderedSame && $0.trustState == .trusted }) {
+                if prior.fingerprint.caseInsensitiveCompare(fingerprint) != .orderedSame {
+                    return .certificateChanged
+                }
+            }
+        }
+        
+        return .unverifiedFirstContact
+    }
+    
     // Explicit Acceptance Gate Hook: (Session, Completion(Bool))
     public var onIncomingSessionOffered: (@Sendable (LocalShareSession, @escaping @Sendable (Bool) -> Void) -> Void)?
     
@@ -438,8 +473,23 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         
-        // 7. Acceptance Gate (Favorites or Interactive Prompt)
-        let isFav = favoriteFingerprints.contains(where: { $0.caseInsensitiveCompare(prepareReq.info.fingerprint) == .orderedSame })
+        // 7. Acceptance Gate (Peer Trust & Interactive Prompt)
+        let senderFp = prepareReq.info.fingerprint
+        let senderAlias = prepareReq.info.alias
+        let trustState = self.trustStatus(for: senderFp, alias: senderAlias)
+        
+        if trustState == .certificateChanged {
+            LocalShareFileManager.shared.purgeSessionDirectory(sessionId: sessionId)
+            sendRawResponse(connection: connection, statusCode: 403, reason: "Peer Certificate Changed", body: nil)
+            return
+        }
+        if trustState == .blocked {
+            LocalShareFileManager.shared.purgeSessionDirectory(sessionId: sessionId)
+            sendRawResponse(connection: connection, statusCode: 403, reason: "Blocked Peer", body: nil)
+            return
+        }
+        
+        let isFav = (trustState == .trusted) || favoriteFingerprints.contains(where: { $0.caseInsensitiveCompare(senderFp) == .orderedSame })
         if autoAcceptFavorites && isFav {
             session.transition(to: .accepted)
             let tokens = session.generateFileTokens()
@@ -499,11 +549,11 @@ public final class LocalShareServer: @unchecked Sendable {
                 fileName: sanitizedName,
                 sessionDirectory: sessionDir
             )
-            session.registerActiveWriter(streamWriter, for: fileId)
+            try session.registerActiveWriter(streamWriter, for: fileId)
             session.transition(to: .receiving)
         } catch {
             session.releaseTokenReservation(token: token)
-            sendRawResponse(connection: connection, statusCode: 500, reason: "Disk Error", body: nil)
+            sendRawResponse(connection: connection, statusCode: 409, reason: "Conflict", body: nil)
             return
         }
         
@@ -612,7 +662,16 @@ public final class LocalShareServer: @unchecked Sendable {
                 }
             }
             
-            if updatedBytes >= expectedTotal || isComplete {
+            if isComplete && updatedBytes < expectedTotal {
+                session.releaseTokenReservation(token: token)
+                session.removeActiveWriter(for: fileId)
+                writer.abort()
+                session.markFileFailed(fileId: fileId, error: "Premature Connection Closure")
+                connection.cancel()
+                return
+            }
+            
+            if updatedBytes >= expectedTotal {
                 self.finalizeStreamAndRespond(
                     connection: connection,
                     session: session,
