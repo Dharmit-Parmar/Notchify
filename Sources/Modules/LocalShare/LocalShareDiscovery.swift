@@ -1,5 +1,7 @@
 import Foundation
 import Network
+import Security
+import CryptoKit
 
 // MARK: - LocalShare Multicast & Manual Discovery Service
 public final class LocalShareDiscovery: @unchecked Sendable {
@@ -237,8 +239,8 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         request.httpBody = try JSONEncoder().encode(myDto)
         request.timeoutInterval = 10.0
         
-        // Use an ephemeral session accepting self-signed certificates for discovery
-        let delegate = LocalSharePermissiveTLSDelegate()
+        // Use an ephemeral session with bootstrap delegate to inspect peer TLS certificate
+        let delegate = LocalShareDiscoveryBootstrapDelegate()
         let config = URLSessionConfiguration.ephemeral
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
@@ -249,6 +251,14 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         }
         
         let peerDto = try JSONDecoder().decode(LocalShareRegisterDto.self, from: data)
+        
+        // Cross-verify TLS handshake certificate against claimed DTO fingerprint to prevent MITM spoofing
+        if let presentedFp = delegate.capturedFingerprint, !presentedFp.isEmpty {
+            guard presentedFp.caseInsensitiveCompare(peerDto.fingerprint) == .orderedSame else {
+                throw LocalShareError.peerCertificateMismatch(expected: peerDto.fingerprint, found: presentedFp)
+            }
+        }
+        
         let peer = LocalShareDiscoveredPeer(
             alias: LocalShareSecurity.sanitizeAlias(peerDto.alias),
             deviceModel: peerDto.deviceModel,
@@ -272,8 +282,29 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     }
 }
 
-// MARK: - Permissive TLS Delegate for Initial Discovery Handshake
-public final class LocalSharePermissiveTLSDelegate: NSObject, URLSessionDelegate, Sendable {
+// MARK: - Trust-On-First-Use (TOFU) Discovery Bootstrap Delegate
+/// Captures and verifies the peer leaf certificate during initial discovery/registration handshake.
+/// NOTE: This performs a Trust-On-First-Use (TOFU) certificate exchange, NOT certificate pinning.
+/// Certificate pinning is strictly enforced on subsequent connections by `LocalSharePeerPinningDelegate`.
+public final class LocalShareDiscoveryBootstrapDelegate: NSObject, URLSessionDelegate, Sendable {
+    private final class CertBox: @unchecked Sendable {
+        private var data: Data?
+        private let lock = NSLock()
+        func set(_ d: Data) { lock.lock(); defer { lock.unlock() }; self.data = d }
+        func get() -> Data? { lock.lock(); defer { lock.unlock() }; return self.data }
+    }
+    private let certBox = CertBox()
+    
+    public var capturedCertificateDER: Data? {
+        certBox.get()
+    }
+    
+    public var capturedFingerprint: String? {
+        guard let der = certBox.get() else { return nil }
+        let digest = SHA256.hash(data: der)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+    
     public func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
@@ -284,7 +315,20 @@ public final class LocalSharePermissiveTLSDelegate: NSObject, URLSessionDelegate
             completionHandler(.performDefaultHandling, nil)
             return
         }
-        // Accept the certificate during initial discovery to obtain the public certificate
+        
+        var secError: CFError?
+        _ = SecTrustEvaluateWithError(serverTrust, &secError)
+        
+        if let certChain = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate],
+           let leaf = certChain.first {
+            let der = SecCertificateCopyData(leaf) as Data
+            certBox.set(der)
+        }
+        
+        // Initial discovery bootstrap: accepts the self-signed certificate on initial exchange
+        // in order to inspect and cross-verify identity against the registration DTO.
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
     }
 }
+
+public typealias LocalSharePermissiveTLSDelegate = LocalShareDiscoveryBootstrapDelegate
