@@ -106,7 +106,8 @@ public final class LocalShareDiscovery: @unchecked Sendable {
                 if let endpoint = message.remoteEndpoint, case .hostPort(let host, _) = endpoint {
                     remoteHost = "\(host)"
                 }
-                self.handleIncomingMulticastPacket(data: content, fromHost: remoteHost)
+                let cleanHost = remoteHost.components(separatedBy: "%").first ?? remoteHost
+                self.handleIncomingMulticastPacket(data: content, fromHost: cleanHost)
             }
             
             group.stateUpdateHandler = { state in
@@ -169,7 +170,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         }
     }
     
-    private func registerDiscoveredPeer(_ peer: LocalShareDiscoveredPeer) {
+    public func registerDiscoveredPeer(_ peer: LocalShareDiscoveredPeer) {
         lock.lock()
         peersMap[peer.fingerprint] = peer
         let updatedList = peersMap.values.sorted { $0.alias < $1.alias }
@@ -186,7 +187,8 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     // MARK: - Direct Unicast Register Reply
     
     public func sendDirectRegisterReply(to peer: LocalShareDiscoveredPeer) {
-        guard let url = URL(string: "\(peer.`protocol`)://\(peer.host):\(peer.port)\(LocalShareEndpoints.register)") else {
+        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        guard let url = URL(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.register)") else {
             return
         }
         
@@ -222,7 +224,8 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         host: String,
         port: UInt16 = LocalShareConstants.defaultHttpPort
     ) async throws -> LocalShareDiscoveredPeer {
-        guard let url = URL(string: "https://\(host):\(port)\(LocalShareEndpoints.register)") else {
+        let cleanHost = host.components(separatedBy: "%").first ?? host
+        guard let url = URL(string: "https://\(cleanHost):\(port)\(LocalShareEndpoints.register)") else {
             throw LocalShareError.invalidURL
         }
         

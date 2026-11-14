@@ -149,12 +149,39 @@ public enum LocalShareSecurity {
     }
     
     // MARK: - Peer Certificate Fingerprint Verification
+    /// Normalizes a SHA-256 fingerprint by stripping prefixes (sha256:, sha-256:), colons, hyphens, and whitespace.
+    public static func normalizeFingerprint(_ fp: String) -> String {
+        var clean = fp.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if clean.hasPrefix("sha256:") {
+            clean = String(clean.dropFirst(7))
+        } else if clean.hasPrefix("sha-256:") {
+            clean = String(clean.dropFirst(8))
+        }
+        return clean.replacingOccurrences(of: ":", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
+    }
+
     /// Validates that a peer's DER-encoded certificate matches the expected SHA-256 fingerprint.
     public static func isFingerprintValid(peerCertDER: Data, expectedFingerprint: String) -> Bool {
         guard !peerCertDER.isEmpty, !expectedFingerprint.isEmpty else { return false }
         let digest = SHA256.hash(data: peerCertDER)
         let computedHex = digest.map { String(format: "%02x", $0) }.joined()
-        return computedHex.caseInsensitiveCompare(expectedFingerprint) == .orderedSame
+        let normExpected = normalizeFingerprint(expectedFingerprint)
+        return computedHex.caseInsensitiveCompare(normExpected) == .orderedSame
+    }
+
+    // MARK: - IP Address Normalization
+    /// Strips interface scopes (e.g., %en0) and IPv4-mapped IPv6 prefixes (::ffff:) for robust peer matching.
+    public static func normalizeIP(_ raw: String) -> String {
+        var ip = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let scopeIdx = ip.firstIndex(of: "%") {
+            ip = String(ip[..<scopeIdx])
+        }
+        if ip.lowercased().hasPrefix("::ffff:") {
+            ip = String(ip.dropFirst(7))
+        }
+        return ip
     }
     
     // MARK: - Secret & Path Redaction

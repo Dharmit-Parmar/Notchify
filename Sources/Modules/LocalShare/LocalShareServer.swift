@@ -203,6 +203,9 @@ public final class LocalShareServer: @unchecked Sendable {
             let actualPort = listener?.port?.rawValue ?? 0
             self.state = .running(port: actualPort)
             reportedState = self.state
+            if actualPort > 0 {
+                LocalShareDiscovery.shared.localPort = actualPort
+            }
         case .failed(let error):
             self.state = .failed(error.localizedDescription)
             self.listener?.cancel()
@@ -355,7 +358,7 @@ public final class LocalShareServer: @unchecked Sendable {
         
         var remoteIP = "127.0.0.1"
         if case .hostPort(let host, _) = connection.endpoint {
-            remoteIP = "\(host)"
+            remoteIP = LocalShareSecurity.normalizeIP("\(host)")
         }
         
         return LocalShareHTTPRequest(
@@ -394,10 +397,29 @@ public final class LocalShareServer: @unchecked Sendable {
     // MARK: - Route Handlers
     
     private func handleRegisterRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
-        guard let _ = try? JSONDecoder().decode(LocalShareRegisterDto.self, from: request.body) else {
+        guard let registerDto = try? JSONDecoder().decode(LocalShareRegisterDto.self, from: request.body) else {
             sendRawResponse(connection: connection, statusCode: 400, reason: "Bad Request", body: nil)
             return
         }
+        
+        // Register incoming peer with discovery
+        var remoteHost = request.remoteIP
+        if case .hostPort(let host, _) = connection.endpoint {
+            remoteHost = LocalShareSecurity.normalizeIP("\(host)")
+        }
+        let peerPort = UInt16(registerDto.port ?? Int(LocalShareConstants.defaultHttpPort))
+        let discoveredPeer = LocalShareDiscoveredPeer(
+            alias: LocalShareSecurity.sanitizeAlias(registerDto.alias),
+            deviceModel: registerDto.deviceModel,
+            deviceType: registerDto.deviceType ?? .desktop,
+            fingerprint: registerDto.fingerprint,
+            host: remoteHost,
+            port: peerPort,
+            protocol: registerDto.`protocol` ?? "https",
+            download: registerDto.download ?? false,
+            lastSeen: Date()
+        )
+        LocalShareDiscovery.shared.registerDiscoveredPeer(discoveredPeer)
         
         let responseDto = LocalShareRegisterDto(
             alias: LocalShareSecurity.sanitizeAlias(serverAlias),
@@ -733,9 +755,12 @@ public final class LocalShareServer: @unchecked Sendable {
     }
     
     private func handleInfoRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
+        let actualPort = boundPort ?? LocalShareConstants.defaultHttpPort
         let info = LocalShareDeviceInfo(
             alias: LocalShareSecurity.sanitizeAlias(serverAlias),
-            fingerprint: LocalShareIdentityManager.shared.certificateFingerprint
+            fingerprint: LocalShareIdentityManager.shared.certificateFingerprint,
+            port: Int(actualPort),
+            protocol: "https"
         )
         sendJSONResponse(connection: connection, statusCode: 200, value: info)
     }

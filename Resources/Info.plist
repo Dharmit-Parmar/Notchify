@@ -24,5 +24,7 @@
     <string>Notch uses AppleScript to quickly dispatch messages in Telegram or WhatsApp.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Notch uses your calendar to display upcoming events and schedule in the dashboard.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Notch uses the local network to discover and securely transfer files with nearby devices using Local Share.</string>
 </dict>
 </plist>

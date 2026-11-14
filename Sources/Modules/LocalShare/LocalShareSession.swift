@@ -143,7 +143,9 @@ public final class LocalShareSession: @unchecked Sendable {
         defer { lock.unlock() }
         
         // Ensure IP matches session origin
-        guard peerIP == clientIP || clientIP == "127.0.0.1" || clientIP == "::1" else {
+        let normPeer = LocalShareSecurity.normalizeIP(peerIP)
+        let normClient = LocalShareSecurity.normalizeIP(clientIP)
+        guard normPeer == normClient || normClient == "127.0.0.1" || normClient == "::1" else {
             return false
         }
         

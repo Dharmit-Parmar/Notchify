@@ -25,6 +25,7 @@ let package = Package(
             dependencies: ["LocalShare"],
             path: "Sources",
             exclude: [
+                "Modules/LocalShare.zip",
                 "Modules/LocalShare/LocalShareProtocol.swift",
                 "Modules/LocalShare/LocalShareIdentity.swift",
                 "Modules/LocalShare/LocalShareSecurity.swift",

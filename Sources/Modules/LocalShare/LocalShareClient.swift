@@ -116,10 +116,11 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             )
         }
         
+        let myPort = Int(LocalShareDiscovery.shared.localPort)
         let myInfo = LocalShareDeviceInfo(
             alias: LocalShareSecurity.sanitizeAlias(localAlias),
             fingerprint: LocalShareIdentityManager.shared.certificateFingerprint,
-            port: Int(LocalShareConstants.defaultHttpPort),
+            port: myPort,
             protocol: "https"
         )
         
@@ -127,7 +128,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         let bodyData = try JSONEncoder().encode(prepareReq)
         
         // 2. Build URL with optional pin query parameter
-        var urlComponents = URLComponents(string: "\(peer.`protocol`)://\(peer.host):\(peer.port)\(LocalShareEndpoints.prepareUpload)")
+        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        var urlComponents = URLComponents(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.prepareUpload)")
         if let pin = pin, !pin.isEmpty {
             urlComponents?.queryItems = [URLQueryItem(name: "pin", value: pin)]
         }
@@ -207,7 +209,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         }
         
         let peer = session.peer
-        guard var components = URLComponents(string: "\(peer.`protocol`)://\(peer.host):\(peer.port)\(LocalShareEndpoints.upload)") else {
+        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        guard var components = URLComponents(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.upload)") else {
             throw LocalShareError.invalidURL
         }
         components.queryItems = [
@@ -258,7 +261,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         session.markCancelled()
         
         let peer = session.peer
-        guard var components = URLComponents(string: "\(peer.`protocol`)://\(peer.host):\(peer.port)\(LocalShareEndpoints.cancel)") else {
+        let cleanHost = peer.host.components(separatedBy: "%").first ?? peer.host
+        guard var components = URLComponents(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.cancel)") else {
             return
         }
         components.queryItems = [URLQueryItem(name: "sessionId", value: session.sessionId)]
