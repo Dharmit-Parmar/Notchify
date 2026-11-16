@@ -377,174 +377,200 @@ public struct AirDropExpandedView: View {
             }
             .frame(width: radarSize, height: radarSize)
             
-            // Right Column: Drop Stage, Status & Manual File Picker
-            VStack(alignment: .leading, spacing: notchTight ? 4 : 8) {
-                // Header & Status
-                VStack(alignment: .leading, spacing: 2) {
-                    if !notchTight {
-                        Text("Wireless File Transfer")
-                            .font(.system(size: notchCompact ? 11.5 : 13, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                    }
-                    
-                    Text(module.statusMessage)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(module.isDropTargeted ? DesignSystem.accentColor : DesignSystem.secondaryText)
-                        .lineLimit(notchTight ? 1 : 2)
-                }
-                
-                // Drop Stage Box
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(module.isDropTargeted ? DesignSystem.accentColor.opacity(0.18) : Color.white.opacity(0.04))
-                    
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(
-                            module.isDropTargeted ? DesignSystem.accentColor : Color.white.opacity(0.12),
-                            style: StrokeStyle(lineWidth: module.isDropTargeted ? 1.5 : 1.0, dash: [5, 4])
-                        )
-                    
-                    VStack(spacing: notchTight ? 2 : 5) {
-                        Image(systemName: module.isDropTargeted ? "arrow.down.circle.fill" : "arrow.up.and.down.circle")
-                            .font(.system(size: notchTight ? 14 : 18))
-                            .foregroundColor(DesignSystem.accentColor)
-                            .scaleEffect(module.isDropTargeted ? 1.2 : 1.0)
-                        
-                        Text(module.isDropTargeted ? "Release to Beam" : "Drag & Drop Files Here")
-                            .font(.system(size: notchTight ? 8.5 : 10, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                        
+            // Right Column: Drop Stage, Status, Actions, History & Preview
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: notchTight ? 5 : 8) {
+                    // Header & Status
+                    VStack(alignment: .leading, spacing: 2) {
                         if !notchTight {
-                            Text("Photos, PDFs, videos, or folders")
-                                .font(.system(size: 8.5))
-                                .foregroundColor(DesignSystem.secondaryText)
+                            Text("Wireless File Transfer")
+                                .font(.system(size: notchCompact ? 11.5 : 13, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
                         }
+                        
+                        Text(module.statusMessage)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(module.isDropTargeted ? DesignSystem.accentColor : DesignSystem.secondaryText)
+                            .lineLimit(notchTight ? 1 : 2)
                     }
-                    .padding(notchTight ? 4 : 8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: notchTight ? 56 : 72)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    module.openFilePicker()
-                }
-                
-                // Action Buttons & Recent History
-                HStack(spacing: 8) {
-                    Button(action: module.openFilePicker) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "folder.badge.plus")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("Browse Files...")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
-                        }
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(DesignSystem.accentColor))
-                    }
-                    .buttonStyle(.spring)
                     
-                    Button(action: {
-                        module.pasteFromClipboard()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.on.clipboard")
-                                .font(.system(size: 9.5))
-                            Text("Paste")
-                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundColor(DesignSystem.primaryText)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(DesignSystem.surfaceFill))
-                        .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8))
-                    }
-                    .buttonStyle(.spring)
-                    .keyboardShortcut("v", modifiers: .command)
-                    .accessibilityLabel("Paste from clipboard and AirDrop")
-                    
-                    if !module.recentFiles.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 5) {
-                                ForEach(module.recentFiles, id: \.self) { file in
-                                    HStack(spacing: 4) {
-                                        Button(action: { module.shareFiles([file]) }) {
-                                            HStack(spacing: 4) {
-                                                Image(systemName: "arrow.counterclockwise")
-                                                    .font(.system(size: 7))
-                                                Text(file.lastPathComponent)
-                                                    .font(.system(size: 8.5, weight: .medium))
-                                                    .lineLimit(1)
-                                            }
-                                            .foregroundColor(Color.white.opacity(0.85))
-                                        }
-                                        .buttonStyle(.plain)
-                                        
-                                        // On-Demand Preview Button
-                                        Button(action: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                                                module.previewURL = (module.previewURL == file ? nil : file)
-                                            }
-                                        }) {
-                                            Image(systemName: module.previewURL == file ? "eye.fill" : "eye")
-                                                .font(.system(size: 7.5))
-                                                .foregroundColor(module.previewURL == file ? DesignSystem.accentColor : DesignSystem.secondaryText)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Preview \(file.lastPathComponent)")
-                                        
-                                        // Remove from recent
-                                        Button(action: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                                                module.removeRecentFile(file)
-                                            }
-                                        }) {
-                                            Image(systemName: "xmark")
-                                                .font(.system(size: 7, weight: .bold))
-                                                .foregroundColor(DesignSystem.secondaryText)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Remove \(file.lastPathComponent)")
-                                    }
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3.5)
-                                    .background(Capsule().fill(module.previewURL == file ? DesignSystem.accentColor.opacity(0.18) : DesignSystem.structureColor))
-                                    .overlay(Capsule().strokeBorder(module.previewURL == file ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: 0.7))
-                                    .onDrag {
-                                        NSItemProvider(object: file as NSURL)
-                                    }
-                                    .help("Click to AirDrop or preview \(file.lastPathComponent)")
-                                }
+                    // Drop Stage Box
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(module.isDropTargeted ? DesignSystem.accentColor.opacity(0.18) : Color.white.opacity(0.04))
+                        
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(
+                                module.isDropTargeted ? DesignSystem.accentColor : Color.white.opacity(0.12),
+                                style: StrokeStyle(lineWidth: module.isDropTargeted ? 1.5 : 1.0, dash: [5, 4])
+                            )
+                        
+                        VStack(spacing: notchTight ? 2 : 5) {
+                            Image(systemName: module.isDropTargeted ? "arrow.down.circle.fill" : "arrow.up.and.down.circle")
+                                .font(.system(size: notchTight ? 14 : 18))
+                                .foregroundColor(DesignSystem.accentColor)
+                                .scaleEffect(module.isDropTargeted ? 1.2 : 1.0)
+                            
+                            Text(module.isDropTargeted ? "Release to Beam" : "Drag & Drop Files Here")
+                                .font(.system(size: notchTight ? 8.5 : 10, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                            
+                            if !notchTight {
+                                Text("Photos, PDFs, videos, or folders")
+                                    .font(.system(size: 8.5))
+                                    .foregroundColor(DesignSystem.secondaryText)
                             }
                         }
-                        .frame(height: 24)
+                        .padding(notchTight ? 4 : 8)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: notchTight ? 54 : 68)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        module.openFilePicker()
+                    }
+                    
+                    // Action Buttons Row: [Browse Files...] and [Paste]
+                    HStack(spacing: 8) {
+                        Button(action: module.openFilePicker) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "folder.badge.plus")
+                                    .font(.system(size: 9.5, weight: .semibold))
+                                Text("Browse Files...")
+                                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                            }
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(DesignSystem.accentColor))
+                        }
+                        .buttonStyle(.spring)
                         
-                        // On-Demand File Preview Card for AirDrop
-                        if let previewURL = module.previewURL, module.recentFiles.contains(previewURL) {
-                            FilePreviewStageCard(
-                                url: previewURL,
-                                themeColor: DesignSystem.accentColor,
-                                actionLabel: "AirDrop",
-                                onDismiss: {
+                        Button(action: {
+                            module.pasteFromClipboard()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .font(.system(size: 9))
+                                Text("Paste")
+                                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            }
+                            .foregroundColor(DesignSystem.primaryText)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(DesignSystem.surfaceFill))
+                            .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8))
+                        }
+                        .buttonStyle(.spring)
+                        .keyboardShortcut("v", modifiers: .command)
+                        .accessibilityLabel("Paste from clipboard and AirDrop")
+                        
+                        Spacer()
+                    }
+                    
+                    // Recent Files Row
+                    if !module.recentFiles.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Recent Beam History (\(module.recentFiles.count))")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                                
+                                Spacer()
+                                
+                                Button("Clear") {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                         module.previewURL = nil
+                                        module.recentFiles.removeAll()
                                     }
-                                },
-                                onAction: {
-                                    module.shareFiles([previewURL])
                                 }
-                            )
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
-                                removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
-                            ))
+                                .buttonStyle(.plain)
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundColor(DesignSystem.tertiaryText)
+                            }
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 5) {
+                                    ForEach(module.recentFiles, id: \.self) { file in
+                                        HStack(spacing: 4) {
+                                            Button(action: { module.shareFiles([file]) }) {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "arrow.counterclockwise")
+                                                        .font(.system(size: 7))
+                                                    Text(file.lastPathComponent)
+                                                        .font(.system(size: 8.5, weight: .medium))
+                                                        .lineLimit(1)
+                                                }
+                                                .foregroundColor(Color.white.opacity(0.85))
+                                            }
+                                            .buttonStyle(.plain)
+                                            
+                                            // On-Demand Preview Button
+                                            Button(action: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                                    module.previewURL = (module.previewURL == file ? nil : file)
+                                                }
+                                            }) {
+                                                Image(systemName: module.previewURL == file ? "eye.fill" : "eye")
+                                                    .font(.system(size: 7.5))
+                                                    .foregroundColor(module.previewURL == file ? DesignSystem.accentColor : DesignSystem.secondaryText)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .accessibilityLabel("Preview \(file.lastPathComponent)")
+                                            
+                                            // Remove from recent
+                                            Button(action: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                                    module.removeRecentFile(file)
+                                                }
+                                            }) {
+                                                Image(systemName: "xmark")
+                                                    .font(.system(size: 7, weight: .bold))
+                                                    .foregroundColor(DesignSystem.secondaryText)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .accessibilityLabel("Remove \(file.lastPathComponent)")
+                                        }
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3.5)
+                                        .background(Capsule().fill(module.previewURL == file ? DesignSystem.accentColor.opacity(0.18) : DesignSystem.structureColor))
+                                        .overlay(Capsule().strokeBorder(module.previewURL == file ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: 0.7))
+                                        .onDrag {
+                                            NSItemProvider(object: file as NSURL)
+                                        }
+                                        .help("Click to AirDrop or preview \(file.lastPathComponent)")
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                            .frame(height: 28)
                         }
                     }
                     
-                    Spacer(minLength: 0)
+                    // On-Demand File Preview Card (Full-width block below recent chips)
+                    if let previewURL = module.previewURL, module.recentFiles.contains(previewURL) {
+                        FilePreviewStageCard(
+                            url: previewURL,
+                            themeColor: DesignSystem.accentColor,
+                            actionLabel: "AirDrop",
+                            onDismiss: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                    module.previewURL = nil
+                                }
+                            },
+                            onAction: {
+                                module.shareFiles([previewURL])
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+                        ))
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(4)
         .contentShape(Rectangle())
