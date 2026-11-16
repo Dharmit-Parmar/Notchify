@@ -88,6 +88,7 @@ public final class ProcessMemoryGovernor: ObservableObject {
         guard !NotchShellCoordinator.shared.isMenuOrPopoverOpen else { return }
         guard !NotchShellCoordinator.shared.isFileDraggingActive else { return }
         guard !AirDropModule.shared.isSharingSheetActive && !AirDropModule.shared.isBeaming else { return }
+        guard !LocalShareModule.shared.isTransferSheetActive else { return }
         guard !LocalShareModule.shared.isSending && !LocalShareModule.shared.isReceiving else { return }
         
         let now = Date()
@@ -144,6 +145,7 @@ public final class ProcessMemoryGovernor: ObservableObject {
     private func reapIdleHelperProcesses() {
         guard !isSystemPanelActive else { return }
         guard !AirDropModule.shared.isSharingSheetActive && !AirDropModule.shared.isBeaming else { return }
+        guard !LocalShareModule.shared.isTransferSheetActive else { return }
         guard !NotchShellCoordinator.shared.isMenuOrPopoverOpen else { return }
         
         let myPid = getpid()

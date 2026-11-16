@@ -57,7 +57,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     @Published public var lastReceivedMessage: LocalShareReceivedMessage? = nil
     
     // Popover & Sheet Coordination
-    private var isTransferSheetActive = false
+    public private(set) var isTransferSheetActive = false
     private var activeClientSession: LocalShareClientSession?
     private var pendingAcceptanceCompletion: ((Bool) -> Void)?
     private let historyStorageKey = "NotchApp_LocalShare_RecentTransfers"
@@ -180,6 +180,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         isTransferSheetActive = true
         NotchShellCoordinator.shared.registerPopoverOpened()
         NotchShellCoordinator.shared.panel?.level = .floating
+        ProcessMemoryGovernor.shared.notifySystemPanelOpened()
     }
     
     public func markTransferFinished() {
@@ -187,6 +188,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         isTransferSheetActive = false
         NotchShellCoordinator.shared.panel?.level = .popUpMenu
         NotchShellCoordinator.shared.registerPopoverClosed()
+        ProcessMemoryGovernor.shared.notifySystemPanelClosed()
     }
     
     // MARK: - Incoming Request Server Hooks
