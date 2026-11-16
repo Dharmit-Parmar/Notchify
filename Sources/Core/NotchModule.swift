@@ -227,7 +227,7 @@ public class SettingsStore: ObservableObject {
     }
     @Published public var notchHeight: CGFloat = 330.0 {
         didSet {
-            let clamped = min(420.0, max(200.0, notchHeight))
+            let clamped = min(540.0, max(200.0, notchHeight))
             if notchHeight != clamped {
                 notchHeight = clamped
                 return
