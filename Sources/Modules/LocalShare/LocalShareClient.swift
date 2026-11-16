@@ -185,11 +185,13 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
-        request.timeoutInterval = 30.0
+        request.timeoutInterval = 180.0
         
         // 3. Ephemeral URLSession with pinned peer certificate fingerprint
         let delegate = LocalSharePeerPinningDelegate(expectedFingerprint: peer.fingerprint)
         let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 180.0
+        config.timeoutIntervalForResource = 180.0
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
         
@@ -197,6 +199,12 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch is CancellationError {
+            throw LocalShareError.sessionCancelled
+        } catch let urlErr as URLError where urlErr.code == .cancelled {
+            throw LocalShareError.sessionCancelled
+        } catch let urlErr as URLError where urlErr.code == .timedOut {
+            throw LocalShareError.connectionFailed("Recipient took too long to respond (timed out)")
         } catch {
             let nsError = error as NSError
             NSLog("[LocalShareClient] prepareUpload failed to %@:%d%@ Domain: %@ Code: %ld Description: %@", cleanHost, peer.port, LocalShareEndpoints.prepareUpload, nsError.domain, Int(nsError.code), nsError.localizedDescription)

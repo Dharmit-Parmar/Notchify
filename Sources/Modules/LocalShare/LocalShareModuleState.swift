@@ -375,7 +375,8 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
         } catch {
             self.isSending = false
             self.activeClientSession = nil
-            self.statusMessage = "Send failed: \(error.localizedDescription)"
+            let msg = (error as? LocalShareError)?.localizedDescription ?? error.localizedDescription
+            self.statusMessage = "Send failed: \(msg)"
             
             self.addHistoryItem(
                 peerAlias: peer.alias,

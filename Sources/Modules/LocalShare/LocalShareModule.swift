@@ -59,6 +59,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     // Popover & Sheet Coordination
     public private(set) var isTransferSheetActive = false
     private var activeClientSession: LocalShareClientSession?
+    private var inFlightSendTask: Task<Void, Never>?
     private var pendingAcceptanceCompletion: ((Bool) -> Void)?
     private let historyStorageKey = "NotchApp_LocalShare_RecentTransfers"
     
@@ -549,7 +550,8 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         markTransferActive()
         FeedbackManager.playSend()
         
-        Task {
+        self.inFlightSendTask?.cancel()
+        self.inFlightSendTask = Task {
             do {
                 // 1. Prepare upload in a single session
                 let (clientSession, prepResp) = try await LocalShareClient.shared.prepareUpload(
@@ -592,6 +594,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
                 // Success
                 self.isSending = false
                 self.activeClientSession = nil
+                self.inFlightSendTask = nil
                 self.selectedFiles.removeAll()
                 self.statusMessage = isTextMessageTransfer ? "Message delivered to \(peer.alias)" : "Sent \(filesToSend.count) file(s) to \(peer.alias)"
                 self.markTransferFinished()
@@ -607,7 +610,9 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
             } catch {
                 self.isSending = false
                 self.activeClientSession = nil
-                self.statusMessage = "Send failed: \(error.localizedDescription)"
+                self.inFlightSendTask = nil
+                let msg = (error as? LocalShareError)?.localizedDescription ?? error.localizedDescription
+                self.statusMessage = "Send failed: \(msg)"
                 self.markTransferFinished()
                 
                 self.addHistoryItem(
@@ -622,6 +627,9 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     }
     
     public func cancelActiveTransfer() {
+        inFlightSendTask?.cancel()
+        inFlightSendTask = nil
+        
         if let client = activeClientSession {
             Task {
                 await LocalShareClient.shared.cancelSession(client)
