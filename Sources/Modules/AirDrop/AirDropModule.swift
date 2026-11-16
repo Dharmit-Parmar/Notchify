@@ -48,6 +48,20 @@ public final class URLCollector: @unchecked Sendable {
                         collector.append(url)
                     }
                 }
+            } else if p.canLoadObject(ofClass: String.self) {
+                group.enter()
+                _ = p.loadObject(ofClass: String.self) { item, _ in
+                    defer { group.leave() }
+                    guard let str = item, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    if let url = URL(string: str), url.scheme != nil {
+                        collector.append(url)
+                    } else {
+                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Dropped_Text_\(Int(Date().timeIntervalSince1970)).txt")
+                        if (try? str.write(to: tempURL, atomically: true, encoding: .utf8)) != nil {
+                            collector.append(tempURL)
+                        }
+                    }
+                }
             }
         }
         

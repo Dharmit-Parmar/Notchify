@@ -423,7 +423,10 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     
     public func startSending(files: [URL]) {
         let expanded = expandDirectoriesIfNeeded(in: files)
-        guard !expanded.isEmpty else { return }
+        guard !expanded.isEmpty else {
+            statusMessage = "No files found or folder is empty"
+            return
+        }
         for f in expanded {
             if !selectedFiles.contains(f) {
                 selectedFiles.append(f)

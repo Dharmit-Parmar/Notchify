@@ -304,15 +304,31 @@ public struct LocalShareExpandedView: View {
             }
             .accessibilityLabel("Compose text message to send")
             
-            actionOptionPill(
+            let clipboardPill = actionOptionPill(
                 title: "Clipboard",
                 icon: "doc.on.clipboard",
                 isActive: false
             ) {
+                if uiState.showingMessageComposer {
+                    if let clipText = NSPasteboard.general.string(forType: .string), !clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if uiState.messageText.isEmpty {
+                            uiState.messageText = clipText
+                        } else {
+                            uiState.messageText += "\n" + clipText
+                        }
+                        FeedbackManager.playSuccess()
+                        return
+                    }
+                }
                 module.pasteFromClipboard()
             }
-            .keyboardShortcut("v", modifiers: .command)
             .accessibilityLabel("Paste from clipboard to send")
+            
+            if !uiState.showingMessageComposer {
+                clipboardPill.keyboardShortcut("v", modifiers: .command)
+            } else {
+                clipboardPill
+            }
         }
     }
     
@@ -428,6 +444,7 @@ public struct LocalShareExpandedView: View {
                     .background(Capsule().fill(module.themeColor))
                 }
                 .buttonStyle(.spring)
+                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(uiState.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel("Stage text message to send to peers")
             }
