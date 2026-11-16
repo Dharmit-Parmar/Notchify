@@ -5,6 +5,22 @@ import Combine
 import UserNotifications
 import LocalShare
 
+// MARK: - LocalShare Received Message Model
+public struct LocalShareReceivedMessage: Identifiable, Sendable {
+    public let id = UUID()
+    public let peerAlias: String
+    public let text: String
+    public let fileURL: URL?
+    public let timestamp: Date
+    
+    public init(peerAlias: String, text: String, fileURL: URL?, timestamp: Date = Date()) {
+        self.peerAlias = peerAlias
+        self.text = text
+        self.fileURL = fileURL
+        self.timestamp = timestamp
+    }
+}
+
 // MARK: - LocalShare Main Application Module
 @MainActor
 public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCenterDelegate {
@@ -38,6 +54,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     @Published public var activePeerAlias: String? = nil
     @Published public var incomingSession: LocalShareSession? = nil
     @Published public var recentTransfers: [LocalShareHistoryItem] = []
+    @Published public var lastReceivedMessage: LocalShareReceivedMessage? = nil
     
     // Popover & Sheet Coordination
     private var isTransferSheetActive = false
@@ -270,7 +287,8 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
                     FeedbackManager.playSuccess()
                     
                     if let sessionDir = session.sessionDirectory {
-                        LocalShareFileManager.shared.promoteSessionFiles(sessionId: session.sessionId, sessionDirectory: sessionDir)
+                        let savedFiles = LocalShareFileManager.shared.promoteSessionFiles(sessionId: session.sessionId, sessionDirectory: sessionDir)
+                        self.detectAndSetReceivedTextMessage(from: session, savedFiles: savedFiles)
                     }
                     
                     self.addHistoryItem(
@@ -303,6 +321,83 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
                     return
                 default:
                     break
+                }
+            }
+        }
+    }
+    
+    // MARK: - Received Text / Message Management
+    
+    private func detectAndSetReceivedTextMessage(from session: LocalShareSession, savedFiles: [URL]) {
+        for (_, meta) in session.filesMetadata {
+            // Check if preview already contains message string
+            if let preview = meta.preview, !preview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let matchedURL = savedFiles.first(where: { $0.lastPathComponent == meta.fileName })
+                self.lastReceivedMessage = LocalShareReceivedMessage(
+                    peerAlias: session.peerInfo.alias,
+                    text: preview,
+                    fileURL: matchedURL
+                )
+                self.statusMessage = "Received message from \(session.peerInfo.alias)"
+                return
+            }
+            
+            let isTextType = meta.fileType.hasPrefix("text/") ||
+                             meta.fileName.lowercased().hasSuffix(".txt") ||
+                             meta.fileName.lowercased().hasSuffix(".md") ||
+                             meta.fileName.lowercased().hasSuffix(".json")
+            
+            if isTextType {
+                if let matchedURL = savedFiles.first(where: { $0.lastPathComponent == meta.fileName }),
+                   let content = try? String(contentsOf: matchedURL, encoding: .utf8),
+                   !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.lastReceivedMessage = LocalShareReceivedMessage(
+                        peerAlias: session.peerInfo.alias,
+                        text: content,
+                        fileURL: matchedURL
+                    )
+                    self.statusMessage = "Received message from \(session.peerInfo.alias)"
+                    return
+                }
+            }
+        }
+    }
+    
+    public func copyReceivedMessageText(_ message: LocalShareReceivedMessage) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(message.text, forType: .string)
+        statusMessage = "Message copied to clipboard"
+        FeedbackManager.playSuccess()
+    }
+    
+    public func saveReceivedMessageToFile(_ message: LocalShareReceivedMessage) {
+        FeedbackManager.playClick()
+        let savePanel = NSSavePanel()
+        savePanel.title = "Save Received Message"
+        savePanel.nameFieldStringValue = message.fileURL?.lastPathComponent ?? "Message_\(Int(message.timestamp.timeIntervalSince1970)).txt"
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.prompt = "Save"
+        
+        markTransferActive()
+        NSApp.activate(ignoringOtherApps: true)
+        savePanel.begin { [weak self] response in
+            guard let self = self else { return }
+            self.markTransferFinished()
+            if response == .OK, let targetURL = savePanel.url {
+                do {
+                    if let existingURL = message.fileURL, FileManager.default.fileExists(atPath: existingURL.path) {
+                        if FileManager.default.fileExists(atPath: targetURL.path) {
+                            try FileManager.default.removeItem(at: targetURL)
+                        }
+                        try FileManager.default.copyItem(at: existingURL, to: targetURL)
+                    } else {
+                        try message.text.write(to: targetURL, atomically: true, encoding: .utf8)
+                    }
+                    self.statusMessage = "Message saved to \(targetURL.lastPathComponent)"
+                    FeedbackManager.playSuccess()
+                } catch {
+                    self.statusMessage = "Failed to save message: \(error.localizedDescription)"
                 }
             }
         }

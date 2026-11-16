@@ -13,6 +13,7 @@ public final class LocalShareExpandedUIState: ObservableObject {
     @Published public var isConnectingManualIP = false
     @Published public var showingMessageComposer = false
     @Published public var messageText = ""
+    @Published public var hasCopiedMessage = false
     
     public init() {}
 }
@@ -160,6 +161,11 @@ public struct LocalShareExpandedView: View {
                     // Incoming Transfer Card (if peer offered session)
                     if let incoming = module.incomingSession {
                         incomingRequestCard(incoming: incoming)
+                    }
+                    
+                    // Received Text / Message Card (Copy & Save Actions)
+                    if let message = module.lastReceivedMessage {
+                        receivedMessageCard(message)
                     }
                     
                     // In-Flight Transfer Progress Card
@@ -431,6 +437,99 @@ public struct LocalShareExpandedView: View {
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(module.themeColor.opacity(0.35), lineWidth: 0.8))
     }
     
+    // MARK: - Received Text / Message Card (Copy & Save Actions)
+    
+    private func receivedMessageCard(_ message: LocalShareReceivedMessage) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "message.fill")
+                    .font(.system(size: 9.5))
+                    .foregroundColor(module.themeColor)
+                Text("Message from \(message.peerAlias)")
+                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                    .foregroundColor(DesignSystem.primaryText)
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        module.lastReceivedMessage = nil
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss Received Message")
+            }
+            
+            // Text Preview Box
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(message.text)
+                    .font(.system(size: 9.5, design: .rounded))
+                    .foregroundColor(DesignSystem.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding(6)
+            }
+            .frame(maxHeight: 70)
+            .background(RoundedRectangle(cornerRadius: 6).fill(DesignSystem.surfaceFill))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DesignSystem.cardBorder, lineWidth: 0.75))
+            
+            // Copy & Save Actions
+            HStack(spacing: 8) {
+                Button(action: {
+                    module.copyReceivedMessageText(message)
+                    uiState.hasCopiedMessage = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        uiState.hasCopiedMessage = false
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: uiState.hasCopiedMessage ? "checkmark" : "doc.on.clipboard")
+                            .font(.system(size: 8.5, weight: .bold))
+                        Text(uiState.hasCopiedMessage ? "Copied!" : "Copy Text")
+                            .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(uiState.hasCopiedMessage ? Color.green : module.themeColor))
+                }
+                .buttonStyle(.spring)
+                .accessibilityLabel("Copy received message to clipboard")
+                
+                Button(action: {
+                    module.saveReceivedMessageToFile(message)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 8.5, weight: .semibold))
+                        Text("Save As...")
+                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(DesignSystem.primaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(DesignSystem.surfaceFill))
+                    .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8))
+                }
+                .buttonStyle(.spring)
+                .accessibilityLabel("Save received message to a file")
+                
+                Spacer()
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(module.themeColor.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(module.themeColor.opacity(0.4), lineWidth: 1))
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+            removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+        ))
+    }
+    
     private func incomingRequestCard(incoming: LocalShareSession) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -449,6 +548,14 @@ public struct LocalShareExpandedView: View {
             Text("Total Size: \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))")
                 .font(.system(size: 9))
                 .foregroundColor(DesignSystem.tertiaryText)
+            
+            if let textMeta = incoming.filesMetadata.values.first(where: { $0.preview != nil && !$0.preview!.isEmpty }),
+               let previewText = textMeta.preview {
+                Text("Message: \"\(previewText)\"")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundColor(module.themeColor)
+                    .lineLimit(2)
+            }
             
             HStack(spacing: 8) {
                 Button(action: {
