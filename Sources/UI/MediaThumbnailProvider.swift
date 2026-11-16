@@ -13,6 +13,7 @@ public struct MediaPreviewInfo: Identifiable, Sendable {
     public let formattedSize: String
     public let category: MediaCategory
     public let detailBadge: String?
+    public let textPreview: String?
     
     public enum MediaCategory: String, Sendable {
         case image
@@ -24,12 +25,20 @@ public struct MediaPreviewInfo: Identifiable, Sendable {
         case other
     }
     
-    public init(url: URL, fileName: String, formattedSize: String, category: MediaCategory, detailBadge: String?) {
+    public init(
+        url: URL,
+        fileName: String,
+        formattedSize: String,
+        category: MediaCategory,
+        detailBadge: String?,
+        textPreview: String? = nil
+    ) {
         self.url = url
         self.fileName = fileName
         self.formattedSize = formattedSize
         self.category = category
         self.detailBadge = detailBadge
+        self.textPreview = textPreview
     }
 }
 
@@ -122,12 +131,24 @@ public final class MediaThumbnailProvider: ObservableObject {
             )
         }
         
+        var textSnippet: String? = nil
+        let isTextLike = ["txt", "md", "json", "log", "swift", "py", "sh", "xml", "csv"].contains(ext) ||
+                         name.hasPrefix("Message_") || name.hasPrefix("Snippet_")
+        if isTextLike, size <= 128 * 1024 {
+            let access = url.startAccessingSecurityScopedResource()
+            if let str = try? String(contentsOf: url, encoding: .utf8), !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                textSnippet = String(str.prefix(300))
+            }
+            if access { url.stopAccessingSecurityScopedResource() }
+        }
+        
         return MediaPreviewInfo(
             url: url,
             fileName: name,
             formattedSize: formattedSize,
             category: .document,
-            detailBadge: ext.isEmpty ? "File" : ext.uppercased()
+            detailBadge: ext.isEmpty ? "File" : ext.uppercased(),
+            textPreview: textSnippet
         )
     }
     
@@ -135,6 +156,15 @@ public final class MediaThumbnailProvider: ObservableObject {
         if let cached = cache.object(forKey: url as NSURL) {
             return cached
         }
+        
+        let accessGranted = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessGranted {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         
         let ext = url.pathExtension.lowercased()
         
@@ -215,7 +245,23 @@ public final class MediaThumbnailProvider: ObservableObject {
     }
     
     private func generateQLThumbnail(url: URL, size: CGSize) async -> NSImage? {
-        await withCheckedContinuation { continuation in
+        final class ResumeState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var resumed = false
+            
+            func tryResume(continuation: CheckedContinuation<NSImage?, Never>, value: NSImage?) {
+                lock.lock()
+                defer { lock.unlock() }
+                if !resumed {
+                    resumed = true
+                    continuation.resume(returning: value)
+                }
+            }
+        }
+        
+        return await withCheckedContinuation { continuation in
+            let state = ResumeState()
+            
             let request = QLThumbnailGenerator.Request(
                 fileAt: url,
                 size: size,
@@ -223,7 +269,12 @@ public final class MediaThumbnailProvider: ObservableObject {
                 representationTypes: .all
             )
             QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { thumbnail, _ in
-                continuation.resume(returning: thumbnail?.nsImage)
+                state.tryResume(continuation: continuation, value: thumbnail?.nsImage)
+            }
+            
+            // Safety timeout after 2.5s to prevent hanging on unresponsive QuickLook services
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2.5) {
+                state.tryResume(continuation: continuation, value: nil)
             }
         }
     }
@@ -302,6 +353,17 @@ public struct FilePreviewStageCard: View {
                 } else if uiState.isLoading {
                     ProgressView()
                         .controlSize(.small)
+                } else if let previewText = uiState.info?.textPreview, !previewText.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(previewText)
+                            .font(.system(size: 8.5, design: .monospaced))
+                            .foregroundColor(DesignSystem.primaryText)
+                            .lineLimit(5)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.4)))
                 } else {
                     Image(systemName: "doc.fill")
                         .font(.system(size: 24))
@@ -341,6 +403,7 @@ public struct FilePreviewStageCard: View {
             // Actions Row: Open Full & Action Button
             HStack(spacing: 8) {
                 Button(action: {
+                    guard FileManager.default.fileExists(atPath: url.path) else { return }
                     NSWorkspace.shared.open(url)
                 }) {
                     HStack(spacing: 4) {
