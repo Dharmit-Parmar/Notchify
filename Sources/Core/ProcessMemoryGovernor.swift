@@ -94,43 +94,50 @@ public final class ProcessMemoryGovernor: ObservableObject {
         let idleDuration = now.timeIntervalSince(lastUserActivity)
         let panelIdleDuration = now.timeIntervalSince(lastPanelClosedTime)
         
-        // When collapsed and idle for >= 30 seconds (or panel has been closed for >= 30s)
+        // 1. If helper panels (Open/Save, AirDrop) closed >= 30s ago, reap idle helper processes immediately
+        if panelIdleDuration >= 30.0 {
+            reapIdleHelperProcesses()
+        }
+        
+        // 2. When collapsed and idle for >= 30 seconds
         if NotchShellCoordinator.shared.state == .collapsed && (idleDuration >= 30.0 || panelIdleDuration >= 30.0) {
             reclaimUnusedMemory(reason: "Inactivity Timeout (>=30s Idle)")
         }
     }
     
     public func reclaimUnusedMemory(reason: String) {
-        // 1. Safe Helper Process Reaping (Reclaim ~50 MB RAM from orphaned AppKit/AirDrop services)
+        // 1. Safe Helper Process Reaping (Reclaim ~50 MB RAM from orphaned AppKit/AirDrop/QuickLook services)
         reapIdleHelperProcesses()
         
-        // 2. Shelf In-Memory Caches:
+        // 2. Media Thumbnail Cache: Reclaim in-memory thumbnail bitmaps while preserving all file paths
+        MediaThumbnailProvider.shared.clearCache()
+        
+        // 3. Shelf In-Memory Caches:
         // CAUTION: ShelfModule.shared.items MUST NEVER be cleared! Preserved so user never has to re-upload files.
         ShelfModule.shared.evictCaches()
         if ShelfModule.shared.items.isEmpty {
             ShelfModule.shared.cleanStaleTempFiles(all: true)
         }
         
-        // 3. LocalShare Idle Network State:
+        // 4. LocalShare Idle Network State:
         // CAUTION: LocalShareModule.shared.selectedFiles MUST NEVER be cleared! Preserved so user never has to re-select files.
         let localShare = LocalShareModule.shared
         if localShare.selectedFiles.isEmpty && !localShare.isSending && !localShare.isReceiving {
             localShare.stopDiscovery()
         }
         
-        // 4. AirDrop Idle State:
-        // CAUTION: AirDropModule.shared.recentFiles MUST NEVER be cleared!
-        // Helper processes have already been evaluated and reaped in step 1.
+        // 5. AirDrop Idle State:
+        // CAUTION: AirDropModule.shared.recentFiles MUST NEVER be cleared! Preserved so user never has to re-drag files.
         
-        // 5. Mirror Camera Hardware:
+        // 6. Mirror Camera Hardware:
         if MirrorModule.shared.viewers == 0 {
             MirrorModule.shared.stop()
         }
         
-        // 6. NowPlaying Artwork Bitmaps:
+        // 7. NowPlaying Artwork Bitmaps:
         NowPlayingModule.shared.evictArtworkOnCollapse()
         
-        // 7. Kernel Memory Relief: Release unused dirty pages back to macOS Darwin kernel
+        // 8. Kernel Memory Relief: Release unused dirty pages back to macOS Darwin kernel
         malloc_zone_pressure_relief(malloc_default_zone(), 0)
     }
     
@@ -164,19 +171,13 @@ public final class ProcessMemoryGovernor: ObservableObject {
                 String(cString: ptr.baseAddress!)
             }
             
-            let isOpenSave = path.contains("openAndSavePanelService")
-            let isAirDrop = path.contains("AirDrop.appex")
-            let isQuickLook = path.contains("QuickLookUIService")
+            let isOpenSave = path.localizedCaseInsensitiveContains("openandsavepanelservice")
+            let isAirDrop = path.localizedCaseInsensitiveContains("airdrop")
+            let isQuickLook = path.localizedCaseInsensitiveContains("quicklookuiservice")
             
             guard isOpenSave || isAirDrop || isQuickLook else { continue }
             
-            let responsiblePid = responsibility_get_pid_responsible_for_pid(pid)
-            
-            if isOpenSave && responsiblePid == myPid {
-                pidsToKill.append(pid)
-            } else if isAirDrop && (responsiblePid == myPid || responsiblePid == pid) {
-                pidsToKill.append(pid)
-            } else if isQuickLook && (responsiblePid == myPid || pidsToKill.contains(responsiblePid)) {
+            if isDescendantOfMyProcess(pid: pid, myPid: myPid) {
                 pidsToKill.append(pid)
             }
         }
@@ -184,5 +185,20 @@ public final class ProcessMemoryGovernor: ObservableObject {
         for pid in pidsToKill {
             kill(pid, SIGKILL)
         }
+    }
+    
+    private func isDescendantOfMyProcess(pid: pid_t, myPid: pid_t) -> Bool {
+        var current = pid
+        for _ in 0..<6 {
+            let resp = responsibility_get_pid_responsible_for_pid(current)
+            if resp == myPid {
+                return true
+            }
+            if resp <= 1 || resp == current {
+                break
+            }
+            current = resp
+        }
+        return false
     }
 }
