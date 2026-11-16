@@ -89,9 +89,9 @@ public final class URLCollector: @unchecked Sendable {
                            let tiff = img.tiffRepresentation,
                            let rep = NSBitmapImageRep(data: tiff),
                            let png = rep.representation(using: .png, properties: [:]) {
-                            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Photo_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).png")
-                            if (try? png.write(to: tempURL)) != nil {
+                            if let tempURL = AirDropModule.createSecureTempFile(prefix: "Photo", ext: "png", data: png) {
                                 collector.append(tempURL)
+                                Task { @MainActor in AirDropModule.shared.registerTransientStagedFile(tempURL) }
                             }
                         }
                     }
@@ -100,9 +100,9 @@ public final class URLCollector: @unchecked Sendable {
                     p.loadDataRepresentation(forTypeIdentifier: imageType) { data, _ in
                         defer { group.leave() }
                         if let data = data, !data.isEmpty {
-                            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Photo_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).png")
-                            if (try? data.write(to: tempURL)) != nil {
+                            if let tempURL = AirDropModule.createSecureTempFile(prefix: "Photo", ext: "png", data: data) {
                                 collector.append(tempURL)
+                                Task { @MainActor in AirDropModule.shared.registerTransientStagedFile(tempURL) }
                             }
                         }
                     }
@@ -126,11 +126,10 @@ public final class URLCollector: @unchecked Sendable {
                     guard let text = textStr?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
                     if let url = URL(string: text), url.scheme == "http" || url.scheme == "https" {
                         collector.append(url)
-                    } else {
-                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Dropped_Text_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).txt")
-                        if (try? text.write(to: tempURL, atomically: true, encoding: .utf8)) != nil {
-                            collector.append(tempURL)
-                        }
+                    } else if let textData = text.data(using: .utf8),
+                              let tempURL = AirDropModule.createSecureTempFile(prefix: "Dropped_Text", ext: "txt", data: textData) {
+                        collector.append(tempURL)
+                        Task { @MainActor in AirDropModule.shared.registerTransientStagedFile(tempURL) }
                     }
                 }
             } else if p.canLoadObject(ofClass: String.self) {
@@ -140,11 +139,10 @@ public final class URLCollector: @unchecked Sendable {
                     guard let str = item, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     if let url = URL(string: str), url.scheme != nil {
                         collector.append(url)
-                    } else {
-                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Dropped_Text_\(Int(Date().timeIntervalSince1970)).txt")
-                        if (try? str.write(to: tempURL, atomically: true, encoding: .utf8)) != nil {
-                            collector.append(tempURL)
-                        }
+                    } else if let textData = str.data(using: .utf8),
+                              let tempURL = AirDropModule.createSecureTempFile(prefix: "Dropped_Text", ext: "txt", data: textData) {
+                        collector.append(tempURL)
+                        Task { @MainActor in AirDropModule.shared.registerTransientStagedFile(tempURL) }
                     }
                 }
             }
@@ -202,6 +200,7 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate, @
     
     public func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
         DispatchQueue.main.async {
+            AirDropModule.shared.cleanupStagedFiles()
             AirDropModule.shared.markSharingSheetClosed()
             AirDropModule.shared.isBeaming = false
             AirDropModule.shared.statusMessage = "Shared \(items.count) item(s) successfully"
@@ -211,6 +210,7 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate, @
     
     public func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) {
         DispatchQueue.main.async {
+            AirDropModule.shared.cleanupStagedFiles()
             AirDropModule.shared.markSharingSheetClosed()
             AirDropModule.shared.isBeaming = false
             let desc = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -228,6 +228,7 @@ public final class AirDropPickerDelegate: NSObject, NSSharingServicePickerDelega
             service.delegate = AirDropSharingDelegate.shared
         } else {
             DispatchQueue.main.async {
+                AirDropModule.shared.cleanupStagedFiles()
                 AirDropModule.shared.markSharingSheetClosed()
                 AirDropModule.shared.isBeaming = false
                 AirDropModule.shared.statusMessage = "Cancelled"
@@ -252,15 +253,59 @@ public final class AirDropModule: NotchModule {
     @Published public var statusMessage: String = "Ready to beam to nearby Apple devices"
     @Published public var isBeaming: Bool = false
     
+    // SEC-08: Staged transient files tracking and secure cleanup
+    private var transientStagedFiles: [URL] = []
+    
+    public func registerTransientStagedFile(_ url: URL) {
+        transientStagedFiles.append(url)
+    }
+    
+    public func cleanupStagedFiles() {
+        let files = transientStagedFiles
+        transientStagedFiles.removeAll()
+        guard !files.isEmpty else { return }
+        DispatchQueue.global(qos: .utility).async {
+            for file in files {
+                try? FileManager.default.removeItem(at: file)
+            }
+        }
+    }
+    
+    nonisolated public static func createSecureTempFile(prefix: String, ext: String, data: Data) -> URL? {
+        let stagingDir = FileManager.default.temporaryDirectory.appendingPathComponent("AirDropStaging", isDirectory: true)
+        try? FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true, attributes: [
+            .posixPermissions: 0o700
+        ])
+        let fileName = "\(prefix)_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(6)).\(ext)"
+        let fileURL = stagingDir.appendingPathComponent(fileName)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            return fileURL
+        } catch {
+            return nil
+        }
+    }
+    
     private let sharingDelegate = AirDropSharingDelegate.shared
     public private(set) var isSharingSheetActive = false
     
-    public init() {}
+    public init() {
+        purgeOldStagedFiles()
+    }
+    
+    private func purgeOldStagedFiles() {
+        DispatchQueue.global(qos: .utility).async {
+            let stagingDir = FileManager.default.temporaryDirectory.appendingPathComponent("AirDropStaging", isDirectory: true)
+            try? FileManager.default.removeItem(at: stagingDir)
+        }
+    }
     
     public func start() {}
     public func stop() {
         isDropTargeted = false
         isBeaming = false
+        cleanupStagedFiles()
         if isSharingSheetActive {
             markSharingSheetClosed()
         }
@@ -340,25 +385,24 @@ public final class AirDropModule: NotchModule {
            let tiffData = image.tiffRepresentation,
            let rep = NSBitmapImageRep(data: tiffData),
            let pngData = rep.representation(using: .png, properties: [:]) {
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Pasted_Image_\(Int(Date().timeIntervalSince1970)).png")
-            do {
-                try pngData.write(to: tempURL)
+            if let tempURL = Self.createSecureTempFile(prefix: "Pasted_Image", ext: "png", data: pngData) {
+                registerTransientStagedFile(tempURL)
                 shareFiles([tempURL])
                 statusMessage = "AirDropping pasted image..."
                 return
-            } catch {}
+            }
         }
         
         // 3. Plain Text in clipboard
         if let text = pasteboard.string(forType: .string),
-           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Shared_Text_\(Int(Date().timeIntervalSince1970)).txt")
-            do {
-                try text.write(to: tempURL, atomically: true, encoding: .utf8)
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let textData = text.data(using: .utf8) {
+            if let tempURL = Self.createSecureTempFile(prefix: "Shared_Text", ext: "txt", data: textData) {
+                registerTransientStagedFile(tempURL)
                 shareFiles([tempURL])
                 statusMessage = "AirDropping pasted text..."
                 return
-            } catch {
+            } else {
                 statusMessage = "Failed to paste clipboard text"
                 return
             }

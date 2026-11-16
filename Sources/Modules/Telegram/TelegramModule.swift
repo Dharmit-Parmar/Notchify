@@ -82,28 +82,8 @@ public struct DirectMessenger {
                         DispatchQueue.main.async { completion(false, error.localizedDescription) }
                         return
                     }
-                    if AXIsProcessTrusted() {
-                        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.45) {
-                            let script = """
-                            tell application "System Events"
-                                if exists (process "WhatsApp") then
-                                    tell process "WhatsApp"
-                                        key code 36
-                                    end tell
-                                end if
-                            end tell
-                            """
-                            var scError: NSDictionary?
-                            if let appleScript = NSAppleScript(source: script) {
-                                appleScript.executeAndReturnError(&scError)
-                            }
-                            DispatchQueue.main.async {
-                                completion(true, "Sent via WhatsApp")
-                            }
-                        }
-                    } else {
-                        DispatchQueue.main.async { completion(true, "Opened in WhatsApp") }
-                    }
+                    // SEC-07: Safe URI staging without blind synthetic keystroke injection
+                    DispatchQueue.main.async { completion(true, "Opened in WhatsApp (Ready to send)") }
                 }
             } else {
                 completion(false, "Invalid WhatsApp URL")
@@ -138,29 +118,8 @@ public struct DirectMessenger {
                         DispatchQueue.main.async { completion(false, error.localizedDescription) }
                         return
                     }
-                    // Do NOT forcibly close/hide Telegram with "set visible of process to false"
-                    if AXIsProcessTrusted() {
-                        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.45) {
-                            let script = """
-                            tell application "System Events"
-                                if exists (process "Telegram") then
-                                    tell process "Telegram"
-                                        key code 36
-                                    end tell
-                                end if
-                            end tell
-                            """
-                            var scError: NSDictionary?
-                            if let appleScript = NSAppleScript(source: script) {
-                                appleScript.executeAndReturnError(&scError)
-                            }
-                            DispatchQueue.main.async {
-                                completion(true, "Sent to Telegram")
-                            }
-                        }
-                    } else {
-                        DispatchQueue.main.async { completion(true, "Opened in Telegram") }
-                    }
+                    // SEC-07: Safe URI staging without blind synthetic keystroke injection
+                    DispatchQueue.main.async { completion(true, "Opened in Telegram (Ready to send)") }
                 }
             } else {
                 completion(false, "Invalid Telegram URL")

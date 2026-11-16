@@ -35,11 +35,62 @@ public final class LocalShareServer: @unchecked Sendable {
     private var state: LocalShareServerState = .stopped
     private let queue = DispatchQueue(label: "com.notch.LocalShare.Server", qos: .userInitiated)
     
-    // Server Configuration
-    public var serverAlias: String = "MacBook"
-    public var requiredPin: String? = nil
-    public var autoAcceptFavorites: Bool = false
-    public var favoriteFingerprints: Set<String> = []
+    // Server Configuration (Synchronized for SEC-05 thread safety)
+    private var _serverAlias: String = "MacBook"
+    public var serverAlias: String {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _serverAlias
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _serverAlias = newValue
+        }
+    }
+    
+    private var _requiredPin: String? = nil
+    public var requiredPin: String? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _requiredPin
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _requiredPin = newValue
+        }
+    }
+    
+    private var _autoAcceptFavorites: Bool = false
+    public var autoAcceptFavorites: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _autoAcceptFavorites
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _autoAcceptFavorites = newValue
+        }
+    }
+    
+    private var _favoriteFingerprints: Set<String> = []
+    public var favoriteFingerprints: Set<String> {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _favoriteFingerprints
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _favoriteFingerprints = newValue
+        }
+    }
     
     // Shared files available for reverse-download via browser / download API
     private var _sharedFiles: [URL] = []
@@ -532,8 +583,8 @@ public final class LocalShareServer: @unchecked Sendable {
     
     private func routeRequest(connection: NWConnection, request: LocalShareHTTPRequest) {
         NSLog("[LocalShareServer] Received %@ %@ from %@", request.method, request.path, request.remoteIP)
-        // Enforce rate limiting per client IP
-        guard rateLimiter.isAllowed(ip: request.remoteIP) else {
+        // Enforce rate limiting per client IP (SEC-06: exempt /upload data transfers to prevent dropping batch files)
+        if request.path != LocalShareEndpoints.upload && !rateLimiter.isAllowed(ip: request.remoteIP) {
             sendRawResponse(connection: connection, statusCode: 429, reason: "Too Many Requests", body: nil)
             return
         }
@@ -689,9 +740,20 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
         
-        // Note: Auto-accept from unauthenticated JSON fingerprint is disabled to prevent spoofed auto-acceptance.
-        // All incoming sessions must route through the interactive prompt gate.
-        if let gate = onIncomingSessionOffered {
+        // Acceptance Gate: Auto-accept verified favorites or route through interactive prompt gate
+        let favSet = favoriteFingerprints
+        let isFav = autoAcceptFavorites && (
+            favSet.contains(senderFp) ||
+            favSet.contains(senderFp.lowercased()) ||
+            trustedPeers[senderFp.lowercased()]?.trustState == .trusted
+        )
+        
+        if isFav {
+            session.transition(to: .accepted)
+            let tokens = session.generateFileTokens()
+            let resp = LocalSharePrepareUploadResponse(sessionId: sessionId, files: tokens)
+            self.sendJSONResponse(connection: connection, statusCode: 200, value: resp)
+        } else if let gate = onIncomingSessionOffered {
             gate(session) { [weak self] accepted in
                 guard let self = self else { return }
                 if accepted {
@@ -705,7 +767,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 }
             }
         } else {
-            // Default: Reject if no acceptance gate is attached
+            // Default: Reject if no acceptance gate is attached and not auto-accepted favorite
             LocalShareSessionCoordinator.shared.cancelSession(sessionId: sessionId, reason: "No acceptance handler")
             sendRawResponse(connection: connection, statusCode: 403, reason: "Forbidden", body: nil)
         }

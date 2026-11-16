@@ -28,8 +28,6 @@
     <string>Notch uses the local network to discover and securely transfer files with nearby devices using Local Share.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <true/>
         <key>NSAllowsLocalNetworking</key>
         <true/>
     </dict>

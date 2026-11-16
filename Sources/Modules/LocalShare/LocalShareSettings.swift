@@ -151,7 +151,9 @@ public final class LocalShareSettings: ObservableObject {
     @Published public var tcpPort: UInt16 {
         didSet {
             UserDefaults.standard.set(Int(tcpPort), forKey: "NotchApp_LocalShare_Port")
-            LocalShareServer.shared.restart(port: tcpPort)
+            if isReceiveEnabled && LocalShareServer.shared.isRunning {
+                LocalShareServer.shared.restart(port: tcpPort)
+            }
         }
     }
     
@@ -299,52 +301,25 @@ public final class LocalShareSettings: ObservableObject {
         
         guard let data = pin.data(using: .utf8) else { return false }
         
-        // Update-first pattern: update existing item rather than deleting before replacement
         let searchQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: pinAccount,
-            kSecUseDataProtectionKeychain as String: true
+            kSecAttrAccount as String: pinAccount
         ]
+        SecItemDelete(searchQuery as CFDictionary)
         
-        let updateAttrs: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-        
-        let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
-        if updateStatus == errSecSuccess {
+        var addQuery = searchQuery
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        var access: SecAccess?
+        if SecAccessCreate("Notch LocalShare PIN" as CFString, nil, &access) == errSecSuccess, let acc = access {
+            addQuery[kSecAttrAccess as String] = acc
+        }
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        if addStatus == errSecSuccess {
             UserDefaults.standard.removeObject(forKey: fallbackKey)
             return true
         }
-        
-        if updateStatus == errSecItemNotFound {
-            // Item does not exist yet: insert it
-            var addQuery = searchQuery
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            if addStatus == errSecSuccess {
-                UserDefaults.standard.removeObject(forKey: fallbackKey)
-                return true
-            }
-            if addStatus == errSecDuplicateItem {
-                let retryStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
-                if retryStatus == errSecSuccess {
-                    UserDefaults.standard.removeObject(forKey: fallbackKey)
-                    return true
-                }
-            }
-            if addStatus == -34018 /* errSecMissingEntitlement in unentitled test runners */ {
-                return true
-            }
-            return false
-        }
-        
-        if updateStatus == -34018 /* errSecMissingEntitlement in unentitled test runners */ {
-            return true
-        }
-        
         return false
     }
     
@@ -372,14 +347,13 @@ public final class LocalShareSettings: ObservableObject {
         
         // 2. If Keychain was empty, recover from legacy fallback storage
         if let fallbackPin = UserDefaults.standard.string(forKey: fallbackKey), !fallbackPin.isEmpty {
-            // 3. Migrate fallback PIN into Data Protection Keychain
+            // 3. Migrate fallback PIN into standard Keychain
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: account,
                 kSecValueData as String: Data(fallbackPin.utf8),
-                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-                kSecUseDataProtectionKeychain as String: true
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             ]
             let status = SecItemAdd(query as CFDictionary, nil)
             if status == errSecSuccess {
@@ -393,13 +367,13 @@ public final class LocalShareSettings: ObservableObject {
     }
     
     private static func loadPinFromKeychain(service: String, account: String) -> String {
+        SecKeychainSetUserInteractionAllowed(false)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseDataProtectionKeychain as String: true
+            kSecMatchLimit as String: kSecMatchLimitOne
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
@@ -414,19 +388,19 @@ public final class LocalShareSettings: ObservableObject {
         let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
         UserDefaults.standard.removeObject(forKey: fallbackKey)
         
-        let legacyQuery: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: pinAccount
         ]
-        SecItemDelete(legacyQuery as CFDictionary)
+        SecItemDelete(query as CFDictionary)
         
-        let query: [String: Any] = [
+        let dpQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: pinAccount,
             kSecUseDataProtectionKeychain as String: true
         ]
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(dpQuery as CFDictionary)
     }
 }

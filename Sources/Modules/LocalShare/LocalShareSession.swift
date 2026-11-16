@@ -360,9 +360,7 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         lock.unlock()
         
         if let dir = dirToClean {
-            DispatchQueue.global(qos: .utility).async {
-                try? FileManager.default.removeItem(at: dir)
-            }
+            try? FileManager.default.removeItem(at: dir)
         }
     }
     
@@ -375,23 +373,22 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         filesMetadata: [String: LocalShareFileMetadata]
     ) throws -> LocalShareSession {
         lock.lock()
-        defer { lock.unlock() }
+        var dirToCleanOnTimeout: URL? = nil
         
         // Clean up timed out sessions
         if let current = activeSession, current.isTimedOut() {
-            let dirToClean = current.sessionDirectory
+            dirToCleanOnTimeout = current.sessionDirectory
             current.abortActiveWriter()
             current.transition(to: .failed(.sessionCancelled))
             activeSession = nil
-            if let dir = dirToClean {
-                DispatchQueue.global(qos: .utility).async {
-                    try? FileManager.default.removeItem(at: dir)
-                }
-            }
         }
         
         // Enforce strict single active session rule (HTTP 409)
         if let current = activeSession, current.currentState.isActive {
+            lock.unlock()
+            if let dir = dirToCleanOnTimeout {
+                try? FileManager.default.removeItem(at: dir)
+            }
             throw LocalShareError.blockedByAnotherSession
         }
         
@@ -405,6 +402,12 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         )
         session.transition(to: .offered)
         self.activeSession = session
+        lock.unlock()
+        
+        if let dir = dirToCleanOnTimeout {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        
         return session
     }
     
@@ -439,9 +442,7 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         lock.unlock()
         
         if let dir = dirToClean {
-            DispatchQueue.global(qos: .utility).async {
-                try? FileManager.default.removeItem(at: dir)
-            }
+            try? FileManager.default.removeItem(at: dir)
         }
     }
     
@@ -455,9 +456,7 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         lock.unlock()
         
         if let dir = dirToClean {
-            DispatchQueue.global(qos: .utility).async {
-                try? FileManager.default.removeItem(at: dir)
-            }
+            try? FileManager.default.removeItem(at: dir)
         }
     }
     

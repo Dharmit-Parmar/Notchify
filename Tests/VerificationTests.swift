@@ -563,6 +563,7 @@ func runAllVerificationTests() {
     }
     
     proc.waitUntilExit()
+    outP.fileHandleForReading.readabilityHandler = nil
     assert(!proc.isRunning, "thock-cli must exit cleanly on 'exit'")
     assert(proc.terminationStatus == 0, "Exit status must be 0")
     print("  Captured \(outputBox.text.count) characters of CLI telemetry")
@@ -607,6 +608,7 @@ func runAllVerificationTests() {
     }
     
     dualProc.waitUntilExit()
+    dualOut.fileHandleForReading.readabilityHandler = nil
     assert(dualProc.terminationStatus == 0, "Dual process exited cleanly")
     assert(dualOutputBox.text.contains("Volume: 85%"), "Output must confirm Key Volume 85%")
     assert(dualOutputBox.text.contains("vol → 45%"), "Output must confirm ASMR Volume 45%")

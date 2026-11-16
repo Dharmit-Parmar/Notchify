@@ -145,6 +145,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     // MARK: - Internal Key & Certificate Generation / Persistence
     
     private func loadOrGenerateIdentityLocked() -> (Data, SecIdentity?) {
+        SecKeychainSetUserInteractionAllowed(false)
+
         // 1. Try the existing Keychain identity first.
         let keychainCert = loadKeychainData(account: certAccount)
         let keychainKey = loadKeychainData(account: keyAccount)
@@ -163,15 +165,13 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
                 String(format: "%02x", $0)
             }.joined()
 
-            // Existing Keychain identity is valid.
-            // No need to rewrite or delete anything.
             removeFallbackData(account: certAccount)
             removeFallbackData(account: keyAccount)
 
             return (certData, identity)
         }
 
-        // 2. Recover the previous identity from legacy fallback storage.
+        // 2. Recover the previous identity from fallback storage.
         if let fallbackCert = loadFallbackData(account: certAccount),
            let fallbackKey = loadFallbackData(account: keyAccount),
            let identity = assembleIdentity(
@@ -187,24 +187,13 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
                 String(format: "%02x", $0)
             }.joined()
 
-            // Attempt migration without interactive authentication.
-            let certSaved = saveKeychainData(
-                fallbackCert,
-                account: certAccount
-            )
-
-            let keySaved = saveKeychainData(
-                fallbackKey,
-                account: keyAccount
-            )
-
-            // Delete the old fallback only after BOTH writes succeed.
+            let certSaved = saveKeychainData(fallbackCert, account: certAccount)
+            let keySaved = saveKeychainData(fallbackKey, account: keyAccount)
             if certSaved && keySaved {
                 removeFallbackData(account: certAccount)
                 removeFallbackData(account: keyAccount)
             }
 
-            // Keep the existing identity even if migration fails.
             return (fallbackCert, identity)
         }
 
@@ -228,7 +217,6 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
             String(format: "%02x", $0)
         }.joined()
 
-        // Persist securely. Do not create new plaintext UserDefaults backups.
         _ = saveKeychainData(certDER, account: certAccount)
         _ = saveKeychainData(keyRaw, account: keyAccount)
 
@@ -318,63 +306,33 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         #endif
     }
     
-    private func cleanLegacyFileBasedKeychain(account: String) {
-        let legacyQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: account,
-            kSecUseAuthenticationContext as String: nonInteractiveContext()
-        ]
-        SecItemDelete(legacyQuery as CFDictionary)
+    private func createOpenAccess(descriptor: String) -> SecAccess? {
+        var access: SecAccess?
+        let status = SecAccessCreate(descriptor as CFString, nil, &access)
+        return status == errSecSuccess ? access : nil
     }
-    
+
     @discardableResult
     private func saveKeychainData(
         _ data: Data,
         account: String
     ) -> Bool {
-        cleanLegacyFileBasedKeychain(account: account)
-
-        let context = nonInteractiveContext()
-
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: account,
-            kSecUseDataProtectionKeychain as String: true,
-            kSecUseAuthenticationContext as String: context
+            kSecAttrAccount as String: account
         ]
 
-        // First try updating the existing item.
-        let attributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String:
-                kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
+        // Delete any existing item first to ensure current binary ownership and avoid stale ACL prompts
+        SecItemDelete(query as CFDictionary)
 
-        let updateStatus = SecItemUpdate(
-            query as CFDictionary,
-            attributes as CFDictionary
-        )
-
-        if updateStatus == errSecSuccess {
-            return true
-        }
-
-        guard updateStatus == errSecItemNotFound else {
-            logKeychain(
-                op: "update",
-                account: account,
-                status: updateStatus
-            )
-            return false
-        }
-
-        // Add only when the item genuinely does not exist.
         var addQuery = query
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrAccessible as String] =
             kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        if let access = createOpenAccess(descriptor: "Notch LocalShare") {
+            addQuery[kSecAttrAccess as String] = access
+        }
 
         let addStatus = SecItemAdd(
             addQuery as CFDictionary,
@@ -382,23 +340,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         )
 
         if addStatus == errSecSuccess {
+            removeFallbackData(account: account)
             return true
-        }
-
-        // Handle a possible race where another operation inserted it.
-        if addStatus == errSecDuplicateItem {
-            let retryStatus = SecItemUpdate(
-                query as CFDictionary,
-                attributes as CFDictionary
-            )
-
-            logKeychain(
-                op: "updateAfterDuplicate",
-                account: account,
-                status: retryStatus
-            )
-
-            return retryStatus == errSecSuccess
         }
 
         logKeychain(
@@ -411,16 +354,13 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     }
 
     private func loadKeychainData(account: String) -> Data? {
-        let context = nonInteractiveContext()
-
+        SecKeychainSetUserInteractionAllowed(false)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseDataProtectionKeychain as String: true,
-            kSecUseAuthenticationContext as String: context
+            kSecMatchLimit as String: kSecMatchLimitOne
         ]
 
         var item: CFTypeRef?
@@ -436,11 +376,11 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
             status: status
         )
 
-        guard status == errSecSuccess else {
-            return nil
+        if status == errSecSuccess, let data = item as? Data {
+            return data
         }
 
-        return item as? Data
+        return nil
     }
 
     private func removeFallbackData(account: String) {
@@ -464,25 +404,14 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         cachedFingerprint = nil
         cachedCertificateDER = nil
         cachedIdentity = nil
-        cleanLegacyFileBasedKeychain(account: keyAccount)
-        cleanLegacyFileBasedKeychain(account: certAccount)
-        let q1: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: keyAccount,
-            kSecUseDataProtectionKeychain as String: true,
-            kSecUseAuthenticationContext as String: nonInteractiveContext()
-        ]
-        let q2: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: certAccount,
-            kSecUseDataProtectionKeychain as String: true,
-            kSecUseAuthenticationContext as String: nonInteractiveContext()
-        ]
-        SecItemDelete(q1 as CFDictionary)
-        SecItemDelete(q2 as CFDictionary)
-        UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(keyAccount)")
-        UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(certAccount)")
+        for account in [keyAccount, certAccount] {
+            let q: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: serviceName,
+                kSecAttrAccount as String: account
+            ]
+            SecItemDelete(q as CFDictionary)
+            UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(account)")
+        }
     }
 }

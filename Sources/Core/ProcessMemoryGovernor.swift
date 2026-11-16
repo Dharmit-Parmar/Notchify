@@ -2,9 +2,6 @@ import Foundation
 import AppKit
 import Darwin
 
-@_silgen_name("responsibility_get_pid_responsible_for_pid")
-private func responsibility_get_pid_responsible_for_pid(_ pid: pid_t) -> pid_t
-
 /// ProcessMemoryGovernor monitors idle state, memory pressure, and manages the reclamation of
 /// idle external helper services (NSOpenPanel, AirDrop app extension, QuickLook) and internal caches.
 ///
@@ -143,64 +140,8 @@ public final class ProcessMemoryGovernor: ObservableObject {
     }
     
     private func reapIdleHelperProcesses() {
-        guard !isSystemPanelActive else { return }
-        guard !AirDropModule.shared.isSharingSheetActive && !AirDropModule.shared.isBeaming else { return }
-        guard !LocalShareModule.shared.isTransferSheetActive else { return }
-        guard !NotchShellCoordinator.shared.isMenuOrPopoverOpen else { return }
-        
-        let myPid = getpid()
-        let myUID = geteuid()
-        
-        var pids = [pid_t](repeating: 0, count: 2048)
-        let byteCount = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids, Int32(MemoryLayout<pid_t>.stride * pids.count))
-        guard byteCount > 0 else { return }
-        let count = Int(byteCount) / MemoryLayout<pid_t>.stride
-        
-        var pathBuf = [CChar](repeating: 0, count: 4096)
-        var pidsToKill: [pid_t] = []
-        
-        for i in 0..<count {
-            let pid = pids[i]
-            guard pid > 1 && pid != myPid else { continue }
-            
-            var bsdInfo = proc_bsdinfo()
-            let size = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsdInfo, Int32(MemoryLayout<proc_bsdinfo>.size))
-            guard size > 0, bsdInfo.pbi_uid == myUID else { continue }
-            
-            let pathLen = proc_pidpath(pid, &pathBuf, UInt32(pathBuf.count))
-            guard pathLen > 0 else { continue }
-            let path = pathBuf.withUnsafeBufferPointer { ptr in
-                String(cString: ptr.baseAddress!)
-            }
-            
-            let isOpenSave = path.localizedCaseInsensitiveContains("openandsavepanelservice")
-            let isAirDrop = path.localizedCaseInsensitiveContains("airdrop")
-            let isQuickLook = path.localizedCaseInsensitiveContains("quicklookuiservice")
-            
-            guard isOpenSave || isAirDrop || isQuickLook else { continue }
-            
-            if isDescendantOfMyProcess(pid: pid, myPid: myPid) {
-                pidsToKill.append(pid)
-            }
-        }
-        
-        for pid in pidsToKill {
-            kill(pid, SIGKILL)
-        }
-    }
-    
-    private func isDescendantOfMyProcess(pid: pid_t, myPid: pid_t) -> Bool {
-        var current = pid
-        for _ in 0..<6 {
-            let resp = responsibility_get_pid_responsible_for_pid(current)
-            if resp == myPid {
-                return true
-            }
-            if resp <= 1 || resp == current {
-                break
-            }
-            current = resp
-        }
-        return false
+        // SEC-09: Eliminated private Darwin SPI responsibility_get_pid_responsible_for_pid and SIGKILL calls.
+        // Helper XPC services (NSOpenPanel, AirDrop) automatically transition to idle and terminate
+        // via system RunningBoard/launchd when their Mach connection handles are closed.
     }
 }

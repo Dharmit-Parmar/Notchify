@@ -77,7 +77,22 @@ public final class AskAIService: ObservableObject {
     @Published public var errorMessage: String? = nil
     @Published public var activeProvider: AIProvider = .gemini
     
-    private init() {
+    // SEC-03: Ephemeral URLSession with zero disk caching, zero cookies, and zero credential storage
+    private let session: URLSession
+    
+    public init(session: URLSession? = nil) {
+        if let customSession = session {
+            self.session = customSession
+        } else {
+            let config = URLSessionConfiguration.ephemeral
+            config.urlCache = nil
+            config.httpCookieStorage = nil
+            config.urlCredentialStorage = nil
+            config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            config.timeoutIntervalForRequest = 20.0
+            config.timeoutIntervalForResource = 30.0
+            self.session = URLSession(configuration: config)
+        }
         self.activeProvider = SettingsStore.shared.aiDefaultProvider
         // Automatically discover local Antigravity / Google account on launch
         if SettingsStore.shared.connectedGoogleEmail.isEmpty, let detected = detectLocalGoogleAccount() {
@@ -347,7 +362,7 @@ public final class AskAIService: ObservableObject {
                     request.httpBody = jsonData
                     request.timeoutInterval = 10.0
                     
-                    if let (data, response) = try? await URLSession.shared.data(for: request),
+                    if let (data, response) = try? await self.session.data(for: request),
                        let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200,
                        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let candidates = json["candidates"] as? [[String: Any]],
@@ -444,8 +459,8 @@ public final class AskAIService: ObservableObject {
         request.httpBody = jsonData
         request.timeoutInterval = 20.0
         
-        // Zero-overhead ephemeral data request
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Zero-overhead ephemeral data request with isolated cache
+        let (data, response) = try await session.data(for: request)
         
         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
             if let errJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -500,7 +515,7 @@ public final class AskAIService: ObservableObject {
         request.httpBody = jsonData
         request.timeoutInterval = 20.0
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         
         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
             if let errJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
