@@ -710,10 +710,18 @@ public struct LocalShareExpandedView: View {
     
     private func peerRow(_ peer: LocalShareDiscoveredPeer) -> some View {
         Button(action: {
-            if module.selectedFiles.isEmpty {
-                module.openFilePicker(thenSendTo: peer)
-            } else {
+            if !module.selectedFiles.isEmpty {
                 module.sendFiles(to: peer)
+            } else if uiState.showingMessageComposer && !uiState.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let text = uiState.messageText
+                uiState.messageText = ""
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    uiState.showingMessageComposer = false
+                }
+                module.stageTextMessage(text)
+                module.sendFiles(to: peer)
+            } else {
+                module.openFilePicker(thenSendTo: peer)
             }
         }) {
             HStack(spacing: 8) {
@@ -745,7 +753,8 @@ public struct LocalShareExpandedView: View {
                 Spacer()
                 
                 // Send action label
-                Text(module.selectedFiles.isEmpty ? "Select..." : "Send")
+                let hasPendingContent = !module.selectedFiles.isEmpty || (uiState.showingMessageComposer && !uiState.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Text(hasPendingContent ? "Send" : "Select...")
                     .font(.system(size: 9.5, weight: .bold, design: .rounded))
                     .foregroundColor(module.themeColor)
                     .padding(.horizontal, 8)

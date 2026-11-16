@@ -138,12 +138,25 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             let mimeType = values?.contentType?.preferredMIMEType ?? "application/octet-stream"
             let sha256 = computeFileSHA256(url: url)
             
+            var resolvedMimeType = mimeType
+            if url.pathExtension.lowercased() == "txt" {
+                resolvedMimeType = "text/plain"
+            }
+            
+            var previewText: String? = nil
+            if (resolvedMimeType.hasPrefix("text/") || url.pathExtension.lowercased() == "txt"), size <= 65536 {
+                if let content = try? String(contentsOf: url, encoding: .utf8), !content.isEmpty {
+                    previewText = String(content.prefix(4000))
+                }
+            }
+            
             metadataMap[fileId] = LocalShareFileMetadata(
                 id: fileId,
                 fileName: url.lastPathComponent,
                 size: size,
-                fileType: mimeType,
-                sha256: sha256
+                fileType: resolvedMimeType,
+                sha256: sha256,
+                preview: previewText
             )
         }
         
