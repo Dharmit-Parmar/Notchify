@@ -221,6 +221,51 @@ public final class AirDropModule: NotchModule {
         showSharingPickerFallback(for: validUrls)
     }
     
+    public func pasteFromClipboard() {
+        let pasteboard = NSPasteboard.general
+        
+        // 1. File URLs in clipboard
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let fileURLs = urls.filter { $0.isFileURL && FileManager.default.fileExists(atPath: $0.path) }
+            if !fileURLs.isEmpty {
+                shareFiles(fileURLs)
+                statusMessage = "AirDropping \(fileURLs.count) pasted file(s)..."
+                return
+            }
+        }
+        
+        // 2. Image data in clipboard
+        if let image = NSImage(pasteboard: pasteboard),
+           let tiffData = image.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiffData),
+           let pngData = rep.representation(using: .png, properties: [:]) {
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Pasted_Image_\(Int(Date().timeIntervalSince1970)).png")
+            do {
+                try pngData.write(to: tempURL)
+                shareFiles([tempURL])
+                statusMessage = "AirDropping pasted image..."
+                return
+            } catch {}
+        }
+        
+        // 3. Plain Text in clipboard
+        if let text = pasteboard.string(forType: .string),
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Shared_Text_\(Int(Date().timeIntervalSince1970)).txt")
+            do {
+                try text.write(to: tempURL, atomically: true, encoding: .utf8)
+                shareFiles([tempURL])
+                statusMessage = "AirDropping pasted text..."
+                return
+            } catch {
+                statusMessage = "Failed to paste clipboard text"
+                return
+            }
+        }
+        
+        statusMessage = "Clipboard is empty or unsupported"
+    }
+    
     public func showSharingPickerFallback(for urls: [URL]) {
         guard !urls.isEmpty else { return }
         DispatchQueue.main.async {
@@ -376,6 +421,25 @@ public struct AirDropExpandedView: View {
                         .background(Capsule().fill(DesignSystem.accentColor))
                     }
                     .buttonStyle(.spring)
+                    
+                    Button(action: {
+                        module.pasteFromClipboard()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.on.clipboard")
+                                .font(.system(size: 9.5))
+                            Text("Paste")
+                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(DesignSystem.primaryText)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(DesignSystem.surfaceFill))
+                        .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8))
+                    }
+                    .buttonStyle(.spring)
+                    .keyboardShortcut("v", modifiers: .command)
+                    .accessibilityLabel("Paste from clipboard and AirDrop")
                     
                     if !module.recentFiles.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {

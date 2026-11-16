@@ -346,20 +346,76 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     }
     
     public func shareClipboardText() {
-        guard let text = NSPasteboard.general.string(forType: .string),
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            statusMessage = "Clipboard is empty"
-            return
+        pasteFromClipboard()
+    }
+    
+    public func pasteFromClipboard() {
+        let pasteboard = NSPasteboard.general
+        
+        // 1. File URLs in clipboard
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
+            let fileURLs = urls.filter { $0.isFileURL && FileManager.default.fileExists(atPath: $0.path) }
+            if !fileURLs.isEmpty {
+                startSending(files: fileURLs)
+                statusMessage = "Pasted \(fileURLs.count) file(s) from clipboard"
+                FeedbackManager.playSuccess()
+                return
+            }
         }
+        
+        // 2. Image in clipboard
+        if let image = NSImage(pasteboard: pasteboard),
+           let tiffData = image.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiffData),
+           let pngData = rep.representation(using: .png, properties: [:]) {
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "Pasted_Image_\(Int(Date().timeIntervalSince1970)).png"
+            let fileURL = tempDir.appendingPathComponent(fileName)
+            do {
+                try pngData.write(to: fileURL)
+                startSending(files: [fileURL])
+                statusMessage = "Pasted image from clipboard"
+                FeedbackManager.playSuccess()
+                return
+            } catch {
+                // fall through to text
+            }
+        }
+        
+        // 3. Plain Text / Message
+        if let text = pasteboard.string(forType: .string),
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "Snippet_\(Int(Date().timeIntervalSince1970)).txt"
+            let fileURL = tempDir.appendingPathComponent(fileName)
+            do {
+                try text.write(to: fileURL, atomically: true, encoding: .utf8)
+                startSending(files: [fileURL])
+                statusMessage = "Pasted text message from clipboard"
+                FeedbackManager.playSuccess()
+                return
+            } catch {
+                statusMessage = "Failed to prepare text snippet"
+                return
+            }
+        }
+        
+        statusMessage = "Clipboard is empty or unsupported"
+    }
+    
+    public func stageTextMessage(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "Snippet_\(Int(Date().timeIntervalSince1970)).txt"
+        let fileName = "Message_\(Int(Date().timeIntervalSince1970)).txt"
         let fileURL = tempDir.appendingPathComponent(fileName)
         do {
-            try text.write(to: fileURL, atomically: true, encoding: .utf8)
+            try trimmed.write(to: fileURL, atomically: true, encoding: .utf8)
             startSending(files: [fileURL])
-            statusMessage = "Ready to send text snippet"
+            statusMessage = "Message ready to send (\(trimmed.count) chars)"
+            FeedbackManager.playSuccess()
         } catch {
-            statusMessage = "Failed to prepare text snippet"
+            statusMessage = "Failed to stage message: \(error.localizedDescription)"
         }
     }
     
@@ -469,6 +525,29 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         openPanel.canChooseDirectories = false
         openPanel.canChooseFiles = true
         openPanel.prompt = "Select"
+        
+        markTransferActive()
+        NSApp.activate(ignoringOtherApps: true)
+        openPanel.begin { [weak self] response in
+            guard let self = self else { return }
+            self.markTransferFinished()
+            if response == .OK {
+                self.startSending(files: openPanel.urls)
+                if let targetPeer = peer {
+                    self.sendFiles(to: targetPeer)
+                }
+            }
+        }
+    }
+    
+    public func openFolderPicker(thenSendTo peer: LocalShareDiscoveredPeer? = nil) {
+        FeedbackManager.playClick()
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select Folder for Local Share"
+        openPanel.allowsMultipleSelection = true
+        openPanel.canChooseDirectories = true
+        openPanel.canChooseFiles = false
+        openPanel.prompt = "Select Folder"
         
         markTransferActive()
         NSApp.activate(ignoringOtherApps: true)
