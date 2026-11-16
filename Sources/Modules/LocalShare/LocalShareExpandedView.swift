@@ -237,7 +237,7 @@ public struct LocalShareExpandedView: View {
         .padding(4)
         .contentShape(Rectangle())
         // Global Drop Handler for Local Share View
-        .onDrop(of: [.fileURL, .url, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
             URLCollector.extractURLs(from: providers) { urls in
                 guard !urls.isEmpty else { return }
                 if uiState.showingMessageComposer, let first = urls.first, first.lastPathComponent.hasPrefix("Dropped_Text_"),
@@ -300,6 +300,14 @@ public struct LocalShareExpandedView: View {
         .frame(maxWidth: .infinity)
         .frame(height: notchTight ? 52 : (notchCompact ? 60 : 68))
         .contentShape(Rectangle())
+        .onDrop(of: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+            URLCollector.extractURLs(from: providers) { urls in
+                guard !urls.isEmpty else { return }
+                module.startSending(files: urls)
+                NotchShellCoordinator.shared.onFileDropFinished()
+            }
+            return !providers.isEmpty
+        }
         .onTapGesture {
             module.openFilePicker()
         }

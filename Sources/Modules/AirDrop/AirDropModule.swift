@@ -11,8 +11,15 @@ public final class URLCollector: @unchecked Sendable {
     
     public func append(_ url: URL) {
         lock.lock()
-        if !urls.contains(url) {
-            urls.append(url)
+        let cleanURL: URL
+        if url.isFileURL {
+            let cleanPath = url.path.trimmingCharacters(in: .whitespacesAndNewlines)
+            cleanURL = URL(fileURLWithPath: cleanPath)
+        } else {
+            cleanURL = url
+        }
+        if !urls.contains(cleanURL) {
+            urls.append(cleanURL)
         }
         lock.unlock()
     }
@@ -29,15 +36,35 @@ public final class URLCollector: @unchecked Sendable {
         let group = DispatchGroup()
         
         for p in providers {
-            if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            // 1. High-level URL object loader (Apple standard for Finder file drops & URLs)
+            if p.canLoadObject(ofClass: URL.self) {
+                group.enter()
+                _ = p.loadObject(ofClass: URL.self) { item, _ in
+                    defer { group.leave() }
+                    if let url = item {
+                        collector.append(url)
+                    }
+                }
+            } else if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 group.enter()
                 p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
                     defer { group.leave() }
-                    let url = (item as? URL) ?? (item as? Data).flatMap({ URL(dataRepresentation: $0, relativeTo: nil) })
-                    if let url {
-                        collector.append(url)
-                    } else if let str = item as? String, let url = URL(string: str), url.isFileURL {
-                        collector.append(url)
+                    var resolvedURL: URL? = item as? URL
+                    if resolvedURL == nil, let data = item as? Data {
+                        if let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           let u = URL(string: str), u.isFileURL {
+                            resolvedURL = u
+                        } else if let u = URL(dataRepresentation: data, relativeTo: nil) {
+                            resolvedURL = u
+                        }
+                    } else if resolvedURL == nil, let str = item as? String {
+                        let clean = str.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let u = URL(string: clean), u.isFileURL {
+                            resolvedURL = u
+                        }
+                    }
+                    if let resolvedURL {
+                        collector.append(resolvedURL)
                     }
                 }
             } else if p.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
@@ -46,10 +73,38 @@ public final class URLCollector: @unchecked Sendable {
                     defer { group.leave() }
                     if let url = item as? URL {
                         collector.append(url)
-                    } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                    } else if let data = item as? Data, let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), let url = URL(string: str) {
                         collector.append(url)
-                    } else if let str = item as? String, let url = URL(string: str) {
+                    } else if let str = item as? String, let url = URL(string: str.trimmingCharacters(in: .whitespacesAndNewlines)) {
                         collector.append(url)
+                    }
+                }
+            } else if p.canLoadObject(ofClass: NSImage.self) || p.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                // Dragged photos from Apple Photos app or Safari
+                group.enter()
+                if p.canLoadObject(ofClass: NSImage.self) {
+                    _ = p.loadObject(ofClass: NSImage.self) { imgItem, _ in
+                        defer { group.leave() }
+                        if let img = imgItem as? NSImage,
+                           let tiff = img.tiffRepresentation,
+                           let rep = NSBitmapImageRep(data: tiff),
+                           let png = rep.representation(using: .png, properties: [:]) {
+                            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Photo_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).png")
+                            if (try? png.write(to: tempURL)) != nil {
+                                collector.append(tempURL)
+                            }
+                        }
+                    }
+                } else {
+                    let imageType = p.hasItemConformingToTypeIdentifier(UTType.image.identifier) ? UTType.image.identifier : UTType.png.identifier
+                    p.loadDataRepresentation(forTypeIdentifier: imageType) { data, _ in
+                        defer { group.leave() }
+                        if let data = data, !data.isEmpty {
+                            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Photo_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).png")
+                            if (try? data.write(to: tempURL)) != nil {
+                                collector.append(tempURL)
+                            }
+                        }
                     }
                 }
             } else if p.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ||
@@ -76,14 +131,6 @@ public final class URLCollector: @unchecked Sendable {
                         if (try? text.write(to: tempURL, atomically: true, encoding: .utf8)) != nil {
                             collector.append(tempURL)
                         }
-                    }
-                }
-            } else if p.canLoadObject(ofClass: URL.self) {
-                group.enter()
-                _ = p.loadObject(ofClass: URL.self) { item, _ in
-                    defer { group.leave() }
-                    if let url = item {
-                        collector.append(url)
                     }
                 }
             } else if p.canLoadObject(ofClass: String.self) {
@@ -613,7 +660,7 @@ public struct AirDropExpandedView: View {
         .padding(4)
         .contentShape(Rectangle())
         // Active Drop Target for ENTIRE AirDrop Screen (Radar + Drop Box + Info)
-        .onDrop(of: [.fileURL, .url, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
             URLCollector.extractURLs(from: providers) { urls in
                 guard !urls.isEmpty else { return }
                 module.shareFiles(urls)

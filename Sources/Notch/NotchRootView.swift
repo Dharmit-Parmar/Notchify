@@ -115,7 +115,7 @@ public struct NotchRootView: View {
             }
         }
         .contentShape(Rectangle())
-        .onDrop(of: [.fileURL, .url, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
             coordinator.fileDropWasAccepted = true
             URLCollector.extractURLs(from: providers) { urls in
                 guard !urls.isEmpty else { return }
@@ -439,7 +439,7 @@ public struct NotchRootView: View {
                         .strokeBorder(active.id == "airdrop" && airDropModule.isDropTargeted ? DesignSystem.accentColor.opacity(0.8) : DesignSystem.cardBorder, lineWidth: active.id == "airdrop" && airDropModule.isDropTargeted ? 1.5 : 0.8)
                 )
                 .contentShape(Rectangle())
-                .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: active.id == "airdrop" ? $airDropModule.isDropTargeted : .constant(false)) { providers in
+                .onDrop(of: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: active.id == "airdrop" ? $airDropModule.isDropTargeted : .constant(false)) { providers in
                     coordinator.fileDropWasAccepted = true
                     URLCollector.extractURLs(from: providers) { urls in
                         guard !urls.isEmpty else { return }
@@ -657,7 +657,7 @@ public struct UniversalTabDropDelegate: DropDelegate {
             return true
         }
         
-        let providers = info.itemProviders(for: [.fileURL, .item, .data, .content])
+        let providers = info.itemProviders(for: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content])
         guard !providers.isEmpty else { return false }
         
         URLCollector.extractURLs(from: providers) { urls in
