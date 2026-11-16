@@ -40,6 +40,44 @@ public final class URLCollector: @unchecked Sendable {
                         collector.append(url)
                     }
                 }
+            } else if p.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                group.enter()
+                p.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { item, _ in
+                    defer { group.leave() }
+                    if let url = item as? URL {
+                        collector.append(url)
+                    } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                        collector.append(url)
+                    } else if let str = item as? String, let url = URL(string: str) {
+                        collector.append(url)
+                    }
+                }
+            } else if p.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ||
+                      p.hasItemConformingToTypeIdentifier(UTType.text.identifier) ||
+                      p.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) {
+                group.enter()
+                let targetType = p.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ? UTType.plainText.identifier : (p.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) ? UTType.utf8PlainText.identifier : UTType.text.identifier)
+                p.loadItem(forTypeIdentifier: targetType, options: nil) { item, _ in
+                    defer { group.leave() }
+                    var textStr: String?
+                    if let str = item as? String {
+                        textStr = str
+                    } else if let data = item as? Data, let str = String(data: data, encoding: .utf8) {
+                        textStr = str
+                    } else if let url = item as? URL {
+                        collector.append(url)
+                        return
+                    }
+                    guard let text = textStr?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
+                    if let url = URL(string: text), url.scheme == "http" || url.scheme == "https" {
+                        collector.append(url)
+                    } else {
+                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Dropped_Text_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).txt")
+                        if (try? text.write(to: tempURL, atomically: true, encoding: .utf8)) != nil {
+                            collector.append(tempURL)
+                        }
+                    }
+                }
             } else if p.canLoadObject(ofClass: URL.self) {
                 group.enter()
                 _ = p.loadObject(ofClass: URL.self) { item, _ in
@@ -575,7 +613,7 @@ public struct AirDropExpandedView: View {
         .padding(4)
         .contentShape(Rectangle())
         // Active Drop Target for ENTIRE AirDrop Screen (Radar + Drop Box + Info)
-        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
             URLCollector.extractURLs(from: providers) { urls in
                 guard !urls.isEmpty else { return }
                 module.shareFiles(urls)

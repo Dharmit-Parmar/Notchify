@@ -408,6 +408,13 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         let fm = FileManager.default
         let ws = NSWorkspace.shared
         for url in urls {
+            guard url.isFileURL else {
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("WebLink_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(4)).txt")
+                if (try? url.absoluteString.write(to: tempURL, atomically: true, encoding: .utf8)) != nil {
+                    expanded.append(tempURL)
+                }
+                continue
+            }
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
                 if ws.isFilePackage(atPath: url.path) {

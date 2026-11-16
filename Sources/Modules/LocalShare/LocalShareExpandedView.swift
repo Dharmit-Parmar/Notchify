@@ -237,9 +237,20 @@ public struct LocalShareExpandedView: View {
         .padding(4)
         .contentShape(Rectangle())
         // Global Drop Handler for Local Share View
-        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in
             URLCollector.extractURLs(from: providers) { urls in
                 guard !urls.isEmpty else { return }
+                if uiState.showingMessageComposer, let first = urls.first, first.lastPathComponent.hasPrefix("Dropped_Text_"),
+                   let content = try? String(contentsOf: first, encoding: .utf8), !content.isEmpty {
+                    if uiState.messageText.isEmpty {
+                        uiState.messageText = content
+                    } else {
+                        uiState.messageText += "\n" + content
+                    }
+                    FeedbackManager.playSuccess()
+                    NotchShellCoordinator.shared.onFileDropFinished()
+                    return
+                }
                 module.startSending(files: urls)
                 NotchShellCoordinator.shared.onFileDropFinished()
             }

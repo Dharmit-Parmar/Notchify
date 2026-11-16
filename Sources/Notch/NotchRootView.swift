@@ -115,7 +115,7 @@ public struct NotchRootView: View {
             }
         }
         .contentShape(Rectangle())
-        .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
+        .onDrop(of: [.fileURL, .url, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: $coordinator.isFileDragTargeted) { providers in
             coordinator.fileDropWasAccepted = true
             URLCollector.extractURLs(from: providers) { urls in
                 guard !urls.isEmpty else { return }
