@@ -14,6 +14,7 @@ public final class LocalShareExpandedUIState: ObservableObject {
     @Published public var showingMessageComposer = false
     @Published public var messageText = ""
     @Published public var hasCopiedMessage = false
+    @Published public var previewURL: URL? = nil
     
     public init() {}
 }
@@ -187,6 +188,31 @@ public struct LocalShareExpandedView: View {
                     // Selected Files List (if pending send)
                     if !module.selectedFiles.isEmpty && !module.isSending {
                         selectedFilesSummary
+                        
+                        // On-Demand Media File Preview Card
+                        if let previewURL = uiState.previewURL, module.selectedFiles.contains(previewURL) {
+                            FilePreviewStageCard(
+                                url: previewURL,
+                                themeColor: module.themeColor,
+                                actionLabel: "Send All",
+                                onDismiss: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                        uiState.previewURL = nil
+                                    }
+                                },
+                                onAction: {
+                                    if let targetPeer = module.discoveredPeers.first {
+                                        module.sendFiles(to: targetPeer)
+                                    } else {
+                                        module.rescan()
+                                    }
+                                }
+                            )
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+                            ))
+                        }
                     }
                     
                     // Nearby Discovered Peers List
@@ -683,7 +709,23 @@ public struct LocalShareExpandedView: View {
                                 .font(.system(size: 8.5, weight: .medium))
                                 .lineLimit(1)
                             
+                            // On-Demand Preview Button
                             Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                    uiState.previewURL = (uiState.previewURL == url ? nil : url)
+                                }
+                            }) {
+                                Image(systemName: uiState.previewURL == url ? "eye.fill" : "eye")
+                                    .font(.system(size: 7.5))
+                                    .foregroundColor(uiState.previewURL == url ? module.themeColor : DesignSystem.secondaryText)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Preview \(url.lastPathComponent)")
+                            
+                            Button(action: {
+                                if uiState.previewURL == url {
+                                    uiState.previewURL = nil
+                                }
                                 module.removeSelectedFile(url)
                             }) {
                                 Image(systemName: "xmark")
@@ -695,8 +737,8 @@ public struct LocalShareExpandedView: View {
                         }
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3.5)
-                        .background(Capsule().fill(DesignSystem.surfaceFill))
-                        .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.6))
+                        .background(Capsule().fill(uiState.previewURL == url ? module.themeColor.opacity(0.18) : DesignSystem.surfaceFill))
+                        .overlay(Capsule().strokeBorder(uiState.previewURL == url ? module.themeColor : DesignSystem.cardBorder, lineWidth: 0.6))
                     }
                 }
             }
