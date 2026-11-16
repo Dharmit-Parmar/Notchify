@@ -174,8 +174,10 @@ public struct LocalShareExpandedView: View {
                         activeTransferProgressCard
                     }
                     
-                    // Drop Stage Area
-                    dropStageBox
+                    // Drop Stage Area (shown when idle; collapses when files or message are staged)
+                    if module.selectedFiles.isEmpty && !uiState.showingMessageComposer && !module.isSending && !module.isReceiving {
+                        dropStageBox
+                    }
                     
                     // Organized 4-Option Send Bar: [Files] [Folder] [Message] [Clipboard]
                     sendOptionsBar
@@ -194,7 +196,7 @@ public struct LocalShareExpandedView: View {
                             FilePreviewStageCard(
                                 url: previewURL,
                                 themeColor: module.themeColor,
-                                actionLabel: "Send All",
+                                actionLabel: module.discoveredPeers.count == 1 ? "Send to \(module.discoveredPeers[0].alias)" : "Send All",
                                 onDismiss: {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                         uiState.previewURL = nil
@@ -230,7 +232,7 @@ public struct LocalShareExpandedView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(4)
         .contentShape(Rectangle())
@@ -741,8 +743,9 @@ public struct LocalShareExpandedView: View {
                         .overlay(Capsule().strokeBorder(uiState.previewURL == url ? module.themeColor : DesignSystem.cardBorder, lineWidth: 0.6))
                     }
                 }
+                .padding(.vertical, 2)
             }
-            .frame(height: 24)
+            .frame(height: 28)
         }
         .padding(6)
         .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.cardFill))
