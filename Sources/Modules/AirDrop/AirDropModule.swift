@@ -161,6 +161,7 @@ public final class AirDropModule: NotchModule {
     @Published public var isEnabled: Bool = true
     
     @Published public var recentFiles: [URL] = []
+    @Published public var previewURL: URL? = nil
     @Published public var isDropTargeted: Bool = false
     @Published public var statusMessage: String = "Ready to beam to nearby Apple devices"
     @Published public var isBeaming: Bool = false
@@ -278,6 +279,13 @@ public final class AirDropModule: NotchModule {
         }
         
         statusMessage = "Clipboard is empty or unsupported"
+    }
+    
+    public func removeRecentFile(_ url: URL) {
+        if previewURL == url {
+            previewURL = nil
+        }
+        recentFiles.removeAll { $0 == url }
     }
     
     public func showSharingPickerFallback(for urls: [URL]) {
@@ -459,29 +467,78 @@ public struct AirDropExpandedView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 5) {
                                 ForEach(module.recentFiles, id: \.self) { file in
-                                    Button(action: { module.shareFiles([file]) }) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "arrow.counterclockwise")
-                                                .font(.system(size: 7))
-                                            Text(file.lastPathComponent)
-                                                .font(.system(size: 8.5, weight: .medium))
-                                                .lineLimit(1)
+                                    HStack(spacing: 4) {
+                                        Button(action: { module.shareFiles([file]) }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "arrow.counterclockwise")
+                                                    .font(.system(size: 7))
+                                                Text(file.lastPathComponent)
+                                                    .font(.system(size: 8.5, weight: .medium))
+                                                    .lineLimit(1)
+                                            }
+                                            .foregroundColor(Color.white.opacity(0.85))
                                         }
-                                        .foregroundColor(Color.white.opacity(0.8))
-                                        .padding(.horizontal, 7)
-                                        .padding(.vertical, 4)
-                                        .background(Capsule().fill(DesignSystem.structureColor))
-                                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.7))
+                                        .buttonStyle(.plain)
+                                        
+                                        // On-Demand Preview Button
+                                        Button(action: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                                module.previewURL = (module.previewURL == file ? nil : file)
+                                            }
+                                        }) {
+                                            Image(systemName: module.previewURL == file ? "eye.fill" : "eye")
+                                                .font(.system(size: 7.5))
+                                                .foregroundColor(module.previewURL == file ? DesignSystem.accentColor : DesignSystem.secondaryText)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Preview \(file.lastPathComponent)")
+                                        
+                                        // Remove from recent
+                                        Button(action: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                                module.removeRecentFile(file)
+                                            }
+                                        }) {
+                                            Image(systemName: "xmark")
+                                                .font(.system(size: 7, weight: .bold))
+                                                .foregroundColor(DesignSystem.secondaryText)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Remove \(file.lastPathComponent)")
                                     }
-                                    .buttonStyle(.spring)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3.5)
+                                    .background(Capsule().fill(module.previewURL == file ? DesignSystem.accentColor.opacity(0.18) : DesignSystem.structureColor))
+                                    .overlay(Capsule().strokeBorder(module.previewURL == file ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: 0.7))
                                     .onDrag {
                                         NSItemProvider(object: file as NSURL)
                                     }
-                                    .help("Drag or click to re-send \(file.lastPathComponent)")
+                                    .help("Click to AirDrop or preview \(file.lastPathComponent)")
                                 }
                             }
                         }
                         .frame(height: 24)
+                        
+                        // On-Demand File Preview Card for AirDrop
+                        if let previewURL = module.previewURL, module.recentFiles.contains(previewURL) {
+                            FilePreviewStageCard(
+                                url: previewURL,
+                                themeColor: DesignSystem.accentColor,
+                                actionLabel: "AirDrop",
+                                onDismiss: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                        module.previewURL = nil
+                                    }
+                                },
+                                onAction: {
+                                    module.shareFiles([previewURL])
+                                }
+                            )
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+                            ))
+                        }
                     }
                     
                     Spacer(minLength: 0)
