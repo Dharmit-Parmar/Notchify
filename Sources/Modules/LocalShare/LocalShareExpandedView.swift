@@ -11,6 +11,8 @@ public final class LocalShareExpandedUIState: ObservableObject {
     @Published public var manualPortText = "53317"
     @Published public var manualIPError: String? = nil
     @Published public var isConnectingManualIP = false
+    @Published public var showingMessageComposer = false
+    @Published public var messageText = ""
     
     public init() {}
 }
@@ -147,23 +149,6 @@ public struct LocalShareExpandedView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Connect to Direct IP")
-                            
-                            Button(action: {
-                                module.shareClipboardText()
-                            }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "doc.on.clipboard")
-                                        .font(.system(size: 8.5))
-                                    Text("Clipboard")
-                                        .font(.system(size: 9, weight: .medium))
-                                }
-                                .foregroundColor(DesignSystem.secondaryText)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(DesignSystem.surfaceFill))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Share text snippet from clipboard")
                         }
                         
                         Text(module.statusMessage)
@@ -184,6 +169,14 @@ public struct LocalShareExpandedView: View {
                     
                     // Drop Stage Area
                     dropStageBox
+                    
+                    // Organized 4-Option Send Bar: [Files] [Folder] [Message] [Clipboard]
+                    sendOptionsBar
+                    
+                    // Inline Expandable Message Composer
+                    if uiState.showingMessageComposer {
+                        messageComposerCard
+                    }
                     
                     // Selected Files List (if pending send)
                     if !module.selectedFiles.isEmpty && !module.isSending {
@@ -264,6 +257,178 @@ public struct LocalShareExpandedView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Local Share File Drop Zone")
         .accessibilityHint("Drag files here or click to browse files.")
+    }
+    
+    // MARK: - Organized 4-Option Send Bar ([Files], [Folder], [Message], [Clipboard])
+    
+    private var sendOptionsBar: some View {
+        HStack(spacing: 5) {
+            actionOptionPill(
+                title: "Files",
+                icon: "doc.badge.plus",
+                isActive: false
+            ) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    uiState.showingMessageComposer = false
+                }
+                module.openFilePicker()
+            }
+            .accessibilityLabel("Select files to send")
+            
+            actionOptionPill(
+                title: "Folder",
+                icon: "folder.badge.plus",
+                isActive: false
+            ) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    uiState.showingMessageComposer = false
+                }
+                module.openFolderPicker()
+            }
+            .accessibilityLabel("Select folder to send")
+            
+            actionOptionPill(
+                title: "Message",
+                icon: "message",
+                isActive: uiState.showingMessageComposer
+            ) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    uiState.showingMessageComposer.toggle()
+                }
+            }
+            .accessibilityLabel("Compose text message to send")
+            
+            actionOptionPill(
+                title: "Clipboard",
+                icon: "doc.on.clipboard",
+                isActive: false
+            ) {
+                module.pasteFromClipboard()
+            }
+            .keyboardShortcut("v", modifiers: .command)
+            .accessibilityLabel("Paste from clipboard to send")
+        }
+    }
+    
+    private func actionOptionPill(
+        title: String,
+        icon: String,
+        isActive: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 8.5, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(isActive ? .black : DesignSystem.primaryText)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4.5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive ? module.themeColor : DesignSystem.surfaceFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(isActive ? module.themeColor : DesignSystem.cardBorder, lineWidth: 0.75)
+            )
+        }
+        .buttonStyle(.spring)
+    }
+    
+    // MARK: - Inline Message Composer
+    
+    private var messageComposerCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundColor(module.themeColor)
+                Text("Compose Text Message")
+                    .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                    .foregroundColor(DesignSystem.primaryText)
+                
+                Spacer()
+                
+                if !uiState.messageText.isEmpty {
+                    Text("\(uiState.messageText.count) chars")
+                        .font(.system(size: 8.5, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        uiState.showingMessageComposer = false
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close Message Composer")
+            }
+            
+            ZStack(alignment: .topLeading) {
+                if uiState.messageText.isEmpty {
+                    Text("Type or paste a message to share with nearby devices...")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.tertiaryText)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 6)
+                }
+                
+                TextEditor(text: $uiState.messageText)
+                    .font(.system(size: 9.5, design: .default))
+                    .foregroundColor(DesignSystem.primaryText)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .frame(height: 52)
+                    .padding(4)
+            }
+            .background(RoundedRectangle(cornerRadius: 6).fill(DesignSystem.surfaceFill))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8))
+            
+            HStack {
+                Button("Clear") {
+                    uiState.messageText = ""
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 8.5, weight: .medium))
+                .foregroundColor(DesignSystem.secondaryText)
+                .disabled(uiState.messageText.isEmpty)
+                
+                Spacer()
+                
+                Button(action: {
+                    let text = uiState.messageText
+                    module.stageTextMessage(text)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        uiState.messageText = ""
+                        uiState.showingMessageComposer = false
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 8))
+                        Text("Stage Message")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(module.themeColor))
+                }
+                .buttonStyle(.spring)
+                .disabled(uiState.messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("Stage text message to send to peers")
+            }
+        }
+        .padding(7)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(DesignSystem.cardFill))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(module.themeColor.opacity(0.35), lineWidth: 0.8))
     }
     
     private func incomingRequestCard(incoming: LocalShareSession) -> some View {
