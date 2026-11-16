@@ -249,6 +249,9 @@ public struct LocalShareExpandedView: View {
             module.start()
             module.rescan()
         }
+        .onDisappear {
+            NotchShellCoordinator.shared.isTypingInWidget = false
+        }
     }
     
     // MARK: - Subviews
@@ -481,6 +484,19 @@ public struct LocalShareExpandedView: View {
         .padding(7)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(DesignSystem.cardFill))
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(module.themeColor.opacity(0.35), lineWidth: 0.8))
+        .onAppear {
+            NotchShellCoordinator.shared.isTypingInWidget = true
+            NotchShellCoordinator.shared.resetIdleTimer()
+        }
+        .onDisappear {
+            if !uiState.showingManualIPSheet {
+                NotchShellCoordinator.shared.isTypingInWidget = false
+            }
+        }
+        .onChange(of: uiState.messageText) { _, _ in
+            NotchShellCoordinator.shared.isTypingInWidget = true
+            NotchShellCoordinator.shared.resetIdleTimer()
+        }
     }
     
     // MARK: - Received Text / Message Card (Copy & Save Actions)
@@ -946,6 +962,19 @@ public struct LocalShareExpandedView: View {
         }
         .padding(6)
         .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.surfaceFill))
+        .onAppear {
+            NotchShellCoordinator.shared.isTypingInWidget = true
+            NotchShellCoordinator.shared.resetIdleTimer()
+        }
+        .onDisappear {
+            if !uiState.showingMessageComposer {
+                NotchShellCoordinator.shared.isTypingInWidget = false
+            }
+        }
+        .onChange(of: uiState.manualIPAddress) { _, _ in
+            NotchShellCoordinator.shared.isTypingInWidget = true
+            NotchShellCoordinator.shared.resetIdleTimer()
+        }
     }
     
     private func connectManualIP() {
