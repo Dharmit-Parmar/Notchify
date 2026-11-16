@@ -157,7 +157,13 @@ public final class AirDropModule: NotchModule {
     public init() {}
     
     public func start() {}
-    public func stop() {}
+    public func stop() {
+        isDropTargeted = false
+        isBeaming = false
+        if isSharingSheetActive {
+            markSharingSheetClosed()
+        }
+    }
     
     public func markSharingSheetOpened() {
         guard !isSharingSheetActive else { return }
@@ -177,11 +183,19 @@ public final class AirDropModule: NotchModule {
     
     public func shareFiles(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
+        
+        let validUrls = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !validUrls.isEmpty else {
+            statusMessage = "Selected file(s) no longer exist"
+            isBeaming = false
+            return
+        }
+        
         FeedbackManager.playSend()
         isBeaming = true
-        statusMessage = "Opening AirDrop sheet for \(urls.count) item(s)..."
+        statusMessage = "Opening AirDrop sheet for \(validUrls.count) item(s)..."
         
-        for url in urls {
+        for url in validUrls {
             if !recentFiles.contains(url) {
                 recentFiles.insert(url, at: 0)
             }
@@ -194,17 +208,17 @@ public final class AirDropModule: NotchModule {
         NSApp.activate(ignoringOtherApps: true)
         NotchShellCoordinator.shared.panel?.makeKey()
         
-        if let airDrop = NSSharingService(named: .sendViaAirDrop), airDrop.canPerform(withItems: urls) {
+        if let airDrop = NSSharingService(named: .sendViaAirDrop), airDrop.canPerform(withItems: validUrls) {
             airDrop.delegate = sharingDelegate
             markSharingSheetOpened()
-            airDrop.perform(withItems: urls)
+            airDrop.perform(withItems: validUrls)
             statusMessage = "Select recipient in AirDrop sheet"
             FeedbackManager.playSuccess()
             return
         }
         
         // Guaranteed fallback to system Sharing Service Picker
-        showSharingPickerFallback(for: urls)
+        showSharingPickerFallback(for: validUrls)
     }
     
     public func showSharingPickerFallback(for urls: [URL]) {
@@ -382,7 +396,10 @@ public struct AirDropExpandedView: View {
                                         .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.7))
                                     }
                                     .buttonStyle(.spring)
-                                    .help("Re-send \(file.lastPathComponent)")
+                                    .onDrag {
+                                        NSItemProvider(object: file as NSURL)
+                                    }
+                                    .help("Drag or click to re-send \(file.lastPathComponent)")
                                 }
                             }
                         }

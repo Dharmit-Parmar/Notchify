@@ -8,6 +8,7 @@ public struct NotchRootView: View {
     @ObservedObject var registry = ModuleRegistry.shared
     @ObservedObject var store = SettingsStore.shared
     @ObservedObject var themeEngine = DynamicThemeEngine.shared
+    @ObservedObject private var airDropModule = AirDropModule.shared
     
     public init() {}
     
@@ -431,12 +432,30 @@ public struct NotchRootView: View {
                 .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                        .fill(DesignSystem.cardFill)
+                        .fill(active.id == "airdrop" && airDropModule.isDropTargeted ? DesignSystem.accentColor.opacity(0.12) : DesignSystem.cardFill)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                        .strokeBorder(DesignSystem.cardBorder, lineWidth: 0.8)
+                        .strokeBorder(active.id == "airdrop" && airDropModule.isDropTargeted ? DesignSystem.accentColor.opacity(0.8) : DesignSystem.cardBorder, lineWidth: active.id == "airdrop" && airDropModule.isDropTargeted ? 1.5 : 0.8)
                 )
+                .contentShape(Rectangle())
+                .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: active.id == "airdrop" ? $airDropModule.isDropTargeted : .constant(false)) { providers in
+                    coordinator.fileDropWasAccepted = true
+                    URLCollector.extractURLs(from: providers) { urls in
+                        guard !urls.isEmpty else { return }
+                        if active.id == "airdrop" {
+                            AirDropModule.shared.shareFiles(urls)
+                        } else if active.id == "localshare" {
+                            LocalShareModule.shared.startSending(files: urls)
+                        } else {
+                            for u in urls {
+                                ShelfModule.shared.addItem(u)
+                            }
+                        }
+                        coordinator.onFileDropFinished()
+                    }
+                    return !providers.isEmpty
+                }
             } else {
                 // Modular 4-Slot Customizable Home Dashboard
                 ModularDashboardView()
