@@ -68,7 +68,8 @@ public final class NotchPanel: NSPanel {
                     }
                     if !self.frame.contains(NSEvent.mouseLocation),
                        NotchShellCoordinator.shared.state == .expanded,
-                       !NotchShellCoordinator.shared.isLockedOpen {
+                       !NotchShellCoordinator.shared.isLockedOpen,
+                       !NotchShellCoordinator.shared.isMenuOrPopoverOpen {
                         if !NotchShellCoordinator.shared.isAppearancePreviewActive {
                             NotchShellCoordinator.shared.collapseImmediately(force: true)
                         }

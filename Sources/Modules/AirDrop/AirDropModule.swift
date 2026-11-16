@@ -64,7 +64,9 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate, @
     public static let shared = AirDropSharingDelegate()
     
     public func sharingService(_ sharingService: NSSharingService, sourceWindowForShareItems items: [Any], sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>) -> NSWindow? {
-        sharingContentScope.pointee = .full
+        // Use .item scope instead of .full so AppKit displays a positioned popover anchored to the bottom
+        // of the Notch Island, instead of a top-attached window sheet that gets cut off off-screen.
+        sharingContentScope.pointee = .item
         if Thread.isMainThread {
             return NotchShellCoordinator.shared.panel
         } else {
@@ -73,10 +75,22 @@ public final class AirDropSharingDelegate: NSObject, NSSharingServiceDelegate, @
     }
     
     public func sharingService(_ sharingService: NSSharingService, sourceFrameOnScreenForShareItem item: Any) -> NSRect {
+        let computeAnchor = { () -> NSRect in
+            guard let panel = NotchShellCoordinator.shared.panel else { return .zero }
+            let frame = panel.frame
+            // In AppKit screen coordinates, (0,0) is bottom-left. frame.minY is the bottom edge of the Notch panel.
+            // By placing the anchor rect at the bottom edge of the panel, macOS presents the AirDrop picker
+            // hanging downwards into the main screen area, keeping recipient names and icons 100% visible and clickable.
+            let width: CGFloat = 80
+            let height: CGFloat = 16
+            let x = frame.midX - (width / 2)
+            let y = frame.minY + 4
+            return NSRect(x: x, y: y, width: width, height: height)
+        }
         if Thread.isMainThread {
-            return NotchShellCoordinator.shared.panel?.frame ?? .zero
+            return computeAnchor()
         } else {
-            return DispatchQueue.main.sync { NotchShellCoordinator.shared.panel?.frame ?? .zero }
+            return DispatchQueue.main.sync { computeAnchor() }
         }
     }
     
@@ -200,7 +214,10 @@ public final class AirDropModule: NotchModule {
             let picker = NSSharingServicePicker(items: urls)
             picker.delegate = AirDropPickerDelegate.shared
             if let targetView = NotchShellCoordinator.shared.panel?.contentView {
-                picker.show(relativeTo: targetView.bounds, of: targetView, preferredEdge: .minY)
+                // targetView is an NSHostingView (flipped view). Its bottom edge is bounds.maxY.
+                // Presenting with preferredEdge .maxY anchors to the bottom of the view and opens downward.
+                let anchor = NSRect(x: targetView.bounds.midX - 40, y: max(0, targetView.bounds.maxY - 24), width: 80, height: 20)
+                picker.show(relativeTo: anchor, of: targetView, preferredEdge: .maxY)
                 self.statusMessage = "Select AirDrop in sharing menu"
                 self.isBeaming = false
             }
