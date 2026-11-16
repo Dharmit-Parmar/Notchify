@@ -665,15 +665,33 @@ public struct LocalShareExpandedView: View {
     }
     
     private var activeTransferProgressCard: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text(module.isSending ? "Sending to \(module.activePeerAlias ?? "peer")..." : "Receiving from \(module.activePeerAlias ?? "peer")...")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(DesignSystem.primaryText)
-                Spacer()
-                Text("\(Int(module.transferProgress * 100))%")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(module.themeColor)
+        let isMessageTransfer = module.selectedFiles.allSatisfy { url in
+            let name = url.lastPathComponent
+            return name.hasPrefix("Message_") || name.hasPrefix("Snippet_") || name.hasPrefix("Dropped_Text_") || name.hasPrefix("WebLink_")
+        }
+        
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                if module.transferProgress > 0.0 {
+                    Text(module.isSending ? "Sending to \(module.activePeerAlias ?? "peer")..." : "Receiving from \(module.activePeerAlias ?? "peer")...")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(DesignSystem.primaryText)
+                    Spacer()
+                    Text("\(Int(module.transferProgress * 100))%")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(module.themeColor)
+                } else {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text(isMessageTransfer ? "Delivering message to \(module.activePeerAlias ?? "peer")..." : "Waiting for \(module.activePeerAlias ?? "peer") to accept...")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(DesignSystem.primaryText)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(isMessageTransfer ? "Delivering" : "Connecting")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundColor(module.themeColor)
+                }
             }
             
             // Progress Bar
@@ -681,14 +699,26 @@ public struct LocalShareExpandedView: View {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(DesignSystem.surfaceFill)
-                    Capsule()
-                        .fill(module.themeColor)
-                        .frame(width: max(4, pGeo.size.width * CGFloat(min(1.0, max(0.0, module.transferProgress)))))
+                    if module.transferProgress > 0.0 {
+                        Capsule()
+                            .fill(module.themeColor)
+                            .frame(width: max(4, pGeo.size.width * CGFloat(min(1.0, max(0.0, module.transferProgress)))))
+                            .animation(.easeOut(duration: 0.2), value: module.transferProgress)
+                    } else {
+                        Capsule()
+                            .fill(module.themeColor.opacity(0.65))
+                            .frame(width: max(16, pGeo.size.width * 0.25))
+                    }
                 }
             }
             .frame(height: 5)
             
             HStack {
+                if module.transferProgress == 0.0 {
+                    Text(isMessageTransfer ? "Waiting for recipient acknowledgment" : "Recipient prompted on their device")
+                        .font(.system(size: 8.5, weight: .regular))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
                 Spacer()
                 Button("Cancel") {
                     module.cancelActiveTransfer()

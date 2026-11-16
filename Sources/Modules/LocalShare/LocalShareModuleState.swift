@@ -315,10 +315,14 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
     public func sendFiles(to peer: LocalShareDiscoveredPeer, pin: String? = nil) async throws {
         guard !selectedFiles.isEmpty else { return }
         let filesToSend = self.selectedFiles
+        let isTextMessageTransfer = filesToSend.allSatisfy { url in
+            let name = url.lastPathComponent
+            return name.hasPrefix("Message_") || name.hasPrefix("Snippet_") || name.hasPrefix("Dropped_Text_") || name.hasPrefix("WebLink_")
+        }
         self.isSending = true
         self.activePeerAlias = peer.alias
         self.transferProgress = 0.0
-        self.statusMessage = "Connecting to \(peer.alias)..."
+        self.statusMessage = isTextMessageTransfer ? "Delivering message to \(peer.alias)..." : "Waiting for \(peer.alias) to accept..."
         
         do {
             let (clientSession, prepResp) = try await LocalShareClient.shared.prepareUpload(
@@ -327,26 +331,39 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
                 pin: pin
             )
             self.activeClientSession = clientSession
-            self.statusMessage = "Sending to \(peer.alias)..."
             
             let totalBytes = filesToSend.reduce(Int64(0)) { acc, url in
                 acc + Int64((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
             }
             
-            try await LocalShareClient.shared.uploadFiles(
-                session: clientSession,
-                prepResp: prepResp,
-                maxConcurrency: 2
-            ) { overallFraction in
-                Task { @MainActor in
-                    self.transferProgress = overallFraction
+            if prepResp.files.isEmpty && isTextMessageTransfer {
+                self.transferProgress = 1.0
+            } else {
+                self.statusMessage = "Sending to \(peer.alias)..."
+                try await LocalShareClient.shared.uploadFiles(
+                    session: clientSession,
+                    prepResp: prepResp,
+                    maxConcurrency: 2
+                ) { overallFraction in
+                    Task { @MainActor in
+                        self.transferProgress = overallFraction
+                    }
+                }
+                self.transferProgress = 1.0
+            }
+            
+            // Clean up temporary text files
+            for f in filesToSend {
+                let name = f.lastPathComponent
+                if name.hasPrefix("Message_") || name.hasPrefix("Snippet_") || name.hasPrefix("Dropped_Text_") || name.hasPrefix("WebLink_") {
+                    try? FileManager.default.removeItem(at: f)
                 }
             }
             
             self.isSending = false
             self.activeClientSession = nil
             self.selectedFiles.removeAll()
-            self.statusMessage = "Sent \(filesToSend.count) file(s) to \(peer.alias)"
+            self.statusMessage = isTextMessageTransfer ? "Message delivered to \(peer.alias)" : "Sent \(filesToSend.count) file(s) to \(peer.alias)"
             
             self.addHistoryItem(
                 peerAlias: peer.alias,
