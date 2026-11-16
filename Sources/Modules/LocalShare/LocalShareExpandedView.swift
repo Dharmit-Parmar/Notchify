@@ -35,10 +35,9 @@ public struct LocalShareExpandedView: View {
         let radarSize: CGFloat = notchTight ? 85 : (notchCompact ? 110 : 135)
         let iconSize: CGFloat = notchTight ? 18 : (notchCompact ? 22 : 26)
         
-        ScrollView(.vertical, showsIndicators: false) {
-            HStack(alignment: .top, spacing: notchTight ? 10 : 16) {
-                // Left Column: Animated Local Share Radar Beacon
-                VStack(spacing: 8) {
+        HStack(alignment: .top, spacing: notchTight ? 10 : 16) {
+            // Left Column: Animated Local Share Radar Beacon
+            VStack(spacing: 8) {
                     ZStack {
                         LocalShareRadarAnimation(
                             isTargeted: module.isDropTargeted,
@@ -105,7 +104,8 @@ public struct LocalShareExpandedView: View {
                 .frame(width: radarSize)
                 
                 // Right Column: Drop Stage, Incoming Requests, Transfer Progress & Peers
-                VStack(alignment: .leading, spacing: notchTight ? 6 : 8) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: notchTight ? 6 : 8) {
                     // Header & Status Line
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
@@ -204,8 +204,9 @@ public struct LocalShareExpandedView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(4)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(4)
         .contentShape(Rectangle())
         // Global Drop Handler for Local Share View
         .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: $module.isDropTargeted) { providers in

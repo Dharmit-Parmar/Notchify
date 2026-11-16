@@ -252,10 +252,15 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
     private func expandDirectoriesIfNeeded(in urls: [URL]) -> [URL] {
         var expanded: [URL] = []
         let fm = FileManager.default
+        let ws = NSWorkspace.shared
         for url in urls {
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
-                if let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+                if ws.isFilePackage(atPath: url.path) {
+                    expanded.append(url)
+                    continue
+                }
+                if let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]) {
                     for case let fileURL as URL in enumerator {
                         if let res = try? fileURL.resourceValues(forKeys: [.isRegularFileKey]), res.isRegularFile == true {
                             expanded.append(fileURL)
@@ -381,8 +386,8 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
         
         isSending = false
         isReceiving = false
+        transferProgress = 0.0
         statusMessage = "Transfer cancelled"
-        updateStatusMessage()
     }
     
     // MARK: - Bounded History
