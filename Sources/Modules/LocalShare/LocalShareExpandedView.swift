@@ -15,6 +15,7 @@ public final class LocalShareExpandedUIState: ObservableObject {
     @Published public var messageText = ""
     @Published public var hasCopiedMessage = false
     @Published public var previewURL: URL? = nil
+    @Published public var showingPreviewAll = false
     
     public init() {}
 }
@@ -191,8 +192,36 @@ public struct LocalShareExpandedView: View {
                     if !module.selectedFiles.isEmpty && !module.isSending {
                         selectedFilesSummary
                         
-                        // On-Demand Media File Preview Card
-                        if let previewURL = uiState.previewURL, module.selectedFiles.contains(previewURL) {
+                        // "Preview All" Horizontal Carousel Card
+                        if uiState.showingPreviewAll {
+                            FilePreviewAllCarouselCard(
+                                urls: module.selectedFiles,
+                                themeColor: module.themeColor,
+                                actionLabel: module.discoveredPeers.count == 1 ? "Send to \(module.discoveredPeers[0].alias)" : "Send All",
+                                onRemoveFile: { url in
+                                    module.removeSelectedFile(url)
+                                    if module.selectedFiles.isEmpty {
+                                        uiState.showingPreviewAll = false
+                                    }
+                                },
+                                onDismiss: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                        uiState.showingPreviewAll = false
+                                    }
+                                },
+                                onAction: {
+                                    if let targetPeer = module.discoveredPeers.first {
+                                        module.sendFiles(to: targetPeer)
+                                    } else {
+                                        module.rescan()
+                                    }
+                                }
+                            )
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+                            ))
+                        } else if let previewURL = uiState.previewURL, module.selectedFiles.contains(previewURL) {
                             FilePreviewStageCard(
                                 url: previewURL,
                                 themeColor: module.themeColor,
@@ -755,12 +784,40 @@ public struct LocalShareExpandedView: View {
                 
                 Spacer()
                 
-                Button("Clear All") {
-                    module.clearSelectedFiles()
+                HStack(spacing: 6) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            uiState.showingPreviewAll.toggle()
+                            if uiState.showingPreviewAll {
+                                uiState.previewURL = nil
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: uiState.showingPreviewAll ? "eye.slash.fill" : "photo.on.rectangle.angled")
+                                .font(.system(size: 8))
+                            Text(uiState.showingPreviewAll ? "Hide Previews" : "Preview All")
+                                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(uiState.showingPreviewAll ? .black : module.themeColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(
+                            Capsule().fill(uiState.showingPreviewAll ? module.themeColor : module.themeColor.opacity(0.15))
+                        )
+                    }
+                    .buttonStyle(.spring)
+                    .accessibilityLabel("Toggle Preview All")
+
+                    Button("Clear All") {
+                        uiState.showingPreviewAll = false
+                        uiState.previewURL = nil
+                        module.clearSelectedFiles()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundColor(DesignSystem.secondaryText)
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 8.5, weight: .medium))
-                .foregroundColor(DesignSystem.secondaryText)
             }
             
             ScrollView(.horizontal, showsIndicators: false) {

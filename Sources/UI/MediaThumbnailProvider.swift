@@ -460,3 +460,240 @@ public struct FilePreviewStageCard: View {
         }
     }
 }
+
+// MARK: - Carousel Item View for Preview All
+public struct FilePreviewCarouselItemView: View {
+    public let url: URL
+    public let themeColor: Color
+    public let onRemove: () -> Void
+    
+    @StateObject private var uiState = FilePreviewUIState()
+    
+    public init(url: URL, themeColor: Color = DesignSystem.accentColor, onRemove: @escaping () -> Void) {
+        self.url = url
+        self.themeColor = themeColor
+        self.onRemove = onRemove
+    }
+    
+    public var body: some View {
+        VStack(spacing: 5) {
+            // Preview Thumbnail Box
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.35))
+                    .frame(width: 110, height: 85)
+                
+                if let thumb = uiState.thumbnail {
+                    Image(nsImage: thumb)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: 104, maxHeight: 79)
+                        .cornerRadius(5)
+                        .shadow(color: Color.black.opacity(0.35), radius: 3, x: 0, y: 1)
+                } else if uiState.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if let previewText = uiState.info?.textPreview, !previewText.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(previewText)
+                            .font(.system(size: 7, design: .monospaced))
+                            .foregroundColor(DesignSystem.primaryText)
+                            .lineLimit(4)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        Spacer()
+                    }
+                    .padding(5)
+                    .frame(width: 110, height: 85)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.4)))
+                } else {
+                    VStack(spacing: 3) {
+                        Image(systemName: iconForCategory(uiState.info?.category ?? .other))
+                            .font(.system(size: 20))
+                            .foregroundColor(themeColor)
+                        if !url.pathExtension.isEmpty {
+                            Text(url.pathExtension.uppercased())
+                                .font(.system(size: 7.5, weight: .bold, design: .rounded))
+                                .foregroundColor(DesignSystem.secondaryText)
+                        }
+                    }
+                }
+                
+                // Top-right Remove Button
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button(action: onRemove) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color.white.opacity(0.85))
+                                .background(Circle().fill(Color.black.opacity(0.6)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(4)
+                        .accessibilityLabel("Remove \(url.lastPathComponent)")
+                    }
+                    Spacer()
+                }
+                
+                // Bottom Badges (Format / Size)
+                VStack {
+                    Spacer()
+                    HStack {
+                        if let badge = uiState.info?.detailBadge {
+                            Text(badge)
+                                .font(.system(size: 7, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Color.black.opacity(0.75)))
+                        }
+                        
+                        Spacer()
+                        
+                        if let size = uiState.info?.formattedSize {
+                            Text(size)
+                                .font(.system(size: 7, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Color.black.opacity(0.75)))
+                        }
+                    }
+                    .padding(4)
+                }
+            }
+            .frame(width: 110, height: 85)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard FileManager.default.fileExists(atPath: url.path) else { return }
+                NSWorkspace.shared.open(url)
+            }
+            .help("Click to open in default app")
+            
+            // Name of File Below Preview
+            Text(url.lastPathComponent)
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                .foregroundColor(DesignSystem.primaryText)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+                .frame(width: 110)
+        }
+        .frame(width: 110)
+        .task(id: url) {
+            uiState.info = MediaThumbnailProvider.shared.previewInfo(for: url)
+            uiState.thumbnail = await MediaThumbnailProvider.shared.generateThumbnail(for: url)
+            uiState.isLoading = false
+        }
+    }
+    
+    private func iconForCategory(_ category: MediaPreviewInfo.MediaCategory) -> String {
+        switch category {
+        case .image: return "photo"
+        case .video: return "film"
+        case .pdf: return "doc.text.fill"
+        case .audio: return "waveform"
+        case .folder: return "folder.fill"
+        case .document, .other: return "doc.fill"
+        }
+    }
+}
+
+// MARK: - Horizontal Preview All Carousel Card
+public struct FilePreviewAllCarouselCard: View {
+    public let urls: [URL]
+    public let themeColor: Color
+    public let actionLabel: String
+    public let onRemoveFile: (URL) -> Void
+    public let onDismiss: () -> Void
+    public let onAction: () -> Void
+    
+    public init(
+        urls: [URL],
+        themeColor: Color = DesignSystem.accentColor,
+        actionLabel: String = "Send All",
+        onRemoveFile: @escaping (URL) -> Void,
+        onDismiss: @escaping () -> Void,
+        onAction: @escaping () -> Void
+    ) {
+        self.urls = urls
+        self.themeColor = themeColor
+        self.actionLabel = actionLabel
+        self.onRemoveFile = onRemoveFile
+        self.onDismiss = onDismiss
+        self.onAction = onAction
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Header: Title, Scroll Hint & Close Button
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: "photo.stack.fill")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(themeColor)
+                    Text("File Previews (\(urls.count))")
+                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .foregroundColor(DesignSystem.primaryText)
+                }
+                
+                Spacer()
+                
+                Text("Scroll to browse")
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .foregroundColor(DesignSystem.secondaryText)
+                
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close File Previews")
+            }
+            
+            // Horizontal Scroll Bar of Previews with File Names Below
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(urls, id: \.self) { fileURL in
+                        FilePreviewCarouselItemView(
+                            url: fileURL,
+                            themeColor: themeColor,
+                            onRemove: { onRemoveFile(fileURL) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 2)
+                .padding(.bottom, 6)
+            }
+            .frame(height: 124)
+            
+            // Bottom Action Row
+            HStack {
+                Text("\(urls.count) item(s) staged")
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundColor(DesignSystem.secondaryText)
+                
+                Spacer()
+                
+                Button(action: onAction) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 8))
+                        Text(actionLabel)
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3.5)
+                    .background(Capsule().fill(themeColor))
+                }
+                .buttonStyle(.spring)
+                .accessibilityLabel(actionLabel)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DesignSystem.cardFill))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(themeColor.opacity(0.35), lineWidth: 0.8))
+    }
+}

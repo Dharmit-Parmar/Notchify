@@ -247,6 +247,7 @@ public final class AirDropModule: NotchModule {
     
     @Published public var recentFiles: [URL] = []
     @Published public var previewURL: URL? = nil
+    @Published public var showingPreviewAll: Bool = false
     @Published public var isDropTargeted: Bool = false
     @Published public var statusMessage: String = "Ready to beam to nearby Apple devices"
     @Published public var isBeaming: Bool = false
@@ -563,15 +564,40 @@ public struct AirDropExpandedView: View {
                                 
                                 Spacer()
                                 
-                                Button("Clear") {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                                        module.previewURL = nil
-                                        module.recentFiles.removeAll()
+                                HStack(spacing: 6) {
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                            module.showingPreviewAll.toggle()
+                                            if module.showingPreviewAll {
+                                                module.previewURL = nil
+                                            }
+                                        }
+                                    }) {
+                                        HStack(spacing: 3) {
+                                            Image(systemName: module.showingPreviewAll ? "eye.slash.fill" : "photo.on.rectangle.angled")
+                                                .font(.system(size: 8))
+                                            Text(module.showingPreviewAll ? "Hide Previews" : "Preview All")
+                                                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                                        }
+                                        .foregroundColor(module.showingPreviewAll ? .black : DesignSystem.accentColor)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2.5)
+                                        .background(Capsule().fill(module.showingPreviewAll ? DesignSystem.accentColor : DesignSystem.accentColor.opacity(0.15)))
                                     }
+                                    .buttonStyle(.spring)
+                                    .accessibilityLabel("Toggle Preview All")
+
+                                    Button("Clear") {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                            module.showingPreviewAll = false
+                                            module.previewURL = nil
+                                            module.recentFiles.removeAll()
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .font(.system(size: 8.5, weight: .medium))
+                                    .foregroundColor(DesignSystem.tertiaryText)
                                 }
-                                .buttonStyle(.plain)
-                                .font(.system(size: 8.5, weight: .medium))
-                                .foregroundColor(DesignSystem.tertiaryText)
                             }
                             
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -632,8 +658,32 @@ public struct AirDropExpandedView: View {
                         }
                     }
                     
-                    // On-Demand File Preview Card (Full-width block below recent chips)
-                    if let previewURL = module.previewURL, module.recentFiles.contains(previewURL) {
+                    // "Preview All" Horizontal Carousel Card
+                    if module.showingPreviewAll && !module.recentFiles.isEmpty {
+                        FilePreviewAllCarouselCard(
+                            urls: module.recentFiles,
+                            themeColor: DesignSystem.accentColor,
+                            actionLabel: "AirDrop All",
+                            onRemoveFile: { file in
+                                module.removeRecentFile(file)
+                                if module.recentFiles.isEmpty {
+                                    module.showingPreviewAll = false
+                                }
+                            },
+                            onDismiss: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                    module.showingPreviewAll = false
+                                }
+                            },
+                            onAction: {
+                                module.shareFiles(module.recentFiles)
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
+                        ))
+                    } else if let previewURL = module.previewURL, module.recentFiles.contains(previewURL) {
                         FilePreviewStageCard(
                             url: previewURL,
                             themeColor: DesignSystem.accentColor,
