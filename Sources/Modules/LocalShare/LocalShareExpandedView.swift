@@ -631,23 +631,88 @@ public struct LocalShareExpandedView: View {
     }
     
     private var selectedFilesSummary: some View {
-        HStack {
-            Text("\(module.selectedFiles.count) file(s) selected")
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundColor(DesignSystem.primaryText)
-            
-            Spacer()
-            
-            Button("Clear") {
-                module.clearSelectedFiles()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "tray.and.arrow.up.fill")
+                        .font(.system(size: 8.5))
+                        .foregroundColor(module.themeColor)
+                    Text("Ready to Send (\(module.selectedFiles.count))")
+                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .foregroundColor(DesignSystem.primaryText)
+                }
+                
+                Spacer()
+                
+                Button("Clear All") {
+                    module.clearSelectedFiles()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 8.5, weight: .medium))
+                .foregroundColor(DesignSystem.secondaryText)
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 9))
-            .foregroundColor(DesignSystem.secondaryText)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    ForEach(module.selectedFiles, id: \.self) { url in
+                        let isMessage = url.lastPathComponent.hasPrefix("Message_") || url.lastPathComponent.hasPrefix("Snippet_")
+                        HStack(spacing: 4) {
+                            Image(systemName: isMessage ? "message.fill" : fileIconForURL(url))
+                                .font(.system(size: 8))
+                                .foregroundColor(isMessage ? module.themeColor : DesignSystem.secondaryText)
+                            
+                            Text(isMessage ? displayNameForMessageFile(url) : url.lastPathComponent)
+                                .font(.system(size: 8.5, weight: .medium))
+                                .lineLimit(1)
+                            
+                            Button(action: {
+                                module.removeSelectedFile(url)
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundColor(DesignSystem.secondaryText)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove \(url.lastPathComponent)")
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(Capsule().fill(DesignSystem.surfaceFill))
+                        .overlay(Capsule().strokeBorder(DesignSystem.cardBorder, lineWidth: 0.6))
+                    }
+                }
+            }
+            .frame(height: 24)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(RoundedRectangle(cornerRadius: 6).fill(DesignSystem.surfaceFill))
+        .padding(6)
+        .background(RoundedRectangle(cornerRadius: 8).fill(DesignSystem.cardFill))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DesignSystem.cardBorder, lineWidth: 0.75))
+    }
+    
+    private func fileIconForURL(_ url: URL) -> String {
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+            return "folder.fill"
+        }
+        let ext = url.pathExtension.lowercased()
+        switch ext {
+        case "png", "jpg", "jpeg", "heic", "gif", "webp": return "photo"
+        case "mp4", "mov", "m4v": return "film"
+        case "pdf": return "doc.text.fill"
+        case "zip", "tar", "gz": return "archivebox"
+        default: return "doc"
+        }
+    }
+    
+    private func displayNameForMessageFile(_ url: URL) -> String {
+        if let content = try? String(contentsOf: url, encoding: .utf8), !content.isEmpty {
+            let singleLine = content.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            if singleLine.count > 16 {
+                return "\"" + String(singleLine.prefix(14)) + "...\""
+            }
+            return "\"" + singleLine + "\""
+        }
+        return "Message"
     }
     
     private var nearbyPeersSection: some View {
@@ -775,9 +840,23 @@ public struct LocalShareExpandedView: View {
     
     private var manualIPInputCard: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Direct IP Connect")
-                .font(.system(size: 9.5, weight: .bold))
-                .foregroundColor(DesignSystem.primaryText)
+            HStack {
+                Text("Direct IP Connect")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundColor(DesignSystem.primaryText)
+                
+                Spacer()
+                
+                Button(action: {
+                    uiState.showingManualIPSheet = false
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close Direct IP Connect")
+            }
             
             HStack {
                 TextField("IP Address (e.g. 192.168.1.50)", text: $uiState.manualIPAddress)

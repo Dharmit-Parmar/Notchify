@@ -330,9 +330,15 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     
     private func detectAndSetReceivedTextMessage(from session: LocalShareSession, savedFiles: [URL]) {
         for (_, meta) in session.filesMetadata {
+            let baseName = (meta.fileName as NSString).deletingPathExtension
+            let ext = (meta.fileName as NSString).pathExtension.lowercased()
+            let matchedURL = savedFiles.first(where: {
+                $0.lastPathComponent == meta.fileName ||
+                ($0.pathExtension.lowercased() == ext && $0.lastPathComponent.hasPrefix(baseName))
+            }) ?? (savedFiles.count == 1 ? savedFiles.first : nil)
+            
             // Check if preview already contains message string
             if let preview = meta.preview, !preview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let matchedURL = savedFiles.first(where: { $0.lastPathComponent == meta.fileName })
                 self.lastReceivedMessage = LocalShareReceivedMessage(
                     peerAlias: session.peerInfo.alias,
                     text: preview,
@@ -343,18 +349,15 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
             }
             
             let isTextType = meta.fileType.hasPrefix("text/") ||
-                             meta.fileName.lowercased().hasSuffix(".txt") ||
-                             meta.fileName.lowercased().hasSuffix(".md") ||
-                             meta.fileName.lowercased().hasSuffix(".json")
+                             ext == "txt" || ext == "md" || ext == "json" || ext == "log"
             
-            if isTextType {
-                if let matchedURL = savedFiles.first(where: { $0.lastPathComponent == meta.fileName }),
-                   let content = try? String(contentsOf: matchedURL, encoding: .utf8),
+            if isTextType, let fileURL = matchedURL {
+                if let content = try? String(contentsOf: fileURL, encoding: .utf8),
                    !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     self.lastReceivedMessage = LocalShareReceivedMessage(
                         peerAlias: session.peerInfo.alias,
                         text: content,
-                        fileURL: matchedURL
+                        fileURL: fileURL
                     )
                     self.statusMessage = "Received message from \(session.peerInfo.alias)"
                     return
@@ -386,14 +389,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
             self.markTransferFinished()
             if response == .OK, let targetURL = savePanel.url {
                 do {
-                    if let existingURL = message.fileURL, FileManager.default.fileExists(atPath: existingURL.path) {
-                        if FileManager.default.fileExists(atPath: targetURL.path) {
-                            try FileManager.default.removeItem(at: targetURL)
-                        }
-                        try FileManager.default.copyItem(at: existingURL, to: targetURL)
-                    } else {
-                        try message.text.write(to: targetURL, atomically: true, encoding: .utf8)
-                    }
+                    try message.text.write(to: targetURL, atomically: true, encoding: .utf8)
                     self.statusMessage = "Message saved to \(targetURL.lastPathComponent)"
                     FeedbackManager.playSuccess()
                 } catch {
