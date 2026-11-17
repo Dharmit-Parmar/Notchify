@@ -6847,7 +6847,68 @@ func runAllVerificationTests() {
     assert(stream2.destinationURL.lastPathComponent == "pre_existing (2).txt", "Second collision must resolve safely to (2)")
     try! stream2.finalize(expectedSha256: nil, expectedSize: 0)
     print("  -> Subtest C: Automatic numeric suffix collision progression... PASSED")
-    print("  ✓ Atomic POSIX O_CREAT|O_EXCL|O_NOFOLLOW file creation verified.")
+    
+    // Subtest D: Parent-directory symlink attack rejection & external sentinel protection
+    let externalVault = FileManager.default.temporaryDirectory.appendingPathComponent("external_vault_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: externalVault, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    defer { try? FileManager.default.removeItem(at: externalVault) }
+    let externalSentinel = externalVault.appendingPathComponent("sentinel.txt")
+    try! "SENTINEL_ROOT_DATA".write(to: externalSentinel, atomically: true, encoding: .utf8)
+    
+    let symlinkedParent = testTempDir.appendingPathComponent("symlink_dir")
+    try! FileManager.default.createSymbolicLink(at: symlinkedParent, withDestinationURL: externalVault)
+    
+    var parentSymlinkBlocked = false
+    do {
+        let evilURL = symlinkedParent.appendingPathComponent("attack.txt")
+        _ = try LocalShareFileStreamWriter(destinationURL: evilURL, trustedRootURL: testTempDir)
+    } catch LocalShareError.fileExists {
+        parentSymlinkBlocked = true
+    } catch {
+        parentSymlinkBlocked = true
+    }
+    assert(parentSymlinkBlocked, "Attempting to create file through parent directory symlink must be blocked by O_NOFOLLOW")
+    assert(FileManager.default.fileExists(atPath: externalSentinel.path), "External sentinel must exist")
+    let sentinelAfter = try! String(contentsOf: externalSentinel, encoding: .utf8)
+    assert(sentinelAfter == "SENTINEL_ROOT_DATA", "External sentinel must remain unmodified")
+    let attackFileCreated = FileManager.default.fileExists(atPath: externalVault.appendingPathComponent("attack.txt").path)
+    assert(!attackFileCreated, "Attack file must NEVER be created inside external symlinked directory")
+    print("  -> Subtest D: Parent-directory symlink rejection & external sentinel protection... PASSED")
+    
+    // Subtest E: Directory traversal rejection (../ and uncontained paths)
+    var traversalBlocked = false
+    do {
+        let outsideURL = testTempDir.appendingPathComponent("../escape.txt").standardizedFileURL
+        _ = try LocalShareFileStreamWriter(destinationURL: outsideURL, trustedRootURL: testTempDir)
+    } catch LocalShareError.invalidURL {
+        traversalBlocked = true
+    } catch {
+        traversalBlocked = true
+    }
+    assert(traversalBlocked, "Path attempting to escape trusted root must be rejected with invalidURL")
+    print("  -> Subtest E: Path traversal (../) escape rejection... PASSED")
+    
+    // Subtest F: File descriptor leak audit across repeated failed file creations
+    func sampleFDs() -> Int {
+        if let entries = try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd") {
+            return entries.count
+        }
+        var count = 0
+        for fd in 0..<min(getdtablesize(), 1024) {
+            if fcntl(Int32(fd), F_GETFD) != -1 { count += 1 }
+        }
+        return count
+    }
+    let fdBeforeFailures = sampleFDs()
+    for _ in 1...20 {
+        _ = try? LocalShareFileStreamWriter(destinationURL: evilSymlinkURL, trustedRootURL: testTempDir)
+        _ = try? LocalShareFileStreamWriter(destinationURL: existingFile, trustedRootURL: testTempDir)
+    }
+    let fdAfterFailures = sampleFDs()
+    let fdLeak = abs(fdAfterFailures - fdBeforeFailures)
+    assert(fdLeak <= 1, "File descriptors must not leak during failed or blocked stream initializations (leak: \(fdLeak))")
+    print("  -> Subtest F: Zero file descriptor leaks on blocked file streams... PASSED")
+    print("  ✓ Atomic POSIX O_CREAT|O_EXCL|O_NOFOLLOW file creation & trusted root containment verified.")
 
     // Test 108: Out-of-band Short Verification Code (SAS) Determinism & Active LAN MITM Mismatch Detection
     print("\n[TEST 108] Out-of-band Short Verification Code (SAS) Determinism & Active MITM Detection...")
@@ -6872,6 +6933,12 @@ func runAllVerificationTests() {
     // Verify client-side certificate pinning immediately aborts connection on TLS fingerprint mismatch
     _ = LocalSharePeerPinningDelegate(expectedFingerprint: fpBob)
     assert(LocalShareSecurity.isFingerprintValid(peerCertDER: Data([0x30, 0x01, 0x02]), expectedFingerprint: fpAttacker) == false, "Fingerprint pinning must fail closed on rogue certificates")
+    
+    // Subtest C: Out-of-band SAS code divergence and pinning fail-closed verification
+    assert(codeAliceUnderMITM != codeBobUnderMITM, "Attacker presenting different certs must cause SAS codes to diverge")
+    let alicePinningAgainstBob = LocalSharePeerPinningDelegate(expectedFingerprint: fpBob)
+    assert(alicePinningAgainstBob.expectedFingerprint == fpBob, "Pinning delegate must track expected peer fingerprint")
+    print("  -> Subtest C: Out-of-band SAS divergence & TLS certificate pinning fail-closed... PASSED")
     print("  ✓ Out-of-band SAS code & TLS certificate pinning verified against active LAN MITM attack scenarios.")
 
     // Test 109: Unauthenticated Favorite Fingerprint Spoofing Gate
@@ -6956,7 +7023,52 @@ func runAllVerificationTests() {
     pinThrottledServer.stop()
     pinClient.finishTasksAndInvalidate()
     print("  -> Subtest B: PIN brute-force progressive throttling & HTTP 429 lockout... PASSED")
-    print("  ✓ Unauthenticated favorite spoofing and PIN brute-force protections verified.")
+    
+    // Subtest C: IP Normalization Anti-Bypass
+    assert(LocalShareSecurity.normalizeIP("::ffff:127.0.0.1") == "127.0.0.1", "IPv4-mapped IPv6 must normalize to IPv4")
+    assert(LocalShareSecurity.normalizeIP("127.000.000.001") == "127.0.0.1", "Leading zeros in decimal octets must normalize")
+    assert(LocalShareSecurity.normalizeIP("[::1]") == "::1", "Bracketed IPv6 must strip brackets")
+    assert(LocalShareSecurity.normalizeIP("192.168.1.50:53317") == "192.168.1.50", "Port on IPv4 must be stripped")
+    assert(LocalShareSecurity.normalizeIP("[fe80::1%en0]:53317") == "fe80::1", "Port and scope on bracketed IPv6 must normalize")
+    print("  -> Subtest C: IP normalization anti-bypass (IPv4-mapped, octet zeros, bracketed ports)... PASSED")
+    
+    // Subtest D: Loopback auto-acceptance restricted strictly to test harness
+    let loopbackServer = LocalShareServer()
+    let loopbackPort: UInt16 = 53348
+    try! loopbackServer.start(port: loopbackPort, bindInterface: .loopbackOnly, enableTLS: false)
+    loopbackServer.autoAcceptFavorites = true
+    loopbackServer.isTestHarnessAutoAcceptEnabled = false // Production setting
+    loopbackServer.favoriteFingerprints = ["loopback_fav_fp"]
+    
+    let loopbackGateInvoked = ThreadSafeBox<Bool>(false)
+    loopbackServer.onIncomingSessionOffered = { session, completion in
+        loopbackGateInvoked.value = true
+        completion(false)
+    }
+    
+    let lbMeta = LocalShareFileMetadata(id: "f1", fileName: "test.txt", size: 10, fileType: "text/plain")
+    let lbPrep = LocalSharePrepareUploadRequest(
+        info: LocalShareDeviceInfo(alias: "LoopbackClient", fingerprint: "loopback_fav_fp", port: 53317, protocol: "http"),
+        files: ["f1": lbMeta]
+    )
+    let loopbackReqData = try! JSONEncoder().encode(lbPrep)
+    let loopbackURL = URL(string: "http://127.0.0.1:\(loopbackPort)\(LocalShareEndpoints.prepareUpload)")!
+    var loopbackReq = URLRequest(url: loopbackURL)
+    loopbackReq.httpMethod = "POST"
+    loopbackReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    loopbackReq.httpBody = loopbackReqData
+    
+    let lbSem = DispatchSemaphore(value: 0)
+    URLSession.shared.dataTask(with: loopbackReq) { _, _, _ in
+        lbSem.signal()
+    }.resume()
+    _ = lbSem.wait(timeout: .now() + 2.0)
+    
+    assert(loopbackGateInvoked.value == true, "Loopback request in production mode must route to interactive prompt gate")
+    loopbackServer.stop()
+    LocalShareSessionCoordinator.shared.reset()
+    print("  -> Subtest D: Loopback auto-acceptance restricted strictly to test harness... PASSED")
+    print("  ✓ Unauthenticated favorite spoofing, PIN lockout & loopback gating verified.")
 
     // Test 110: Large File Transfer (5 MB) & Checksum Verification and Tamper Detection
     print("\n[TEST 110] Realistic 5 MB File Transfer with SHA-256 Checksum & Tamper Detection...")
@@ -7100,8 +7212,8 @@ func runAllVerificationTests() {
     testSession.abortAllActiveWriters()
     print("  ✓ Single-use token anti-replay and concurrent writer bounds verified.")
 
-    // Test 112: Extended Soak & Memory / File Descriptor Stability (50 Sequential Transfers)
-    print("\n[TEST 112] Extended Soak & Memory / File Descriptor Stability (50 Transfers)...")
+    // Test 112: Extended Multi-Batch Soak & Resource Stability (Sequential, Concurrent, Cancelled, and Interrupted Transfers)
+    print("\n[TEST 112] Extended Multi-Batch Soak & Resource Leak Verification...")
     let soakServer = LocalShareServer()
     let soakPort: UInt16 = 53342
     try! soakServer.start(port: soakPort, bindInterface: .loopbackOnly, enableTLS: false)
@@ -7134,14 +7246,13 @@ func runAllVerificationTests() {
         return kerr == KERN_SUCCESS ? info.resident_size : 0
     }
     
-    let initialFDs = getOpenFileDescriptorCount()
-    let initialMemory = getResidentMemoryBytes()
     let soakClientSession = URLSession(configuration: .ephemeral)
-    
     let smallPayload = Data("SOAK_TEST_PAYLOAD_DATA".utf8)
-    for i in 1...50 {
-        let meta = LocalShareFileMetadata(id: "soak_\(i)", fileName: "soak_\(i).txt", size: Int64(smallPayload.count), fileType: "text/plain")
-        let prep = LocalSharePrepareUploadRequest(info: LocalShareDeviceInfo(alias: "SoakClient", fingerprint: "soak_peer_fp", port: 0, protocol: "http"), files: ["soak_\(i)": meta])
+    
+    @Sendable
+    nonisolated func performTransfer(id: String, payload: Data = smallPayload) -> Bool {
+        let meta = LocalShareFileMetadata(id: id, fileName: "\(id).txt", size: Int64(payload.count), fileType: "text/plain")
+        let prep = LocalSharePrepareUploadRequest(info: LocalShareDeviceInfo(alias: "SoakClient", fingerprint: "soak_peer_fp", port: 0, protocol: "http"), files: [id: meta])
         
         let prepURL = URL(string: "http://127.0.0.1:\(soakPort)\(LocalShareEndpoints.prepareUpload)")!
         var req = URLRequest(url: prepURL)
@@ -7159,20 +7270,87 @@ func runAllVerificationTests() {
         }.resume()
         _ = sem.wait(timeout: .now() + 2.0)
         
-        if let r = respBox.value, let tok = r.files["soak_\(i)"] {
-            let upURL = URL(string: "http://127.0.0.1:\(soakPort)\(LocalShareEndpoints.upload)?sessionId=\(r.sessionId)&fileId=soak_\(i)&token=\(tok)")!
-            var upReq = URLRequest(url: upURL)
-            upReq.httpMethod = "POST"
-            upReq.setValue("text/plain", forHTTPHeaderField: "Content-Type")
-            upReq.setValue("\(smallPayload.count)", forHTTPHeaderField: "Content-Length")
-            upReq.httpBody = smallPayload
-            let upSem = DispatchSemaphore(value: 0)
-            soakClientSession.dataTask(with: upReq) { _, _, _ in
-                upSem.signal()
-            }.resume()
-            _ = upSem.wait(timeout: .now() + 2.0)
-            LocalShareSessionCoordinator.shared.cancelSession(sessionId: r.sessionId, reason: "Soak cycle complete")
+        guard let r = respBox.value, let tok = r.files[id] else { return false }
+        
+        let upURL = URL(string: "http://127.0.0.1:\(soakPort)\(LocalShareEndpoints.upload)?sessionId=\(r.sessionId)&fileId=\(id)&token=\(tok)")!
+        var upReq = URLRequest(url: upURL)
+        upReq.httpMethod = "POST"
+        upReq.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        upReq.setValue("\(payload.count)", forHTTPHeaderField: "Content-Length")
+        upReq.httpBody = payload
+        let upSem = DispatchSemaphore(value: 0)
+        let uploadSuccessBox = ThreadSafeBox<Bool>(false)
+        soakClientSession.dataTask(with: upReq) { _, resp, _ in
+            if let http = resp as? HTTPURLResponse, http.statusCode == 200 {
+                uploadSuccessBox.value = true
+            }
+            upSem.signal()
+        }.resume()
+        _ = upSem.wait(timeout: .now() + 2.0)
+        LocalShareSessionCoordinator.shared.cancelSession(sessionId: r.sessionId, reason: "Soak cycle complete")
+        return uploadSuccessBox.value
+    }
+    
+    // Batch 0: Warmup (5 transfers)
+    for i in 1...5 {
+        _ = performTransfer(id: "warmup_\(i)")
+    }
+    usleep(100_000)
+    let initialFDs = getOpenFileDescriptorCount()
+    let initialMemory = getResidentMemoryBytes()
+    
+    // Batch 1: Sequential transfers (25 transfers)
+    for i in 1...25 {
+        _ = performTransfer(id: "seq_\(i)")
+    }
+    let b1Memory = getResidentMemoryBytes()
+    let b1FDs = getOpenFileDescriptorCount()
+    
+    // Batch 2: Concurrent parallel transfers (5 concurrent clients)
+    let soakConcurrentGroup = DispatchGroup()
+    for i in 1...5 {
+        soakConcurrentGroup.enter()
+        DispatchQueue.global().async {
+            _ = performTransfer(id: "conc_\(i)")
+            soakConcurrentGroup.leave()
         }
+    }
+    _ = soakConcurrentGroup.wait(timeout: .now() + 5.0)
+    let b2Memory = getResidentMemoryBytes()
+    let b2FDs = getOpenFileDescriptorCount()
+    
+    // Batch 3: Cancelled and interrupted transfers (5 transfers)
+    for i in 1...5 {
+        let meta = LocalShareFileMetadata(id: "canc_\(i)", fileName: "canc_\(i).txt", size: 1024, fileType: "text/plain")
+        let prep = LocalSharePrepareUploadRequest(info: LocalShareDeviceInfo(alias: "CancelClient", fingerprint: "soak_peer_fp", port: 0, protocol: "http"), files: ["canc_\(i)": meta])
+        let prepURL = URL(string: "http://127.0.0.1:\(soakPort)\(LocalShareEndpoints.prepareUpload)")!
+        var req = URLRequest(url: prepURL)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try! JSONEncoder().encode(prep)
+        
+        let sem = DispatchSemaphore(value: 0)
+        let respBox = ThreadSafeBox<LocalSharePrepareUploadResponse?>(nil)
+        soakClientSession.dataTask(with: req) { data, _, _ in
+            if let d = data, let r = try? JSONDecoder().decode(LocalSharePrepareUploadResponse.self, from: d) {
+                respBox.value = r
+            }
+            sem.signal()
+        }.resume()
+        _ = sem.wait(timeout: .now() + 2.0)
+        
+        if let r = respBox.value {
+            // Cancel session immediately without uploading full body to test cleanup
+            LocalShareSessionCoordinator.shared.cancelSession(sessionId: r.sessionId, reason: "Cancelled by test")
+            LocalShareFileManager.shared.purgeSessionDirectory(sessionId: r.sessionId)
+        }
+    }
+    let b3Memory = getResidentMemoryBytes()
+    let b3FDs = getOpenFileDescriptorCount()
+    
+    // Batch 4: Repeated sustained batch (25 transfers)
+    for i in 1...25 {
+        _ = performTransfer(id: "sustained_\(i)")
     }
     
     soakServer.stop()
@@ -7184,15 +7362,21 @@ func runAllVerificationTests() {
     let memoryDeltaMB = Double(Int64(finalMemory) - Int64(initialMemory)) / (1024.0 * 1024.0)
     let fdDelta = abs(finalFDs - initialFDs)
     
-    print("  Initial Resident Memory: \(initialMemory / (1024 * 1024)) MB, Final: \(finalMemory / (1024 * 1024)) MB (Delta: \(String(format: "%.2f", memoryDeltaMB)) MB)")
-    print("  Initial Open FDs: \(initialFDs), Final Open FDs: \(finalFDs) (FD Delta: \(fdDelta))")
+    print("  --- Extended Multi-Batch Soak Metrics ---")
+    print("  Baseline (Post-Warmup): \(initialMemory / (1024 * 1024)) MB RSS, \(initialFDs) FDs")
+    print("  After Batch 1 (25 Sequential): \(b1Memory / (1024 * 1024)) MB RSS, \(b1FDs) FDs")
+    print("  After Batch 2 (5 Concurrent):   \(b2Memory / (1024 * 1024)) MB RSS, \(b2FDs) FDs")
+    print("  After Batch 3 (5 Cancelled):    \(b3Memory / (1024 * 1024)) MB RSS, \(b3FDs) FDs")
+    print("  After Batch 4 (25 Sustained):   \(finalMemory / (1024 * 1024)) MB RSS, \(finalFDs) FDs")
+    print("  Net Resident Memory Delta: \(String(format: "%.2f", memoryDeltaMB)) MB (Threshold: < 35 MB)")
+    print("  Net Open File Descriptors Delta: \(fdDelta) FDs (Threshold: <= 6)")
     print("  Active Server Connections: \(soakServer.currentActiveConnections), Active Session: \(String(describing: LocalShareSessionCoordinator.shared.currentSession))")
     
-    assert(memoryDeltaMB < 35.0, "Memory consumption after 50 transfers must remain bounded (< 35 MB growth)")
+    assert(memoryDeltaMB < 35.0, "Memory consumption after 65 transfers must remain bounded (< 35 MB growth)")
     assert(fdDelta <= 6, "File descriptors must remain stable with zero leaks across sustained transfers")
     assert(soakServer.currentActiveConnections == 0, "All active server connection sockets must be closed on server stop")
     assert(LocalShareSessionCoordinator.shared.currentSession == nil, "Active session coordinator must be clear after transfers")
-    print("  ✓ 50 sequential transfer soak completed with zero runaway memory accumulation and stable file descriptors.")
+    print("  ✓ Extended 65-transfer multi-batch soak completed with zero runaway memory accumulation and stable file descriptors.")
     
     if localShareOnly {
         print("\n=====================================================")

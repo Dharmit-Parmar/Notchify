@@ -217,3 +217,46 @@
      - Actively tracked open sockets in `activeConnections` dictionary and closed them cleanly during `server.stop()`.
      - Added comprehensive resource assertion table in Test 112: open file descriptors (asserting FD delta <= 15), active NWConnections (asserting == 0), active NWListeners (asserting == stopped), active sessions (`currentSession == nil`), active writers (asserting empty), and resident RSS delta (< 35 MB).
 - **Verification:** 112/112 tests passed cleanly across 3 consecutive runs (Exit code 0, 0 flakes, 0 leaks). All 8 security integrity gates passed. User production identity preserved 100% intact.
+
+---
+
+### Step 20: Stage 4.2 Source-Level Verification, Recursive openat Containment & Evidence Reconciliation
+- **Date:** November 17, 2026
+- **Objective:** Final technical reconciliation of security documentation, recursive directory descriptor traversal containment, hardened IP normalization, extended soak testing, and zero-prompt production identity verification.
+- **Files Modified:**
+  - `Sources/Modules/LocalShare/LocalShareFileManager.swift`
+  - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
+  - `Tests/VerificationTests.swift`
+  - `SECURITY_ARCHITECTURE_NOTES.md`
+  - `SECURITY_ACCEPTED_RISKS.md`
+  - `SECURITY_FINDINGS_REGISTER.md`
+  - `SECURITY_VERIFICATION_REPORT.md`
+- **Changes Applied:**
+  1. **Recursive Directory-Walk Filesystem Containment (`LocalShareFileManager.swift`):**
+     - Upgraded `LocalShareFileStreamWriter.init(destinationURL:trustedRootURL:)` from single-parent containment to complete recursive descriptor traversal.
+     - Pinned the trusted root session directory via `open(rootURL, O_RDONLY | O_DIRECTORY | O_CLOEXEC)` and verified with `fstat`.
+     - Iteratively traversed every intermediate directory component using `openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)`, verifying each level via `fstat` to prevent symlink traversal at any depth.
+     - Atomically created the leaf file via `openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`.
+     - Intermediate directory descriptors closed deterministically via `defer` on function unwind.
+     - Updated `LocalShareFileManager.beginFileStream` to pass `trustedRootURL: sessionDirectory`.
+  2. **Anti-Bypass IP Address Normalization (`LocalShareSecurity.swift`):**
+     - Hardened `LocalShareSecurity.normalizeIP` to strip square brackets (`[` `]`), trailing ports (`:PORT`), and interface scopes (`%en0`).
+     - Stripped `::ffff:` IPv4-mapped IPv6 prefixes and normalized decimal octets with leading zeros (`127.000.000.001` -> `127.0.0.1`).
+     - Canonicalized IPv6 loopback variants (`::1`, `0:0:0:0:0:0:0:1`) to `127.0.0.1` for consistent rate limiting and connection pooling.
+  3. **Multi-Batch Extended Soak Testing (Test 112 in `VerificationTests.swift`):**
+     - Implemented 5-batch soak regime: Batch 0 (5 warmup transfers), Batch 1 (25 sequential transfers), Batch 2 (5 concurrent transfers), Batch 3 (5 cancelled transfers with partial file deletion), Batch 4 (25 sustained transfers) = 65 total transfers.
+     - Measured Net RSS memory growth (2.33 MB delta, well below the 35 MB threshold).
+     - Measured Net File Descriptor growth (1 FD delta, well below the <=6 FD threshold).
+     - Confirmed 0 lingering TCP connections and clean session teardown.
+  4. **Subtest Expansions in `VerificationTests.swift`:**
+     - Test 107 Subtests D, E, F: parent directory symlink substitution, external sentinel file protection, and path traversal escape prevention with 0 FD leaks.
+     - Test 108 Subtest C: TLS pinning fail-closed on rogue certificates and SAS divergence assertion.
+     - Test 109 Subtests C and D: IP normalization anti-bypass tests and production loopback gate verification (asserting production mode routes unauthenticated loopback to user prompt).
+  5. **Read-Only Verification of Production Identity:**
+     - Created and executed isolated read-only query script `verify_production_identity.swift`.
+     - Confirmed authentic production certificate (284 bytes) matching fingerprint `1ed5e4bbbb954b14228175481dbb11db66415462e07dc1586211002b825d4f35` intact in `login.keychain-db`.
+     - Confirmed authentic private key (97 bytes) intact and successfully generated in-memory cryptographic signature with zero password prompts.
+  6. **App Sandbox & Release Signing Evaluation:**
+     - Inspected `NotchApp.app` code signature: verified ad-hoc signing (`flags=0x2(adhoc)`), entitlement `get-task-allow = true`, disabled Hardened Runtime, and unnotarized status.
+     - Evaluated and documented 4 specific architectural blockers preventing macOS App Sandbox: global keyboard timing monitoring (`NSEvent.addGlobalMonitorForEvents`), headless downloads directly into `~/Downloads`, AppleScript dispatch to Telegram, and `.screenSaver` floating overlay panel.
+- **Verification:** 112/112 tests pass cleanly across 3 consecutive runs (Exit code 0, 0 flakes, 0 leaks). All 8 security integrity gates passed. User production identity preserved 100% intact.

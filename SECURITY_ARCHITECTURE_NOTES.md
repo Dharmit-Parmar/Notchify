@@ -107,24 +107,31 @@ graph TD
 - **Slowloris & Header Flooding Protection:** Headers are limited to `LocalShareSecurity.maxHeaderSize` (32 KB); headers exceeding this threshold return HTTP 431 `Request Header Fields Too Large`. Inactivity watchdogs terminate stale connections after 15 seconds.
 - **Size Mismatch Defense:** Incoming uploads validate HTTP `Content-Length` against declared session metadata immediately in `handleUploadRoute`, rejecting mismatches with HTTP 400 before allocating disk storage.
 
-### 5. Filesystem Security & Directory-Relative POSIX Containment (SEC-08)
-- **Directory Descriptor & openat Primitives:**
-  - Rather than resolving full path strings with `open`, `LocalShareFileStreamWriter` opens the parent session directory descriptor using `open(dirPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`.
-  - Verifies directory ownership and directory mode via `fstat(dirFd, &st)` (`S_ISDIR`).
-  - Calls `openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)` on the sanitized leaf component.
-  - This prevents ancestor directory symlink swaps (TOCTOU races) between path checks and creation, ensures `O_NOFOLLOW` prevents symlink escaping, and allocates the file with mode `0600` atomically.
+### 5. Filesystem Security & Trusted Root Directory-Walk Containment (SEC-08)
+- **Trusted Root Descriptor & Recursive openat Containment:**
+  - Rather than resolving full path strings with `open` or assuming parent directories cannot be swapped, `LocalShareFileStreamWriter` establishes a pinned, trusted root directory descriptor (`sessionDirectory`) using `open(rootPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`.
+  - Verifies root directory ownership and directory mode via `fstat(rootFd, &st)` (`st.st_uid == getuid() && S_ISDIR`).
+  - Iteratively walks every intermediate directory component relative to that descriptor using `openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)`, verifying each intermediate component with `fstat`.
+  - Creates the leaf file atomically relative to the verified parent directory descriptor using `openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`.
+  - Guarantees all intermediate directory descriptors are closed via `defer`, completely eliminating ancestor directory symlink substitution TOCTOU races.
+  - Rejects empty components, slash-containing path components, null bytes, and traversal attempts (`..`) with `LocalShareError.invalidFileName` or `LocalShareError.invalidURL`.
 - **Non-Overwriting Promotion:** Completed files promoted from the session directory to the active receive folder (`promoteSessionFiles`) automatically increment numeric suffixes (`file (1).ext`, `file (2).ext`), guaranteeing user files are never overwritten.
 - **macOS Quarantine Extended Attribute (`com.apple.quarantine`):**
   - Completed files are annotated with `com.apple.quarantine`.
   - **Accurate Security Scope:** Quarantine tagging ensures that when a user subsequently opens the received file via GUI surfaces (Finder, Dock, LaunchServices), macOS evaluates the file with Gatekeeper and scans it against known malware signatures using XProtect before presenting the execution prompt. It does **not** perform an immediate proactive background scan at the moment of download, nor does it constrain execution initiated directly via terminal shells or POSIX `execve`.
 
 ### 6. Process Memory & Platform Governance (SEC-09, SEC-10)
-- **App Sandbox vs. System Architecture:**
-  - Notchify is intentionally non-sandboxed because its core functionality requires capabilities unavailable in App Sandbox:
-    - Floating window positioning pinned at `.screenSaver` or `.mainMenu` level above system menu bars.
-    - Global keyboard event monitoring (`NSEvent.addGlobalMonitorForEvents`) in `ThockModule` to measure inter-keystroke intervals (which requires Accessibility TCC consent, not available in Mac App Store sandbox).
-    - Dynamic custom directory file staging without requiring repeated user-interactive file open panels.
-  - Distribution model is **Direct Distribution** via Apple Developer ID and Apple Notarization, which provides cryptographic tamper-proofing, ticket stapling, and Gatekeeper compatibility without sandboxing constraints.
+- **Current Artifact & Code Signing State:**
+  - Ground-truth inspection of the current local artifact (`NotchApp.app`) confirms it is compiled with **ad-hoc signing** (`Signature=adhoc`, `CodeDirectory flags=0x2(adhoc)`).
+  - Hardened Runtime is not active on local debug builds.
+  - Production release packaging requires formal **Developer ID Application** signing, Hardened Runtime enablement, and Apple Notarization (`xcrun notarytool submit`).
+- **Feature-by-Feature App Sandbox Analysis:**
+  - Standard macOS capabilities (such as `NSPanel` floating window levels or socket listening with `com.apple.security.network.server`) are technically compatible with App Sandbox.
+  - However, Notchify's architectural design relies on capabilities fundamentally incompatible with macOS App Sandbox:
+    1. **Global Keyboard Event Monitoring (`ThockModule`):** Measures inter-keystroke intervals across all running applications via `NSEvent.addGlobalMonitorForEvents(matching: .keyDown)`. In App Sandbox, apps are isolated from global WindowServer events from other processes, causing the monitor to receive zero events even with Accessibility permissions granted.
+    2. **Headless Background File Transfers directly to `~/Downloads`:** LocalSend receives files in the background without user interaction per file. App Sandbox requires user interaction via `NSOpenPanel`/`NSSavePanel` (security-scoped bookmarks) for arbitrary folder writes, or restricts downloads to the sandboxed container (`~/Library/Containers/com.notch.NotchApp/Data/Downloads`).
+    3. **Cross-Application AppleScript Dispatch (`TelegramModule`):** Dispatching commands to external apps via AppleEvents requires temporary exception entitlements (`com.apple.security.scripting-targets`), which are deprecated and rejected during App Store review.
+  - Consequently, Notchify is architected for **Direct Distribution outside the Mac App Store**, utilizing Developer ID Application signing and Apple Notarization.
 - **Private Darwin SPI Elimination:** Zero private SPIs are linked.
 - **Cooperative Memory Relief:** Idle periods trigger `malloc_zone_pressure_relief(malloc_default_zone(), 0)`.
 - **Keyboard Monitoring Scope:** Global keyboard monitoring in `ThockModule` is restricted strictly to measuring inter-key interval duration; zero keycodes, characters, or text buffers are ever captured or logged.
@@ -135,9 +142,9 @@ graph TD
 
 | Attack Vector | Threat Scenario | Architectural Countermeasure | Independent Verification Status |
 | :--- | :--- | :--- | :--- |
-| **Path Traversal / Symlink Race** | Peer attempts TOCTOU symlink swap or `../` traversal | `O_CREAT \| O_EXCL \| O_NOFOLLOW` atomic open with realpath prefix containment | **VERIFIED** (Test 107) |
-| **Active LAN MITM** | Attacker intercepts self-signed TLS on first contact | 6-digit Short Authentication String (SAS) out-of-band comparison | **VERIFIED** (Test 108) |
-| **Spoofed Favorite Auto-Accept**| Attacker claims favorite fingerprint in JSON over LAN | Gated auto-acceptance requires PIN or loopback proof; prompts user on unauthenticated claims | **VERIFIED** (Test 109) |
+| **Path Traversal / Symlink Race** | Peer attempts TOCTOU symlink swap, parent symlink, or `../` traversal | Trusted root directory descriptor walk (`openat` recursive `O_NOFOLLOW \| O_DIRECTORY`) + `0o600` leaf creation | **VERIFIED** (Test 107 Subtests A-F) |
+| **Active LAN MITM** | Attacker intercepts self-signed TLS on first contact | 6-digit Short Authentication String (SAS) divergence + `LocalSharePeerPinningDelegate` fail-closed TLS pinning | **VERIFIED** (Test 108 Subtests A-C) |
+| **Spoofed Favorite Auto-Accept**| Attacker claims favorite fingerprint in JSON over LAN/loopback | Production prompt gate; loopback auto-accept strictly gated by test flag; progressive PIN delay + HTTP 429 lockout | **VERIFIED** (Test 109 Subtests A-D) |
 | **Data Tampering in Transit** | Attacker modifies file bytes during upload | Incremental SHA-256 verification in `finalize` rejects tampered files with HTTP 422 | **VERIFIED** (Test 110) |
 | **Token Replay / Flooding** | Attacker replays consumed token or opens 500 writers | Single-use token invalidation + `maxConcurrentWriters = 8` cap | **VERIFIED** (Test 111) |
-| **Memory / Resource Leak** | Repeated transfers accumulate file descriptors/memory | Session directory synchronous teardown + socket recycling | **VERIFIED** (Test 112: 50 cycles, <3 MB growth) |
+| **Memory / Resource Leak** | Repeated transfers accumulate file descriptors/memory | Multi-batch soak (65 transfers, sequential + concurrent + cancelled), prompt socket recycling | **VERIFIED** (Test 112: 65 cycles, 2.33 MB delta, 1 FD delta) |

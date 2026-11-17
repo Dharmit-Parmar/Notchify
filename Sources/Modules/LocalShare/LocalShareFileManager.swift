@@ -91,7 +91,7 @@ public final class LocalShareFileManager: @unchecked Sendable {
             }
             let candidateURL = sessionDirectory.appendingPathComponent(candidateName)
             do {
-                return try LocalShareFileStreamWriter(destinationURL: candidateURL)
+                return try LocalShareFileStreamWriter(destinationURL: candidateURL, trustedRootURL: sessionDirectory)
             } catch LocalShareError.fileExists {
                 continue
             }
@@ -198,49 +198,101 @@ public final class LocalShareFileStreamWriter: @unchecked Sendable {
     private var isFinalized = false
     private let lock = NSLock()
     
-    public init(destinationURL: URL) throws {
+    public init(destinationURL: URL, trustedRootURL: URL? = nil) throws {
         self.destinationURL = destinationURL
         
-        let parentDirURL = destinationURL.deletingLastPathComponent().standardizedFileURL
-        let fileName = destinationURL.lastPathComponent
+        let rootURL = (trustedRootURL ?? destinationURL.deletingLastPathComponent()).standardizedFileURL
+        let targetURL = destinationURL.standardizedFileURL
         
-        // Guard against path traversal in leaf component
-        guard !fileName.isEmpty, fileName != ".", fileName != "..", !fileName.contains("/") else {
+        let rootPath = rootURL.path
+        let targetPath = targetURL.path
+        
+        // Strict containment check: destination must reside within trusted root
+        guard targetPath.hasPrefix(rootPath) else {
+            throw LocalShareError.invalidURL
+        }
+        
+        // Extract relative path components beneath trusted root
+        let relPath = String(targetPath.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let components = relPath.components(separatedBy: "/").filter { !$0.isEmpty }
+        guard !components.isEmpty else {
             throw LocalShareError.invalidFileName
         }
         
-        var fd: Int32 = -1
-        let errCode = parentDirURL.withUnsafeFileSystemRepresentation { dirPath -> Int32 in
-            guard let dirPath = dirPath else { return EINVAL }
-            // Open parent directory descriptor with O_RDONLY | O_DIRECTORY | O_CLOEXEC
-            let dirFd = open(dirPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
-            guard dirFd >= 0 else { return errno }
-            defer { close(dirFd) }
-            
-            // Verify directory integrity with fstat
-            var st = stat()
-            guard fstat(dirFd, &st) == 0 else { return errno }
-            guard (st.st_mode & S_IFMT) == S_IFDIR else { return ENOTDIR }
-            
-            // openat: relative to trusted directory descriptor
-            // O_WRONLY: Write only
-            // O_CREAT: Create file if missing
-            // O_EXCL: Fail atomically with EEXIST if file already exists
-            // O_NOFOLLOW: Fail with ELOOP if the leaf is a symlink
-            // O_CLOEXEC: Do not leak FD across exec
-            // 0o600: POSIX owner read/write only
-            fd = openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-            return fd >= 0 ? 0 : errno
+        // Validate each component against directory traversal, slashes, nulls, and control characters
+        for comp in components {
+            guard !comp.isEmpty,
+                  comp != ".",
+                  comp != "..",
+                  !comp.contains("/"),
+                  !comp.contains("\0") else {
+                throw LocalShareError.invalidFileName
+            }
         }
         
-        if errCode != 0 || fd < 0 {
-            if errCode == EEXIST || errCode == ELOOP {
+        let leafName = components.last!
+        let intermediateDirs = components.dropLast()
+        
+        // 1. Establish trusted root directory descriptor
+        var rootFd: Int32 = -1
+        let rootOpenErr = rootURL.withUnsafeFileSystemRepresentation { pathPtr -> Int32 in
+            guard let pathPtr = pathPtr else { return EINVAL }
+            rootFd = open(pathPtr, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+            return rootFd >= 0 ? 0 : errno
+        }
+        
+        guard rootOpenErr == 0, rootFd >= 0 else {
+            throw LocalShareError.serverError("Unable to open trusted root directory (errno \(rootOpenErr))")
+        }
+        
+        var intermediateFdsToClose: [Int32] = [rootFd]
+        defer {
+            for fd in intermediateFdsToClose {
+                close(fd)
+            }
+        }
+        
+        // 2. Verify trusted root descriptor with fstat
+        var rootStat = stat()
+        guard fstat(rootFd, &rootStat) == 0,
+              (rootStat.st_mode & S_IFMT) == S_IFDIR,
+              rootStat.st_uid == getuid() else {
+            throw LocalShareError.serverError("Trusted root directory validation failed (invalid directory or ownership)")
+        }
+        
+        // 3. Walk intermediate directory components relative to descriptor
+        var currentDirFd = rootFd
+        for dirName in intermediateDirs {
+            let nextDirFd = openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard nextDirFd >= 0 else {
+                let err = errno
+                if err == ELOOP {
+                    throw LocalShareError.fileExists
+                }
+                throw LocalShareError.serverError("Intermediate directory '\(dirName)' access failed (errno \(err))")
+            }
+            intermediateFdsToClose.append(nextDirFd)
+            
+            var dirStat = stat()
+            guard fstat(nextDirFd, &dirStat) == 0,
+                  (dirStat.st_mode & S_IFMT) == S_IFDIR,
+                  dirStat.st_uid == getuid() else {
+                throw LocalShareError.serverError("Intermediate directory '\(dirName)' verification failed")
+            }
+            currentDirFd = nextDirFd
+        }
+        
+        // 4. Create leaf file atomically relative to verified parent directory descriptor
+        let leafFd = openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard leafFd >= 0 else {
+            let err = errno
+            if err == EEXIST || err == ELOOP {
                 throw LocalShareError.fileExists
             }
-            throw LocalShareError.serverError("Unable to initialize destination file on disk (errno \(errCode))")
+            throw LocalShareError.serverError("Unable to initialize destination file '\(leafName)' on disk (errno \(err))")
         }
         
-        self.fileHandle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        self.fileHandle = FileHandle(fileDescriptor: leafFd, closeOnDealloc: true)
     }
     
     /// Writes a chunk of data directly to disk, updating the incremental SHA-256 checksum.

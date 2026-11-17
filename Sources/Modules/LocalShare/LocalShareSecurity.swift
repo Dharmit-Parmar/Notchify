@@ -195,15 +195,61 @@ public enum LocalShareSecurity {
     }
 
     // MARK: - IP Address Normalization
-    /// Strips interface scopes (e.g., %en0) and IPv4-mapped IPv6 prefixes (::ffff:) for robust peer matching.
+    /// Strips interface scopes, ports, IPv4-mapped prefixes, bracket formatting, and leading octet zeros for robust anti-spoofing matching.
     public static func normalizeIP(_ raw: String) -> String {
         var ip = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 1. Strip bracketed IPv6 formatting with optional port (e.g., "[::1]:53317" or "[::1]")
+        if ip.hasPrefix("[") {
+            if let closeBracket = ip.firstIndex(of: "]") {
+                let inside = String(ip[ip.index(after: ip.startIndex)..<closeBracket])
+                ip = inside
+            } else {
+                ip = ip.replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "")
+            }
+        }
+        
+        // 2. Strip interface scopes (e.g., %en0, %25en0)
         if let scopeIdx = ip.firstIndex(of: "%") {
             ip = String(ip[..<scopeIdx])
         }
+        
+        // 3. Strip trailing port on IPv4 or hostname if present (e.g., "192.168.1.50:53317")
+        // Only strip if there's exactly one colon (distinguishing from IPv6 which has multiple colons)
+        let colonCount = ip.filter { $0 == ":" }.count
+        if colonCount == 1, let colonIdx = ip.firstIndex(of: ":") {
+            ip = String(ip[..<colonIdx])
+        }
+        
+        // 4. Strip IPv4-mapped IPv6 prefixes (::ffff:192.168.1.1)
         if ip.lowercased().hasPrefix("::ffff:") {
             ip = String(ip.dropFirst(7))
         }
+        
+        // 5. Normalize IPv4 decimal octets to eliminate leading-zero bypass tricks (e.g., "127.000.000.001" -> "127.0.0.1")
+        let octets = ip.components(separatedBy: ".")
+        if octets.count == 4 {
+            var validIPv4 = true
+            var normalizedOctets: [String] = []
+            for oct in octets {
+                if let num = Int(oct), num >= 0 && num <= 255 {
+                    normalizedOctets.append(String(num))
+                } else {
+                    validIPv4 = false
+                    break
+                }
+            }
+            if validIPv4 {
+                return normalizedOctets.joined(separator: ".")
+            }
+        }
+        
+        // 6. Normalize common IPv6 loopback variants to canonical "::1"
+        let lower = ip.lowercased()
+        if lower == "::1" || lower == "0:0:0:0:0:0:0:1" || lower == "0000:0000:0000:0000:0000:0000:0000:0001" {
+            return "::1"
+        }
+        
         return ip
     }
 

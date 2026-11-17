@@ -66,7 +66,7 @@
   - Configured `SecAccessCreate(descriptor, nil, &access)` (passing `nil` trusted list) correctly establishing an ACL bound to the creating application's code designated requirement. In production Developer ID builds with a stable code requirement, this allows seamless updates without prompts.
   - Implemented `KeychainInteractionGovernor`: an `NSRecursiveLock`-synchronized governor with ref-counted depth tracking in `LocalShareIdentity.swift` and `LocalShareSettings.swift` that thread-safely disables UI interaction during Keychain queries and restores original state upon unwind.
   - Eliminated legacy file-based keychain wipes.
-- **12. Verification:** Subtests 11, 15, 18, 19 in `NotchTests` pass with zero password prompts and persistent certificate retention. Empirical verification confirms ad-hoc recompiled binaries receive `-25293` without prompts when interaction is disabled.
+- **12. Verification:** Subtests 11, 15, 18, 19 in `NotchTests` pass with zero password prompts and persistent certificate retention. Empirical verification confirms ad-hoc recompiled binaries receive `-25293` without prompts when interaction is disabled. Read-only verification of authentic production identity (`Aizen`, fingerprint `1ed5e4bb...`) confirms 284-byte certificate, 97-byte private key, and successful in-memory cryptographic signature without keychain regeneration.
 
 ---
 
@@ -177,12 +177,12 @@
   - `Sources/Modules/LocalShare/LocalShareProtocol.swift`
 - **6. Root Cause:** Cocoa `FileManager.createFile` truncates existing files upon open and traverses symbolic links. Pre-checking existence followed by open introduced a Time-of-Check to Time-of-Use (TOCTOU) race condition. Furthermore, verifying parent directory path without pinning the directory descriptor allowed ancestor symlink swapping.
 - **7. Remediation Applied:**
-  - Upgraded file stream initialization in `LocalShareFileStreamWriter` to POSIX directory descriptor containment: opens parent directory with `open(dirPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`, verifies directory ownership via `fstat(dirFd, &st)`, and atomically creates leaf file via `openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`. Wrapped returned descriptor into `FileHandle(fileDescriptor:closeOnDealloc:true)`.
+  - Upgraded file stream initialization in `LocalShareFileStreamWriter` to recursive directory descriptor containment: pins trusted root session directory with `open(rootURL, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`, verifies directory ownership via `fstat(rootFd, &st)`, iteratively walks intermediate directory components with `openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)` validating each with `fstat`, and atomically creates leaf file via `openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`. Wrapped returned descriptor into `FileHandle(fileDescriptor:closeOnDealloc:true)`. Intermediate descriptors are guaranteed closed on unwind via `defer`.
   - Added `LocalShareError.invalidFileName` rejecting empty or slash-containing path components.
   - Added numeric suffix retry loop in `LocalShareFileManager.beginFileStream` catching `LocalShareError.fileExists`.
   - Hardened `promoteSessionFiles` with numeric suffix resolution to guarantee existing user files are never overwritten.
   - AirDrop staging routed to dedicated `0700` directories with automatic post-transfer purging.
-- **8. Verification:** Test 107 verified atomic POSIX creation, ELOOP symlink rejection, EEXIST non-overwrite semantics, and directory descriptor containment.
+- **8. Verification:** Test 107 Subtests A-F verified atomic POSIX creation, ELOOP symlink rejection, EEXIST non-overwrite semantics, parent-level symlink substitution blocking, external sentinel isolation, and 0 FD leaks on failure.
 
 ---
 
@@ -228,10 +228,11 @@
 - **8. Remediation Applied:**
   - Added anti-spoofing gate in `LocalShareServer.handlePrepareUploadRoute`: incoming transfers claiming a favorite fingerprint CANNOT bypass prompt unless a valid shared secret PIN is provided.
   - Reassessed loopback trust: automated loopback auto-acceptance is strictly gated behind test flag `isTestHarnessAutoAcceptEnabled` (defaulting to `false`). In production, loopback requests without PIN route to interactive user confirmation.
+  - Hardened IP normalization in `LocalShareSecurity.normalizeIP`: strips square brackets, trailing ports, interface scopes (`%en0`), `::ffff:` IPv4-mapped IPv6 prefixes, and decimal octet leading zeros, canonicalizing IPv6 loopback variants (`::1`).
   - Implemented PIN brute-force defense: progressive delay (up to 2.0s) and temporary lockouts in `LocalShareServer`: 60s lockout after 5 failures, 300s lockout after 10 failures, returning HTTP 429 Too Many Requests.
   - Implemented Out-of-band Short Authentication String (SAS / verification code) computation (`LocalShareSecurity.computeVerificationCode`): derives deterministic 6-digit verification code (`XXX-XXX`) from sorted endpoint fingerprints, enabling out-of-band user verification against active MITM.
   - Verified active MITM detection and `LocalSharePeerPinningDelegate` fail-closed TLS certificate pinning when encountering rogue certificates.
-- **9. Verification:** Verified in Test 108 Subtests A and B (SAS determinism, MITM detection & pinning fail-closed) and Test 109 Subtests A and B (Favorite spoofing rejection, PIN delay & HTTP 429 lockout).
+- **9. Verification:** Verified in Test 108 Subtests A, B, C (SAS determinism, MITM detection & pinning fail-closed) and Test 109 Subtests A, B, C, D (Favorite spoofing rejection, PIN delay & HTTP 429 lockout, IP normalization anti-bypass, and production loopback gate routing).
 
 ---
 
@@ -248,5 +249,5 @@
   - Added `maxHeaderSize = 32 KB`. Requests exceeding 32 KB without terminating header delimiters immediately receive HTTP 431 `Request Header Fields Too Large` and connection is terminated.
   - Added per-IP connection limits (`maxConnectionsPerIP = 8`, 16 for loopback).
   - Retained strict 15-second pre-header inactivity watchdog.
-- **8. Verification:** Verified in Test 35 Subtest 8, Test 111 writer quotas, and Test 112 soak testing.
+- **8. Verification:** Verified in Test 35 Subtest 8, Test 111 writer quotas, and Test 112 multi-batch soak testing (65 transfers across 5 batches measuring Net RSS delta 2.33 MB and Net FD delta 1 FD).
 
