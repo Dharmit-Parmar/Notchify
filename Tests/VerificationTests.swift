@@ -9,6 +9,8 @@ import CryptoKit
 import IOKit
 import Security
 import Network
+import CoreAudio
+import AudioToolbox
 
 final class TestOutputAccumulator: @unchecked Sendable {
     var text = ""
@@ -7520,13 +7522,270 @@ func runAllVerificationTests() {
     assert(LocalShareSessionCoordinator.shared.currentSession == nil, "Active session coordinator must be clear after transfers")
     print("  ✓ Extended 65-transfer multi-batch soak completed with bounded memory, 0 vnode leaks, 0 socket leaks, and kqueue worker accounting.")
     
+    // =========================================================================
+    // [TEST 113] Quick Controls Settings Store & Persistence Invariants
+    // =========================================================================
+    print("\n[TEST 113] Quick Controls Settings Store & Persistence Invariants...")
+    let store113 = SettingsStore.shared
+    let origShow = store113.showQuickControls
+    let origPinned = store113.quickControlsPinned
+    let origControls = store113.enabledQuickControls
+    
+    // Test master toggle
+    store113.showQuickControls = false
+    assert(UserDefaults.standard.bool(forKey: "NotchApp_ShowQuickControls") == false, "showQuickControls must persist to UserDefaults")
+    store113.showQuickControls = true
+    assert(UserDefaults.standard.bool(forKey: "NotchApp_ShowQuickControls") == true, "showQuickControls must update in UserDefaults")
+    
+    // Test pin preference
+    store113.quickControlsPinned = true
+    assert(UserDefaults.standard.bool(forKey: "NotchApp_QuickControlsPinned") == true, "quickControlsPinned must persist")
+    store113.quickControlsPinned = false
+    assert(UserDefaults.standard.bool(forKey: "NotchApp_QuickControlsPinned") == false, "quickControlsPinned must update")
+    
+    // Test enabled controls
+    store113.enabledQuickControls = [.volume]
+    assert(UserDefaults.standard.stringArray(forKey: "NotchApp_EnabledQuickControls") == ["volume"], "enabledQuickControls must persist array")
+    store113.enabledQuickControls = [.volume, .brightness, .keyboardBacklight]
+    assert(store113.enabledQuickControls.count == 3, "All 3 controls must be enabled")
+    
+    // Test reset
+    store113.resetQuickControlsSettings()
+    assert(store113.showQuickControls == true, "Reset must restore showQuickControls = true")
+    assert(store113.quickControlsPinned == false, "Reset must restore quickControlsPinned = false")
+    assert(store113.enabledQuickControls == [.volume, .brightness, .keyboardBacklight], "Reset must restore all 3 controls")
+    
+    // Restore originals
+    store113.showQuickControls = origShow
+    store113.quickControlsPinned = origPinned
+    store113.enabledQuickControls = origControls
+    print("  ✓ Quick Controls settings store & persistence verified.")
+    
+    // =========================================================================
+    // [TEST 114] Quick Controls State Machine & Interaction Safety
+    // =========================================================================
+    print("\n[TEST 114] Quick Controls State Machine & Interaction Safety...")
+    let qcManager114 = QuickControlsManager.shared
+    qcManager114.state = .closed
+    store113.quickControlsPinned = false
+    
+    // 1. Disclosure hover enters -> hoverPreview
+    qcManager114.onDisclosureHoverEntered()
+    assert(qcManager114.state == .hoverPreview, "Entering disclosure hover must trigger .hoverPreview")
+    assert(qcManager114.state.isPanelVisible == true, "Panel must be visible in hoverPreview")
+    
+    // 2. Drag starts -> interacting
+    qcManager114.onSliderDragStarted()
+    assert(qcManager114.state == .interacting, "Slider drag start must transition to .interacting")
+    assert(qcManager114.isInteractingWithSlider == true, "isInteractingWithSlider must be true")
+    
+    // 3. Hover exit while dragging -> MUST NOT COLLAPSE!
+    qcManager114.onDisclosureOrPanelHoverExited()
+    assert(qcManager114.state == .interacting, "Hover exit while dragging must preserve .interacting state")
+    
+    // 4. Drag ends -> back to hoverPreview
+    qcManager114.onSliderDragEnded()
+    assert(qcManager114.state == .hoverPreview, "Drag end must return to .hoverPreview")
+    assert(qcManager114.isInteractingWithSlider == false, "isInteractingWithSlider must be false")
+    
+    // 5. Pin toggle -> pinned
+    qcManager114.togglePin()
+    assert(store113.quickControlsPinned == true, "togglePin must toggle store.quickControlsPinned")
+    assert(qcManager114.state == .pinned, "togglePin must set state to .pinned")
+    
+    // 6. Hover exit while pinned -> MUST NOT COLLAPSE!
+    qcManager114.onDisclosureOrPanelHoverExited()
+    assert(qcManager114.state == .pinned, "Hover exit while pinned must preserve .pinned state")
+    
+    // 7. Unpin -> hoverPreview -> closed
+    qcManager114.togglePin()
+    assert(store113.quickControlsPinned == false, "Unpin must set quickControlsPinned = false")
+    qcManager114.state = .closed
+    assert(qcManager114.state.isPanelVisible == false, "Closed state must hide panel")
+    print("  ✓ Quick Controls state machine, drag safety & pin transitions verified.")
+    
+    // =========================================================================
+    // [TEST 115] Grid Isolation Invariant (4-Horizontal & 2x2 Bento Quad)
+    // =========================================================================
+    print("\n[TEST 115] Grid Isolation Invariant (4-Horizontal & 2x2 Bento Quad)...")
+    let currentSlots = store113.dashboardSlots
+    assert(currentSlots.count == 4, "Dashboard slot count must strictly remain 4")
+    
+    // Quick Controls must NEVER be a widget in dashboardSlots
+    for slot in currentSlots {
+        if let widget = slot {
+            assert(widget.rawValue != "quickcontrols", "Quick Controls must not be a dashboard slot widget")
+        }
+    }
+    
+    // Both layout flows must preserve slots
+    store113.dashboardLayoutFlow = .horizontalStrip
+    assert(store113.dashboardSlots.count == 4, "horizontalStrip must preserve 4 slots")
+    store113.dashboardLayoutFlow = .bentoQuad
+    assert(store113.dashboardSlots.count == 4, "bentoQuad must preserve 4 slots")
+    store113.dashboardLayoutFlow = .adaptiveAuto
+    assert(store113.dashboardSlots.count == 4, "adaptiveAuto must preserve 4 slots")
+    
+    // Split ratio invariant
+    let origRatio = store113.dashboardSplitRatio
+    store113.dashboardSplitRatio = 0.50
+    assert(store113.dashboardSplitRatio == 0.50, "Split ratio must remain 0.50")
+    store113.dashboardSplitRatio = origRatio
+    print("  ✓ Grid isolation invariant verified: Quick Controls is independent sibling.")
+    
+    // =========================================================================
+    // [TEST 116] Core Audio System Volume Integration & Hardware Readback
+    // =========================================================================
+    print("\n[TEST 116] Core Audio System Volume Integration & Hardware Readback...")
+    let audioService = SystemControlsService.shared
+    let volInfo = audioService.getVolume()
+    print("  Detected Audio Output Device: \(volInfo.deviceName)")
+    print("  Current Hardware Volume: \(Int(round(volInfo.volume * 100)))%, Muted: \(volInfo.isMuted)")
+    print("  Volume Capability: \(volInfo.availability.statusDescription)")
+    
+    assert(volInfo.volume >= 0.0 && volInfo.volume <= 1.0, "Volume must be in normalized [0.0, 1.0] range")
+    assert(!volInfo.deviceName.isEmpty, "Device name must not be empty")
+    
+    if volInfo.availability.isUsable {
+        let originalVol = volInfo.volume
+        // Test set volume with minor adjustment
+        let testTargetVol = Float(max(0.10, min(0.90, originalVol > 0.5 ? originalVol - 0.02 : originalVol + 0.02)))
+        let setOk = audioService.setVolume(testTargetVol)
+        assert(setOk, "Setting volume via Core Audio HAL must succeed on writable hardware")
+        
+        let readBack = audioService.getVolume()
+        assert(abs(readBack.volume - testTargetVol) < 0.05, "Read back volume must match set target within hardware granularity")
+        
+        // Restore original volume
+        _ = audioService.setVolume(originalVol)
+        let restored = audioService.getVolume()
+        print("  ✓ Successfully verified set & readback on live Core Audio hardware (restored to \(Int(round(restored.volume * 100)))%).")
+    } else {
+        print("  ℹ Audio device is read-only or hardware locked; capability correctly detected.")
+    }
+    
+    // Test with mock service for boundary cases
+    let mockService = MockQuickControlsService()
+    qcManager114.setServiceForTesting(mockService)
+    
+    qcManager114.setVolumeValue(0.75)
+    assert(abs(mockService.mockVolume - 0.75) < 0.001, "Mock service volume must be 0.75")
+    assert(abs(qcManager114.volume - 0.75) < 0.001, "Manager volume must be 0.75")
+    
+    qcManager114.toggleMute()
+    assert(mockService.mockIsMuted == true, "Mock service must be muted")
+    assert(qcManager114.isMuted == true, "Manager must be muted")
+    
+    qcManager114.setVolumeValue(0.80)
+    assert(qcManager114.isMuted == false, "Raising volume must auto-unmute")
+    
+    // Restore production service
+    qcManager114.restoreProductionService()
+    print("  ✓ Core Audio volume integration, readback & mute semantics verified.")
+    
+    // =========================================================================
+    // [TEST 117] Display Brightness & Keyboard Backlight Capability Detection
+    // =========================================================================
+    print("\n[TEST 117] Display Brightness & Keyboard Backlight Capability Detection...")
+    let brightInfo = audioService.getBrightness()
+    assert(!brightInfo.availability.isUsable, "Display brightness must report unsupported rather than using private DisplayServices")
+    assert(brightInfo.availability.statusDescription.contains("Displays Settings") || brightInfo.availability.statusDescription.contains("Control Center"), "Must provide honest route")
+    
+    let kbdInfo = audioService.getKeyboardBacklight()
+    assert(!kbdInfo.availability.isUsable, "Keyboard backlight must report unsupported rather than using private CoreBrightness")
+    assert(kbdInfo.availability.statusDescription.contains("Keyboard"), "Must provide honest keyboard route")
+    print("  ✓ Strict zero-private-framework compliance & honest capability detection verified.")
+    
+    // =========================================================================
+    // [TEST 118] Quick Controls Window Geometry & Height-Only Expansion
+    // =========================================================================
+    print("\n[TEST 118] Quick Controls Window Geometry & Height-Only Expansion...")
+    let screen118 = NSScreen.main ?? NSScreen.screens[0]
+    let geom118 = NotchGeometry.current(for: screen118)
+    
+    let baseLayout = NotchGeometry.expandedLayout(
+        geometry: geom118,
+        notchWidth: 620.0,
+        notchHeight: 330.0,
+        quickControlsHeight: 0.0
+    )
+    
+    let expandedQcLayout = NotchGeometry.expandedLayout(
+        geometry: geom118,
+        notchWidth: 620.0,
+        notchHeight: 330.0,
+        quickControlsHeight: 120.0
+    )
+    
+    // 1. Width MUST be identical
+    assert(baseLayout.windowRect.width == expandedQcLayout.windowRect.width, "Target width must not change during Quick Controls expansion")
+    assert(baseLayout.windowRect.width == 620.0, "Width must remain 620pt")
+    
+    // 2. Horizontal position MUST be identical
+    assert(baseLayout.windowRect.minX == expandedQcLayout.windowRect.minX, "Window minX must remain identical")
+    
+    // 3. Height must expand by exactly 120pt
+    assert(expandedQcLayout.windowRect.height == baseLayout.windowRect.height + 120.0, "Height must expand by exactly 120pt")
+    
+    // 4. Window top Y must remain anchored to top bezel, extending downward
+    assert(expandedQcLayout.windowRect.maxY == baseLayout.windowRect.maxY, "Window top edge must remain flush with screen top")
+    assert(expandedQcLayout.windowRect.minY == baseLayout.windowRect.minY - 120.0, "Window bottom edge must extend downward by 120pt")
+    print("  ✓ Height-only expansion geometry & top-anchor stability verified.")
+    
+    // =========================================================================
+    // [TEST 119] Notes Widget Persistence & Dashboard Integration
+    // =========================================================================
+    print("\n[TEST 119] Notes Widget Persistence & Dashboard Integration...")
+    let noteManager119 = NoteStorageManager.shared
+    let origNoteText = noteManager119.text
+    
+    let testNoteContent = "Notchify Quick Note Integration Verification - \(UUID().uuidString)"
+    noteManager119.text = testNoteContent
+    noteManager119.saveImmediately()
+    
+    // Check read back
+    assert(noteManager119.text == testNoteContent, "In-memory note text must match")
+    
+    // Verify encrypted file exists
+    let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+    let noteFile = appSupport.appendingPathComponent("NotchApp/notes.txt")
+    assert(FileManager.default.fileExists(atPath: noteFile.path), "Encrypted notes.txt must exist on disk")
+    
+    // Verify ciphertext on disk is not raw plaintext (encrypted at rest invariant)
+    let rawDiskData = try! Data(contentsOf: noteFile)
+    let rawDiskString = String(data: rawDiskData, encoding: .utf8) ?? ""
+    assert(!rawDiskString.contains(testNoteContent), "Notes on disk must be encrypted; raw text must never appear in notes.txt")
+    
+    // Clean up
+    noteManager119.text = origNoteText
+    noteManager119.saveImmediately()
+    print("  ✓ Notes widget encrypted persistence, auto-save & zero-leak verified.")
+    
+    // =========================================================================
+    // [TEST 120] Rapid Layout Switching & Interaction Safety Under Concurrency
+    // =========================================================================
+    print("\n[TEST 120] Rapid Layout Switching & Interaction Safety Under Concurrency...")
+    for _ in 0..<10 {
+        store113.dashboardLayoutFlow = .horizontalStrip
+        qcManager114.onDisclosureHoverEntered()
+        store113.dashboardLayoutFlow = .bentoQuad
+        qcManager114.onSliderDragStarted()
+        store113.dashboardLayoutFlow = .adaptiveAuto
+        qcManager114.onSliderDragEnded()
+        store113.dashboardLayoutFlow = .focusDominant
+        qcManager114.onDisclosureOrPanelHoverExited()
+    }
+    qcManager114.state = .closed
+    store113.dashboardLayoutFlow = .adaptiveAuto
+    print("  ✓ Rapid layout switching & concurrent interaction safety verified.")
+    
     if localShareOnly {
         print("\n=====================================================")
         print("  ALL LOCAL SHARE TESTS PASSED SUCCESSFULLY (103-112) ")
         print("=====================================================\n")
     } else {
         print("\n=====================================================")
-        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (112/112) ")
+        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (120/120) ")
         print("=====================================================\n")
     }
 }

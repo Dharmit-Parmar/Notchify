@@ -62,7 +62,8 @@ public struct NotchGeometry {
         horizontalOffset: CGFloat = 0.0,
         verticalOffset: CGFloat = 0.0,
         dashboardLayoutFlow: DashboardLayoutFlow = .bentoQuad,
-        activeWidgetsCount: Int = 2
+        activeWidgetsCount: Int = 2,
+        quickControlsHeight: CGFloat = 0.0
     ) -> ExpandedLayout {
         let screenFrame = geometry.screenFrame
         
@@ -91,7 +92,7 @@ public struct NotchGeometry {
             contentTopPadding = 10.0
         }
         
-        let contentHeight = max(200.0, notchHeight)
+        let contentHeight = max(200.0, notchHeight + quickControlsHeight)
         let totalHeight = notchInset + contentHeight
         
         // Center X: Anchored to hardware notch center + user offset, clamped to screen bounds

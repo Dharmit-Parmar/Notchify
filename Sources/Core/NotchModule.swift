@@ -137,11 +137,33 @@ public class SettingsStore: ObservableObject {
     public static let shared = SettingsStore()
     
     // Modular Dashboard Configuration (4 Slots)
-    @Published public var dashboardSlots: [DashboardWidgetType?] = [.nowPlaying, .calendar, nil, nil] {
+    @Published public var dashboardSlots: [DashboardWidgetType?] = [.nowPlaying, .calendar, .notes, nil] {
         didSet {
             let serialized = dashboardSlots.map { $0?.rawValue ?? "empty" }
             UserDefaults.standard.set(serialized, forKey: "NotchApp_DashboardSlots")
         }
+    }
+    
+    // Quick Controls Configuration (Beneath Dashboard)
+    @Published public var showQuickControls: Bool = true {
+        didSet { UserDefaults.standard.set(showQuickControls, forKey: "NotchApp_ShowQuickControls") }
+    }
+    
+    @Published public var quickControlsPinned: Bool = false {
+        didSet { UserDefaults.standard.set(quickControlsPinned, forKey: "NotchApp_QuickControlsPinned") }
+    }
+    
+    @Published public var enabledQuickControls: [QuickControlKind] = [.volume, .brightness, .keyboardBacklight] {
+        didSet {
+            let serialized = enabledQuickControls.map { $0.rawValue }
+            UserDefaults.standard.set(serialized, forKey: "NotchApp_EnabledQuickControls")
+        }
+    }
+    
+    public func resetQuickControlsSettings() {
+        self.showQuickControls = true
+        self.quickControlsPinned = false
+        self.enabledQuickControls = [.volume, .brightness, .keyboardBacklight]
     }
     
     // Dashboard Layout Orientation Flow
@@ -475,6 +497,18 @@ public class SettingsStore: ObservableObject {
             self.dashboardSlots = rawSlots.map { raw in
                 if raw == "empty" { return nil }
                 return DashboardWidgetType(rawValue: raw)
+            }
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_ShowQuickControls") != nil {
+            self.showQuickControls = UserDefaults.standard.bool(forKey: "NotchApp_ShowQuickControls")
+        }
+        if UserDefaults.standard.object(forKey: "NotchApp_QuickControlsPinned") != nil {
+            self.quickControlsPinned = UserDefaults.standard.bool(forKey: "NotchApp_QuickControlsPinned")
+        }
+        if let rawControls = UserDefaults.standard.stringArray(forKey: "NotchApp_EnabledQuickControls") {
+            let parsed = rawControls.compactMap { QuickControlKind(rawValue: $0) }
+            if !parsed.isEmpty {
+                self.enabledQuickControls = parsed
             }
         }
         if let savedClockStyle = UserDefaults.standard.string(forKey: "NotchApp_ClockDialStyle"),

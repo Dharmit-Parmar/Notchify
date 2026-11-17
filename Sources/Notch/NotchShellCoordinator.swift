@@ -64,6 +64,16 @@ public final class NotchShellCoordinator: ObservableObject {
         let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
         let geom = NotchGeometry.current(for: screen)
         let store = SettingsStore.shared
+        let qcManager = QuickControlsManager.shared
+        let qcHeight: CGFloat = {
+            guard store.showQuickControls else { return 0.0 }
+            if qcManager.state.isPanelVisible {
+                let count = CGFloat(store.enabledQuickControls.count)
+                return 32.0 + (count * 38.0) + 16.0
+            } else {
+                return 0.0
+            }
+        }()
         return NotchGeometry.expandedLayout(
             geometry: geom,
             notchWidth: store.notchWidth,
@@ -72,7 +82,8 @@ public final class NotchShellCoordinator: ObservableObject {
             horizontalOffset: store.horizontalNotchOffset,
             verticalOffset: store.verticalNotchOffset,
             dashboardLayoutFlow: store.dashboardLayoutFlow,
-            activeWidgetsCount: store.activeDashboardWidgets.count
+            activeWidgetsCount: store.activeDashboardWidgets.count,
+            quickControlsHeight: qcHeight
         )
     }
     
@@ -96,6 +107,7 @@ public final class NotchShellCoordinator: ObservableObject {
     private var expandedWatchdog: Timer?
     private var screenObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
+    private var qcStateCancellable: AnyCancellable?
     
     private init() {
         screenObserver = NotificationCenter.default.addObserver(
@@ -119,6 +131,15 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.refreshLayouts()
             }
         }
+        
+        qcStateCancellable = QuickControlsManager.shared.$state
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self, self.state == .expanded else { return }
+                    self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+                }
+            }
         
         ProcessMemoryGovernor.shared.start()
     }

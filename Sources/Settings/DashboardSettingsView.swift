@@ -281,6 +281,11 @@ public struct DashboardSettingsView: View {
             
             // AI Assistant Customization Section
             aiAssistantCustomizationSection
+            
+            Divider().background(SettingsInk.tint(0.12))
+            
+            // Quick Controls Customization Section
+            quickControlsCustomizationSection
         }
     }
     
@@ -1004,6 +1009,153 @@ public struct DashboardSettingsView: View {
                         }
                     }
                 }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(SettingsInk.tint(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
+                )
+        )
+    }
+    
+    // MARK: - Quick Controls Customization Section
+    private var quickControlsCustomizationSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(DesignSystem.accentColor.opacity(0.2))
+                        .frame(width: 26, height: 26)
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(DesignSystem.accentColor)
+                }
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("SYSTEM QUICK CONTROLS")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(SettingsInk.primary)
+                    Text("Dedicated hardware controls situated beneath the dashboard grid")
+                        .font(.system(size: 10))
+                        .foregroundColor(SettingsInk.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            // Master Toggle
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Show Quick Controls in Dashboard")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(SettingsInk.primary)
+                    Text("Reveals a dedicated system control bar beneath the widgets on hover.")
+                        .font(.system(size: 10))
+                        .foregroundColor(SettingsInk.secondary)
+                }
+                
+                Spacer()
+                
+                Toggle("", isOn: $store.showQuickControls)
+                    .toggleStyle(.switch)
+                    .tint(DesignSystem.accentColor)
+                    .accessibilityLabel("Show Quick Controls in Dashboard")
+            }
+            .padding(10)
+            .background(SettingsInk.tint(0.04))
+            .cornerRadius(8)
+            
+            if store.showQuickControls {
+                // Pin Preference Toggle
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Keep Quick Controls Pinned Open")
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundColor(SettingsInk.primary)
+                        Text("Always display the expanded control sliders when the dashboard is visible.")
+                            .font(.system(size: 10))
+                            .foregroundColor(SettingsInk.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Toggle("", isOn: $store.quickControlsPinned)
+                        .toggleStyle(.switch)
+                        .tint(DesignSystem.accentColor)
+                        .accessibilityLabel("Keep Quick Controls Pinned Open")
+                }
+                .padding(10)
+                .background(SettingsInk.tint(0.04))
+                .cornerRadius(8)
+                
+                // Individual Controls Selection
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ENABLED CONTROLS")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(SettingsInk.secondary)
+                    
+                    ForEach(QuickControlKind.allCases) { kind in
+                        let isEnabled = store.enabledQuickControls.contains(kind)
+                        HStack(spacing: 10) {
+                            Image(systemName: kind.iconName)
+                                .font(.system(size: 11))
+                                .foregroundColor(isEnabled ? DesignSystem.accentColor : SettingsInk.secondary)
+                                .frame(width: 16)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(kind.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(SettingsInk.primary)
+                                
+                                Text(kind == .volume ? "Hardware synchronized via Core Audio HAL" : (kind == .brightness ? "System Managed (Quick Displays Settings Route)" : "Hardware Managed (Keyboard F5/F6 & Keyboard Settings)"))
+                                    .font(.system(size: 9))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: Binding<Bool>(
+                                get: { store.enabledQuickControls.contains(kind) },
+                                set: { newValue in
+                                    if newValue {
+                                        if !store.enabledQuickControls.contains(kind) {
+                                            store.enabledQuickControls.append(kind)
+                                        }
+                                    } else {
+                                        store.enabledQuickControls.removeAll(where: { $0 == kind })
+                                    }
+                                }
+                            ))
+                            .toggleStyle(.checkbox)
+                            .accessibilityLabel("Enable \(kind.title)")
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(SettingsInk.tint(0.02))
+                        .cornerRadius(6)
+                    }
+                }
+                
+                // Reset to default button
+                Button(action: {
+                    store.resetQuickControlsSettings()
+                    FeedbackManager.playClick()
+                }) {
+                    Text("Reset Quick Controls to Default")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundColor(SettingsInk.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(SettingsInk.tint(0.15), lineWidth: 0.8)
+                        )
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(14)

@@ -205,20 +205,29 @@ public struct ModularDashboardView: View {
     public var body: some View {
         let activeWidgets = store.activeDashboardWidgets
         
-        Group {
-            if activeWidgets.isEmpty {
-                emptyDashboardView
-            } else {
-                switch store.dashboardLayoutFlow {
-                case .horizontalStrip:
-                    horizontalStripView(activeWidgets)
-                case .bentoQuad:
-                    bentoQuadView(activeWidgets)
-                case .adaptiveAuto:
-                    adaptiveAutoView(activeWidgets)
-                case .focusDominant:
-                    focusDominantView(activeWidgets)
+        VStack(spacing: 6) {
+            // 1. Existing Dashboard Grid Layout
+            Group {
+                if activeWidgets.isEmpty {
+                    emptyDashboardView
+                } else {
+                    switch store.dashboardLayoutFlow {
+                    case .horizontalStrip:
+                        horizontalStripView(activeWidgets)
+                    case .bentoQuad:
+                        bentoQuadView(activeWidgets)
+                    case .adaptiveAuto:
+                        adaptiveAutoView(activeWidgets)
+                    case .focusDominant:
+                        focusDominantView(activeWidgets)
+                    }
                 }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            
+            // 2. Dedicated Quick Controls Area (Beneath Dashboard Grid)
+            if store.showQuickControls {
+                QuickControlsSectionView()
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
