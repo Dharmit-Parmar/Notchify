@@ -159,24 +159,18 @@ Every test from 1 to 112 executes sequentially with zero manual interaction, zer
   ALL VERIFICATION TESTS PASSED SUCCESSFULLY (112/112) 
 =====================================================
 ```
-[TEST 112] Multi-Batch Extended Soak & Resource Leak Stability (65 transfers, net RSS delta 2.33 MB, net FD delta 1)... PASSED
-
-=====================================================
-  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (112/112) 
-=====================================================
-```
 
 ---
 
 ## 2. Independent Consecutive Execution Records
 
-Three consecutive complete verification test runs were performed with zero manual interventions, zero GUI dialogs, and zero flakiness:
+Three consecutive complete verification test runs were performed directly on clean commit `1d16b8c` with zero manual interventions, zero GUI dialogs, and zero flakiness:
 
 | Execution Run | Timestamp (UTC) | Commit Reference | Total Tests | Passed | Failed | Flakes | Exit Code | Result |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Run 1** | `2026-11-17T06:16:11Z` | `1c87443` | 112 | 112 | 0 | 0 | 0 | **PASS** |
-| **Run 2** | `2026-11-17T06:16:59Z` | `1c87443` | 112 | 112 | 0 | 0 | 0 | **PASS** |
-| **Run 3** | `2026-11-17T06:17:38Z` | `1c87443` | 112 | 112 | 0 | 0 | 0 | **PASS** |
+| **Run 1** | `2026-11-17T07:09:43Z` – `07:10:15Z` | `1d16b8c` (Clean Tree) | 112 | 112 | 0 | 0 | 0 | **PASS** |
+| **Run 2** | `2026-11-17T07:10:21Z` – `07:10:53Z` | `1d16b8c` (Clean Tree) | 112 | 112 | 0 | 0 | 0 | **PASS** |
+| **Run 3** | `2026-11-17T07:11:00Z` – `07:11:32Z` | `1d16b8c` (Clean Tree) | 112 | 112 | 0 | 0 | 0 | **PASS** |
 
 ---
 
