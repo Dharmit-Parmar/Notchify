@@ -10,39 +10,17 @@ let package = Package(
     ],
     dependencies: [],
     targets: [
-        .target(
-            name: "LocalShare",
-            dependencies: [],
-            path: "Sources/Modules/LocalShare",
-            exclude: [
-                "LocalShareModule.swift",
-                "LocalShareExpandedView.swift",
-                "LocalShareSettingsView.swift"
-            ]
-        ),
         .executableTarget(
             name: "NotchApp",
-            dependencies: ["LocalShare"],
+            dependencies: [],
             path: "Sources",
-            exclude: [
-                "Modules/LocalShare/LocalShareProtocol.swift",
-                "Modules/LocalShare/LocalShareIdentity.swift",
-                "Modules/LocalShare/LocalShareSecurity.swift",
-                "Modules/LocalShare/LocalShareFileManager.swift",
-                "Modules/LocalShare/LocalShareSession.swift",
-                "Modules/LocalShare/LocalShareServer.swift",
-                "Modules/LocalShare/LocalShareDiscovery.swift",
-                "Modules/LocalShare/LocalShareClient.swift",
-                "Modules/LocalShare/LocalShareSettings.swift",
-                "Modules/LocalShare/LocalShareModuleState.swift"
-            ],
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-w"])
             ]
         ),
         .executableTarget(
             name: "NotchTests",
-            dependencies: ["LocalShare"],
+            dependencies: [],
             path: "Tests",
             exclude: [
                 "CompanionFrameStripGenerator.swift",
@@ -50,7 +28,6 @@ let package = Package(
                 "CompanionProductionPoseChecks.swift",
                 "KinematicAcceptanceTests.swift"
             ],
-            sources: ["VerificationTests.swift"],
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-w"])
             ]

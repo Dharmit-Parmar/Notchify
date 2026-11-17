@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import LocalShare
 
 // MARK: - LocalShare Module Persistent Settings Store
 public typealias LocalShareSettingsStore = LocalShareSettings

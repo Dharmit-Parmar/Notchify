@@ -3,7 +3,6 @@ import AppKit
 import UniformTypeIdentifiers
 import Combine
 import UserNotifications
-import LocalShare
 
 // MARK: - LocalShare Received Message Model
 public struct LocalShareReceivedMessage: Identifiable, Sendable {

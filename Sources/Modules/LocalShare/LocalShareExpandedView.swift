@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
-import LocalShare
 
 // MARK: - LocalShare Expanded UI State
 @MainActor

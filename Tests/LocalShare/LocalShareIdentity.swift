@@ -1,0 +1,1 @@
+../../Sources/Modules/LocalShare/LocalShareIdentity.swift

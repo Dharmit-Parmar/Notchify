@@ -9,7 +9,6 @@ import CryptoKit
 import IOKit
 import Security
 import Network
-import LocalShare
 
 final class TestOutputAccumulator: @unchecked Sendable {
     var text = ""
@@ -7532,4 +7531,3 @@ func runAllVerificationTests() {
     }
 }
 
-runAllVerificationTests()
