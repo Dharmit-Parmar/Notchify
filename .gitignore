@@ -107,6 +107,7 @@ xcuserdata/
 crashlog/
 /tmp/
 scratch/
+AUDIT_REPORT.md
 
 # ------------------------------------------------------------------------------
 # 6. LOCAL TOOLING & AGENT CACHES

@@ -52,7 +52,22 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     @Published public var isReceiving: Bool = false
     @Published public var transferProgress: Double = 0.0
     @Published public var activePeerAlias: String? = nil
+    @Published public var activePeerFingerprint: String? = nil
     @Published public var incomingSession: LocalShareSession? = nil
+
+    /// Computes the out-of-band Short Authentication String (SAS) for the active session (incoming or outgoing)
+    public var activeVerificationCode: String? {
+        if let incoming = incomingSession {
+            return incoming.verificationCode
+        }
+        if let fp = activePeerFingerprint, !fp.isEmpty {
+            return LocalShareSecurity.computeVerificationCode(
+                localFingerprint: LocalShareIdentityManager.shared.certificateFingerprint,
+                peerFingerprint: fp
+            )
+        }
+        return nil
+    }
     @Published public var recentTransfers: [LocalShareHistoryItem] = []
     @Published public var lastReceivedMessage: LocalShareReceivedMessage? = nil
     
@@ -244,6 +259,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         pendingAcceptanceCompletion = nil
         self.isReceiving = true
         self.activePeerAlias = session.peerInfo.alias
+        self.activePeerFingerprint = session.peerInfo.fingerprint
         self.statusMessage = "Receiving from \(session.peerInfo.alias)..."
         completion(true)
         FeedbackManager.playSuccess()
@@ -545,6 +561,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         }
         self.isSending = true
         self.activePeerAlias = peer.alias
+        self.activePeerFingerprint = peer.fingerprint
         self.transferProgress = 0.0
         self.statusMessage = isTextMessageTransfer ? "Delivering message to \(peer.alias)..." : "Waiting for \(peer.alias) to accept..."
         markTransferActive()
@@ -740,7 +757,7 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
         let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = "Local Share"
-        content.subtitle = "Incoming Transfer from \(session.peerInfo.alias)"
+        content.subtitle = "Incoming Transfer from \(session.peerInfo.alias) [Code: \(session.verificationCode)]"
         content.body = "\(session.filesMetadata.count) file(s)"
         content.categoryIdentifier = "localshare_incoming_transfer"
         content.sound = .default

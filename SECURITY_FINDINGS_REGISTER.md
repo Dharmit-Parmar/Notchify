@@ -46,13 +46,14 @@
   - `LocalShareSettings.savePinToKeychain(_:)`
   - `LocalShareSettings.loadPinFromKeychain()`
   - `withUserInteractionDisabled<T>(_ body: () -> T)`
-- **8. Root Cause:**
+- **8. Root Cause & Storage Truth:**
   1. Inclusion of `kSecUseDataProtectionKeychain: true` unconditionally fails with `OSStatus -34018` (`errSecMissingEntitlement`) on macOS when running without an Apple Developer ID provisioning profile (TN3137).
-  2. Legacy helper `cleanLegacyFileBasedKeychain()` was deleting the item immediately prior to reading/writing.
-  3. Misunderstanding of Keychain ACL semantics: configuring `SecAccessCreate` with an empty trusted application array (`NSArray()`) instructed macOS securityd that *no* binary has access without a GUI user password prompt. In headless CLI test runners, this blocked the main thread indefinitely in `mach_msg2_trap` waiting for GUI authorization.
-  4. Conversely, assuming `SecAccessCreate(descriptor, nil, &access)` allows all processes under the same UID is technically false: per Apple SDK `<Security/SecAccess.h>`, `trustedlist == NULL` binds the ACL to *just the application creating the item* (its code designated requirement). In ad-hoc builds where recompilation changes the binary's CDHash, `securityd` denies access with `errSecAuthFailed` (`OSStatus -25293`) when interaction is suppressed.
-  5. The macOS file-based login keychain (`login.keychain-db`) does NOT enforce `kSecAttrAccessible*` Data Protection classes; its contents are unlocked when the user logs in and remains protected by the user's login keychain master key.
-  6. Global invocation of `SecKeychainSetUserInteractionAllowed(false)` without thread-safe re-entrancy protection risked racing across concurrent threads and leaving interaction disabled for unrelated system operations.
+  2. Storage Mechanism: Generic password items (`kSecClassGenericPassword`) queryable via accounts `localshare_x509_certificate` and `localshare_p256_private_key`. The private key is stored as raw 97-byte ANSI X9.63 uncompressed ECC key data in the macOS file-based login keychain (`login.keychain-db`). It is an **exportable software key protected by the user's macOS login session, not a hardware-isolated Secure Enclave key**.
+  3. Legacy helper `cleanLegacyFileBasedKeychain()` was deleting the item immediately prior to reading/writing.
+  4. Misunderstanding of Keychain ACL semantics: configuring `SecAccessCreate` with an empty trusted application array (`NSArray()`) instructed macOS securityd that *no* binary has access without a GUI user password prompt. In headless CLI test runners, this blocked the main thread indefinitely in `mach_msg2_trap` waiting for GUI authorization.
+  5. Conversely, assuming `SecAccessCreate(descriptor, nil, &access)` allows all processes under the same UID is technically false: per Apple SDK `<Security/SecAccess.h>`, `trustedlist == NULL` binds the ACL to *just the application creating the item* (its code designated requirement). In ad-hoc builds where recompilation changes the binary's CDHash, `securityd` denies access with `errSecAuthFailed` (`OSStatus -25293`) when interaction is suppressed.
+  6. The macOS file-based login keychain (`login.keychain-db`) does NOT enforce `kSecAttrAccessible*` Data Protection classes; its contents are unlocked when the user logs in and remains protected by the user's login keychain master key.
+  7. Global invocation of `SecKeychainSetUserInteractionAllowed(false)` without thread-safe re-entrancy protection risked racing across concurrent threads and leaving interaction disabled for unrelated system operations.
 - **9. Evidence in Code:**
   ```swift
   // Stored with empty trusted application array:
@@ -62,7 +63,7 @@
   ```
 - **10. Exploitation & Impact:** Dynamic TLS identity was lost on restarts, forcing re-generation of self-signed certificates and changing fingerprints, which permanently severed paired device trust. In automated/CI environments, the process hung indefinitely.
 - **11. Remediation Applied:**
-  - Removed `kSecUseDataProtectionKeychain` and unified storage under the macOS login keychain. Removed claims of hardware-backed Data Protection enforcement for file-based keychain items.
+  - Removed `kSecUseDataProtectionKeychain` and unified storage under the macOS login keychain. Removed false claims of hardware-backed Data Protection enforcement for file-based keychain items.
   - Configured `SecAccessCreate(descriptor, nil, &access)` (passing `nil` trusted list) correctly establishing an ACL bound to the creating application's code designated requirement. In production Developer ID builds with a stable code requirement, this allows seamless updates without prompts.
   - Implemented `KeychainInteractionGovernor`: an `NSRecursiveLock`-synchronized governor with ref-counted depth tracking in `LocalShareIdentity.swift` and `LocalShareSettings.swift` that thread-safely disables UI interaction during Keychain queries and restores original state upon unwind.
   - Eliminated legacy file-based keychain wipes.
@@ -99,11 +100,11 @@
   - `Sources/Modules/Telegram/TelegramClient.swift`
 - **7. Functions:** `queryGemini`, `queryOpenAI`, and Telegram Bot API execution.
 - **8. Root Cause:**
-  1. Default `URLSession.shared` writes HTTP request headers (`x-goog-api-key`, `Authorization: Bearer <token>`) and prompt payloads to `~/Library/Caches/com.notch.NotchApp/fsCachedData`.
-  2. Unrestricted HTTP redirects risk forwarding authorization headers across hosts or to unencrypted HTTP endpoints.
+  1. **URLCache Response Body Persistence**: Apple's `URLCache` caches HTTP *response payloads* (plain text AI model responses and Telegram chat message bodies), writing them unencrypted to disk at `~/Library/Caches/com.notch.NotchApp/fsCachedData`. It does *not* cache outgoing request headers (`Authorization: Bearer`), but leaking full conversation history and sensitive messaging data to disk violates application privacy boundaries.
+  2. Unrestricted HTTP redirects risk forwarding sensitive credentials or authorization headers across unintended third-party hosts or unencrypted HTTP downgrade endpoints.
 - **9. Remediation Applied:**
   - Instantiated dedicated ephemeral `URLSession(configuration: .ephemeral)`.
-  - Explicitly configured `urlCache = nil`, `httpCookieStorage = nil`, `urlCredentialStorage = nil`, and `.reloadIgnoringLocalAndRemoteCacheData`.
+  - Explicitly configured `urlCache = nil`, `httpCookieStorage = nil`, `urlCredentialStorage = nil`, and `.reloadIgnoringLocalAndRemoteCacheData` to completely eliminate disk persistence of response bodies.
   - Implemented `SecureAPITaskDelegate` and `TelegramRedirectTaskDelegate` intercepting `willPerformHTTPRedirection` to drop any cross-host redirects or downgrades to plaintext `http://`.
 - **10. Verification:** Verified by code audit and automated suite execution.
 
@@ -176,13 +177,18 @@
   - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
   - `Sources/Modules/LocalShare/LocalShareProtocol.swift`
 - **6. Root Cause:** Cocoa `FileManager.createFile` truncates existing files upon open and traverses symbolic links. Pre-checking existence followed by open introduced a Time-of-Check to Time-of-Use (TOCTOU) race condition. Furthermore, verifying parent directory path without pinning the directory descriptor allowed ancestor symlink swapping.
-- **7. Remediation Applied:**
-  - Upgraded file stream initialization in `LocalShareFileStreamWriter` to recursive directory descriptor containment: pins trusted root session directory with `open(rootURL, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`, verifies directory ownership via `fstat(rootFd, &st)`, iteratively walks intermediate directory components with `openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)` validating each with `fstat`, and atomically creates leaf file via `openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`. Wrapped returned descriptor into `FileHandle(fileDescriptor:closeOnDealloc:true)`. Intermediate descriptors are guaranteed closed on unwind via `defer`.
+- **7. Remediation Applied & Defined Boundary:**
+  - Upgraded file stream initialization in `LocalShareFileStreamWriter` to recursive directory descriptor containment:
+    1. Pins trusted root session directory with `open(pathPtr, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)`, verifying that the root directory itself is not a symlink (failing with `ELOOP` / `serverError`).
+    2. Verifies directory ownership via `fstat(rootFd, &st)`.
+    3. Iteratively walks intermediate directory components with `openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)` validating each with `fstat`.
+    4. Atomically creates leaf file via `openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`. Wrapped returned descriptor into `FileHandle(fileDescriptor:closeOnDealloc:true)`. Intermediate descriptors are guaranteed closed on unwind via `defer`.
+  - **Security Boundary**: Containment is cryptographically and kernel-guaranteed *beneath* the pinned trusted root directory. Ancestor directories above the root directory are governed by Darwin per-user directory isolation and DAC permissions.
   - Added `LocalShareError.invalidFileName` rejecting empty or slash-containing path components.
   - Added numeric suffix retry loop in `LocalShareFileManager.beginFileStream` catching `LocalShareError.fileExists`.
   - Hardened `promoteSessionFiles` with numeric suffix resolution to guarantee existing user files are never overwritten.
   - AirDrop staging routed to dedicated `0700` directories with automatic post-transfer purging.
-- **8. Verification:** Test 107 Subtests A-F verified atomic POSIX creation, ELOOP symlink rejection, EEXIST non-overwrite semantics, parent-level symlink substitution blocking, external sentinel isolation, and 0 FD leaks on failure.
+- **8. Verification:** Test 107 Subtests A-G verified atomic POSIX creation, ELOOP symlink rejection, EEXIST non-overwrite semantics, parent-level symlink substitution blocking, external sentinel isolation, zero FD leaks on failure, and root symlink rejection via `O_NOFOLLOW`.
 
 ---
 
@@ -220,8 +226,10 @@
   - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
   - `Sources/Modules/LocalShare/LocalShareSession.swift`
   - `Sources/Modules/LocalShare/LocalShareClient.swift`
+  - `Sources/Modules/LocalShare/LocalShareModule.swift`
+  - `Sources/Modules/LocalShare/LocalShareExpandedView.swift`
 - **7. Root Cause:**
-  1. The LocalSend protocol relies on self-signed certificates without client certificate exchange. In `/prepare-upload`, peer identity (including fingerprint) is provided solely in unauthenticated JSON payload.
+  1. The LocalSend protocol relies on self-signed certificates without client certificate exchange. In `/prepare-upload`, peer identity (including fingerprint) is provided solely as an **unauthenticated claim** in the JSON payload.
   2. If an attacker knows a favorite peer's fingerprint, claiming that fingerprint in JSON could bypass user consent prompts on an untrusted LAN.
   3. Assuming loopback (`127.0.0.1` / `::1`) is an authenticated channel is flawed, as any local process can connect to the loopback port.
   4. Unbounded PIN guesses allowed brute-force attacks against the 4-8 digit session PIN.
@@ -229,10 +237,11 @@
   - Added anti-spoofing gate in `LocalShareServer.handlePrepareUploadRoute`: incoming transfers claiming a favorite fingerprint CANNOT bypass prompt unless a valid shared secret PIN is provided.
   - Reassessed loopback trust: automated loopback auto-acceptance is strictly gated behind test flag `isTestHarnessAutoAcceptEnabled` (defaulting to `false`). In production, loopback requests without PIN route to interactive user confirmation.
   - Hardened IP normalization in `LocalShareSecurity.normalizeIP`: strips square brackets, trailing ports, interface scopes (`%en0`), `::ffff:` IPv4-mapped IPv6 prefixes, and decimal octet leading zeros, canonicalizing IPv6 loopback variants (`::1`).
-  - Implemented PIN brute-force defense: progressive delay (up to 2.0s) and temporary lockouts in `LocalShareServer`: 60s lockout after 5 failures, 300s lockout after 10 failures, returning HTTP 429 Too Many Requests.
-  - Implemented Out-of-band Short Authentication String (SAS / verification code) computation (`LocalShareSecurity.computeVerificationCode`): derives deterministic 6-digit verification code (`XXX-XXX`) from sorted endpoint fingerprints, enabling out-of-band user verification against active MITM.
+  - Implemented PIN brute-force defense: progressive delay (up to 2.0s) and temporary lockouts in `LocalShareServer`: 60s lockout after 5 failures, 300s lockout after 10 failures, returning HTTP 429 Too Many Requests with RFC 6585-compliant `Retry-After` header. Successful PIN entry immediately clears lockout and resets fail count (`recordSuccessfulPinAttempt`).
+  - Implemented Out-of-band Short Authentication String (SAS / verification code) computation (`LocalShareSecurity.computeVerificationCode`): derives deterministic 6-digit verification code (`XXX-XXX`) from sorted endpoint fingerprints.
+  - Rendered verification code in the user interface (`LocalShareExpandedView.swift` incoming transfer card and active transfer progress card, and notification subtitle), enabling the human user to perform out-of-band visual comparison.
   - Verified active MITM detection and `LocalSharePeerPinningDelegate` fail-closed TLS certificate pinning when encountering rogue certificates.
-- **9. Verification:** Verified in Test 108 Subtests A, B, C (SAS determinism, MITM detection & pinning fail-closed) and Test 109 Subtests A, B, C, D (Favorite spoofing rejection, PIN delay & HTTP 429 lockout, IP normalization anti-bypass, and production loopback gate routing).
+- **9. Verification:** Verified in Test 108 Subtests A, B, C (SAS determinism, MITM detection, UI code display, OOB visual comparison & pinning fail-closed) and Test 109 Subtests A, B, C, D (Favorite spoofing rejection, PIN delay, 60s/300s lockouts with Retry-After header, counter recovery, IP normalization anti-bypass, and production loopback gate routing).
 
 ---
 

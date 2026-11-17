@@ -667,6 +667,22 @@ public struct LocalShareExpandedView: View {
                     .lineLimit(2)
             }
             
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 8.5))
+                    .foregroundColor(module.themeColor)
+                Text("Verification Code: \(incoming.verificationCode)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(DesignSystem.primaryText)
+                Spacer()
+                Text("Compare on sender")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundColor(DesignSystem.secondaryText)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 6).fill(DesignSystem.surfaceFill))
+            
             HStack(spacing: 8) {
                 Button(action: {
                     module.acceptIncomingTransfer()
@@ -749,6 +765,17 @@ public struct LocalShareExpandedView: View {
                 }
             }
             .frame(height: 5)
+            
+            if let code = module.activeVerificationCode {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.shield")
+                        .font(.system(size: 8))
+                        .foregroundColor(module.themeColor)
+                    Text("Security Code: \(code)")
+                        .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+            }
             
             HStack {
                 if module.transferProgress == 0.0 {

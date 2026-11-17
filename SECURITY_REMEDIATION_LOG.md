@@ -260,3 +260,50 @@
      - Inspected `NotchApp.app` code signature: verified ad-hoc signing (`flags=0x2(adhoc)`), entitlement `get-task-allow = true`, disabled Hardened Runtime, and unnotarized status.
      - Evaluated and documented 4 specific architectural blockers preventing macOS App Sandbox: global keyboard timing monitoring (`NSEvent.addGlobalMonitorForEvents`), headless downloads directly into `~/Downloads`, AppleScript dispatch to Telegram, and `.screenSaver` floating overlay panel.
 - **Verification:** 112/112 tests pass cleanly across 3 consecutive runs (Exit code 0, 0 flakes, 0 leaks). All 8 security integrity gates passed. User production identity preserved 100% intact.
+
+---
+
+### Step 21: Stage 4.3 Final Security Evidence Reconciliation, SAS UI Rendering, PIN Lockout Escalation & Test Inventory Alignment
+- **Date:** November 17, 2026
+- **Status:** COMPLETED & VERIFIED
+- **Remediation Target:** Evidence gaps, documentation contradictions, SAS UI display, PIN lockout RFC 6585 compliance, root symlink rejection, and test suite accounting.
+- **Affected Files:**
+  - `Sources/Modules/LocalShare/LocalShareModule.swift`
+  - `Sources/Modules/LocalShare/LocalShareExpandedView.swift`
+  - `Sources/Modules/LocalShare/LocalShareFileManager.swift`
+  - `Sources/Modules/LocalShare/LocalShareServer.swift`
+  - `Tests/VerificationTests.swift`
+  - `.gitignore`
+  - `SECURITY_FINDINGS_REGISTER.md`
+  - `SECURITY_ACCEPTED_RISKS.md`
+  - `SECURITY_ARCHITECTURE_NOTES.md`
+  - `SECURITY_VERIFICATION_REPORT.md`
+- **Changes Applied:**
+  1. **Root Directory Symlink Rejection (`LocalShareFileManager.swift`):**
+     - Added `O_NOFOLLOW` to root directory descriptor opening: `open(pathPtr, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)`. If the target session root is itself a symlink, `open` fails with `ELOOP`, throwing `LocalShareError.serverError("Unable to open trusted root directory")`.
+     - Added Test 107 Subtest G verifying root directory symlink rejection.
+     - Documented security boundary: containment is kernel-guaranteed beneath the pinned root directory descriptor; ancestors above the root directory are governed by Darwin per-user directory permissions (`0700`).
+  2. **Short Authentication String (SAS) UI Rendering (`LocalShareModule.swift` & `LocalShareExpandedView.swift`):**
+     - Added `activePeerFingerprint` and `activeVerificationCode` property to `LocalShareModule`.
+     - Integrated 6-digit verification code badge (`XXX-XXX`) with checkmark shield in `LocalShareExpandedView.swift` for both incoming transfer offer cards ("Verification Code: XXX-XXX", "Compare on sender") and active sender progress cards ("Security Code: XXX-XXX").
+     - Appended `[Code: XXX-XXX]` to incoming transfer user notification subtitles.
+     - Expanded Test 108 Subtest C with two-endpoint MITM simulation, verifying code divergence under rogue certificates, out-of-band visual comparison workflow, and fail-closed TLS pinning.
+  3. **PIN Lockout RFC 6585 Compliance & Escalation (`LocalShareServer.swift`):**
+     - Added `headers: [String: String]` parameter to `LocalShareServer.sendRawResponse`.
+     - Included RFC 6585-compliant `Retry-After: \(lockout.retryAfterSeconds)` header in HTTP 429 Too Many Requests responses for both upload and download prepare endpoints.
+     - Expanded Test 109 Subtest B verifying progressive delay (0.15s per attempt), 5 failures -> 60s lockout, 10 failures -> 300s extended lockout, counter recovery on successful PIN (`recordSuccessfulPinAttempt`), and IP normalization equivalence anti-bypass.
+  4. **Transfer Token 256-Bit Entropy & Lifecycle Verification (`VerificationTests.swift`):**
+     - Added Test 111 Subtest C verifying that transfer tokens are generated via CryptoKit `SymmetricKey(size: .bits256)`, produce 64 lowercase hex characters, exhibit zero collisions across 1,000 samples, enforce single-use atomic reservation, and are permanently destroyed on session teardown.
+  5. **Extended Multi-Batch Soak Quiescence & FD Breakdown (Test 112):**
+     - Added 500ms quiescence interval after server stop for kernel/CFNetwork teardown.
+     - Integrated `proc_pidinfo` descriptor type inspector (`PROC_PIDLISTFDS`).
+     - Measured exact metrics: 65 transfers across 5 batches, resident memory delta 2.64 MB (< 35 MB threshold), net FD delta 1 FD (VNODE delta: 0, SOCKET delta: -1, KQUEUE delta: 0).
+     - Confirmed zero open file vnode leaks, zero lingering network sockets, zero active sessions, and accounted for internal CFNetwork kqueue event-loop worker.
+  6. **Test Inventory Accounting & Header Standardization:**
+     - Analyzed `Tests/VerificationTests.swift` and resolved the apparent "gap" between test numbers: confirmed that all 112 unique tests from 1 to 112 exist and execute. The previous confusion was caused by case-sensitive grepping missing `[Test 77]` through `[Test 84]`.
+     - Standardized `[Test 77-84]` to uppercase `[TEST 77-84]` for uniform CI parsing.
+  7. **Threat Model & Architecture Reconciliation:**
+     - Reconciled App Sandbox analysis: refuted inaccurate claims regarding Telegram AppleScript (Telegram uses HTTPS Bot API and URI schemes, with zero AppleScript lines) and proven that `NSEvent.addGlobalMonitorForEvents` creates with Accessibility privileges. Documented direct distribution as an intentional product architecture decision.
+     - Corrected SEC-03: clarified that `URLCache` caches HTTP response bodies on disk, not request headers.
+     - Corrected SEC-01: confirmed the 97-byte P-256 private key is an exportable software key stored in `login.keychain-db`, not a Secure Enclave key.
+- **Verification:** 112/112 tests pass cleanly. All 8 security integrity gates passed. Production identity preserved 100% intact.

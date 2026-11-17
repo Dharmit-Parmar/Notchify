@@ -290,6 +290,27 @@ public final class LocalShareServer: @unchecked Sendable {
         failedPinAttemptsByIP.removeValue(forKey: normIP)
     }
     
+    // MARK: - Test Support PIN Policy Inspection
+    
+    public func simulateFailedPinAttempt(clientIP: String) -> (delaySeconds: Double, isLockedOutNow: Bool) {
+        return recordFailedPinAttempt(clientIP: clientIP)
+    }
+    
+    public func checkPinLockoutForTest(clientIP: String) -> (isLockedOut: Bool, retryAfterSeconds: Int) {
+        return checkPinLockout(clientIP: clientIP)
+    }
+    
+    public func recordSuccessfulPinAttemptForTest(clientIP: String) {
+        recordSuccessfulPinAttempt(clientIP: clientIP)
+    }
+    
+    public func clearPinLockoutForTest(clientIP: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let normIP = LocalShareSecurity.normalizeIP(clientIP)
+        failedPinAttemptsByIP.removeValue(forKey: normIP)
+    }
+    
     public init() {}
     
     // MARK: - Lifecycle Management
@@ -825,7 +846,8 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
                     connection: connection,
                     statusCode: 429,
                     reason: "Too Many Requests",
-                    body: "PIN lockout active. Retry in \(lockout.retryAfterSeconds) seconds.".data(using: .utf8)
+                    body: "PIN lockout active. Retry in \(lockout.retryAfterSeconds) seconds.".data(using: .utf8),
+                    headers: ["Retry-After": "\(lockout.retryAfterSeconds)"]
                 )
                 return
             }
@@ -1302,7 +1324,8 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
                     connection: connection,
                     statusCode: 429,
                     reason: "Too Many Requests",
-                    body: "PIN lockout active. Retry in \(lockout.retryAfterSeconds) seconds.".data(using: .utf8)
+                    body: "PIN lockout active. Retry in \(lockout.retryAfterSeconds) seconds.".data(using: .utf8),
+                    headers: ["Retry-After": "\(lockout.retryAfterSeconds)"]
                 )
                 return
             }
@@ -1450,13 +1473,17 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
         statusCode: Int,
         reason: String,
         body: Data?,
-        contentType: String = "text/plain"
+        contentType: String = "text/plain",
+        headers: [String: String] = [:]
     ) {
         let bodyLength = body?.count ?? 0
         NSLog("[LocalShareServer] Sending HTTP %ld %@ (%ld bytes) to %@", statusCode, reason, bodyLength, "\(connection.endpoint)")
         var header = "HTTP/1.1 \(statusCode) \(reason)\r\n"
         header += "Content-Type: \(contentType)\r\n"
         header += "Content-Length: \(bodyLength)\r\n"
+        for (k, v) in headers {
+            header += "\(k): \(v)\r\n"
+        }
         header += "Connection: close\r\n\r\n"
         
         var responseData = Data(header.utf8)

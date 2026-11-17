@@ -237,7 +237,7 @@ public final class LocalShareFileStreamWriter: @unchecked Sendable {
         var rootFd: Int32 = -1
         let rootOpenErr = rootURL.withUnsafeFileSystemRepresentation { pathPtr -> Int32 in
             guard let pathPtr = pathPtr else { return EINVAL }
-            rootFd = open(pathPtr, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+            rootFd = open(pathPtr, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
             return rootFd >= 0 ? 0 : errno
         }
         

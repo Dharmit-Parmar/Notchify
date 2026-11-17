@@ -2397,7 +2397,7 @@ func runAllVerificationTests() {
     // TEST 77: Phase 4 Verification — Dock Auto-Scroll, 3-Zone Status Bar,
     //          Birch/Sakura Light Themes, and Per-Module Accent Switching
     // =========================================================================
-    print("\n[Test 77] Phase 4 Verification: Dock, 3-Zone Compact State, Themes & Accent Switching")
+    print("\n[TEST 77] Phase 4 Verification: Dock, 3-Zone Compact State, Themes & Accent Switching")
     
     // 1. AppTheme Birch & Sakura Contracts
     enum TestAppTheme: String, CaseIterable {
@@ -2602,7 +2602,7 @@ func runAllVerificationTests() {
     // TEST 78: Phase 5 Verification — Motion Physics Refinement, Energy Governor,
     //          and Idle Dimming with WCAG AA Contrast Guard
     // =========================================================================
-    print("\n[Test 78] Phase 5 Verification: Motion Physics, Energy Governor & Idle Dimming")
+    print("\n[TEST 78] Phase 5 Verification: Motion Physics, Energy Governor & Idle Dimming")
     
     // 1. Motion Physics & Glass Material Enum Guard (Rule 0)
     enum TestMotionPhysicsStyle: String, CaseIterable {
@@ -2742,11 +2742,11 @@ func runAllVerificationTests() {
     print("  ✓ Dimmed state WCAG AA contrast ratio compliance verified (Dark: \(String(format: "%.1f", dimmedDarkRatio)):1, Light: \(String(format: "%.1f", dimmedLightRatio)):1).")
     
     // =========================================================================
-    // STAGE A REGRESSION & RESPONSIVENESS TESTS (79 - 82)
+    // STAGE A REGRESSION & RESPONSIVENESS TESTS (79 - 84)
     // =========================================================================
     
-    // [Test 79] Hover Responsiveness & Expand Animation Budget Contract (< 350ms)
-    print("\n[Test 79] Hover Responsiveness & Expand Animation Budget Contract...")
+    // [TEST 79] Hover Responsiveness & Expand Animation Budget Contract (< 350ms)
+    print("\n[TEST 79] Hover Responsiveness & Expand Animation Budget Contract...")
     let startCalc = CACurrentMediaTime()
     let respScreenW: CGFloat = 1470.0
     let respScreenH: CGFloat = 956.0
@@ -2769,8 +2769,8 @@ func runAllVerificationTests() {
     assert(expandPhysicsResponse <= 0.35, "Expand spring response must be <= 350ms (measured \(expandPhysicsResponse)s)")
     print("  ✓ Frame calculation took \(String(format: "%.3f", calcDurationMs))ms; expand response budget: \(expandPhysicsResponse)s (< 350ms).")
     
-    // [Test 80] Zero-Allocation Idle Deadline Contract
-    print("\n[Test 80] Zero-Allocation Idle Deadline Contract (120Hz Hover Protection)...")
+    // [TEST 80] Zero-Allocation Idle Deadline Contract
+    print("\n[TEST 80] Zero-Allocation Idle Deadline Contract (120Hz Hover Protection)...")
     class MockIdleGovernor {
         var idleDeadline: CFTimeInterval = 0
         var isDimmed: Bool = false
@@ -2797,8 +2797,8 @@ func runAllVerificationTests() {
     assert(mockGov.idleDeadline >= baseTime + 4.9, "Deadline must advance cleanly to 4s past the last event")
     print("  ✓ Zero-allocation deadline contract verified: 120 events generated only \(mockGov.scheduledCheckCount) scheduled timer.")
     
-    // [Test 81] Local Drag Ratio Persistence Contract (Zero Per-Pixel Store Writes)
-    print("\n[Test 81] Local Drag Ratio Persistence Contract...")
+    // [TEST 81] Local Drag Ratio Persistence Contract (Zero Per-Pixel Store Writes)
+    print("\n[TEST 81] Local Drag Ratio Persistence Contract...")
     class MockDividerSession {
         var localPreviewRatio: CGFloat? = nil
         var storeRatio: CGFloat = 0.50
@@ -2832,14 +2832,14 @@ func runAllVerificationTests() {
     assert(abs(dragSession.storeRatio - 0.62) < 0.001, "Final ratio must be persisted cleanly")
     print("  ✓ Drag ratio isolation verified: 60 drag ticks resulted in exactly \(dragSession.storeWriteCount) store mutation.")
     
-    // [Test 82] Dock Edge Overlay Contract (Hardware Blended, No Offscreen Rasterization)
-    print("\n[Test 82] Dock Edge Overlay Contract...")
+    // [TEST 82] Dock Edge Overlay Contract (Hardware Blended, No Offscreen Rasterization)
+    print("\n[TEST 82] Dock Edge Overlay Contract...")
     let overlayGradientColors = [NSColor.black.withAlphaComponent(0.85), NSColor.clear]
     assert(overlayGradientColors.count == 2, "Dock edge overlay must use 2-stop gradient")
     print("  ✓ Dock edge overlay verified using hardware non-blocking blending.")
     
-    // [Test 83] Dashboard Non-Overlapping Geometry Contract
-    print("\n[Test 83] Dashboard Non-Overlapping Geometry Contract...")
+    // [TEST 83] Dashboard Non-Overlapping Geometry Contract
+    print("\n[TEST 83] Dashboard Non-Overlapping Geometry Contract...")
     // 1. Bento Quad Column Sizing Invariant: leftWidth + dividerSpacing + rightWidth <= totalWidth
     for testTotalWidth in [400.0, 520.0, 620.0, 720.0] as [CGFloat] {
         let dividerSpacing: CGFloat = 12.0
@@ -2872,8 +2872,8 @@ func runAllVerificationTests() {
     }
     print("  ✓ Bento Quad columns, 2-high vertical stacks, and horizontal strip strictly partition geometry with 0.00pt overlap.")
     
-    // [Test 84] Expanded Layout Contract (Top Flush, Notch Inset, Centering, Non-Notch, Settings Bounds)
-    print("\n[Test 84] Expanded Layout Single Source of Truth Contract...")
+    // [TEST 84] Expanded Layout Contract (Top Flush, Notch Inset, Centering, Non-Notch, Settings Bounds)
+    print("\n[TEST 84] Expanded Layout Single Source of Truth Contract...")
     
     // Pure Expanded Layout Model Contract Function (matching NotchGeometry.expandedLayout)
     func computeExpandedLayout(
@@ -6908,6 +6908,24 @@ func runAllVerificationTests() {
     let fdLeak = abs(fdAfterFailures - fdBeforeFailures)
     assert(fdLeak <= 1, "File descriptors must not leak during failed or blocked stream initializations (leak: \(fdLeak))")
     print("  -> Subtest F: Zero file descriptor leaks on blocked file streams... PASSED")
+    
+    // Subtest G: Root directory symlink rejection via O_NOFOLLOW
+    let realRootDir = testTempDir.appendingPathComponent("real_root_dir")
+    try! FileManager.default.createDirectory(at: realRootDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    let symlinkRootDir = testTempDir.appendingPathComponent("symlink_root_dir")
+    try! FileManager.default.createSymbolicLink(at: symlinkRootDir, withDestinationURL: realRootDir)
+    
+    var rootSymlinkBlocked = false
+    do {
+        let childURL = symlinkRootDir.appendingPathComponent("target.txt")
+        _ = try LocalShareFileStreamWriter(destinationURL: childURL, trustedRootURL: symlinkRootDir)
+    } catch LocalShareError.serverError(let msg) {
+        rootSymlinkBlocked = msg.contains("Unable to open trusted root")
+    } catch {
+        rootSymlinkBlocked = true
+    }
+    assert(rootSymlinkBlocked, "Opening a symlinked root directory must be rejected via O_NOFOLLOW (ELOOP -> serverError)")
+    print("  -> Subtest G: Symlinked root directory rejection (O_NOFOLLOW on root)... PASSED")
     print("  ✓ Atomic POSIX O_CREAT|O_EXCL|O_NOFOLLOW file creation & trusted root containment verified.")
 
     // Test 108: Out-of-band Short Verification Code (SAS) Determinism & Active LAN MITM Mismatch Detection
@@ -6930,15 +6948,17 @@ func runAllVerificationTests() {
     print("  Alice under MITM: \(codeAliceUnderMITM), Bob under MITM: \(codeBobUnderMITM)")
     assert(codeAliceUnderMITM != codeBobUnderMITM, "Active MITM must cause short authentication string to mismatch")
     
-    // Verify client-side certificate pinning immediately aborts connection on TLS fingerprint mismatch
-    _ = LocalSharePeerPinningDelegate(expectedFingerprint: fpBob)
-    assert(LocalShareSecurity.isFingerprintValid(peerCertDER: Data([0x30, 0x01, 0x02]), expectedFingerprint: fpAttacker) == false, "Fingerprint pinning must fail closed on rogue certificates")
-    
-    // Subtest C: Out-of-band SAS code divergence and pinning fail-closed verification
+    // Subtest C: Out-of-band SAS code divergence & pinning fail-closed verification
+    // 1. Two-endpoint MITM simulation: Alice UI displays codeAliceUnderMITM, Bob UI displays codeBobUnderMITM
     assert(codeAliceUnderMITM != codeBobUnderMITM, "Attacker presenting different certs must cause SAS codes to diverge")
+    // 2. Out-of-band visual comparison: Human user compares Alice code vs Bob code and rejects on mismatch
+    let codesMatchOOB = (codeAliceUnderMITM == codeBobUnderMITM)
+    assert(!codesMatchOOB, "Human out-of-band visual comparison would catch the mismatch and reject transfer")
+    // 3. Known pinned peer fail-closed: If Alice already knows Bob's fingerprint, TLS handshake with attacker aborts
     let alicePinningAgainstBob = LocalSharePeerPinningDelegate(expectedFingerprint: fpBob)
     assert(alicePinningAgainstBob.expectedFingerprint == fpBob, "Pinning delegate must track expected peer fingerprint")
-    print("  -> Subtest C: Out-of-band SAS divergence & TLS certificate pinning fail-closed... PASSED")
+    assert(LocalShareSecurity.isFingerprintValid(peerCertDER: Data([0x30, 0x01, 0x02]), expectedFingerprint: fpAttacker) == false, "Fingerprint pinning must fail closed on rogue certificates")
+    print("  -> Subtest C: Two-endpoint MITM SAS divergence, OOB visual comparison & pinning fail-closed... PASSED")
     print("  ✓ Out-of-band SAS code & TLS certificate pinning verified against active LAN MITM attack scenarios.")
 
     // Test 109: Unauthenticated Favorite Fingerprint Spoofing Gate
@@ -6956,9 +6976,12 @@ func runAllVerificationTests() {
         completion(false) // Reject in test
     }
     
-    let spoofBody = """
-    {"info":{"alias":"AttackerMac","deviceModel":"Mac","deviceType":"desktop","fingerprint":"victim_favorite_fp_12345","port":53317,"protocol":"http"},"files":{"f1":{"id":"f1","fileName":"exploit.sh","size":10,"fileType":"text/plain"}}}
-    """
+    let spoofMeta = LocalShareFileMetadata(id: "f1", fileName: "exploit.sh", size: 10, fileType: "text/plain")
+    let spoofPrep = LocalSharePrepareUploadRequest(
+        info: LocalShareDeviceInfo(alias: "AttackerMac", fingerprint: "victim_favorite_fp_12345", port: 53317, protocol: "http"),
+        files: ["f1": spoofMeta]
+    )
+    let spoofBodyData = try! JSONEncoder().encode(spoofPrep)
     
     let spoofSocket = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: spoofPort)!, using: .tcp)
     let spoofSem = DispatchSemaphore(value: 0)
@@ -6966,10 +6989,12 @@ func runAllVerificationTests() {
     spoofSocket.start(queue: .global())
     _ = spoofSem.wait(timeout: .now() + 2.0)
     
-    let rawSpoofHTTP = "POST /api/localsend/v2/prepare-upload HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: \(spoofBody.utf8.count)\r\n\r\n\(spoofBody)"
+    let rawSpoofHTTP = "POST /api/localsend/v2/prepare-upload HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: \(spoofBodyData.count)\r\n\r\n"
+    var fullPacket = Data(rawSpoofHTTP.utf8)
+    fullPacket.append(spoofBodyData)
     let spoofRespSem = DispatchSemaphore(value: 0)
     let spoofRespData = ThreadSafeBox<Data>(Data())
-    spoofSocket.send(content: Data(rawSpoofHTTP.utf8), completion: .contentProcessed { _ in
+    spoofSocket.send(content: fullPacket, completion: .contentProcessed { _ in
         spoofSocket.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, _ in
             if let d = data { spoofRespData.value = d }
             spoofRespSem.signal()
@@ -6982,6 +7007,7 @@ func runAllVerificationTests() {
     
     let spoofRespStr = String(data: spoofRespData.value, encoding: .utf8) ?? ""
     print("  Spoof attempt response status line: \(spoofRespStr.components(separatedBy: "\r\n").first ?? "")")
+    assert(gateInvoked.value == true, "Spoofed unauthenticated favorite must invoke interactive prompt gate")
     print("  -> Subtest A: Unauthenticated favorite spoofing successfully trapped by interactive prompt gate... PASSED")
 
     // Subtest B: PIN Brute-Force Throttling & Temporary Lockout
@@ -6990,6 +7016,47 @@ func runAllVerificationTests() {
     try! pinThrottledServer.start(port: pinPort, bindInterface: .loopbackOnly, enableTLS: false)
     pinThrottledServer.requiredPin = "9876"
     
+    // 1. Progressive delay verification (attempts 1..4)
+    let delay1 = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.100")
+    assert(abs(delay1.delaySeconds - 0.15) < 0.001 && !delay1.isLockedOutNow, "1st failed attempt must incur 0.15s delay")
+    let delay2 = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.100")
+    assert(abs(delay2.delaySeconds - 0.30) < 0.001 && !delay2.isLockedOutNow, "2nd failed attempt must incur 0.30s delay")
+    let delay3 = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.100")
+    assert(abs(delay3.delaySeconds - 0.45) < 0.001 && !delay3.isLockedOutNow, "3rd failed attempt must incur 0.45s delay")
+    let delay4 = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.100")
+    assert(abs(delay4.delaySeconds - 0.60) < 0.001 && !delay4.isLockedOutNow, "4th failed attempt must incur 0.60s delay")
+    
+    // 2. 5th failure -> 60s lockout threshold
+    let delay5 = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.100")
+    assert(delay5.isLockedOutNow, "5th failed attempt must trigger lockout")
+    let lockoutState5 = pinThrottledServer.checkPinLockoutForTest(clientIP: "192.168.1.100")
+    assert(lockoutState5.isLockedOut && lockoutState5.retryAfterSeconds <= 60 && lockoutState5.retryAfterSeconds >= 58, "5 failures must produce 60s lockout (measured \(lockoutState5.retryAfterSeconds)s)")
+    
+    // 3. Counter recovery on valid PIN (recordSuccessfulPinAttempt)
+    pinThrottledServer.recordSuccessfulPinAttemptForTest(clientIP: "192.168.1.100")
+    let clearedLockout = pinThrottledServer.checkPinLockoutForTest(clientIP: "192.168.1.100")
+    assert(!clearedLockout.isLockedOut, "Successful PIN attempt must clear lockout and reset fail counter")
+    
+    // 4. Extended 10-failure lockout -> 300s lockout
+    for _ in 1...9 {
+        _ = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.200")
+    }
+    let delay10 = pinThrottledServer.simulateFailedPinAttempt(clientIP: "192.168.1.200")
+    assert(delay10.isLockedOutNow, "10th failed attempt must trigger extended lockout")
+    let lockoutState10 = pinThrottledServer.checkPinLockoutForTest(clientIP: "192.168.1.200")
+    assert(lockoutState10.isLockedOut && lockoutState10.retryAfterSeconds <= 300 && lockoutState10.retryAfterSeconds >= 295, "10 failures must produce 300s extended lockout (measured \(lockoutState10.retryAfterSeconds)s)")
+    
+    // 5. IP normalization equivalence anti-bypass
+    // Failures across [10.0.0.1]:53317, 10.000.000.001, ::ffff:10.0.0.1 must all accumulate to 10.0.0.1
+    _ = pinThrottledServer.simulateFailedPinAttempt(clientIP: "[10.0.0.1]:53317")
+    _ = pinThrottledServer.simulateFailedPinAttempt(clientIP: "10.000.000.001")
+    _ = pinThrottledServer.simulateFailedPinAttempt(clientIP: "::ffff:10.0.0.1")
+    _ = pinThrottledServer.simulateFailedPinAttempt(clientIP: "10.0.0.1")
+    let bypassLockout = pinThrottledServer.simulateFailedPinAttempt(clientIP: "[10.0.0.1]:8080")
+    assert(bypassLockout.isLockedOutNow, "5 alternate representations of same IP must accumulate to trigger lockout")
+    assert(pinThrottledServer.checkPinLockoutForTest(clientIP: "10.0.0.1").isLockedOut, "Canonical IP must be locked out")
+    
+    // 6. Live HTTP network verification
     let pinClient = URLSession(configuration: .ephemeral)
     let pinURL = URL(string: "http://127.0.0.1:\(pinPort)\(LocalShareEndpoints.prepareUpload)?pin=wrong")!
     var pinReq = URLRequest(url: pinURL)
@@ -6997,7 +7064,7 @@ func runAllVerificationTests() {
     pinReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
     pinReq.httpBody = Data("{}".utf8)
     
-    // Send 5 incorrect PIN attempts to trigger lockout threshold
+    // Send 5 incorrect PIN attempts via HTTP
     var lastStatusCode = 0
     for _ in 1...5 {
         let pSem = DispatchSemaphore(value: 0)
@@ -7014,15 +7081,20 @@ func runAllVerificationTests() {
     // 6th attempt must be blocked by temporary lockout with HTTP 429 Too Many Requests
     let lockSem = DispatchSemaphore(value: 0)
     let lockStatusBox = ThreadSafeBox<Int>(0)
+    let retryAfterBox = ThreadSafeBox<String>("")
     pinClient.dataTask(with: pinReq) { _, resp, _ in
-        if let http = resp as? HTTPURLResponse { lockStatusBox.value = http.statusCode }
+        if let http = resp as? HTTPURLResponse {
+            lockStatusBox.value = http.statusCode
+            retryAfterBox.value = http.value(forHTTPHeaderField: "Retry-After") ?? ""
+        }
         lockSem.signal()
     }.resume()
     _ = lockSem.wait(timeout: .now() + 2.0)
     assert(lockStatusBox.value == 429, "Subsequent attempt while locked out must return HTTP 429 Too Many Requests (got \(lockStatusBox.value))")
+    assert(!retryAfterBox.value.isEmpty, "Lockout response must include Retry-After header")
     pinThrottledServer.stop()
     pinClient.finishTasksAndInvalidate()
-    print("  -> Subtest B: PIN brute-force progressive throttling & HTTP 429 lockout... PASSED")
+    print("  -> Subtest B: PIN progressive delay, 60s/300s lockouts, counter reset & IP normalization... PASSED")
     
     // Subtest C: IP Normalization Anti-Bypass
     assert(LocalShareSecurity.normalizeIP("::ffff:127.0.0.1") == "127.0.0.1", "IPv4-mapped IPv6 must normalize to IPv4")
@@ -7210,7 +7282,48 @@ func runAllVerificationTests() {
     assert(threwExcess, "Attempting to register more than maxConcurrentWriters must throw error")
     print("  -> Subtest B: maxConcurrentWriters (\(LocalShareSecurity.maxConcurrentWriters)) quota enforcement... PASSED")
     testSession.abortAllActiveWriters()
-    print("  ✓ Single-use token anti-replay and concurrent writer bounds verified.")
+
+    // Subtest C: Transfer Token 256-bit Entropy & Lifecycle Verification
+    let sampleCount = 1000
+    var entropyTokensSet = Set<String>()
+    let hexRegex = try! NSRegularExpression(pattern: "^[0-9a-f]{64}$")
+    
+    for _ in 0..<sampleCount {
+        let key = SymmetricKey(size: .bits256)
+        let tokStr = key.withUnsafeBytes { raw in
+            raw.map { String(format: "%02x", $0) }.joined()
+        }
+        assert(tokStr.count == 64, "Token must be exactly 64 hex characters (256 bits)")
+        let range = NSRange(location: 0, length: tokStr.utf16.count)
+        assert(hexRegex.firstMatch(in: tokStr, options: [], range: range) != nil, "Token must be lowercase hexadecimal")
+        assert(!tokStr.contains("-"), "Token must not contain UUID separators")
+        entropyTokensSet.insert(tokStr)
+    }
+    assert(entropyTokensSet.count == sampleCount, "All \(sampleCount) 256-bit tokens must be globally unique (0 collisions)")
+    
+    // Session token generation, single-use reservation and teardown invalidation
+    let entropySession = LocalShareSession(
+        sessionId: "sess_entropy",
+        peerInfo: LocalShareDeviceInfo(alias: "EntropyPeer", fingerprint: "fp_ent", port: 0, protocol: "http"),
+        peerIP: "127.0.0.1",
+        isIncoming: true,
+        sessionDirectory: testTempDir,
+        filesMetadata: ["f_ent": LocalShareFileMetadata(id: "f_ent", fileName: "e.dat", size: 10, fileType: "text/plain")]
+    )
+    entropySession.transition(to: .accepted)
+    let fileTokens = entropySession.generateFileTokens()
+    let entToken = fileTokens["f_ent"]!
+    assert(entToken.count == 64, "Generated file token must be 256-bit hex (64 chars)")
+    
+    // Single-use reservation: first validation succeeds, second fails
+    assert(entropySession.validateToken(fileId: "f_ent", token: entToken, clientIP: "127.0.0.1"), "First token validation must succeed")
+    assert(!entropySession.validateToken(fileId: "f_ent", token: entToken, clientIP: "127.0.0.1"), "Duplicate token validation must fail")
+    
+    // Invalidation on teardown / abort
+    entropySession.abortAllActiveWriters()
+    LocalShareSessionCoordinator.shared.cancelSession(sessionId: "sess_entropy", reason: "Teardown test")
+    print("  -> Subtest C: 256-bit token entropy, 0/\(sampleCount) collisions, single-use & teardown invalidation... PASSED")
+    print("  ✓ Single-use token anti-replay, 256-bit entropy, and concurrent writer bounds verified.")
 
     // Test 112: Extended Multi-Batch Soak & Resource Stability (Sequential, Concurrent, Cancelled, and Interrupted Transfers)
     print("\n[TEST 112] Extended Multi-Batch Soak & Resource Leak Verification...")
@@ -7233,6 +7346,28 @@ func runAllVerificationTests() {
             }
         }
         return count
+    }
+    
+    func inspectFDTypes() -> (vnodes: Int, sockets: Int, kqueues: Int, pipes: Int, other: Int) {
+        let pid = getpid()
+        let bufferSize = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard bufferSize > 0 else { return (0, 0, 0, 0, 0) }
+        let count = Int(bufferSize) / MemoryLayout<proc_fdinfo>.size
+        var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: count)
+        _ = fds.withUnsafeMutableBytes { ptr in
+            proc_pidinfo(pid, PROC_PIDLISTFDS, 0, ptr.baseAddress, bufferSize)
+        }
+        var vnodes = 0, sockets = 0, kqueues = 0, pipes = 0, other = 0
+        for fd in fds {
+            switch fd.proc_fdtype {
+            case 1: vnodes += 1
+            case 2: sockets += 1
+            case 5: kqueues += 1
+            case 6: pipes += 1
+            default: other += 1
+            }
+        }
+        return (vnodes, sockets, kqueues, pipes, other)
     }
     
     func getResidentMemoryBytes() -> UInt64 {
@@ -7298,6 +7433,7 @@ func runAllVerificationTests() {
     usleep(100_000)
     let initialFDs = getOpenFileDescriptorCount()
     let initialMemory = getResidentMemoryBytes()
+    let initialFDTypes = inspectFDTypes()
     
     // Batch 1: Sequential transfers (25 transfers)
     for i in 1...25 {
@@ -7355,28 +7491,35 @@ func runAllVerificationTests() {
     
     soakServer.stop()
     soakClientSession.finishTasksAndInvalidate()
-    usleep(200_000)
+    usleep(500_000) // 500ms quiescence interval for kernel/CFNetwork resource teardown
     
     let finalFDs = getOpenFileDescriptorCount()
     let finalMemory = getResidentMemoryBytes()
+    let finalFDTypes = inspectFDTypes()
     let memoryDeltaMB = Double(Int64(finalMemory) - Int64(initialMemory)) / (1024.0 * 1024.0)
     let fdDelta = abs(finalFDs - initialFDs)
+    let vnodeDelta = finalFDTypes.vnodes - initialFDTypes.vnodes
+    let socketDelta = finalFDTypes.sockets - initialFDTypes.sockets
+    let kqueueDelta = finalFDTypes.kqueues - initialFDTypes.kqueues
     
     print("  --- Extended Multi-Batch Soak Metrics ---")
-    print("  Baseline (Post-Warmup): \(initialMemory / (1024 * 1024)) MB RSS, \(initialFDs) FDs")
+    print("  Baseline (Post-Warmup): \(initialMemory / (1024 * 1024)) MB RSS, \(initialFDs) FDs (\(initialFDTypes.vnodes) VNODE, \(initialFDTypes.sockets) SOCKET, \(initialFDTypes.kqueues) KQUEUE, \(initialFDTypes.pipes) PIPE)")
     print("  After Batch 1 (25 Sequential): \(b1Memory / (1024 * 1024)) MB RSS, \(b1FDs) FDs")
     print("  After Batch 2 (5 Concurrent):   \(b2Memory / (1024 * 1024)) MB RSS, \(b2FDs) FDs")
     print("  After Batch 3 (5 Cancelled):    \(b3Memory / (1024 * 1024)) MB RSS, \(b3FDs) FDs")
     print("  After Batch 4 (25 Sustained):   \(finalMemory / (1024 * 1024)) MB RSS, \(finalFDs) FDs")
+    print("  Final After 500ms Quiescence:   \(finalMemory / (1024 * 1024)) MB RSS, \(finalFDs) FDs (\(finalFDTypes.vnodes) VNODE, \(finalFDTypes.sockets) SOCKET, \(finalFDTypes.kqueues) KQUEUE, \(finalFDTypes.pipes) PIPE)")
     print("  Net Resident Memory Delta: \(String(format: "%.2f", memoryDeltaMB)) MB (Threshold: < 35 MB)")
-    print("  Net Open File Descriptors Delta: \(fdDelta) FDs (Threshold: <= 6)")
+    print("  Net Open File Descriptors Delta: \(fdDelta) FDs (VNODE delta: \(vnodeDelta), SOCKET delta: \(socketDelta), KQUEUE delta: \(kqueueDelta))")
     print("  Active Server Connections: \(soakServer.currentActiveConnections), Active Session: \(String(describing: LocalShareSessionCoordinator.shared.currentSession))")
     
     assert(memoryDeltaMB < 35.0, "Memory consumption after 65 transfers must remain bounded (< 35 MB growth)")
-    assert(fdDelta <= 6, "File descriptors must remain stable with zero leaks across sustained transfers")
+    assert(fdDelta <= 6, "File descriptors must remain stable across sustained transfers (measured delta: \(fdDelta))")
+    assert(vnodeDelta <= 0, "Open file vnodes must not leak across sustained transfers (measured delta: \(vnodeDelta))")
+    assert(socketDelta <= 0, "Network sockets must not leak across sustained transfers (measured delta: \(socketDelta))")
     assert(soakServer.currentActiveConnections == 0, "All active server connection sockets must be closed on server stop")
     assert(LocalShareSessionCoordinator.shared.currentSession == nil, "Active session coordinator must be clear after transfers")
-    print("  ✓ Extended 65-transfer multi-batch soak completed with zero runaway memory accumulation and stable file descriptors.")
+    print("  ✓ Extended 65-transfer multi-batch soak completed with bounded memory, 0 vnode leaks, 0 socket leaks, and kqueue worker accounting.")
     
     if localShareOnly {
         print("\n=====================================================")

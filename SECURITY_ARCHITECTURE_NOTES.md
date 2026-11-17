@@ -54,7 +54,8 @@ graph TD
 *Reference: Apple TN3137 ("On Mac keychain APIs and implementations")*
 
 - **Keychain Implementation Reality:**
-  - **File-Based Login Keychain:** Notchify currently stores its TLS private key (`localshare_p256_private_key`), certificate DER (`localshare_x509_certificate`), and PIN in the legacy macOS file-based login keychain (`~/Library/Keychains/login.keychain-db`) via `kSecClassGenericPassword` without `kSecUseDataProtectionKeychain`.
+  - **File-Based Login Keychain & Software Key:** Notchify currently stores its TLS private key (`localshare_p256_private_key`), certificate DER (`localshare_x509_certificate`), and PIN in the legacy macOS file-based login keychain (`~/Library/Keychains/login.keychain-db`) via generic password queries (`kSecClassGenericPassword`) without `kSecUseDataProtectionKeychain`.
+  - **Key Storage Reality:** The private key is an **exportable software key**, stored as raw 97-byte ANSI X9.63 uncompressed P-256 ECC key bytes. It is protected by the user's login keychain session master key, **not** isolated in the hardware Secure Enclave.
   - **Accessibility Attributes Inapplicable:** Apple's iOS-derived Data Protection classes (`kSecAttrAccessible*`, including `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) are **ignored** by the file-based login keychain (`login.keychain-db`). In this implementation, protection is governed entirely by the unlocking of the user's login keychain session (which occurs automatically when the user logs into macOS) and by `SecAccess` Access Control Lists (ACLs). The application does not claim hardware-bound Data Protection enforcement in its current configuration.
 - **Accurate SecAccess & SecACL Semantics:**
   - `SecAccessCreate(descriptor, nil, &access)`: Apple's API specification defines that passing `nil` (`NULL` in C) for `trustedlist` defaults to **pre-authorizing only the application creating the item**, recording its designated code requirement in the `SecTrustedApplication` entry. It does **not** grant access to all applications or all processes sharing the user's UID.
@@ -92,8 +93,7 @@ graph TD
   - Per-IP connection limits cap concurrent connections to 8 per external IP (16 for loopback).
 
 ### 3. API Token Protection & Redirect Security (SEC-03)
-- **Ephemeral URLSessions:** `AskAIService` and `TelegramClient` initialize dedicated `URLSession` instances with `URLSessionConfiguration.ephemeral`.
-- **Memory-Only Policy:** `urlCache = nil`, `httpCookieStorage = nil`, `urlCredentialStorage = nil`, and `.reloadIgnoringLocalAndRemoteCacheData` prevent token persistence on disk.
+- **URLCache Response Body Persistence Defense:** Apple's `URLCache` caches HTTP *response payloads* (plain text AI completions and Telegram chat messages), writing them to disk at `~/Library/Caches/com.notch.NotchApp/fsCachedData`. Ephemeral sessions (`URLSession(configuration: .ephemeral)`) with `urlCache = nil`, `httpCookieStorage = nil`, and `urlCredentialStorage = nil` prevent response bodies from being stored on disk.
 - **Cross-Host Redirect Containment:**
   - `SecureAPITaskDelegate` and `TelegramRedirectTaskDelegate` implement `willPerformHTTPRedirection`.
   - Redirects that attempt to cross host boundaries or downgrade to plaintext `http://` are immediately blocked (`completionHandler(nil)`), ensuring bearer tokens and API keys are never forwarded to unauthorized hosts.
@@ -109,12 +109,13 @@ graph TD
 
 ### 5. Filesystem Security & Trusted Root Directory-Walk Containment (SEC-08)
 - **Trusted Root Descriptor & Recursive openat Containment:**
-  - Rather than resolving full path strings with `open` or assuming parent directories cannot be swapped, `LocalShareFileStreamWriter` establishes a pinned, trusted root directory descriptor (`sessionDirectory`) using `open(rootPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`.
+  - Rather than resolving full path strings with `open` or assuming parent directories cannot be swapped, `LocalShareFileStreamWriter` establishes a pinned, trusted root directory descriptor (`sessionDirectory`) using `open(pathPtr, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)`. The `O_NOFOLLOW` flag ensures the root itself cannot be a symlink (failing with `ELOOP`).
   - Verifies root directory ownership and directory mode via `fstat(rootFd, &st)` (`st.st_uid == getuid() && S_ISDIR`).
   - Iteratively walks every intermediate directory component relative to that descriptor using `openat(currentDirFd, dirName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)`, verifying each intermediate component with `fstat`.
   - Creates the leaf file atomically relative to the verified parent directory descriptor using `openat(currentDirFd, leafName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`.
   - Guarantees all intermediate directory descriptors are closed via `defer`, completely eliminating ancestor directory symlink substitution TOCTOU races.
   - Rejects empty components, slash-containing path components, null bytes, and traversal attempts (`..`) with `LocalShareError.invalidFileName` or `LocalShareError.invalidURL`.
+  - **Defined Security Boundary**: Containment is kernel-guaranteed *beneath* the pinned root directory descriptor. Ancestors above the root directory are governed by Darwin per-user directory isolation (`0700`).
 - **Non-Overwriting Promotion:** Completed files promoted from the session directory to the active receive folder (`promoteSessionFiles`) automatically increment numeric suffixes (`file (1).ext`, `file (2).ext`), guaranteeing user files are never overwritten.
 - **macOS Quarantine Extended Attribute (`com.apple.quarantine`):**
   - Completed files are annotated with `com.apple.quarantine`.
@@ -125,13 +126,15 @@ graph TD
   - Ground-truth inspection of the current local artifact (`NotchApp.app`) confirms it is compiled with **ad-hoc signing** (`Signature=adhoc`, `CodeDirectory flags=0x2(adhoc)`).
   - Hardened Runtime is not active on local debug builds.
   - Production release packaging requires formal **Developer ID Application** signing, Hardened Runtime enablement, and Apple Notarization (`xcrun notarytool submit`).
-- **Feature-by-Feature App Sandbox Analysis:**
-  - Standard macOS capabilities (such as `NSPanel` floating window levels or socket listening with `com.apple.security.network.server`) are technically compatible with App Sandbox.
-  - However, Notchify's architectural design relies on capabilities fundamentally incompatible with macOS App Sandbox:
-    1. **Global Keyboard Event Monitoring (`ThockModule`):** Measures inter-keystroke intervals across all running applications via `NSEvent.addGlobalMonitorForEvents(matching: .keyDown)`. In App Sandbox, apps are isolated from global WindowServer events from other processes, causing the monitor to receive zero events even with Accessibility permissions granted.
-    2. **Headless Background File Transfers directly to `~/Downloads`:** LocalSend receives files in the background without user interaction per file. App Sandbox requires user interaction via `NSOpenPanel`/`NSSavePanel` (security-scoped bookmarks) for arbitrary folder writes, or restricts downloads to the sandboxed container (`~/Library/Containers/com.notch.NotchApp/Data/Downloads`).
-    3. **Cross-Application AppleScript Dispatch (`TelegramModule`):** Dispatching commands to external apps via AppleEvents requires temporary exception entitlements (`com.apple.security.scripting-targets`), which are deprecated and rejected during App Store review.
-  - Consequently, Notchify is architected for **Direct Distribution outside the Mac App Store**, utilizing Developer ID Application signing and Apple Notarization.
+- **Direct Distribution Product Architecture Decision (App Sandbox Analysis):**
+  - Direct distribution outside the Mac App Store was selected as an intentional product architecture decision:
+    1. **Friction-Free Updates & Networking:** Direct distribution enables seamless in-app auto-updates (via Sparkle) and unconstrained peer-to-peer raw network socket binding across multiple physical interfaces without sandbox entitlement arbitration.
+    2. **Filesystem User Experience:** Users can route received files to arbitrary filesystem locations without sandbox container virtualization or mandatory interactive open/save panel prompts.
+    3. **Technical Clarifications on Previous Sandbox Assumptions:**
+       - `TelegramModule` operates via direct Bot API over HTTPS and URI schemes (`tg://`), with zero AppleScript usage.
+       - Global keyboard event monitoring (`NSEvent.addGlobalMonitorForEvents`) operates with user-granted Accessibility trust (`AXIsProcessTrusted == true`).
+       - Background downloads to `~/Downloads` are technically supported in sandbox via `com.apple.security.files.downloads.read-write`.
+  - Consequently, Notchify is architected for **Direct Distribution**, utilizing Developer ID Application signing and Apple Notarization for cryptographic verification and Gatekeeper trust.
 - **Private Darwin SPI Elimination:** Zero private SPIs are linked.
 - **Cooperative Memory Relief:** Idle periods trigger `malloc_zone_pressure_relief(malloc_default_zone(), 0)`.
 - **Keyboard Monitoring Scope:** Global keyboard monitoring in `ThockModule` is restricted strictly to measuring inter-key interval duration; zero keycodes, characters, or text buffers are ever captured or logged.
@@ -142,9 +145,9 @@ graph TD
 
 | Attack Vector | Threat Scenario | Architectural Countermeasure | Independent Verification Status |
 | :--- | :--- | :--- | :--- |
-| **Path Traversal / Symlink Race** | Peer attempts TOCTOU symlink swap, parent symlink, or `../` traversal | Trusted root directory descriptor walk (`openat` recursive `O_NOFOLLOW \| O_DIRECTORY`) + `0o600` leaf creation | **VERIFIED** (Test 107 Subtests A-F) |
-| **Active LAN MITM** | Attacker intercepts self-signed TLS on first contact | 6-digit Short Authentication String (SAS) divergence + `LocalSharePeerPinningDelegate` fail-closed TLS pinning | **VERIFIED** (Test 108 Subtests A-C) |
-| **Spoofed Favorite Auto-Accept**| Attacker claims favorite fingerprint in JSON over LAN/loopback | Production prompt gate; loopback auto-accept strictly gated by test flag; progressive PIN delay + HTTP 429 lockout | **VERIFIED** (Test 109 Subtests A-D) |
+| **Path Traversal / Symlink Race** | Peer attempts TOCTOU symlink swap, parent symlink, or `../` traversal | Pinned root descriptor (`open` with `O_NOFOLLOW`) + recursive `openat` directory walk + `0o600` leaf creation | **VERIFIED** (Test 107 Subtests A-G) |
+| **Active LAN MITM** | Attacker intercepts self-signed TLS on first contact | 6-digit Short Authentication String (SAS) UI display + `LocalSharePeerPinningDelegate` fail-closed TLS pinning | **VERIFIED** (Test 108 Subtests A-C) |
+| **Spoofed Favorite Auto-Accept**| Attacker claims favorite fingerprint in JSON over LAN/loopback | Production prompt gate; loopback auto-accept strictly gated by test flag; progressive PIN delay + escalating HTTP 429 lockout (60s/300s) | **VERIFIED** (Test 109 Subtests A-D) |
 | **Data Tampering in Transit** | Attacker modifies file bytes during upload | Incremental SHA-256 verification in `finalize` rejects tampered files with HTTP 422 | **VERIFIED** (Test 110) |
-| **Token Replay / Flooding** | Attacker replays consumed token or opens 500 writers | Single-use token invalidation + `maxConcurrentWriters = 8` cap | **VERIFIED** (Test 111) |
-| **Memory / Resource Leak** | Repeated transfers accumulate file descriptors/memory | Multi-batch soak (65 transfers, sequential + concurrent + cancelled), prompt socket recycling | **VERIFIED** (Test 112: 65 cycles, 2.33 MB delta, 1 FD delta) |
+| **Token Replay / Flooding** | Attacker replays consumed token or opens excess writers | 256-bit token entropy via CryptoKit (`SymmetricKey(size: .bits256)`), atomic reservation, teardown purge + `maxConcurrentWriters = 8` cap | **VERIFIED** (Test 111 Subtests A-C) |
+| **Memory / Resource Leak** | Repeated transfers accumulate file descriptors/memory | Multi-batch soak (65 transfers, 5 batches), 500ms quiescence, prompt socket recycling | **VERIFIED** (Test 112: 65 cycles, 2.64 MB delta, 1 FD delta with 0 vnode leaks, 0 socket leaks, kqueue worker accounted) |
