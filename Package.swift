@@ -35,6 +35,9 @@ let package = Package(
                 "Modules/LocalShare/LocalShareClient.swift",
                 "Modules/LocalShare/LocalShareSettings.swift",
                 "Modules/LocalShare/LocalShareModuleState.swift"
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-w"])
             ]
         ),
         .executableTarget(
@@ -47,7 +50,10 @@ let package = Package(
                 "CompanionProductionPoseChecks.swift",
                 "KinematicAcceptanceTests.swift"
             ],
-            sources: ["VerificationTests.swift"]
+            sources: ["VerificationTests.swift"],
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "-w"])
+            ]
         )
     ]
 )

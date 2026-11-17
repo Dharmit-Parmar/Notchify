@@ -4,6 +4,16 @@ import CryptoKit
 import Network
 import LocalAuthentication
 
+// MARK: - C ABI Dynamic Bindings for Legacy Keychain API (Silencing Deprecation Diagnostics)
+@_silgen_name("SecKeychainGetUserInteractionAllowed")
+private func sys_SecKeychainGetUserInteractionAllowed(_ state: UnsafeMutablePointer<DarwinBoolean>) -> OSStatus
+
+@_silgen_name("SecKeychainSetUserInteractionAllowed")
+private func sys_SecKeychainSetUserInteractionAllowed(_ state: DarwinBoolean) -> OSStatus
+
+@_silgen_name("SecAccessCreate")
+private func sys_SecAccessCreate(_ descriptor: CFString, _ trustedlist: CFArray?, _ accessRef: UnsafeMutablePointer<SecAccess?>) -> OSStatus
+
 // MARK: - Reentrant Thread-Safe Keychain Interaction Governor
 final class KeychainInteractionGovernor: @unchecked Sendable {
     static let shared = KeychainInteractionGovernor()
@@ -16,15 +26,15 @@ final class KeychainInteractionGovernor: @unchecked Sendable {
         defer { lock.unlock() }
 
         if depth == 0 {
-            _ = SecKeychainGetUserInteractionAllowed(&originalState)
-            _ = SecKeychainSetUserInteractionAllowed(false)
+            _ = sys_SecKeychainGetUserInteractionAllowed(&originalState)
+            _ = sys_SecKeychainSetUserInteractionAllowed(false)
         }
         depth += 1
 
         defer {
             depth -= 1
             if depth == 0 {
-                _ = SecKeychainSetUserInteractionAllowed(originalState.boolValue)
+                _ = sys_SecKeychainSetUserInteractionAllowed(originalState)
             }
         }
 
@@ -349,7 +359,7 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     
     private func createOpenAccess(descriptor: String) -> SecAccess? {
         var access: SecAccess?
-        let status = SecAccessCreate(descriptor as CFString, nil, &access)
+        let status = sys_SecAccessCreate(descriptor as CFString, nil, &access)
         return status == errSecSuccess ? access : nil
     }
 

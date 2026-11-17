@@ -1,6 +1,9 @@
 import Foundation
 import Security
 
+@_silgen_name("SecAccessCreate")
+private func sys_SecAccessCreate(_ descriptor: CFString, _ trustedlist: CFArray?, _ accessRef: UnsafeMutablePointer<SecAccess?>) -> OSStatus
+
 // MARK: - LocalShare Transfer History Item
 public struct LocalShareHistoryItem: Identifiable, Codable, Equatable, Sendable {
     public let id: UUID
@@ -318,7 +321,7 @@ public final class LocalShareSettings: ObservableObject {
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         var access: SecAccess?
-        if SecAccessCreate("Notch LocalShare PIN" as CFString, nil, &access) == errSecSuccess, let acc = access {
+        if sys_SecAccessCreate("Notch LocalShare PIN" as CFString, nil, &access) == errSecSuccess, let acc = access {
             addQuery[kSecAttrAccess as String] = acc
         }
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
