@@ -88,7 +88,8 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     public static let shared = LocalShareIdentityManager()
     
     private let lock = NSLock()
-    private let serviceName = "com.notch.NotchApp.LocalShare"
+    public let serviceName: String
+    private let fallbackPrefix: String
     private let keyAccount = "localshare_p256_private_key"
     private let certAccount = "localshare_x509_certificate"
     
@@ -96,7 +97,14 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     private var cachedCertificateDER: Data?
     private var cachedIdentity: SecIdentity?
     
-    public init() {}
+    public init(serviceName: String = "com.notch.NotchApp.LocalShare") {
+        self.serviceName = serviceName
+        if serviceName == "com.notch.NotchApp.LocalShare" {
+            self.fallbackPrefix = "NotchApp_LocalShare_Fallback_"
+        } else {
+            self.fallbackPrefix = "NotchApp_LocalShare_Fallback_\(serviceName)_"
+        }
+    }
     
     // MARK: - Public Identity Accessors
     
@@ -384,18 +392,29 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     }
 
     private func removeFallbackData(account: String) {
-        let key = "NotchApp_LocalShare_Fallback_\(account)"
+        let key = "\(fallbackPrefix)\(account)"
         UserDefaults.standard.removeObject(forKey: key)
     }
 
     private func saveFallbackData(_ data: Data, account: String) {
-        let key = "NotchApp_LocalShare_Fallback_\(account)"
+        let key = "\(fallbackPrefix)\(account)"
         UserDefaults.standard.set(data, forKey: key)
+        if serviceName == "com.notch.NotchApp.LocalShare" {
+            UserDefaults(suiteName: "NotchApp")?.set(data, forKey: key)
+        }
     }
 
     private func loadFallbackData(account: String) -> Data? {
-        let key = "NotchApp_LocalShare_Fallback_\(account)"
-        return UserDefaults.standard.data(forKey: key)
+        let key = "\(fallbackPrefix)\(account)"
+        if let data = UserDefaults.standard.data(forKey: key) {
+            return data
+        }
+        if serviceName == "com.notch.NotchApp.LocalShare" {
+            if let data = UserDefaults(suiteName: "NotchApp")?.data(forKey: key) {
+                return data
+            }
+        }
+        return nil
     }
     
     public func resetIdentityForTesting() {
@@ -404,6 +423,15 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         cachedFingerprint = nil
         cachedCertificateDER = nil
         cachedIdentity = nil
+        
+        // Safety guard: Never delete production identity from Keychain or UserDefaults
+        guard serviceName != "com.notch.NotchApp.LocalShare" else {
+            #if DEBUG
+            print("[LocalShareIdentity] Safety invariant: Refusing to reset production identity via resetIdentityForTesting()")
+            #endif
+            return
+        }
+        
         for account in [keyAccount, certAccount] {
             let q: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -411,7 +439,7 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
                 kSecAttrAccount as String: account
             ]
             SecItemDelete(q as CFDictionary)
-            UserDefaults.standard.removeObject(forKey: "NotchApp_LocalShare_Fallback_\(account)")
+            UserDefaults.standard.removeObject(forKey: "\(fallbackPrefix)\(account)")
         }
     }
 }

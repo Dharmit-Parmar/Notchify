@@ -69,7 +69,8 @@ public struct LocalShareTrustedPeer: Codable, Sendable, Identifiable {
 public final class LocalShareSettings: ObservableObject {
     public static let shared = LocalShareSettings()
     
-    private let serviceName = "com.notch.NotchApp.LocalShare"
+    public let serviceName: String
+    private let fallbackKey: String
     private let pinAccount = "localshare_pin_code"
     private var cachedPin: String?
     
@@ -157,7 +158,13 @@ public final class LocalShareSettings: ObservableObject {
         }
     }
     
-    public init() {
+    public init(serviceName: String = "com.notch.NotchApp.LocalShare") {
+        self.serviceName = serviceName
+        if serviceName == "com.notch.NotchApp.LocalShare" {
+            self.fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
+        } else {
+            self.fallbackKey = "NotchApp_LocalShare_Fallback_\(serviceName)_localshare_pin_code"
+        }
         let defaults = UserDefaults.standard
         let defaultHostName = Host.current().localizedName ?? "MacBook"
         let savedAlias = defaults.string(forKey: "NotchApp_LocalShare_Alias") ?? defaultHostName
@@ -180,7 +187,7 @@ public final class LocalShareSettings: ObservableObject {
         self.tcpPort = savedPort > 0 ? UInt16(savedPort) : LocalShareConstants.defaultHttpPort
         
         // Load PIN from Keychain directly via Data Protection Keychain with safe fallback migration
-        let loadedPin = Self.loadAndMigratePin(service: serviceName, account: pinAccount)
+        let loadedPin = Self.loadAndMigratePin(service: serviceName, account: pinAccount, fallbackKey: fallbackKey)
         self.cachedPin = loadedPin.isEmpty ? nil : loadedPin
         self._pinCode = Published(initialValue: loadedPin)
         
@@ -292,7 +299,6 @@ public final class LocalShareSettings: ObservableObject {
     @discardableResult
     public func savePinToKeychain(_ pin: String) -> Bool {
         cachedPin = pin.isEmpty ? nil : pin
-        let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
         
         if pin.isEmpty {
             deletePinFromKeychain()
@@ -327,14 +333,12 @@ public final class LocalShareSettings: ObservableObject {
         if let cached = cachedPin, !cached.isEmpty {
             return cached
         }
-        let pin = Self.loadAndMigratePin(service: serviceName, account: pinAccount)
+        let pin = Self.loadAndMigratePin(service: serviceName, account: pinAccount, fallbackKey: fallbackKey)
         cachedPin = pin.isEmpty ? nil : pin
         return pin
     }
     
-    private static func loadAndMigratePin(service: String, account: String) -> String {
-        let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
-        
+    private static func loadAndMigratePin(service: String, account: String, fallbackKey: String) -> String {
         // 1. Try Keychain first
         let keychainPin = loadPinFromKeychain(service: service, account: account)
         if !keychainPin.isEmpty {
@@ -385,7 +389,6 @@ public final class LocalShareSettings: ObservableObject {
     
     private func deletePinFromKeychain() {
         cachedPin = nil
-        let fallbackKey = "NotchApp_LocalShare_Fallback_localshare_pin_code"
         UserDefaults.standard.removeObject(forKey: fallbackKey)
         
         let query: [String: Any] = [

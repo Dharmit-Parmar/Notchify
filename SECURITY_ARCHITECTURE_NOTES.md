@@ -68,7 +68,7 @@ graph TD
 - **Single Active Session Mutex:** `LocalShareSessionCoordinator` enforces that only one incoming or outgoing transfer session can exist simultaneously. Subsequent connection attempts return HTTP 409 Conflict.
 - **Synchronous Teardown:** Directory removal upon session cancellation or completion is executed synchronously outside the coordinator lock, eliminating race conditions with incoming transfer requests.
 - **Thread Synchronization:** All mutable server configuration parameters (`serverAlias`, `requiredPin`, `autoAcceptFavorites`, `favoriteFingerprints`) are guarded behind `NSLock` instances to eliminate data races between `@MainActor` UI and background network dispatchers.
-- **Dual-Tier Rate Limiting:** High-frequency discovery and registration routes are subject to sliding-window IP rate limiting (10 req/s), while authenticated file streaming routes (`/api/localsend/v2/upload`) are governed by cryptographically random single-use tokens and byte-count integrity watchdogs.
+- **Dual-Tier Rate Limiting:** High-frequency discovery and registration routes are subject to sliding-window IP rate limiting (60 req/s), while authenticated file streaming routes (`/api/localsend/v2/upload`) are governed by cryptographically random single-use tokens and byte-count integrity watchdogs. Immediate HTTP Content-Length verification enforces strict parity with agreed session metadata, rejecting mismatches with HTTP 400 before stream allocation.
 
 ### 5. File System Containment & Storage Quarantine (SEC-08)
 - **Path Traversal Barrier:** File destinations are canonicalized using `URL.resolvingSymlinksInPath()`. Attempts to escape the designated receive folder via `../`, absolute paths, or nested symlinks are strictly rejected.

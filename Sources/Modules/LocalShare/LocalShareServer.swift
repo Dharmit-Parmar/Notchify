@@ -163,7 +163,7 @@ public final class LocalShareServer: @unchecked Sendable {
         lock.unlock()
     }
     
-    private let rateLimiter = LocalShareRateLimiter(maxRequests: 10, windowDuration: 1.0)
+    private let rateLimiter = LocalShareRateLimiter(maxRequests: 60, windowDuration: 1.0)
     
     public init() {}
     
@@ -794,6 +794,14 @@ public final class LocalShareServer: @unchecked Sendable {
         guard let meta = session.filesMetadata[fileId],
               let sessionDir = session.sessionDirectory else {
             sendRawResponse(connection: connection, statusCode: 400, reason: "Unknown File ID", body: nil)
+            return
+        }
+        
+        // Content-Length mismatch validation: Reject immediately if declared HTTP Content-Length does not match agreed metadata size
+        if let clStr = request.headers["content-length"], let declaredCl = Int64(clStr), declaredCl != meta.size {
+            session.releaseTokenReservation(token: token)
+            session.markFileFailed(fileId: fileId, error: "Size Mismatch: Content-Length \(declaredCl) != metadata \(meta.size)")
+            sendRawResponse(connection: connection, statusCode: 400, reason: "Size Mismatch", body: nil)
             return
         }
         

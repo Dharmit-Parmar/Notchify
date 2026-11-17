@@ -5948,15 +5948,23 @@ func runAllVerificationTests() {
     let id1 = LocalShareServer.shared.addStateObserver { tracker7.add1($0) }
     let id2 = LocalShareServer.shared.addStateObserver { tracker7.add2($0) }
     
-    // Trigger state change
-    LocalShareServer.shared.stop()
-    assert(tracker7.count1 >= 1 && tracker7.count2 >= 1, "Both independent observers must receive state change without collision")
+    // Trigger state change by starting server
+    try! LocalShareServer.shared.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
+    let s7StartDeadline = Date().addingTimeInterval(2.0)
+    while !LocalShareServer.shared.isRunning && Date() < s7StartDeadline {
+        usleep(20_000)
+    }
+    assert(tracker7.count1 >= 1 && tracker7.count2 >= 1, "Both independent observers must receive running state without collision")
     
     // Remove observer 1 and test observer 2 still receives
     LocalShareServer.shared.removeStateObserver(id: id1)
     let preCount2 = tracker7.count2
     let preCount1 = tracker7.count1
     LocalShareServer.shared.stop()
+    let s7StopDeadline = Date().addingTimeInterval(2.0)
+    while LocalShareServer.shared.isRunning && Date() < s7StopDeadline {
+        usleep(20_000)
+    }
     assert(tracker7.count1 == preCount1, "Removed observer 1 must not receive subsequent updates")
     assert(tracker7.count2 > preCount2, "Active observer 2 must continue receiving updates")
     LocalShareServer.shared.removeStateObserver(id: id2)
@@ -6326,7 +6334,7 @@ func runAllVerificationTests() {
     
     // --- Subtest 14 (Finding C Regression): Explicit First-Contact TLS Identity Policy & Trust Lifecycle ---
     print("  -> Subtest 14: Explicit First-Contact TLS Identity Policy & Trust Lifecycle...")
-    let testSettings = LocalShareSettings.shared
+    let testSettings = LocalShareSettings(serviceName: "com.notch.NotchApp.LocalShare.Testing")
     testSettings.resetToDefaults()
     
     let peerFingerprintA = "SHA256:AA:BB:CC:11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:00:AA:BB"
@@ -6369,7 +6377,8 @@ func runAllVerificationTests() {
     
     // --- Subtest 15 (Finding C Regression): TLS Identity Fallback Persistence & Keychain Resilience ---
     print("  -> Subtest 15: TLS Identity Fallback Persistence & Keychain Resilience...")
-    let idMgr = LocalShareIdentityManager.shared
+    let testServiceName = "com.notch.NotchApp.LocalShare.Testing"
+    let idMgr = LocalShareIdentityManager(serviceName: testServiceName)
     idMgr.resetIdentityForTesting()
     let certDER = idMgr.certificateDER
     let fp = idMgr.certificateFingerprint
@@ -6377,7 +6386,7 @@ func runAllVerificationTests() {
     assert(!fp.isEmpty, "Certificate fingerprint must not be empty")
     
     // Fresh identities must not persist raw private keys into plaintext UserDefaults
-    let rawKeyFallback = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_localshare_p256_private_key")
+    let rawKeyFallback = UserDefaults.standard.data(forKey: "NotchApp_LocalShare_Fallback_\(testServiceName)_localshare_p256_private_key")
     assert(rawKeyFallback == nil, "Fresh identities must not write plaintext private keys to UserDefaults")
     print("    ✓ TLS identity fallback persistence & Keychain resilience verified.")
     
@@ -6405,7 +6414,7 @@ func runAllVerificationTests() {
     
     // --- Subtest 18: TLS Identity & Network Identity Creation ---
     print("  -> Subtest 18: TLS Identity & Network Identity Creation...")
-    let idMgr18 = LocalShareIdentityManager.shared
+    let idMgr18 = LocalShareIdentityManager(serviceName: testServiceName)
     let secIdent = idMgr18.getSecIdentity()
     assert(secIdent != nil, "getSecIdentity() must return non-nil SecIdentity")
     let netIdent = idMgr18.createNetworkIdentity()
@@ -6414,14 +6423,14 @@ func runAllVerificationTests() {
     
     // --- Subtest 19: Data Protection Keychain Invariants & In-Memory Caching ---
     print("  -> Subtest 19: Data Protection Keychain Invariants & In-Memory Caching...")
-    let idMgr19 = LocalShareIdentityManager.shared
+    let idMgr19 = LocalShareIdentityManager(serviceName: testServiceName)
     let certDer19 = idMgr19.certificateDER
     let fp19 = idMgr19.certificateFingerprint
     assert(!certDer19.isEmpty, "Certificate DER must be cached and non-empty")
     assert(!fp19.isEmpty, "Certificate fingerprint must be cached and non-empty")
     assert(idMgr19.certificateFingerprint == fp19, "Subsequent fingerprint access must match cache")
     
-    let settings19 = LocalShareSettings.shared
+    let settings19 = LocalShareSettings(serviceName: testServiceName)
     let testPin = "482910"
     let savedPin = settings19.savePinToKeychain(testPin)
     assert(savedPin, "savePinToKeychain must succeed via Data Protection Keychain")
@@ -6445,7 +6454,7 @@ func runAllVerificationTests() {
     
     // --- Subtest 20: Device Alias Space Preservation & Settings Propagation ---
     print("  -> Subtest 20: Device Alias Space Preservation & Settings Propagation...")
-    let settings20 = LocalShareSettings.shared
+    let settings20 = LocalShareSettings(serviceName: testServiceName)
     let spacedAlias = "MacBook Studio Pro"
     settings20.alias = spacedAlias
     assert(settings20.alias == spacedAlias, "Alias with internal spaces must be preserved")
@@ -6461,6 +6470,7 @@ func runAllVerificationTests() {
     assert(LocalShareClient.shared.localAlias == "Padded Machine Name", "Client alias must update even when sanitization was needed")
     
     settings20.resetToDefaults()
+    LocalShareSettings.shared.alias = "Aizen"
     print("    ✓ Device alias space preservation & settings propagation verified.")
     
     // --- Subtest 21: Network Host & IP Normalization Pipeline ---
@@ -6519,13 +6529,273 @@ func runAllVerificationTests() {
     
     print("  ✓ Local Share Stage 4 Remediation Regressions verified.")
     
+    // =========================================================================
+    // [TEST 106] Comprehensive LocalShare Transfer Matrix (10 Production Scenarios)
+    // =========================================================================
+    print("\n[TEST 106] Comprehensive LocalShare Transfer Matrix (10 Production Scenarios)...")
+    
+    let scenarioReceiveDir = FileManager.default.temporaryDirectory.appendingPathComponent("scenario_rec_\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: scenarioReceiveDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: scenarioReceiveDir) }
+    LocalShareFileManager.shared.setCustomReceiveFolder(scenarioReceiveDir)
+    
+    let transferServer = LocalShareServer()
+    transferServer.serverAlias = "TransferMatrixTarget"
+    transferServer.autoAcceptFavorites = true
+    let matrixClientFP = "matrix_client_fp_456"
+    transferServer.favoriteFingerprints = [matrixClientFP]
+    try! transferServer.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
+    
+    let transferDeadline = Date().addingTimeInterval(3.0)
+    while !transferServer.isRunning && Date() < transferDeadline {
+        usleep(20_000)
+    }
+    guard case .running(let matrixPort) = transferServer.currentState else {
+        fatalError("Failed to bind transferServer for Test 106")
+    }
+    
+    let matrixSession = URLSession(configuration: .ephemeral)
+    
+    func prepareUploadHelper(files: [String: LocalShareFileMetadata]) -> LocalSharePrepareUploadResponse {
+        let prepReq = LocalSharePrepareUploadRequest(
+            info: LocalShareDeviceInfo(alias: "MatrixClient", fingerprint: matrixClientFP),
+            files: files
+        )
+        let prepURL = URL(string: "http://127.0.0.1:\(matrixPort)\(LocalShareEndpoints.prepareUpload)")!
+        var req = URLRequest(url: prepURL)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try! JSONEncoder().encode(prepReq)
+        
+        let sem = DispatchSemaphore(value: 0)
+        let box = ThreadSafeBox<LocalSharePrepareUploadResponse?>(nil)
+        let respCodeBox = ThreadSafeBox<Int>(0)
+        let respBodyBox = ThreadSafeBox<String>("")
+        matrixSession.dataTask(with: req) { data, resp, err in
+            if let http = resp as? HTTPURLResponse {
+                respCodeBox.value = http.statusCode
+                if let data = data, let str = String(data: data, encoding: .utf8) {
+                    respBodyBox.value = str
+                }
+                if http.statusCode == 200, let data = data {
+                    box.value = try? JSONDecoder().decode(LocalSharePrepareUploadResponse.self, from: data)
+                }
+            }
+            sem.signal()
+        }.resume()
+        _ = sem.wait(timeout: .now() + 3.0)
+        guard let result = box.value else {
+            fatalError("Failed prepareUploadHelper - HTTP \(respCodeBox.value), body: \(respBodyBox.value)")
+        }
+        return result
+    }
+    
+    let uploadFileHelper: @Sendable (String, String, String, Data, Int?) -> Int = { sessionId, fileId, token, data, declaredContentLength in
+        let uploadURL = URL(string: "http://127.0.0.1:\(matrixPort)\(LocalShareEndpoints.upload)?sessionId=\(sessionId)&fileId=\(fileId)&token=\(token)")!
+        var req = URLRequest(url: uploadURL)
+        req.httpMethod = "POST"
+        req.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        let cLen = declaredContentLength ?? data.count
+        req.setValue("\(cLen)", forHTTPHeaderField: "Content-Length")
+        req.httpBody = data
+        
+        let sem = DispatchSemaphore(value: 0)
+        let statusBox = ThreadSafeBox<Int>(0)
+        matrixSession.dataTask(with: req) { _, resp, _ in
+            if let http = resp as? HTTPURLResponse {
+                statusBox.value = http.statusCode
+            }
+            sem.signal()
+        }.resume()
+        _ = sem.wait(timeout: .now() + 4.0)
+        return statusBox.value
+    }
+    
+    // Scenario 1: Zero-byte file transfer
+    let zeroData = Data()
+    let zeroHash = SHA256.hash(data: zeroData).map { String(format: "%02x", $0) }.joined()
+    let metaZero = LocalShareFileMetadata(id: "s1_zero", fileName: "zero_bytes.dat", size: 0, fileType: "application/octet-stream", sha256: zeroHash)
+    let prepS1 = prepareUploadHelper(files: ["s1_zero": metaZero])
+    let statusS1 = uploadFileHelper(prepS1.sessionId, "s1_zero", prepS1.files["s1_zero"]!, zeroData, nil)
+    let s1Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS1.sessionId)/zero_bytes.dat")
+    let s1RecBytes = (try? Data(contentsOf: s1Path))?.count ?? -1
+    print("  [Scenario 1: Zero-byte] Session: \(prepS1.sessionId), File: s1_zero, Advertised: 0, Content-Length: 0, Received: \(s1RecBytes), SHA-256: \(zeroHash), Status: \(statusS1)")
+    assert(statusS1 == 200, "Scenario 1: Zero-byte upload must succeed with HTTP 200")
+    assert(s1RecBytes == 0, "Scenario 1: Zero-byte file must exist on disk with 0 bytes")
+    
+    // Scenario 2: Small text file transfer
+    let textData = Data("Hello, Notchify secure authenticated transfer!".utf8)
+    let textHash = SHA256.hash(data: textData).map { String(format: "%02x", $0) }.joined()
+    let metaText = LocalShareFileMetadata(id: "s2_text", fileName: "notes.txt", size: Int64(textData.count), fileType: "text/plain", sha256: textHash)
+    let prepS2 = prepareUploadHelper(files: ["s2_text": metaText])
+    let statusS2 = uploadFileHelper(prepS2.sessionId, "s2_text", prepS2.files["s2_text"]!, textData, nil)
+    let s2Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS2.sessionId)/notes.txt")
+    let s2RecData = try! Data(contentsOf: s2Path)
+    print("  [Scenario 2: Small text] Session: \(prepS2.sessionId), File: s2_text, Advertised: \(textData.count), Content-Length: \(textData.count), Received: \(s2RecData.count), SHA-256: \(textHash), Status: \(statusS2)")
+    assert(statusS2 == 200, "Scenario 2: Small text upload must succeed with HTTP 200")
+    assert(s2RecData == textData, "Scenario 2: Content on disk must match exactly")
+    
+    // Scenario 3: Small image transfer
+    let pngBytes: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82]
+    let imgData = Data(pngBytes)
+    let imgHash = SHA256.hash(data: imgData).map { String(format: "%02x", $0) }.joined()
+    let metaImg = LocalShareFileMetadata(id: "s3_img", fileName: "avatar.png", size: Int64(imgData.count), fileType: "image/png", sha256: imgHash)
+    let prepS3 = prepareUploadHelper(files: ["s3_img": metaImg])
+    let statusS3 = uploadFileHelper(prepS3.sessionId, "s3_img", prepS3.files["s3_img"]!, imgData, nil)
+    let s3Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS3.sessionId)/avatar.png")
+    let s3RecData = try! Data(contentsOf: s3Path)
+    print("  [Scenario 3: Small image] Session: \(prepS3.sessionId), File: s3_img, Advertised: \(imgData.count), Content-Length: \(imgData.count), Received: \(s3RecData.count), SHA-256: \(imgHash), Status: \(statusS3)")
+    assert(statusS3 == 200, "Scenario 3: Small image upload must succeed with HTTP 200")
+    assert(s3RecData == imgData, "Scenario 3: Image data on disk must match exactly")
+    
+    // Scenario 4: Medium file transfer
+    let medData = Data(repeating: 0x4B, count: 65536)
+    let medHash = SHA256.hash(data: medData).map { String(format: "%02x", $0) }.joined()
+    let metaMed = LocalShareFileMetadata(id: "s4_med", fileName: "document_64k.bin", size: 65536, fileType: "application/octet-stream", sha256: medHash)
+    let prepS4 = prepareUploadHelper(files: ["s4_med": metaMed])
+    let statusS4 = uploadFileHelper(prepS4.sessionId, "s4_med", prepS4.files["s4_med"]!, medData, nil)
+    let s4Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS4.sessionId)/document_64k.bin")
+    let s4RecData = try! Data(contentsOf: s4Path)
+    print("  [Scenario 4: Medium 64KB] Session: \(prepS4.sessionId), File: s4_med, Advertised: 65536, Content-Length: 65536, Received: \(s4RecData.count), SHA-256: \(medHash), Status: \(statusS4)")
+    assert(statusS4 == 200, "Scenario 4: Medium file upload must succeed with HTTP 200")
+    assert(s4RecData.count == 65536, "Scenario 4: File size must be exactly 65536 bytes")
+    
+    // Scenario 5: Large file transfer
+    let largeData = Data(repeating: 0x7E, count: 1024 * 1024)
+    let largeHash = SHA256.hash(data: largeData).map { String(format: "%02x", $0) }.joined()
+    let metaLarge = LocalShareFileMetadata(id: "s5_large", fileName: "archive_1mb.iso", size: 1024 * 1024, fileType: "application/octet-stream", sha256: largeHash)
+    let prepS5 = prepareUploadHelper(files: ["s5_large": metaLarge])
+    let statusS5 = uploadFileHelper(prepS5.sessionId, "s5_large", prepS5.files["s5_large"]!, largeData, nil)
+    let s5Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS5.sessionId)/archive_1mb.iso")
+    let s5RecData = try! Data(contentsOf: s5Path)
+    print("  [Scenario 5: Large 1MB] Session: \(prepS5.sessionId), File: s5_large, Advertised: 1048576, Content-Length: 1048576, Received: \(s5RecData.count), SHA-256: \(largeHash), Status: \(statusS5)")
+    assert(statusS5 == 200, "Scenario 5: Large file upload must succeed with HTTP 200")
+    assert(s5RecData.count == 1024 * 1024, "Scenario 5: File size must be exactly 1048576 bytes")
+    
+    // Scenario 6: Multiple files transfer
+    let m1Data = Data("Multi file 1 contents".utf8)
+    let m2Data = Data("Multi file 2 contents".utf8)
+    let m3Data = Data("Multi file 3 contents".utf8)
+    let m1Hash = SHA256.hash(data: m1Data).map { String(format: "%02x", $0) }.joined()
+    let m2Hash = SHA256.hash(data: m2Data).map { String(format: "%02x", $0) }.joined()
+    let m3Hash = SHA256.hash(data: m3Data).map { String(format: "%02x", $0) }.joined()
+    let metaM1 = LocalShareFileMetadata(id: "s6_m1", fileName: "doc1.txt", size: Int64(m1Data.count), fileType: "text/plain", sha256: m1Hash)
+    let metaM2 = LocalShareFileMetadata(id: "s6_m2", fileName: "doc2.txt", size: Int64(m2Data.count), fileType: "text/plain", sha256: m2Hash)
+    let metaM3 = LocalShareFileMetadata(id: "s6_m3", fileName: "doc3.txt", size: Int64(m3Data.count), fileType: "text/plain", sha256: m3Hash)
+    let prepS6 = prepareUploadHelper(files: ["s6_m1": metaM1, "s6_m2": metaM2, "s6_m3": metaM3])
+    let statusS6_1 = uploadFileHelper(prepS6.sessionId, "s6_m1", prepS6.files["s6_m1"]!, m1Data, nil)
+    let statusS6_2 = uploadFileHelper(prepS6.sessionId, "s6_m2", prepS6.files["s6_m2"]!, m2Data, nil)
+    let statusS6_3 = uploadFileHelper(prepS6.sessionId, "s6_m3", prepS6.files["s6_m3"]!, m3Data, nil)
+    print("  [Scenario 6: Multi-file] Session: \(prepS6.sessionId), Files: 3, Statuses: [\(statusS6_1), \(statusS6_2), \(statusS6_3)]")
+    assert(statusS6_1 == 200 && statusS6_2 == 200 && statusS6_3 == 200, "Scenario 6: All 3 files must upload successfully")
+    
+    // Scenario 7: Parallel concurrent uploads
+    let p1Data = Data("Parallel stream 1 payload".utf8)
+    let p2Data = Data("Parallel stream 2 payload".utf8)
+    let p3Data = Data("Parallel stream 3 payload".utf8)
+    let p1Hash = SHA256.hash(data: p1Data).map { String(format: "%02x", $0) }.joined()
+    let p2Hash = SHA256.hash(data: p2Data).map { String(format: "%02x", $0) }.joined()
+    let p3Hash = SHA256.hash(data: p3Data).map { String(format: "%02x", $0) }.joined()
+    let metaP1 = LocalShareFileMetadata(id: "s7_p1", fileName: "par1.dat", size: Int64(p1Data.count), fileType: "application/octet-stream", sha256: p1Hash)
+    let metaP2 = LocalShareFileMetadata(id: "s7_p2", fileName: "par2.dat", size: Int64(p2Data.count), fileType: "application/octet-stream", sha256: p2Hash)
+    let metaP3 = LocalShareFileMetadata(id: "s7_p3", fileName: "par3.dat", size: Int64(p3Data.count), fileType: "application/octet-stream", sha256: p3Hash)
+    let prepS7 = prepareUploadHelper(files: ["s7_p1": metaP1, "s7_p2": metaP2, "s7_p3": metaP3])
+    let pGroup = DispatchGroup()
+    let p1Status = ThreadSafeBox<Int>(0)
+    let p2Status = ThreadSafeBox<Int>(0)
+    let p3Status = ThreadSafeBox<Int>(0)
+    
+    pGroup.enter()
+    DispatchQueue.global().async {
+        p1Status.value = uploadFileHelper(prepS7.sessionId, "s7_p1", prepS7.files["s7_p1"]!, p1Data, nil)
+        pGroup.leave()
+    }
+    pGroup.enter()
+    DispatchQueue.global().async {
+        p2Status.value = uploadFileHelper(prepS7.sessionId, "s7_p2", prepS7.files["s7_p2"]!, p2Data, nil)
+        pGroup.leave()
+    }
+    pGroup.enter()
+    DispatchQueue.global().async {
+        p3Status.value = uploadFileHelper(prepS7.sessionId, "s7_p3", prepS7.files["s7_p3"]!, p3Data, nil)
+        pGroup.leave()
+    }
+    _ = pGroup.wait(timeout: .now() + 5.0)
+    print("  [Scenario 7: Parallel concurrent] Session: \(prepS7.sessionId), Concurrent Statuses: [\(p1Status.value), \(p2Status.value), \(p3Status.value)]")
+    assert(p1Status.value == 200 && p2Status.value == 200 && p3Status.value == 200, "Scenario 7: Parallel uploads must all return HTTP 200")
+    
+    // Scenario 8: Cancelled upload
+    let cData = Data("Data for cancelled session".utf8)
+    let cHash = SHA256.hash(data: cData).map { String(format: "%02x", $0) }.joined()
+    let metaC = LocalShareFileMetadata(id: "s8_c", fileName: "cancel_me.dat", size: Int64(cData.count), fileType: "text/plain", sha256: cHash)
+    let prepS8 = prepareUploadHelper(files: ["s8_c": metaC])
+    let cancelURL = URL(string: "http://127.0.0.1:\(matrixPort)\(LocalShareEndpoints.cancel)?sessionId=\(prepS8.sessionId)")!
+    var cancelReq = URLRequest(url: cancelURL)
+    cancelReq.httpMethod = "POST"
+    let cancelSem = DispatchSemaphore(value: 0)
+    let cancelStatus = ThreadSafeBox<Int>(0)
+    matrixSession.dataTask(with: cancelReq) { _, resp, _ in
+        if let http = resp as? HTTPURLResponse { cancelStatus.value = http.statusCode }
+        cancelSem.signal()
+    }.resume()
+    _ = cancelSem.wait(timeout: .now() + 3.0)
+    assert(cancelStatus.value == 200, "Cancel route must return HTTP 200")
+    
+    let postCancelUploadStatus = uploadFileHelper(prepS8.sessionId, "s8_c", prepS8.files["s8_c"]!, cData, nil)
+    print("  [Scenario 8: Cancelled session] Session: \(prepS8.sessionId), Cancel Status: \(cancelStatus.value), Post-Cancel Upload Status: \(postCancelUploadStatus)")
+    assert(postCancelUploadStatus == 409, "Upload to cancelled session must be rejected with HTTP 409")
+    
+    // Scenario 9: Incorrect declared file size (mismatch rejection)
+    let shortData = Data(repeating: 0x20, count: 50)
+    let metaMismatch = LocalShareFileMetadata(id: "s9_mismatch", fileName: "mismatch.dat", size: 100, fileType: "application/octet-stream", sha256: nil)
+    let prepS9 = prepareUploadHelper(files: ["s9_mismatch": metaMismatch])
+    let mismatchStatus = uploadFileHelper(prepS9.sessionId, "s9_mismatch", prepS9.files["s9_mismatch"]!, shortData, 50)
+    let s9Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS9.sessionId)/mismatch.dat")
+    let s9Exists = FileManager.default.fileExists(atPath: s9Path.path)
+    print("  [Scenario 9: Size mismatch] Session: \(prepS9.sessionId), Advertised: 100, Sent: 50, Status: \(mismatchStatus), Partial File Exists: \(s9Exists)")
+    assert(mismatchStatus == 400, "Scenario 9: Size mismatch must return HTTP 400")
+    assert(!s9Exists, "Scenario 9: Incomplete file with size mismatch must NOT remain on disk")
+    LocalShareSessionCoordinator.shared.cancelSession(sessionId: prepS9.sessionId, reason: "Test cleanup")
+    
+    // Scenario 10: Deliberately interrupted connection
+    let metaInterrupt = LocalShareFileMetadata(id: "s10_int", fileName: "interrupted.bin", size: 50000, fileType: "application/octet-stream", sha256: nil)
+    let prepS10 = prepareUploadHelper(files: ["s10_int": metaInterrupt])
+    let tokenS10 = prepS10.files["s10_int"]!
+    
+    let intConn = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: matrixPort)!, using: .tcp)
+    let intConnSem = DispatchSemaphore(value: 0)
+    intConn.stateUpdateHandler = { state in
+        if case .ready = state {
+            intConnSem.signal()
+        }
+    }
+    intConn.start(queue: .global())
+    _ = intConnSem.wait(timeout: .now() + 2.0)
+    
+    let partialHeader = "POST /api/localsend/v2/upload?sessionId=\(prepS10.sessionId)&fileId=s10_int&token=\(tokenS10) HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/octet-stream\r\nContent-Length: 50000\r\n\r\n"
+    var partialPayload = Data(partialHeader.utf8)
+    partialPayload.append(Data(repeating: 0x99, count: 500))
+    intConn.send(content: partialPayload, completion: .contentProcessed { _ in
+        intConn.cancel()
+    })
+    
+    usleep(200_000)
+    let s10Path = scenarioReceiveDir.appendingPathComponent("session-\(prepS10.sessionId)/interrupted.bin")
+    let s10Exists = FileManager.default.fileExists(atPath: s10Path.path)
+    print("  [Scenario 10: Interrupted connection] Session: \(prepS10.sessionId), Incomplete File Exists: \(s10Exists)")
+    assert(!s10Exists, "Scenario 10: Abruptly interrupted stream must clean up partial file from disk")
+    LocalShareSessionCoordinator.shared.cancelSession(sessionId: prepS10.sessionId, reason: "Test cleanup")
+    
+    transferServer.stop()
+    print("  ✓ LocalShare Transfer Scenarios (10/10 verified successfully).")
+    
     if localShareOnly {
         print("\n=====================================================")
-        print("  ALL LOCAL SHARE TESTS PASSED SUCCESSFULLY (103-105) ")
+        print("  ALL LOCAL SHARE TESTS PASSED SUCCESSFULLY (103-106) ")
         print("=====================================================\n")
     } else {
         print("\n=====================================================")
-        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (105/105) ")
+        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (106/106) ")
         print("=====================================================\n")
     }
 }
