@@ -125,3 +125,56 @@
     9. Incorrect declared file size (HTTP 400 mismatch rejection, partial file purged)
     10. Deliberately interrupted connection (abrupt socket reset handled, 0 partial file leaks)
 - **Verification:** 3 consecutive runs of 106/106 tests passed cleanly (0 flakes, 0 failures).
+
+### Commit Step 14: Atomic POSIX File Creation & Symlink TOCTOU Hardening (SEC-08)
+- **Files Modified:**
+  - `Sources/Modules/LocalShare/LocalShareFileManager.swift`
+  - `Sources/Modules/LocalShare/LocalShareProtocol.swift`
+- **Changes Applied:**
+  - Replaced Cocoa `FileManager.default.createFile` with Darwin POSIX `open(fsPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)`.
+  - Added atomic collision progression in `beginFileStream`, attempting candidate suffixes `(1)`, `(2)` until atomic creation succeeds.
+  - Added `O_NOFOLLOW` flag to prevent following symlinks, returning `LocalShareError.fileExists` when a symlink is encountered.
+  - Initialized `FileHandle(fileDescriptor:closeOnDealloc:true)` directly on the claimed file descriptor, completely eliminating path re-lookup TOCTOU windows.
+- **Verification:** Verified by Test 107 Subtests A, B, and C.
+
+### Commit Step 15: Out-of-Band Short Verification Code (SAS) Implementation (SEC-01, SEC-02)
+- **Files Modified:**
+  - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
+  - `Sources/Modules/LocalShare/LocalShareSession.swift`
+- **Changes Applied:**
+  - Implemented `LocalShareSecurity.computeVerificationCode(localFingerprint:peerFingerprint:)` deriving a symmetric 6-digit verification string (`XXX-XXX`) from sorted SHA-256 endpoints.
+  - Added `verificationCode` computed property on `LocalShareSession`.
+  - Guaranteed that active LAN MITM tampering causes verification codes to mismatch, enabling users to verify peer authenticity out-of-band on first contact.
+- **Verification:** Verified by Test 108 (symmetry and MITM mismatch detection).
+
+### Commit Step 16: Gated Auto-Acceptance & Anti-DoS Resource Quotas (SEC-05, SEC-06)
+- **Files Modified:**
+  - `Sources/Modules/LocalShare/LocalShareServer.swift`
+  - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
+  - `Sources/Modules/LocalShare/LocalShareSession.swift`
+- **Changes Applied:**
+  - Gated auto-acceptance in `handlePrepareUploadRoute`: incoming transfers claiming a favorite fingerprint from an external LAN host CANNOT bypass user confirmation unless authenticated via shared secret PIN (`requiredPin`) or originating from loopback.
+  - Enforced `maxSimultaneousConnections = 32` via thread-safe `activeConnectionCount` in `LocalShareServer`.
+  - Enforced `maxConcurrentWriters = 8` in `LocalShareSession.registerActiveWriter`.
+  - Enforced `maxHeaderSize = 32 KB` in `LocalShareServer.receiveHTTPPayload`.
+- **Verification:** Verified by Test 109 and Test 111.
+
+### Commit Step 17: Cross-Host Redirect Isolation for API Credentials (SEC-03)
+- **Files Modified:**
+  - `Sources/Modules/AI/AskAIService.swift`
+  - `Sources/Modules/Telegram/TelegramClient.swift`
+- **Changes Applied:**
+  - Implemented `SecureAPITaskDelegate` and `TelegramRedirectTaskDelegate` intercepting `willPerformHTTPRedirection`.
+  - Strictly blocked redirects that attempt to cross host boundaries or downgrade to plaintext `http://`, preventing authorization headers and bot tokens from being forwarded to unauthorized servers.
+- **Verification:** Verified by code inspection and task delegate regression checks.
+
+### Commit Step 18: Stage 4 Test Suite Expansion (Tests 107-112) & Soak Verification
+- **Files Modified:** `Tests/VerificationTests.swift`
+- **Changes Applied:**
+  - Added Test 107: Atomic POSIX File Creation & Symlink TOCTOU Protection.
+  - Added Test 108: Out-of-band Short Verification Code (SAS) Determinism & Active MITM Detection.
+  - Added Test 109: Unauthenticated Favorite Fingerprint Spoofing Gate.
+  - Added Test 110: Realistic 5 MB File Transfer with SHA-256 Checksum & HTTP 422 Tamper Detection.
+  - Added Test 111: Token Anti-Replay & Concurrency Writer Quota Enforcement.
+  - Added Test 112: Extended Soak & Memory / File Descriptor Stability (50 Sequential Transfers).
+- **Verification:** Full suite passed with 112/112 tests across 3 consecutive clean runs (Exit Code 0).

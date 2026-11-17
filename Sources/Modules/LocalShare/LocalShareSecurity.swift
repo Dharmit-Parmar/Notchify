@@ -6,6 +6,9 @@ public enum LocalShareSecurity {
     
     // MARK: - Security Caps & Limits
     public static let maxFilesPerSession: Int = 500
+    public static let maxSimultaneousConnections: Int = 32
+    public static let maxConcurrentWriters: Int = 8
+    public static let maxHeaderSize: Int = 32 * 1024 // 32 KB
     public static let maxFileSize: Int64 = 50 * 1024 * 1024 * 1024 // 50 GB
     public static let maxTotalSessionSize: Int64 = 100 * 1024 * 1024 * 1024 // 100 GB aggregate session limit
     public static let maxRequestBodySize: Int = 1024 * 1024 // 1 MB JSON limit
@@ -170,6 +173,20 @@ public enum LocalShareSecurity {
         let computedHex = digest.map { String(format: "%02x", $0) }.joined()
         let normExpected = normalizeFingerprint(expectedFingerprint)
         return computedHex.caseInsensitiveCompare(normExpected) == .orderedSame
+    }
+
+    /// Computes a deterministic, human-readable 6-digit Short Authentication String (SAS)
+    /// from two peer fingerprints to authenticate the TLS session out-of-band and defeat active LAN MITM.
+    public static func computeVerificationCode(localFingerprint: String, peerFingerprint: String) -> String {
+        let clean1 = normalizeFingerprint(localFingerprint)
+        let clean2 = normalizeFingerprint(peerFingerprint)
+        let pair = [clean1, clean2].sorted()
+        let combined = "\(pair[0]):\(pair[1])"
+        let digest = SHA256.hash(data: Data(combined.utf8))
+        let bytes = Array(digest)
+        let num = (UInt32(bytes[0]) << 24) | (UInt32(bytes[1]) << 16) | (UInt32(bytes[2]) << 8) | UInt32(bytes[3])
+        let codeNum = num % 1_000_000
+        return String(format: "%03d-%03d", codeNum / 1000, codeNum % 1000)
     }
 
     // MARK: - IP Address Normalization

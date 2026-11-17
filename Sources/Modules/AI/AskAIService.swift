@@ -66,6 +66,33 @@ public struct AIChatMessage: Identifiable, Equatable {
     }
 }
 
+// MARK: - Secure Redirect Protection Delegate
+private final class SecureAPITaskDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let allowedHosts: Set<String>
+    
+    init(allowedHosts: Set<String>) {
+        self.allowedHosts = allowedHosts
+    }
+    
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let newURL = request.url,
+              newURL.scheme == "https",
+              let host = newURL.host?.lowercased(),
+              allowedHosts.contains(host) else {
+            // Drop redirect to protect API credentials from cross-host leakage
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
+    }
+}
+
 // MARK: - AskAIService: Zero-Heavy-RAM Lightweight Assistant Manager
 @MainActor
 public final class AskAIService: ObservableObject {
@@ -77,8 +104,9 @@ public final class AskAIService: ObservableObject {
     @Published public var errorMessage: String? = nil
     @Published public var activeProvider: AIProvider = .gemini
     
-    // SEC-03: Ephemeral URLSession with zero disk caching, zero cookies, and zero credential storage
+    // SEC-03: Ephemeral URLSession with zero disk caching, zero cookies, zero credential storage, and strict redirect isolation
     private let session: URLSession
+    private let taskDelegate = SecureAPITaskDelegate(allowedHosts: ["generativelanguage.googleapis.com", "api.openai.com"])
     
     public init(session: URLSession? = nil) {
         if let customSession = session {
@@ -91,7 +119,8 @@ public final class AskAIService: ObservableObject {
             config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             config.timeoutIntervalForRequest = 20.0
             config.timeoutIntervalForResource = 30.0
-            self.session = URLSession(configuration: config)
+            let delegate = SecureAPITaskDelegate(allowedHosts: ["generativelanguage.googleapis.com", "api.openai.com"])
+            self.session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         }
         self.activeProvider = SettingsStore.shared.aiDefaultProvider
         // Automatically discover local Antigravity / Google account on launch

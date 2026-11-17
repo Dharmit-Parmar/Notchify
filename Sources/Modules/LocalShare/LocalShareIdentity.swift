@@ -152,83 +152,94 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     
     // MARK: - Internal Key & Certificate Generation / Persistence
     
-    private func loadOrGenerateIdentityLocked() -> (Data, SecIdentity?) {
-        SecKeychainSetUserInteractionAllowed(false)
-
-        // 1. Try the existing Keychain identity first.
-        let keychainCert = loadKeychainData(account: certAccount)
-        let keychainKey = loadKeychainData(account: keyAccount)
-
-        if let certData = keychainCert,
-           let keyData = keychainKey,
-           let identity = assembleIdentity(
-                certDER: certData,
-                privateKeyRaw: keyData
-           ) {
-            cachedCertificateDER = certData
-            cachedIdentity = identity
-
-            let digest = SHA256.hash(data: certData)
-            cachedFingerprint = digest.map {
-                String(format: "%02x", $0)
-            }.joined()
-
-            removeFallbackData(account: certAccount)
-            removeFallbackData(account: keyAccount)
-
-            return (certData, identity)
+    @discardableResult
+    private func withUserInteractionDisabled<T>(_ body: () -> T) -> T {
+        var original: DarwinBoolean = true
+        _ = SecKeychainGetUserInteractionAllowed(&original)
+        _ = SecKeychainSetUserInteractionAllowed(false)
+        defer {
+            _ = SecKeychainSetUserInteractionAllowed(original.boolValue)
         }
+        return body()
+    }
+    
+    private func loadOrGenerateIdentityLocked() -> (Data, SecIdentity?) {
+        return withUserInteractionDisabled {
+            // 1. Try the existing Keychain identity first.
+            let keychainCert = loadKeychainData(account: certAccount)
+            let keychainKey = loadKeychainData(account: keyAccount)
 
-        // 2. Recover the previous identity from fallback storage.
-        if let fallbackCert = loadFallbackData(account: certAccount),
-           let fallbackKey = loadFallbackData(account: keyAccount),
-           let identity = assembleIdentity(
-                certDER: fallbackCert,
-                privateKeyRaw: fallbackKey
-           ) {
+            if let certData = keychainCert,
+               let keyData = keychainKey,
+               let identity = assembleIdentity(
+                    certDER: certData,
+                    privateKeyRaw: keyData
+               ) {
+                cachedCertificateDER = certData
+                cachedIdentity = identity
 
-            cachedCertificateDER = fallbackCert
-            cachedIdentity = identity
+                let digest = SHA256.hash(data: certData)
+                cachedFingerprint = digest.map {
+                    String(format: "%02x", $0)
+                }.joined()
 
-            let digest = SHA256.hash(data: fallbackCert)
-            cachedFingerprint = digest.map {
-                String(format: "%02x", $0)
-            }.joined()
-
-            let certSaved = saveKeychainData(fallbackCert, account: certAccount)
-            let keySaved = saveKeychainData(fallbackKey, account: keyAccount)
-            if certSaved && keySaved {
                 removeFallbackData(account: certAccount)
                 removeFallbackData(account: keyAccount)
+
+                return (certData, identity)
             }
 
-            return (fallbackCert, identity)
+            // 2. Recover the previous identity from fallback storage.
+            if let fallbackCert = loadFallbackData(account: certAccount),
+               let fallbackKey = loadFallbackData(account: keyAccount),
+               let identity = assembleIdentity(
+                    certDER: fallbackCert,
+                    privateKeyRaw: fallbackKey
+               ) {
+
+                cachedCertificateDER = fallbackCert
+                cachedIdentity = identity
+
+                let digest = SHA256.hash(data: fallbackCert)
+                cachedFingerprint = digest.map {
+                    String(format: "%02x", $0)
+                }.joined()
+
+                let certSaved = saveKeychainData(fallbackCert, account: certAccount)
+                let keySaved = saveKeychainData(fallbackKey, account: keyAccount)
+                if certSaved && keySaved {
+                    removeFallbackData(account: certAccount)
+                    removeFallbackData(account: keyAccount)
+                }
+
+                return (fallbackCert, identity)
+            }
+
+            // 3. Create a new identity only when no recoverable identity exists.
+            let privateKey = P256.Signing.PrivateKey()
+            let certDER = buildSelfSignedCertificateDER(
+                privateKey: privateKey
+            )
+            let keyRaw = privateKey.x963Representation
+
+            let identity = assembleIdentity(
+                certDER: certDER,
+                privateKeyRaw: keyRaw
+            )
+
+            cachedCertificateDER = certDER
+            cachedIdentity = identity
+
+            let digest = SHA256.hash(data: certDER)
+            cachedFingerprint = digest.map {
+                String(format: "%02x", $0)
+            }.joined()
+
+            _ = saveKeychainData(certDER, account: certAccount)
+            _ = saveKeychainData(keyRaw, account: keyAccount)
+
+            return (certDER, identity)
         }
-
-        // 3. Create a new identity only when no recoverable identity exists.
-        let privateKey = P256.Signing.PrivateKey()
-        let certDER = buildSelfSignedCertificateDER(
-            privateKey: privateKey
-        )
-        let keyRaw = privateKey.x963Representation
-
-        let identity = assembleIdentity(
-            certDER: certDER,
-            privateKeyRaw: keyRaw
-        )
-
-        cachedCertificateDER = certDER
-        cachedIdentity = identity
-
-        let digest = SHA256.hash(data: certDER)
-        cachedFingerprint = digest.map {
-            String(format: "%02x", $0)
-        }.joined()
-
-        _ = saveKeychainData(certDER, account: certAccount)
-        _ = saveKeychainData(keyRaw, account: keyAccount)
-
-        return (certDER, identity)
     }
     
     private func assembleIdentity(certDER: Data, privateKeyRaw: Data) -> SecIdentity? {
@@ -362,7 +373,6 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     }
 
     private func loadKeychainData(account: String) -> Data? {
-        SecKeychainSetUserInteractionAllowed(false)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,

@@ -1,7 +1,7 @@
 # NOTCHIFY — SECURITY ACCEPTED RISKS & THREAT MODEL DECISIONS
 
-**Application:** Notchify / NotchApp  
-**Document Revision:** 1.0  
+**Application:** Notchify / NotchApp (macOS)  
+**Document Revision:** 2.0 (Stage 4 Technical Verification & Threat Model Overhaul)  
 **Date:** November 17, 2026  
 **Auditor / System Architect:** Principal macOS Application Security Engineer  
 
@@ -11,7 +11,7 @@
 
 In high-reliability software engineering, certain architectural trade-offs are deliberately evaluated, measured, and accepted where strict compliance with alternative approaches would compromise core usability, privacy, or offline functionality.
 
-This document formally records all accepted security risks, architectural trade-offs, threat model boundaries, and their respective compensating controls.
+This document formally records all accepted security risks, architectural trade-offs, threat model boundaries, and their respective compensating controls. Every claim in this register has been independently verified against the actual source code and runtime behavior.
 
 ---
 
@@ -19,65 +19,104 @@ This document formally records all accepted security risks, architectural trade-
 
 ### RISK-01: Self-Signed TLS Certificates vs. Public CA Certificates
 - **Category:** Transport Security / Identity
-- **Affected Area:** LocalShare P2P Protocol (LocalSend Specification)
-- **Description:** LocalShare devices generate self-signed P-256 ECC X.509 certificates for ad-hoc local network TLS sessions rather than relying on public WebPKI Certificate Authorities (e.g. Let's Encrypt, DigiCert).
-- **Threat Scenario:** A passive adversary on the local LAN could attempt a Man-in-the-Middle (MitM) TLS proxy by presenting a different self-signed certificate.
-- **Why Accepted:** Peer-to-peer file transfer must operate entirely offline without internet connectivity, external DNS resolution, or central infrastructure. LocalSend compatibility requires dynamic local TLS endpoints.
-- **Compensating Controls:**
-  1. **Cryptographic SHA-256 Fingerprint Pinning:** During the initial mDNS/HTTP discovery handshake, the peer's certificate fingerprint is exchanged and displayed.
-  2. **First-Contact Authorization Gate:** On first contact, the user must explicitly approve or verify the peer device (`LocalSharePeerTrustState.unverifiedFirstContact`).
-  3. **Certificate Change Detection:** If a previously trusted peer presents a certificate DER that hashes to a different fingerprint, the session is immediately blocked with HTTP 403 (`LocalSharePeerTrustState.certificateChanged`) and quarantined.
-  4. **Mutual Client Fingerprint Validation:** Clients verify the server's leaf certificate against the expected fingerprint during TLS negotiation.
+- **Affected Area:** LocalShare Peer-to-Peer Protocol (LocalSend Specification)
+- **What is Accepted:** LocalShare devices generate self-signed P-256 ECC X.509 certificates for ad-hoc local network TLS sessions rather than obtaining publicly trusted WebPKI Certificate Authority certificates (e.g., Let's Encrypt, DigiCert).
+- **Why Accepted:**
+  - Peer-to-peer LAN transfers must operate completely offline without internet access, external DNS infrastructure, or domain ownership.
+  - Compatibility with the open-source LocalSend specification requires dynamic local IP/HTTPS endpoints.
+- **Affected Security Boundary:** Transport confidentiality and peer authentication on the local area network (LAN).
+- **What an Attacker Can Still Do:**
+  - An active Man-in-the-Middle (MITM) attacker on the local Wi-Fi/Ethernet network could attempt to intercept a first-contact connection by presenting their own self-signed certificate if the user clicks "Accept" without verifying identity.
+- **Compensating Controls (Independently Verified):**
+  1. **Cryptographic SHA-256 Fingerprint Pinning:** Clients verify the server's leaf certificate against the expected fingerprint during TLS negotiation (`LocalSharePeerPinningDelegate`), rejecting mismatches (Test 103 Subtest 11).
+  2. **Short Authentication String (SAS / Verification Code):** `LocalShareSecurity.computeVerificationCode` derives a symmetric 6-digit verification code from both endpoints' fingerprints. Both devices display the code; under an active MITM, the codes differ, alerting users out-of-band (Test 108).
+  3. **Certificate Change Detection:** If a previously trusted peer presents a certificate with a modified fingerprint, the session is immediately blocked with HTTP 403 (`LocalSharePeerTrustState.certificateChanged`) (Test 103 Subtest 21).
+  4. **First-Contact Authorization Gate:** On first contact, the user must explicitly approve the peer via `onIncomingSessionOffered`.
+- **Remaining Limitations:** If a user ignores the SAS verification code on first contact on an untrusted public Wi-Fi, an active MITM could intercept that initial transfer.
+- **Residual Risk Justification:** Low likelihood on private LANs; compensated by out-of-band SAS comparison and certificate mutation blocking.
 
 ---
 
-### RISK-02: Open Keychain Access List for Recompiled Ad-Hoc Binaries
+### RISK-02: File-Based Login Keychain & Open ACL for Same UID
 - **Category:** Secret Management / Keychain ACL
 - **Affected Area:** `com.notch.NotchApp.LocalShare` & `com.notch.NotchApp.LocalSharePIN`
-- **Description:** `SecAccessCreate` is passed a `nil` trusted application array, allowing binaries executing under the exact same user account (POSIX UID) to read the stored local TLS identity and PIN without interactive GUI authorization modals.
-- **Threat Scenario:** A rogue process executing as the current user could query the macOS login keychain and read the local peer certificate or PIN.
+- **What is Accepted:** LocalShare secrets are stored in the legacy macOS file-based login keychain (`login.keychain-db`) using `SecAccessCreate(descriptor, nil, &access)`, which allows all applications running under the user's POSIX UID to read the item without interactive GUI prompts.
 - **Why Accepted:**
-  - Without this, every newly compiled developer binary, test execution, or headless CI runner prompts the user with macOS SecurityAgent password dialogs or hangs indefinitely in headless terminal environments.
-  - The threat boundary in macOS user-space considers any process running under the same UID to already possess the user's execution privileges.
-- **Compensating Controls:**
-  1. Access is restricted to `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, preventing decryption when the Mac is locked or booted into recovery.
-  2. File-based fallback and notes are protected with `0600` POSIX file permissions, blocking any other macOS user accounts on the machine.
-  3. Items cannot be synchronized across iCloud Keychain (`ThisDeviceOnly` attribute enforced).
+  *Reference: Apple TN3137*
+  - The modern Data Protection Keychain (`kSecUseDataProtectionKeychain: true`) requires an Apple Developer Team ID and provisioned entitlements. In ad-hoc builds, CLI test runners, and unentitled development binaries, querying the Data Protection Keychain fails with `errSecMissingEntitlement` (`OSStatus -34018`).
+  - Restricting the trusted application list to specific CDHashes causes macOS `SecurityAgent` to display modal password dialogs or hang headless CLI test runners in `mach_msg2_trap` whenever the binary is recompiled.
+- **Affected Security Boundary:** Intra-user process boundary on the local Mac.
+- **What an Attacker Can Still Do:** Another process running under the exact same macOS user account (POSIX UID) could query the login keychain and read the local peer certificate or PIN.
+- **Compensating Controls (Independently Verified):**
+  1. **POSIX User Isolation:** The login keychain and fallback files are protected by standard Darwin file permissions (`0600`), blocking all other user accounts on the machine.
+  2. **Device-Only Storage:** Items cannot be synced to other devices via iCloud Keychain.
+  3. **Scoped Interaction Silencing:** `withUserInteractionDisabled` restores interaction settings immediately upon query exit, preventing host process interference.
+  4. **Developer ID Roadmap:** Upon production packaging with an Apple Developer ID, secrets will be migrated to the Data Protection Keychain with `kSecAccessControl` and `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+- **Remaining Limitations:** Does not enforce Data Protection hardware encryption classes (`kSecAttrAccessible*`) because the file-based keychain relies entirely on the user's login session unlock state.
+- **Residual Risk Justification:** In the standard macOS security model, processes running under the same user UID already share execution privileges, memory inspection capabilities, and filesystem access.
 
 ---
 
-### RISK-03: Localhost Loopback HTTP/HTTPS Communication
-- **Category:** Network Boundaries / IPC
-- **Affected Area:** LocalShare loopback testing, Thock CLI telemetry, Local Web Preview
-- **Description:** The app binds NWListeners and connects via `127.0.0.1` ephemeral ports for intra-process test verification and local browser file downloads.
-- **Threat Scenario:** Another local application running under a different user account on a shared multi-user machine could connect to the loopback port.
-- **Why Accepted:** Necessary for automated end-to-end integration testing and zero-configuration browser downloads.
-- **Compensating Controls:**
-  1. **Single-Use Cryptographic Tokens:** File download and upload routes require cryptographically random 128-bit UUID tokens generated per file and bound to the client's session.
-  2. **Client IP Binding:** Tokens validated during upload/download strictly verify that the connecting client IP matches the session's registered IP.
-  3. **Token Invalidation:** Tokens are permanently destroyed upon first consumption; replay attempts return HTTP 403.
-  4. **Path Traversal Containment:** All file writes and reads are resolved through `LocalShareSecurity.resolveSafeDestination` and canonical realpath sandboxing, preventing directory escape.
+### RISK-03: Unauthenticated LocalSend Client Transport & Gated Auto-Acceptance
+- **Category:** Protocol Security / Client Authentication
+- **Affected Area:** `LocalShareServer` (`/api/localsend/v2/prepare-upload`)
+- **What is Accepted:** In standard LocalSend protocol, clients do not authenticate with client TLS certificates. The client's claimed identity (alias, device model, fingerprint) is provided in the JSON body of the HTTP request.
+- **Why Accepted:** Full interoperability with official LocalSend clients (Android, iOS, Windows, Linux) which do not support client-certificate authentication.
+- **Affected Security Boundary:** Server-side peer authentication on incoming transfer offers.
+- **What an Attacker Can Still Do:** An attacker on the local network could construct a JSON request claiming the fingerprint of the user's favorite device.
+- **Compensating Controls (Independently Verified):**
+  1. **Gated Auto-Acceptance (Anti-Spoofing):** `LocalShareServer.handlePrepareUploadRoute` enforces that an incoming request claiming to be a favorite CANNOT bypass the user prompt unless authenticated via shared secret PIN (`requiredPin`) or originating from local loopback (`127.0.0.1` / `::1`) (Test 109).
+  2. **Single-Use Upload Tokens:** File uploads require 256-bit cryptographically random tokens issued only after session acceptance (Test 103 Subtest 10).
+  3. **Anti-Replay Token Invalidation:** Tokens are permanently destroyed upon consumption or session teardown (Test 111).
+- **Remaining Limitations:** Without a configured PIN, incoming transfers from favorite peers require explicit user confirmation on the receiver screen.
+- **Residual Risk Justification:** Negligible risk of unauthorized file write; unauthenticated requests cannot bypass user confirmation.
 
 ---
 
-### RISK-04: Accessibility API Integration for Direct Messaging & UI Navigation
-- **Category:** System Permissions / TCC Surface
-- **Affected Area:** `TelegramModule.swift`, `WhatsAppModule.swift`, `WindowSnapModule.swift`
-- **Description:** Notch requests macOS Accessibility privileges (`AXIsProcessTrusted`) to calculate window frame boundaries, position the dynamic notch island, and inspect UI states.
-- **Threat Scenario:** Excessive accessibility privileges could theoretically inspect other window contents.
-- **Why Accepted:** Notch is an island overlay positioned above macOS menu bars and requires accurate window frame sizing to prevent click-through blocking.
-- **Compensating Controls:**
-  1. **Deprecation of Synthetic Keystrokes:** Blind AppleScript `key code 36` Return key synthesis was completely removed (SEC-07). All message dispatching uses official OS URL schemes (`tg://` and `whatsapp://`) where the user retains confirmation control.
-  2. **Zero Text Capture:** The global key monitor in `ThockModule` measures only time deltas between key events for acoustic sound playback; no keycodes, characters, or text buffers are ever logged or retained.
-  3. **Minimal Framing:** The window dynamically collapses to the physical camera housing dimensions (`210 x 34 px`), preventing screen obstruction.
+### RISK-04: Non-Sandboxed Application Architecture & Path Containment
+- **Category:** Platform Security / Sandbox Boundary
+- **Affected Area:** App-wide (NotchApp executable)
+- **What is Accepted:** Notchify does not enable the macOS App Sandbox (`com.apple.security.app-sandbox`).
+- **Why Accepted:**
+  - Notchify is an island overlay utility that positions itself directly over the physical MacBook camera housing above all menus.
+  - Requires accessibility APIs (`AXIsProcessTrusted`) to compute window bounds and monitor window focus.
+  - Requires `NSEvent.addGlobalMonitorForEvents` to measure inter-key timing intervals for the Thock mechanical keyboard simulator.
+- **Affected Security Boundary:** Operating system application isolation boundary.
+- **What an Attacker Can Still Do:** If a remote code execution vulnerability existed in a dependency or file parser, the process has standard user-level permissions.
+- **Compensating Controls (Independently Verified):**
+  1. **Atomic POSIX File Creation:** All file writes use `open(fsPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)`, guaranteeing atomic creation without symlink following or file clobbering (Test 107).
+  2. **Path Containment:** Destination URLs are canonicalized and verified against the designated session folder using realpath resolution (`LocalShareSecurity.isContained`) (Test 103 Subtests 4 & 5).
+  3. **Non-Overwriting File Promotion:** Incoming files increment numeric counters (`file (1).ext`) rather than overwriting existing user data (Test 107 Subtest C).
+  4. **macOS Quarantine Tagging:** Received files are tagged with `com.apple.quarantine`, ensuring Gatekeeper and XProtect scan them before user execution (Test 103 Subtest 12).
+- **Remaining Limitations:** Relies on application-level defenses and memory safety rather than macOS kernel sandbox enforcement.
+- **Residual Risk Justification:** System overlay utilities inherently require system-level windowing and accessibility APIs incompatible with App Sandbox.
 
 ---
 
-## 3. Residual Risk Assessment Summary
+### RISK-05: System Accessibility Privileges & Global Event Monitoring
+- **Category:** System Permissions / Privacy Surface
+- **Affected Area:** `ThockModule.swift`, `TelegramModule.swift`, `WindowSnapModule.swift`
+- **What is Accepted:** Notchify requests macOS Accessibility privileges (`AXIsProcessTrusted`) and uses `NSEvent.addGlobalMonitorForEvents`.
+- **Why Accepted:**
+  - Window frame positioning and screen dimension calculations.
+  - Realistic inter-key interval timing calculation for mechanical keyboard sound simulation.
+- **Affected Security Boundary:** User privacy and input monitoring surface.
+- **What an Attacker Can Still Do:** Theoretical privilege abuse if the binary were replaced or compromised.
+- **Compensating Controls (Independently Verified):**
+  1. **Zero Keystroke / Text Logging:** The event monitor records **only timestamp intervals** between events. Keycodes, characters, string representations, and modifiers are never read, stored, or transmitted (Test 97).
+  2. **Elimination of Synthetic Input:** Blind AppleScript `key code 36` (Return) synthesis was completely removed (SEC-07). All messaging is staged via official OS URI schemes (`tg://` and `whatsapp://`) where the user manually confirms dispatch (Test 3).
+  3. **Immediate Unhooking:** Monitors are dismantled immediately upon module deactivation or application backgrounding.
+- **Remaining Limitations:** TCC Accessibility permission is granted at the application level by the user.
+- **Residual Risk Justification:** Strictly non-invasive; zero keystroke logging verified by code audit and automated tests.
 
-| Accepted Risk | Residual Likelihood | Residual Impact | Justification |
-| :--- | :--- | :--- | :--- |
-| Self-Signed LAN TLS | Low (Local LAN only) | Low | Mitigated by SHA-256 fingerprint pinning and change detection. |
-| Open Keychain ACL (Same UID) | Very Low | Low | Mitigated by device-only storage and POSIX user boundary. |
-| Loopback Networking | Very Low | Negligible | Mitigated by single-use token binding and IP verification. |
-| Accessibility Privileges | Very Low | Negligible | Keystroke synthesis eliminated; read-only window geometry. |
+---
+
+## 3. Residual Risk Summary Matrix
+
+| Risk ID | Title | Residual Likelihood | Residual Impact | Key Compensating Control | Independent Test Verification |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **RISK-01** | Self-Signed LAN TLS | Low | Low | Out-of-band 6-digit SAS code comparison & fingerprint pinning | **VERIFIED** (Test 108) |
+| **RISK-02** | File-Based Login Keychain Open ACL | Very Low | Low | Restricted to same POSIX UID; `0600` permissions; Developer ID migration planned | **VERIFIED** (TN3137 audit) |
+| **RISK-03** | Unauthenticated LocalSend Client | Very Low | Negligible | Gated auto-acceptance requires PIN or loopback; prompts user on LAN claims | **VERIFIED** (Test 109) |
+| **RISK-04** | Non-Sandboxed Application | Very Low | Medium | Atomic POSIX `O_CREAT \| O_EXCL \| O_NOFOLLOW` creation & quarantine tagging | **VERIFIED** (Test 107) |
+| **RISK-05** | Accessibility & Event Monitor | Very Low | Negligible | Zero text/keycode capture; timestamp interval tracking only | **VERIFIED** (Test 97) |

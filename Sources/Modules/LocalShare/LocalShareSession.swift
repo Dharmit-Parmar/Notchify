@@ -247,11 +247,22 @@ public final class LocalShareSession: @unchecked Sendable {
     
     // MARK: - Active Writer Tracking (Per-File Synchronized Collection)
     
+    /// Computes the out-of-band 6-digit Short Authentication String (SAS) for visual verification
+    public var verificationCode: String {
+        return LocalShareSecurity.computeVerificationCode(
+            localFingerprint: LocalShareIdentityManager.shared.certificateFingerprint,
+            peerFingerprint: peerInfo.fingerprint
+        )
+    }
+    
     public func registerActiveWriter(_ writer: LocalShareFileStreamWriter, for fileId: String) throws {
         lock.lock()
         defer { lock.unlock() }
         guard state.isActive else {
             throw LocalShareError.sessionCancelled
+        }
+        if activeWriters.count >= LocalShareSecurity.maxConcurrentWriters {
+            throw LocalShareError.serverError("Concurrent upload writer limit reached (\(LocalShareSecurity.maxConcurrentWriters))")
         }
         if activeWriters[fileId] != nil {
             throw LocalShareError.serverError("Upload writer already active for fileId \(fileId)")

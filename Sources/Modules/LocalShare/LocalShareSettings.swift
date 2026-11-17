@@ -370,21 +370,33 @@ public final class LocalShareSettings: ObservableObject {
         return ""
     }
     
-    private static func loadPinFromKeychain(service: String, account: String) -> String {
-        SecKeychainSetUserInteractionAllowed(false)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecSuccess, let data = item as? Data, let str = String(data: data, encoding: .utf8) {
-            return str
+    @discardableResult
+    private static func withUserInteractionDisabled<T>(_ body: () -> T) -> T {
+        var original: DarwinBoolean = true
+        _ = SecKeychainGetUserInteractionAllowed(&original)
+        _ = SecKeychainSetUserInteractionAllowed(false)
+        defer {
+            _ = SecKeychainSetUserInteractionAllowed(original.boolValue)
         }
-        return ""
+        return body()
+    }
+    
+    private static func loadPinFromKeychain(service: String, account: String) -> String {
+        return withUserInteractionDisabled {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+            if status == errSecSuccess, let data = item as? Data, let str = String(data: data, encoding: .utf8) {
+                return str
+            }
+            return ""
+        }
     }
     
     private func deletePinFromKeychain() {

@@ -164,6 +164,29 @@ public final class LocalShareServer: @unchecked Sendable {
     }
     
     private let rateLimiter = LocalShareRateLimiter(maxRequests: 60, windowDuration: 1.0)
+    private var activeConnectionCount: Int = 0
+    
+    public var currentActiveConnections: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return activeConnectionCount
+    }
+    
+    private func incrementConnectionCount() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if activeConnectionCount >= LocalShareSecurity.maxSimultaneousConnections {
+            return false
+        }
+        activeConnectionCount += 1
+        return true
+    }
+    
+    private func decrementConnectionCount() {
+        lock.lock()
+        defer { lock.unlock() }
+        activeConnectionCount = max(0, activeConnectionCount - 1)
+    }
     
     public init() {}
     
@@ -251,6 +274,7 @@ public final class LocalShareServer: @unchecked Sendable {
         let activeListener = self.listener
         self.listener = nil
         self.state = .stopped
+        self.activeConnectionCount = 0
         let callback = onStateChanged
         let observers = Array(stateObservers.values)
         lock.unlock()
@@ -307,7 +331,20 @@ public final class LocalShareServer: @unchecked Sendable {
         }
     }
     
-    // MARK: - Connection & Request Handling
+    // MARK: - Thread-Safe Single-Execution Flag
+private final class LocalShareAtomicFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+    func testAndSet() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if fired { return false }
+        fired = true
+        return true
+    }
+}
+
+// MARK: - Connection & Request Handling
     
     private final class LocalShareTimeoutBox: @unchecked Sendable {
         private let lock = NSLock()
@@ -416,6 +453,19 @@ public final class LocalShareServer: @unchecked Sendable {
     }
     
     private func handleIncomingConnection(_ connection: NWConnection) {
+        guard incrementConnectionCount() else {
+            NSLog("[LocalShareServer] Max simultaneous connections reached (%d). Dropping connection.", LocalShareSecurity.maxSimultaneousConnections)
+            connection.cancel()
+            return
+        }
+        
+        let decremented = LocalShareAtomicFlag()
+        let onTerminal: @Sendable () -> Void = { [weak self] in
+            if decremented.testAndSet() {
+                self?.decrementConnectionCount()
+            }
+        }
+        
         let endpointDesc = "\(connection.endpoint)"
         connection.stateUpdateHandler = { state in
             switch state {
@@ -429,8 +479,10 @@ public final class LocalShareServer: @unchecked Sendable {
                 NSLog("[LocalShareServer] Connection to %@ waiting: %@", endpointDesc, String(describing: error))
             case .failed(let error):
                 NSLog("[LocalShareServer] Connection to %@ failed: %@", endpointDesc, String(describing: error))
+                onTerminal()
             case .cancelled:
                 NSLog("[LocalShareServer] Connection to %@ cancelled", endpointDesc)
+                onTerminal()
             @unknown default:
                 NSLog("[LocalShareServer] Connection to %@ unknown state", endpointDesc)
             }
@@ -507,7 +559,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 
                 timeoutBox?.cancel()
                 self.routeRequest(connection: connection, request: request)
-            } else if buffer.count > 65536 {
+            } else if buffer.count > LocalShareSecurity.maxHeaderSize {
                 // Safeguard against unbounded slowloris header accumulation
                 timeoutBox?.cancel()
                 self.sendRawResponse(connection: connection, statusCode: 431, reason: "Request Header Fields Too Large", body: nil)
@@ -741,12 +793,19 @@ public final class LocalShareServer: @unchecked Sendable {
         }
         
         // Acceptance Gate: Auto-accept verified favorites or route through interactive prompt gate
+        // Cryptographic proof requirement: An unauthenticated JSON fingerprint from an external LAN host
+        // MUST NOT bypass the user prompt without shared PIN authentication or loopback trust.
+        let normClientIP = LocalShareSecurity.normalizeIP(request.remoteIP)
+        let isLoopback = normClientIP == "127.0.0.1" || normClientIP == "::1" || normClientIP.isEmpty
+        let isPinAuthenticated = (requiredPin != nil && !requiredPin!.isEmpty && request.queryParams["pin"] == requiredPin)
+        let isCryptographicallyVerified = isLoopback || isPinAuthenticated
+        
         let favSet = favoriteFingerprints
-        let isFav = autoAcceptFavorites && (
-            favSet.contains(senderFp) ||
+        let isClaimingFavorite = favSet.contains(senderFp) ||
             favSet.contains(senderFp.lowercased()) ||
             trustedPeers[senderFp.lowercased()]?.trustState == .trusted
-        )
+        
+        let isFav = autoAcceptFavorites && isClaimingFavorite && isCryptographicallyVerified
         
         if isFav {
             session.transition(to: .accepted)

@@ -259,6 +259,7 @@ public enum LocalShareError: LocalizedError, Sendable, Equatable {
     case sessionNotFound
     case tokenMismatch
     case peerCertificateMismatch(expected: String, found: String)
+    case fileExists
     case serverError(String)
     case connectionFailed(String)
     
@@ -294,6 +295,8 @@ public enum LocalShareError: LocalizedError, Sendable, Equatable {
             return "Invalid transfer token or authorization"
         case .peerCertificateMismatch(let expected, _):
             return "Peer certificate verification failed (expected fingerprint \(expected.prefix(8))...)"
+        case .fileExists:
+            return "Destination file already exists on disk"
         case .serverError(let msg):
             return "Server error: \(msg)"
         case .connectionFailed(let msg):

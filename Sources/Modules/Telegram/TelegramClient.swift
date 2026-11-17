@@ -1,7 +1,27 @@
 import Foundation
 
+// MARK: - Telegram Redirect Protection Delegate
+private final class TelegramRedirectTaskDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let newURL = request.url,
+              newURL.scheme == "https",
+              newURL.host?.lowercased() == "api.telegram.org" else {
+            // Drop redirect to prevent bot token forwarding to third-party hosts
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
+    }
+}
+
 /// Dedicated ephemeral HTTP client for Telegram Bot API operations (SEC-B-1).
-/// Enforces ephemeral URLSession with zero disk caching, zero cookies, and zero credential storage.
+/// Enforces ephemeral URLSession with zero disk caching, zero cookies, zero credential storage, and strict redirect isolation.
 /// Strictly scrubs authentication tokens and sensitive endpoints from all error descriptions.
 public final class TelegramClient: @unchecked Sendable {
     public static let shared = TelegramClient()
@@ -19,7 +39,8 @@ public final class TelegramClient: @unchecked Sendable {
             config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             config.timeoutIntervalForRequest = 8.0
             config.timeoutIntervalForResource = 15.0
-            self.session = URLSession(configuration: config)
+            let delegate = TelegramRedirectTaskDelegate()
+            self.session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         }
     }
     

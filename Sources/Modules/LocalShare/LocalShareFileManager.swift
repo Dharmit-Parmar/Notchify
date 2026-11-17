@@ -70,14 +70,35 @@ public final class LocalShareFileManager: @unchecked Sendable {
         fileName: String,
         sessionDirectory: URL
     ) throws -> LocalShareFileStreamWriter {
-        guard LocalShareSecurity.isContained(fileName: fileName, within: sessionDirectory) else {
+        let sanitized = LocalShareSecurity.sanitizeFilename(fileName)
+        guard LocalShareSecurity.isContained(fileName: sanitized, within: sessionDirectory) else {
             throw LocalShareError.invalidURL
         }
         
-        let targetURL = LocalShareSecurity.uniqueDestinationURL(for: fileName, in: sessionDirectory)
-        return try LocalShareFileStreamWriter(destinationURL: targetURL)
+        let baseName = (sanitized as NSString).deletingPathExtension
+        let ext = (sanitized as NSString).pathExtension
+        
+        // Atomically claim the destination file using O_CREAT | O_EXCL | O_NOFOLLOW
+        // If a file or symlink exists at candidate, try (1), (2), etc.
+        for counter in 0...9999 {
+            let candidateName: String
+            if counter == 0 {
+                candidateName = sanitized
+            } else if ext.isEmpty {
+                candidateName = "\(baseName) (\(counter))"
+            } else {
+                candidateName = "\(baseName) (\(counter)).\(ext)"
+            }
+            let candidateURL = sessionDirectory.appendingPathComponent(candidateName)
+            do {
+                return try LocalShareFileStreamWriter(destinationURL: candidateURL)
+            } catch LocalShareError.fileExists {
+                continue
+            }
+        }
+        throw LocalShareError.serverError("Unable to acquire unique non-colliding destination file")
     }
-    
+
     // MARK: - Partial File & Session Cleanup
     
     /// Deletes a specific file if present on disk.
@@ -99,12 +120,32 @@ public final class LocalShareFileManager: @unchecked Sendable {
         }
         
         for file in files {
-            let destURL = LocalShareSecurity.uniqueDestinationURL(for: file.lastPathComponent, in: baseDir)
-            do {
-                try fm.moveItem(at: file, to: destURL)
-                LocalShareFileManager.applyQuarantineAttribute(to: destURL)
-                promotedURLs.append(destURL)
-            } catch {
+            let baseName = file.deletingPathExtension().lastPathComponent
+            let ext = file.pathExtension
+            var moved = false
+            for counter in 0...9999 {
+                let candidateName: String
+                if counter == 0 {
+                    candidateName = file.lastPathComponent
+                } else if ext.isEmpty {
+                    candidateName = "\(baseName) (\(counter))"
+                } else {
+                    candidateName = "\(baseName) (\(counter)).\(ext)"
+                }
+                let destURL = baseDir.appendingPathComponent(candidateName)
+                if !fm.fileExists(atPath: destURL.path) {
+                    do {
+                        try fm.moveItem(at: file, to: destURL)
+                        LocalShareFileManager.applyQuarantineAttribute(to: destURL)
+                        promotedURLs.append(destURL)
+                        moved = true
+                        break
+                    } catch {
+                        continue
+                    }
+                }
+            }
+            if !moved {
                 promotedURLs.append(file)
             }
         }
@@ -159,18 +200,27 @@ public final class LocalShareFileStreamWriter: @unchecked Sendable {
     
     public init(destinationURL: URL) throws {
         self.destinationURL = destinationURL
-        let fm = FileManager.default
         
-        // Create empty file
-        if !fm.createFile(atPath: destinationURL.path, contents: nil, attributes: [.posixPermissions: 0o600]) {
-            throw LocalShareError.serverError("Unable to initialize destination file on disk")
+        var fd: Int32 = -1
+        let errCode = destinationURL.withUnsafeFileSystemRepresentation { fsPath -> Int32 in
+            guard let fsPath = fsPath else { return EINVAL }
+            // O_WRONLY: Write only
+            // O_CREAT: Create file if missing
+            // O_EXCL: Fail atomically with EEXIST if file already exists (anti-clobber, anti-race)
+            // O_NOFOLLOW: Fail with EEXIST or ELOOP if the path is a symbolic link (anti-symlink traversal)
+            // 0o600: Restrict POSIX mode atomically at inode creation
+            fd = open(fsPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+            return fd >= 0 ? 0 : errno
         }
         
-        guard let handle = try? FileHandle(forWritingTo: destinationURL) else {
-            try? fm.removeItem(at: destinationURL)
-            throw LocalShareError.serverError("Failed to open file handle for writing")
+        if errCode != 0 || fd < 0 {
+            if errCode == EEXIST || errCode == ELOOP {
+                throw LocalShareError.fileExists
+            }
+            throw LocalShareError.serverError("Unable to initialize destination file on disk (errno \(errCode))")
         }
-        self.fileHandle = handle
+        
+        self.fileHandle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
     
     /// Writes a chunk of data directly to disk, updating the incremental SHA-256 checksum.
