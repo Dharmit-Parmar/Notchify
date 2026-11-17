@@ -89,6 +89,26 @@ public final class NotchShellCoordinator: ObservableObject {
         panel?.updateFrame(for: .expanded, animated: animated && !DesignSystem.reduceMotion)
     }
     
+    public var activeContentHeight: CGFloat {
+        if let active = ModuleRegistry.shared.activeModule {
+            return active.preferredContentHeight
+        } else {
+            return SettingsStore.shared.notchHeight
+        }
+    }
+    
+    public func onActiveModuleChanged() {
+        guard state == .expanded else { return }
+        
+        // If Quick Controls was only in hover preview (not pinned), dismiss preview on tab switch
+        if !SettingsStore.shared.quickControlsPinned && QuickControlsManager.shared.state == .hoverPreview {
+            QuickControlsManager.shared.state = .closed
+        }
+        
+        objectWillChange.send()
+        panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
+    }
+    
     public var currentExpandedLayout: ExpandedLayout {
         let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
         let geom = NotchGeometry.current(for: screen)
@@ -96,7 +116,7 @@ public final class NotchShellCoordinator: ObservableObject {
         return NotchGeometry.expandedLayout(
             geometry: geom,
             notchWidth: store.notchWidth,
-            notchHeight: store.notchHeight,
+            notchHeight: activeContentHeight,
             attachment: store.positionAttachment,
             horizontalOffset: store.horizontalNotchOffset,
             verticalOffset: store.verticalNotchOffset,

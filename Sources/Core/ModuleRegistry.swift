@@ -9,8 +9,18 @@ public final class ModuleRegistry: ObservableObject {
     @Published public var moduleOrder: [String] = []
     
     // Hoverful & Pinning State Machine (nil = Home Dashboard)
-    @Published public var hoveredModuleId: String? = nil
-    @Published public var pinnedModuleId: String? = nil
+    @Published public var hoveredModuleId: String? = nil {
+        didSet {
+            guard hoveredModuleId != oldValue else { return }
+            NotchShellCoordinator.shared.onActiveModuleChanged()
+        }
+    }
+    @Published public var pinnedModuleId: String? = nil {
+        didSet {
+            guard pinnedModuleId != oldValue else { return }
+            NotchShellCoordinator.shared.onActiveModuleChanged()
+        }
+    }
     private var suppressedHoverId: String? = nil
     private var tabHoverWorkItem: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()

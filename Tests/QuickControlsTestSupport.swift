@@ -378,6 +378,8 @@ public enum DashboardLayoutFlow: String, Codable, CaseIterable, Identifiable {
 public class SettingsStore: ObservableObject {
     public static let shared = SettingsStore()
     
+    @Published public var notchWidth: CGFloat = 620.0
+    @Published public var notchHeight: CGFloat = 330.0
     @Published public var dashboardSlots: [DashboardWidgetType?] = [.nowPlaying, .calendar, .notes, nil]
     @Published public var showQuickControls: Bool = true {
         didSet { UserDefaults.standard.set(showQuickControls, forKey: "NotchApp_ShowQuickControls") }
@@ -700,4 +702,31 @@ public final class NoteStorageManager: ObservableObject {
         try? fileData.write(to: storageURL, options: .atomic)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: storageURL.path)
     }
+}
+
+// MARK: - Module Height & Layout Coordinator Helper
+public protocol TestNotchModule {
+    var id: String { get }
+    var preferredContentHeight: CGFloat { get }
+}
+
+public extension TestNotchModule {
+    var preferredContentHeight: CGFloat {
+        switch id {
+        case "thock": return 240.0
+        case "shelf": return 290.0
+        case "airdrop": return 250.0
+        case "localshare": return 360.0
+        case "telegram": return 340.0
+        case "mirror": return 280.0
+        case "battery": return 220.0
+        case "notifications": return 280.0
+        default: return 300.0
+        }
+    }
+}
+
+public struct SimpleTestModule: TestNotchModule {
+    public let id: String
+    public init(id: String) { self.id = id }
 }

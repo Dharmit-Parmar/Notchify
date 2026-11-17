@@ -9,6 +9,7 @@ public protocol NotchModule: AnyObject, ObservableObject {
     var iconName: String { get }
     var isEnabled: Bool { get set }
     var themeColor: Color { get }
+    var preferredContentHeight: CGFloat { get }
     
     func start()
     func stop()
@@ -28,6 +29,20 @@ public extension NotchModule {
         case "mirror": return Color(red: 0.98, green: 0.42, blue: 0.65) // Camera Rose
         case "notifications": return Color(red: 0.98, green: 0.56, blue: 0.24) // Bell Orange
         default: return DesignSystem.accentColor
+        }
+    }
+    
+    var preferredContentHeight: CGFloat {
+        switch id {
+        case "thock": return 240.0
+        case "shelf": return 290.0
+        case "airdrop": return 250.0
+        case "localshare": return 360.0
+        case "telegram": return 340.0
+        case "mirror": return 280.0
+        case "battery": return 220.0
+        case "notifications": return 280.0
+        default: return 300.0
         }
     }
 }

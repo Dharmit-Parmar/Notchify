@@ -91,6 +91,21 @@ public struct NotchRootView: View {
                                     .allowsHitTesting(false)
                                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: coordinator.isIdleDimmed)
                             )
+                        
+                        // Shared Global Quick Controls Panel (Rendered beneath whichever module is active)
+                        if store.showQuickControls && quickControls.state.isPanelVisible {
+                            QuickControlsSectionView()
+                                .padding(.horizontal, store.contentHorizontalPadding)
+                                .padding(.bottom, 6)
+                                .transition(
+                                    reduceMotion
+                                    ? .opacity
+                                    : .asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .top)),
+                                        removal: .opacity.combined(with: .move(edge: .top))
+                                    )
+                                )
+                        }
                     }
                     .frame(width: expandedSize.width, alignment: .top)
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -298,6 +313,39 @@ public struct NotchRootView: View {
             }
             
             Spacer()
+            
+            // Global Quick Controls Entry Point (Accessible across Dashboard, Thock, Shelf, AirDrop, LocalShare)
+            if store.showQuickControls {
+                Button(action: {
+                    FeedbackManager.playClick()
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                        if quickControls.state.isPanelVisible {
+                            quickControls.state = .closed
+                            if store.quickControlsPinned {
+                                store.quickControlsPinned = false
+                            }
+                        } else {
+                            quickControls.state = store.quickControlsPinned ? .pinned : .hoverPreview
+                        }
+                    }
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(quickControls.state.isPanelVisible ? DesignSystem.accentColor.opacity(0.20) : DesignSystem.structureColor)
+                            .frame(width: 24, height: 24)
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 10, weight: quickControls.state.isPanelVisible ? .bold : .medium))
+                            .foregroundColor(quickControls.state.isPanelVisible ? DesignSystem.accentColor : Color.white.opacity(0.75))
+                    }
+                    .overlay(
+                        Circle()
+                            .strokeBorder(quickControls.state.isPanelVisible ? DesignSystem.accentColor.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 0.8)
+                    )
+                }
+                .buttonStyle(.spring)
+                .help(quickControls.state.isPanelVisible ? "Close Quick Controls" : "Open Quick Controls (Volume, Brightness, Keyboard)")
+                .accessibilityLabel("Quick Controls, currently \(quickControls.state.isPanelVisible ? "Open" : "Closed")")
+            }
             
             // Pin / Lock Toggle with Spring Feedback
             Button(action: {

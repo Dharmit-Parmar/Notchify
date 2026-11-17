@@ -224,11 +224,6 @@ public struct ModularDashboardView: View {
                 }
             }
             .frame(height: max(100.0, store.notchHeight - 96.0))
-            
-            // 2. Dedicated Quick Controls Area (Beneath Dashboard Grid)
-            if store.showQuickControls {
-                QuickControlsSectionView()
-            }
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .transition(.opacity.combined(with: .scale(scale: 0.99)))

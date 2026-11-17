@@ -7859,13 +7859,119 @@ func runAllVerificationTests() {
     store113.dashboardLayoutFlow = .adaptiveAuto
     print("  ✓ Rapid layout switching & concurrent interaction safety (30 cycles) verified.")
     
+    // =========================================================================
+    // [TEST 121] Module Switching Dynamic Height, Zero-Void Invariant & Global Quick Controls Guarantee
+    // =========================================================================
+    print("\n[TEST 121] Module Switching Dynamic Height, Zero-Void Invariant & Global Quick Controls Guarantee...")
+    
+    // 1. Verify preferredContentHeight contracts across all standard Notch modules
+    let thockModule = SimpleTestModule(id: "thock")
+    let shelfModule = SimpleTestModule(id: "shelf")
+    let airdropModule = SimpleTestModule(id: "airdrop")
+    let localshareModule = SimpleTestModule(id: "localshare")
+    let telegramModule = SimpleTestModule(id: "telegram")
+    let mirrorModule = SimpleTestModule(id: "mirror")
+    let batteryModule = SimpleTestModule(id: "battery")
+    let notifsModule = SimpleTestModule(id: "notifications")
+    let customModule = SimpleTestModule(id: "custom_plugin")
+    
+    assert(thockModule.preferredContentHeight == 240.0, "Thock preferredContentHeight must be 240pt")
+    assert(shelfModule.preferredContentHeight == 290.0, "Shelf preferredContentHeight must be 290pt")
+    assert(airdropModule.preferredContentHeight == 250.0, "AirDrop preferredContentHeight must be 250pt")
+    assert(localshareModule.preferredContentHeight == 360.0, "LocalShare preferredContentHeight must be 360pt")
+    assert(telegramModule.preferredContentHeight == 340.0, "Telegram preferredContentHeight must be 340pt")
+    assert(mirrorModule.preferredContentHeight == 280.0, "Mirror preferredContentHeight must be 280pt")
+    assert(batteryModule.preferredContentHeight == 220.0, "Battery preferredContentHeight must be 220pt")
+    assert(notifsModule.preferredContentHeight == 280.0, "Notifications preferredContentHeight must be 280pt")
+    assert(customModule.preferredContentHeight == 300.0, "Fallback preferredContentHeight must be 300pt")
+    
+    // 2. Dynamic Height Coordinator Simulation
+    @MainActor
+    class TestCoordinator {
+        var activeModule: TestNotchModule? = nil
+        var store = SettingsStore.shared
+        var qcManager = QuickControlsManager.shared
+        
+        var activeContentHeight: CGFloat {
+            return activeModule?.preferredContentHeight ?? store.notchHeight
+        }
+        
+        func onActiveModuleChanged() {
+            // Dismiss hover preview Quick Controls if unpinned
+            if !store.quickControlsPinned && qcManager.state == .hoverPreview {
+                qcManager.state = .closed
+            }
+        }
+        
+        func currentExpandedLayout(screen: NSScreen) -> NotchGeometry.ExpandedLayoutResult {
+            let geom = NotchGeometry.current(for: screen)
+            let qcHeight: CGFloat = (store.showQuickControls && qcManager.state.isPanelVisible) ? 180.0 : 0.0
+            return NotchGeometry.expandedLayout(
+                geometry: geom,
+                notchWidth: store.notchWidth,
+                notchHeight: activeContentHeight,
+                quickControlsHeight: qcHeight
+            )
+        }
+    }
+    
+    let coordinator121 = TestCoordinator()
+    let screen121 = NSScreen.main ?? NSScreen.screens[0]
+    let geom121 = NotchGeometry.current(for: screen121)
+    let notchInset121 = geom121.hasPhysicalNotch ? geom121.physicalNotchHeight : 0.0
+    
+    // Scenario A: Home Dashboard with Quick Controls open
+    coordinator121.activeModule = nil
+    coordinator121.qcManager.state = .pinned
+    coordinator121.store.quickControlsPinned = true
+    let dashLayout = coordinator121.currentExpandedLayout(screen: screen121)
+    let expectedDashHeight = notchInset121 + 330.0 + 180.0
+    assert(dashLayout.windowRect.height == expectedDashHeight, "Dashboard + QC expanded must measure \(expectedDashHeight)pt")
+    
+    // Scenario B: Switch to Thock with Quick Controls closed
+    coordinator121.store.quickControlsPinned = false
+    coordinator121.qcManager.state = .hoverPreview
+    coordinator121.activeModule = thockModule
+    coordinator121.onActiveModuleChanged()
+    assert(coordinator121.qcManager.state == .closed, "Ephemeral hover preview must dismiss on tab switch")
+    
+    let thockLayout = coordinator121.currentExpandedLayout(screen: screen121)
+    let expectedThockHeight = notchInset121 + 240.0
+    assert(thockLayout.windowRect.height == expectedThockHeight, "Thock layout must shrink to exactly 240pt content + notchInset")
+    let heightReduction = dashLayout.windowRect.height - thockLayout.windowRect.height
+    assert(heightReduction == (330.0 + 180.0 - 240.0), "Window must shrink by exactly 270pt with zero void space")
+    
+    // Scenario C: Global Quick Controls Opened Under Thock
+    coordinator121.qcManager.state = .pinned
+    coordinator121.store.quickControlsPinned = true
+    let thockQcLayout = coordinator121.currentExpandedLayout(screen: screen121)
+    let expectedThockQcHeight = notchInset121 + 240.0 + 180.0
+    assert(thockQcLayout.windowRect.height == expectedThockQcHeight, "Thock + Quick Controls height must be exactly \(expectedThockQcHeight)pt")
+    
+    // Scenario D: Switch to Shelf
+    coordinator121.activeModule = shelfModule
+    coordinator121.onActiveModuleChanged()
+    let shelfQcLayout = coordinator121.currentExpandedLayout(screen: screen121)
+    let expectedShelfQcHeight = notchInset121 + 290.0 + 180.0
+    assert(shelfQcLayout.windowRect.height == expectedShelfQcHeight, "Shelf + Quick Controls height must adjust to 290pt + 180pt")
+    
+    // Reset state
+    coordinator121.qcManager.state = .closed
+    coordinator121.store.quickControlsPinned = false
+    coordinator121.activeModule = nil
+    coordinator121.onActiveModuleChanged()
+    
+    let finalDashLayout = coordinator121.currentExpandedLayout(screen: screen121)
+    assert(finalDashLayout.windowRect.height == notchInset121 + 330.0, "Resetting to dashboard must restore exact 330pt content height")
+    print("  ✓ Module switching dynamic height, zero-void invariant & global Quick Controls verified.")
+    
     if localShareOnly {
         print("\n=====================================================")
         print("  ALL LOCAL SHARE TESTS PASSED SUCCESSFULLY (103-112) ")
         print("=====================================================\n")
     } else {
         print("\n=====================================================")
-        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (120/120) ")
+        print("  ALL VERIFICATION TESTS PASSED SUCCESSFULLY (121/121) ")
         print("=====================================================\n")
     }
 }

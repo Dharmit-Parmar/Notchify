@@ -92,7 +92,7 @@ public struct NotchGeometry {
             contentTopPadding = 10.0
         }
         
-        let contentHeight = max(200.0, notchHeight + quickControlsHeight)
+        let contentHeight = max(180.0, notchHeight + quickControlsHeight)
         let totalHeight = notchInset + contentHeight
         
         // Center X: Anchored to hardware notch center + user offset, clamped to screen bounds
