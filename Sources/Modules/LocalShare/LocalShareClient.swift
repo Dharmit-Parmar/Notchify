@@ -473,17 +473,17 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
 }
 
 // MARK: - Peer Certificate Fingerprint Pinning URLSessionDelegate
-private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
-    private let expectedFingerprint: String
+public final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate, Sendable {
+    public let expectedFingerprint: String
     private let onProgress: (@Sendable (Double) -> Void)?
     
-    init(expectedFingerprint: String, onProgress: (@Sendable (Double) -> Void)? = nil) {
+    public init(expectedFingerprint: String, onProgress: (@Sendable (Double) -> Void)? = nil) {
         self.expectedFingerprint = expectedFingerprint
         self.onProgress = onProgress
         super.init()
     }
     
-    func urlSession(
+    public func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didSendBodyData bytesSent: Int64,
@@ -495,7 +495,7 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         onProgress?(fraction)
     }
     
-    func urlSession(
+    public func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         willPerformHTTPRedirection response: HTTPURLResponse,
@@ -506,7 +506,7 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         completionHandler(nil)
     }
     
-    func urlSession(
+    public func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
@@ -514,7 +514,7 @@ private final class LocalSharePeerPinningDelegate: NSObject, URLSessionDelegate,
         handleAuthenticationChallenge(challenge, completionHandler: completionHandler)
     }
     
-    func urlSession(
+    public func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didReceive challenge: URLAuthenticationChallenge,

@@ -4,6 +4,34 @@ import CryptoKit
 import Network
 import LocalAuthentication
 
+// MARK: - Reentrant Thread-Safe Keychain Interaction Governor
+final class KeychainInteractionGovernor: @unchecked Sendable {
+    static let shared = KeychainInteractionGovernor()
+    private let lock = NSRecursiveLock()
+    private var depth = 0
+    private var originalState: DarwinBoolean = true
+
+    func withInteractionDisabled<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if depth == 0 {
+            _ = SecKeychainGetUserInteractionAllowed(&originalState)
+            _ = SecKeychainSetUserInteractionAllowed(false)
+        }
+        depth += 1
+
+        defer {
+            depth -= 1
+            if depth == 0 {
+                _ = SecKeychainSetUserInteractionAllowed(originalState.boolValue)
+            }
+        }
+
+        return try body()
+    }
+}
+
 // MARK: - LocalShare ASN.1 DER Encoding Helpers
 private enum ASN1 {
     static func length(_ length: Int) -> Data {
@@ -154,13 +182,7 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
     
     @discardableResult
     private func withUserInteractionDisabled<T>(_ body: () -> T) -> T {
-        var original: DarwinBoolean = true
-        _ = SecKeychainGetUserInteractionAllowed(&original)
-        _ = SecKeychainSetUserInteractionAllowed(false)
-        defer {
-            _ = SecKeychainSetUserInteractionAllowed(original.boolValue)
-        }
-        return body()
+        return KeychainInteractionGovernor.shared.withInteractionDisabled(body)
     }
     
     private func loadOrGenerateIdentityLocked() -> (Data, SecIdentity?) {

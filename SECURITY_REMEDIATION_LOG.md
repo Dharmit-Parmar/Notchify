@@ -3,7 +3,7 @@
 **Branch:** `fix/security-remediation`  
 **Base Commit:** `81c89a0` (Merged Stage 4 LocalShare implementation)  
 **Execution Timestamp:** 2026-11-17  
-**Status:** ALL FIXES IMPLEMENTED, INDEPENDENTLY VERIFIED & 106/106 TESTS PASSING (3 CONSECUTIVE RUNS)  
+**Status:** ALL FIXES IMPLEMENTED, INDEPENDENTLY VERIFIED & 112/112 TESTS PASSING (3 CONSECUTIVE RUNS)  
 
 ---
 
@@ -178,3 +178,42 @@
   - Added Test 111: Token Anti-Replay & Concurrency Writer Quota Enforcement.
   - Added Test 112: Extended Soak & Memory / File Descriptor Stability (50 Sequential Transfers).
 - **Verification:** Full suite passed with 112/112 tests across 3 consecutive clean runs (Exit Code 0).
+
+### Commit Step 19: Stage 4.1 Final Security Claim Validation & Residual Hardening
+- **Files Modified:**
+  - `Sources/Modules/LocalShare/LocalShareClient.swift`
+  - `Sources/Modules/LocalShare/LocalShareFileManager.swift`
+  - `Sources/Modules/LocalShare/LocalShareIdentity.swift`
+  - `Sources/Modules/LocalShare/LocalShareProtocol.swift`
+  - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
+  - `Sources/Modules/LocalShare/LocalShareServer.swift`
+  - `Sources/Modules/LocalShare/LocalShareSettings.swift`
+  - `Tests/VerificationTests.swift`
+  - `SECURITY_ARCHITECTURE_NOTES.md`
+  - `SECURITY_ACCEPTED_RISKS.md`
+  - `SECURITY_FINDINGS_REGISTER.md`
+  - `SECURITY_VERIFICATION_REPORT.md`
+- **Changes Applied:**
+  1. **TN3137 Keychain ACL Semantics & Thread Safety:**
+     - Inspected Apple SDK `<Security/SecAccess.h>`: established that `SecAccessCreate(descriptor, nil, &access)` sets an ACL containing *only the creating binary's code designated requirement* (`trustedlist == NULL` defaults to just the application creating the item), disproving misleading claims that it authorizes arbitrary processes under the same UID.
+     - Confirmed that independently compiled ad-hoc binaries fail with `errSecAuthFailed` (`OSStatus -25293`) when interaction is suppressed. Documented Developer ID signing requirements for seamless keychain access across app updates.
+     - Removed invalid claims that the file-based login keychain (`login.keychain-db`) enforces `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Documented that file-based keychain protection is derived exclusively from the macOS user login session master key.
+     - Implemented `KeychainInteractionGovernor`: uses `NSRecursiveLock` and depth-counted serialization across all threads in `LocalShareIdentity.swift` and `LocalShareSettings.swift` to prevent concurrent UI interaction suppression state corruption.
+  2. **POSIX Directory Descriptor Containment (`openat` & `fstat`):**
+     - Refactored `LocalShareFileStreamWriter.init` to open a descriptor to the destination parent directory with `O_RDONLY | O_DIRECTORY | O_CLOEXEC`.
+     - Validated directory ownership and directory type via `fstat(dirFd, &st)`.
+     - Created leaf file stream descriptors relative to the verified directory descriptor using `openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`.
+     - Added `LocalShareError.invalidFileName` rejecting empty or slash-containing path components, completely eliminating ancestor directory symlink substitution TOCTOU races.
+  3. **Loopback Auto-Acceptance Reassessment:**
+     - Rejected `127.0.0.1` / `::1` as cryptographic proof of application identity.
+     - Gated loopback auto-acceptance strictly behind explicit test flag `isTestHarnessAutoAcceptEnabled` (defaulting to `false`). In production, unauthenticated loopback requests without PIN route to interactive user confirmation (`onIncomingSessionOffered`).
+  4. **Per-IP Connection Limits & PIN Brute-Force Lockout:**
+     - Implemented per-IP connection limits in `LocalShareServer`: `maxConnectionsPerIP = 8` (16 for loopback).
+     - Implemented progressive delay (up to 2.0s) and temporary lockouts for failed PIN attempts: 60s temporary lockout after 5 failures, 300s temporary lockout after 10 failures, returning HTTP 429 Too Many Requests.
+  5. **Active LAN MITM Detection & Pinning:**
+     - Extended Test 108 Subtest B: verified deterministic SAS divergence and `LocalSharePeerPinningDelegate` fail-closed TLS certificate pinning when an active MITM certificate is encountered.
+  6. **File Descriptor Leak Elimination in Test 112:**
+     - Reduced socket cancel delay in `sendRawResponse` from 3.0s to 0.05s.
+     - Actively tracked open sockets in `activeConnections` dictionary and closed them cleanly during `server.stop()`.
+     - Added comprehensive resource assertion table in Test 112: open file descriptors (asserting FD delta <= 15), active NWConnections (asserting == 0), active NWListeners (asserting == stopped), active sessions (`currentSession == nil`), active writers (asserting empty), and resident RSS delta (< 35 MB).
+- **Verification:** 112/112 tests passed cleanly across 3 consecutive runs (Exit code 0, 0 flakes, 0 leaks). All 8 security integrity gates passed. User production identity preserved 100% intact.

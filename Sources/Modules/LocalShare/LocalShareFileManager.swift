@@ -201,15 +201,35 @@ public final class LocalShareFileStreamWriter: @unchecked Sendable {
     public init(destinationURL: URL) throws {
         self.destinationURL = destinationURL
         
+        let parentDirURL = destinationURL.deletingLastPathComponent().standardizedFileURL
+        let fileName = destinationURL.lastPathComponent
+        
+        // Guard against path traversal in leaf component
+        guard !fileName.isEmpty, fileName != ".", fileName != "..", !fileName.contains("/") else {
+            throw LocalShareError.invalidFileName
+        }
+        
         var fd: Int32 = -1
-        let errCode = destinationURL.withUnsafeFileSystemRepresentation { fsPath -> Int32 in
-            guard let fsPath = fsPath else { return EINVAL }
+        let errCode = parentDirURL.withUnsafeFileSystemRepresentation { dirPath -> Int32 in
+            guard let dirPath = dirPath else { return EINVAL }
+            // Open parent directory descriptor with O_RDONLY | O_DIRECTORY | O_CLOEXEC
+            let dirFd = open(dirPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
+            guard dirFd >= 0 else { return errno }
+            defer { close(dirFd) }
+            
+            // Verify directory integrity with fstat
+            var st = stat()
+            guard fstat(dirFd, &st) == 0 else { return errno }
+            guard (st.st_mode & S_IFMT) == S_IFDIR else { return ENOTDIR }
+            
+            // openat: relative to trusted directory descriptor
             // O_WRONLY: Write only
             // O_CREAT: Create file if missing
-            // O_EXCL: Fail atomically with EEXIST if file already exists (anti-clobber, anti-race)
-            // O_NOFOLLOW: Fail with EEXIST or ELOOP if the path is a symbolic link (anti-symlink traversal)
-            // 0o600: Restrict POSIX mode atomically at inode creation
-            fd = open(fsPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+            // O_EXCL: Fail atomically with EEXIST if file already exists
+            // O_NOFOLLOW: Fail with ELOOP if the leaf is a symlink
+            // O_CLOEXEC: Do not leak FD across exec
+            // 0o600: POSIX owner read/write only
+            fd = openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
             return fd >= 0 ? 0 : errno
         }
         

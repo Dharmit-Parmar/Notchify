@@ -372,13 +372,7 @@ public final class LocalShareSettings: ObservableObject {
     
     @discardableResult
     private static func withUserInteractionDisabled<T>(_ body: () -> T) -> T {
-        var original: DarwinBoolean = true
-        _ = SecKeychainGetUserInteractionAllowed(&original)
-        _ = SecKeychainSetUserInteractionAllowed(false)
-        defer {
-            _ = SecKeychainSetUserInteractionAllowed(original.boolValue)
-        }
-        return body()
+        return KeychainInteractionGovernor.shared.withInteractionDisabled(body)
     }
     
     private static func loadPinFromKeychain(service: String, account: String) -> String {

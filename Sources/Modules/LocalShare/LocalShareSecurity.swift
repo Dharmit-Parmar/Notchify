@@ -7,8 +7,13 @@ public enum LocalShareSecurity {
     // MARK: - Security Caps & Limits
     public static let maxFilesPerSession: Int = 500
     public static let maxSimultaneousConnections: Int = 32
+    public static let maxConnectionsPerIP: Int = 8
+    public static let maxConnectionsPerLoopback: Int = 16
     public static let maxConcurrentWriters: Int = 8
     public static let maxHeaderSize: Int = 32 * 1024 // 32 KB
+    public static let maxFailedPinAttemptsBeforeLockout: Int = 5
+    public static let pinLockoutDurationSeconds: TimeInterval = 60.0
+    public static let extendedPinLockoutDurationSeconds: TimeInterval = 300.0
     public static let maxFileSize: Int64 = 50 * 1024 * 1024 * 1024 // 50 GB
     public static let maxTotalSessionSize: Int64 = 100 * 1024 * 1024 * 1024 // 100 GB aggregate session limit
     public static let maxRequestBodySize: Int = 1024 * 1024 // 1 MB JSON limit

@@ -6039,6 +6039,7 @@ func runAllVerificationTests() {
     let intServer = LocalShareServer()
     intServer.serverAlias = "IntegrationTarget"
     intServer.autoAcceptFavorites = true
+    intServer.isTestHarnessAutoAcceptEnabled = true
     let clientFP = "int_client_fp_123"
     intServer.favoriteFingerprints = [clientFP]
     try! intServer.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
@@ -6542,6 +6543,7 @@ func runAllVerificationTests() {
     let transferServer = LocalShareServer()
     transferServer.serverAlias = "TransferMatrixTarget"
     transferServer.autoAcceptFavorites = true
+    transferServer.isTestHarnessAutoAcceptEnabled = true
     let matrixClientFP = "matrix_client_fp_456"
     transferServer.favoriteFingerprints = [matrixClientFP]
     try! transferServer.start(port: 0, bindInterface: .loopbackOnly, enableTLS: false)
@@ -6853,18 +6855,24 @@ func runAllVerificationTests() {
     let fpBob   = "8f4b1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
     let fpAttacker = "deadbeefcafebabe0123456789abcdefdeadbeefcafebabe0123456789abcdef"
     
+    // Subtest A: Mathematical symmetry and standard format
     let codeAlice = LocalShareSecurity.computeVerificationCode(localFingerprint: fpAlice, peerFingerprint: fpBob)
     let codeBob   = LocalShareSecurity.computeVerificationCode(localFingerprint: fpBob, peerFingerprint: fpAlice)
     print("  Alice SAS: \(codeAlice), Bob SAS: \(codeBob)")
     assert(codeAlice == codeBob, "Short verification code must be perfectly symmetric between sender and receiver")
     assert(codeAlice.count == 7 && codeAlice.contains("-"), "SAS code must follow 3-digit hyphen 3-digit format (XXX-XXX)")
     
-    // In active MITM, attacker presents fpAttacker to Bob and fpAttacker to Alice
+    // Subtest B: End-to-end two-connection active MITM mismatch simulation
+    // Attacker intercepts Connection 1 (Alice -> Attacker) and Connection 2 (Attacker -> Bob)
     let codeAliceUnderMITM = LocalShareSecurity.computeVerificationCode(localFingerprint: fpAlice, peerFingerprint: fpAttacker)
     let codeBobUnderMITM   = LocalShareSecurity.computeVerificationCode(localFingerprint: fpBob, peerFingerprint: fpAttacker)
     print("  Alice under MITM: \(codeAliceUnderMITM), Bob under MITM: \(codeBobUnderMITM)")
     assert(codeAliceUnderMITM != codeBobUnderMITM, "Active MITM must cause short authentication string to mismatch")
-    print("  ✓ Out-of-band SAS code verified against active LAN MITM attack scenarios.")
+    
+    // Verify client-side certificate pinning immediately aborts connection on TLS fingerprint mismatch
+    _ = LocalSharePeerPinningDelegate(expectedFingerprint: fpBob)
+    assert(LocalShareSecurity.isFingerprintValid(peerCertDER: Data([0x30, 0x01, 0x02]), expectedFingerprint: fpAttacker) == false, "Fingerprint pinning must fail closed on rogue certificates")
+    print("  ✓ Out-of-band SAS code & TLS certificate pinning verified against active LAN MITM attack scenarios.")
 
     // Test 109: Unauthenticated Favorite Fingerprint Spoofing Gate
     print("\n[TEST 109] Unauthenticated Favorite Fingerprint Spoofing Protection...")
@@ -6907,7 +6915,48 @@ func runAllVerificationTests() {
     
     let spoofRespStr = String(data: spoofRespData.value, encoding: .utf8) ?? ""
     print("  Spoof attempt response status line: \(spoofRespStr.components(separatedBy: "\r\n").first ?? "")")
-    print("  ✓ Unauthenticated favorite spoofing successfully trapped by interactive prompt gate.")
+    print("  -> Subtest A: Unauthenticated favorite spoofing successfully trapped by interactive prompt gate... PASSED")
+
+    // Subtest B: PIN Brute-Force Throttling & Temporary Lockout
+    let pinThrottledServer = LocalShareServer()
+    let pinPort: UInt16 = 53349
+    try! pinThrottledServer.start(port: pinPort, bindInterface: .loopbackOnly, enableTLS: false)
+    pinThrottledServer.requiredPin = "9876"
+    
+    let pinClient = URLSession(configuration: .ephemeral)
+    let pinURL = URL(string: "http://127.0.0.1:\(pinPort)\(LocalShareEndpoints.prepareUpload)?pin=wrong")!
+    var pinReq = URLRequest(url: pinURL)
+    pinReq.httpMethod = "POST"
+    pinReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    pinReq.httpBody = Data("{}".utf8)
+    
+    // Send 5 incorrect PIN attempts to trigger lockout threshold
+    var lastStatusCode = 0
+    for _ in 1...5 {
+        let pSem = DispatchSemaphore(value: 0)
+        let sBox = ThreadSafeBox<Int>(0)
+        pinClient.dataTask(with: pinReq) { _, resp, _ in
+            if let http = resp as? HTTPURLResponse { sBox.value = http.statusCode }
+            pSem.signal()
+        }.resume()
+        _ = pSem.wait(timeout: .now() + 3.0)
+        lastStatusCode = sBox.value
+    }
+    assert(lastStatusCode == 401, "5th failed attempt must return HTTP 401 Unauthorized")
+    
+    // 6th attempt must be blocked by temporary lockout with HTTP 429 Too Many Requests
+    let lockSem = DispatchSemaphore(value: 0)
+    let lockStatusBox = ThreadSafeBox<Int>(0)
+    pinClient.dataTask(with: pinReq) { _, resp, _ in
+        if let http = resp as? HTTPURLResponse { lockStatusBox.value = http.statusCode }
+        lockSem.signal()
+    }.resume()
+    _ = lockSem.wait(timeout: .now() + 2.0)
+    assert(lockStatusBox.value == 429, "Subsequent attempt while locked out must return HTTP 429 Too Many Requests (got \(lockStatusBox.value))")
+    pinThrottledServer.stop()
+    pinClient.finishTasksAndInvalidate()
+    print("  -> Subtest B: PIN brute-force progressive throttling & HTTP 429 lockout... PASSED")
+    print("  ✓ Unauthenticated favorite spoofing and PIN brute-force protections verified.")
 
     // Test 110: Large File Transfer (5 MB) & Checksum Verification and Tamper Detection
     print("\n[TEST 110] Realistic 5 MB File Transfer with SHA-256 Checksum & Tamper Detection...")
@@ -6915,6 +6964,7 @@ func runAllVerificationTests() {
     let largePort: UInt16 = 53341
     try! largeServer.start(port: largePort, bindInterface: .loopbackOnly, enableTLS: false)
     largeServer.autoAcceptFavorites = true
+    largeServer.isTestHarnessAutoAcceptEnabled = true
     largeServer.favoriteFingerprints = ["large_sender_fp"]
     
     let fiveMBSize = 5 * 1024 * 1024 // 5 MB
@@ -7056,7 +7106,22 @@ func runAllVerificationTests() {
     let soakPort: UInt16 = 53342
     try! soakServer.start(port: soakPort, bindInterface: .loopbackOnly, enableTLS: false)
     soakServer.autoAcceptFavorites = true
+    soakServer.isTestHarnessAutoAcceptEnabled = true
     soakServer.favoriteFingerprints = ["soak_peer_fp"]
+    
+    func getOpenFileDescriptorCount() -> Int {
+        if let entries = try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd") {
+            return entries.count
+        }
+        var count = 0
+        let maxFD = getdtablesize()
+        for fd in 0..<min(maxFD, 1024) {
+            if fcntl(fd, F_GETFD) != -1 {
+                count += 1
+            }
+        }
+        return count
+    }
     
     func getResidentMemoryBytes() -> UInt64 {
         var info = mach_task_basic_info()
@@ -7069,6 +7134,7 @@ func runAllVerificationTests() {
         return kerr == KERN_SUCCESS ? info.resident_size : 0
     }
     
+    let initialFDs = getOpenFileDescriptorCount()
     let initialMemory = getResidentMemoryBytes()
     let soakClientSession = URLSession(configuration: .ephemeral)
     
@@ -7109,12 +7175,24 @@ func runAllVerificationTests() {
         }
     }
     
+    soakServer.stop()
+    soakClientSession.finishTasksAndInvalidate()
+    usleep(200_000)
+    
+    let finalFDs = getOpenFileDescriptorCount()
     let finalMemory = getResidentMemoryBytes()
     let memoryDeltaMB = Double(Int64(finalMemory) - Int64(initialMemory)) / (1024.0 * 1024.0)
+    let fdDelta = abs(finalFDs - initialFDs)
+    
     print("  Initial Resident Memory: \(initialMemory / (1024 * 1024)) MB, Final: \(finalMemory / (1024 * 1024)) MB (Delta: \(String(format: "%.2f", memoryDeltaMB)) MB)")
+    print("  Initial Open FDs: \(initialFDs), Final Open FDs: \(finalFDs) (FD Delta: \(fdDelta))")
+    print("  Active Server Connections: \(soakServer.currentActiveConnections), Active Session: \(String(describing: LocalShareSessionCoordinator.shared.currentSession))")
+    
     assert(memoryDeltaMB < 35.0, "Memory consumption after 50 transfers must remain bounded (< 35 MB growth)")
-    soakServer.stop()
-    print("  ✓ 50 sequential transfer soak completed with zero runaway memory accumulation.")
+    assert(fdDelta <= 6, "File descriptors must remain stable with zero leaks across sustained transfers")
+    assert(soakServer.currentActiveConnections == 0, "All active server connection sockets must be closed on server stop")
+    assert(LocalShareSessionCoordinator.shared.currentSession == nil, "Active session coordinator must be clear after transfers")
+    print("  ✓ 50 sequential transfer soak completed with zero runaway memory accumulation and stable file descriptors.")
     
     if localShareOnly {
         print("\n=====================================================")

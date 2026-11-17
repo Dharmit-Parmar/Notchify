@@ -49,8 +49,10 @@
 - **8. Root Cause:**
   1. Inclusion of `kSecUseDataProtectionKeychain: true` unconditionally fails with `OSStatus -34018` (`errSecMissingEntitlement`) on macOS when running without an Apple Developer ID provisioning profile (TN3137).
   2. Legacy helper `cleanLegacyFileBasedKeychain()` was deleting the item immediately prior to reading/writing.
-  3. Configuring `SecAccessCreate` with an empty trusted application array (`NSArray()`) instructed macOS securityd that *no* binary has access without a GUI user password prompt. In headless CLI test runners, this blocked the main thread indefinitely in `mach_msg2_trap` waiting for GUI authorization.
-  4. Global invocation of `SecKeychainSetUserInteractionAllowed(false)` without scoping altered process-wide state, risking silent failures in unrelated system Keychain operations.
+  3. Misunderstanding of Keychain ACL semantics: configuring `SecAccessCreate` with an empty trusted application array (`NSArray()`) instructed macOS securityd that *no* binary has access without a GUI user password prompt. In headless CLI test runners, this blocked the main thread indefinitely in `mach_msg2_trap` waiting for GUI authorization.
+  4. Conversely, assuming `SecAccessCreate(descriptor, nil, &access)` allows all processes under the same UID is technically false: per Apple SDK `<Security/SecAccess.h>`, `trustedlist == NULL` binds the ACL to *just the application creating the item* (its code designated requirement). In ad-hoc builds where recompilation changes the binary's CDHash, `securityd` denies access with `errSecAuthFailed` (`OSStatus -25293`) when interaction is suppressed.
+  5. The macOS file-based login keychain (`login.keychain-db`) does NOT enforce `kSecAttrAccessible*` Data Protection classes; its contents are unlocked when the user logs in and remains protected by the user's login keychain master key.
+  6. Global invocation of `SecKeychainSetUserInteractionAllowed(false)` without thread-safe re-entrancy protection risked racing across concurrent threads and leaving interaction disabled for unrelated system operations.
 - **9. Evidence in Code:**
   ```swift
   // Stored with empty trusted application array:
@@ -60,11 +62,11 @@
   ```
 - **10. Exploitation & Impact:** Dynamic TLS identity was lost on restarts, forcing re-generation of self-signed certificates and changing fingerprints, which permanently severed paired device trust. In automated/CI environments, the process hung indefinitely.
 - **11. Remediation Applied:**
-  - Removed `kSecUseDataProtectionKeychain` and unified storage under the macOS login keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
-  - Configured `SecAccessCreate(descriptor, nil, &access)` (passing `nil` trusted list) allowing all binary builds under the user's UID to access items without interactive GUI prompts.
-  - Implemented scoped interaction silencing via `withUserInteractionDisabled<T>`: queries `SecKeychainGetUserInteractionAllowed`, temporarily disables UI interaction for the query, and restores original state in a `defer` block.
+  - Removed `kSecUseDataProtectionKeychain` and unified storage under the macOS login keychain. Removed claims of hardware-backed Data Protection enforcement for file-based keychain items.
+  - Configured `SecAccessCreate(descriptor, nil, &access)` (passing `nil` trusted list) correctly establishing an ACL bound to the creating application's code designated requirement. In production Developer ID builds with a stable code requirement, this allows seamless updates without prompts.
+  - Implemented `KeychainInteractionGovernor`: an `NSRecursiveLock`-synchronized governor with ref-counted depth tracking in `LocalShareIdentity.swift` and `LocalShareSettings.swift` that thread-safely disables UI interaction during Keychain queries and restores original state upon unwind.
   - Eliminated legacy file-based keychain wipes.
-- **12. Verification:** Subtests 11, 15, 18, 19 in `NotchTests` pass with zero password prompts and persistent certificate retention.
+- **12. Verification:** Subtests 11, 15, 18, 19 in `NotchTests` pass with zero password prompts and persistent certificate retention. Empirical verification confirms ad-hoc recompiled binaries receive `-25293` without prompts when interaction is disabled.
 
 ---
 
@@ -126,11 +128,12 @@
 - **3. Severity:** MEDIUM (CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:L — Base: 4.1)
 - **4. CWE Identifier:** CWE-362: Race Condition / CWE-400: Resource Exhaustion
 - **5. Affected Files:** `Sources/Modules/LocalShare/LocalShareServer.swift`
-- **6. Root Cause:** Server configuration variables (`serverAlias`, `requiredPin`, `autoAcceptFavorites`, `favoriteFingerprints`) were mutated from `@MainActor` UI views and read concurrently from background network request threads without locks. Inbound TCP connections were not capped.
+- **6. Root Cause:** Server configuration variables (`serverAlias`, `requiredPin`, `autoAcceptFavorites`, `favoriteFingerprints`) were mutated from `@MainActor` UI views and read concurrently from background network request threads without locks. Inbound TCP connections were not capped or throttled per client IP. Response socket closures held file descriptors open for 3.0s, accumulating unclosed descriptors during rapid transfers.
 - **7. Remediation Applied:**
   - Wrapped all server configuration variables with private backing stores and synchronized getters/setters using `NSLock`.
-  - Added atomic connection limiter `activeConnectionCount` with `maxSimultaneousConnections = 32`. Excess connections receive HTTP 503 and are cancelled immediately.
-- **8. Verification:** 100% verified under thread sanitizer and concurrent stress tests.
+  - Added atomic connection limiter `activeConnectionCount` with `maxSimultaneousConnections = 32` and per-IP limits (`maxConnectionsPerIP = 8`, 16 for loopback). Excess connections receive HTTP 503 and are cancelled immediately.
+  - Actively tracked open `NWConnection` instances in `activeConnections` dictionary, cancelled all active sockets during `server.stop()`, and reduced response flush cancel delay from 3.0s to 0.05s in `sendRawResponse`.
+- **8. Verification:** 100% verified under thread sanitizer, concurrent stress tests, and Test 112 file descriptor leak assertions.
 
 ---
 
@@ -162,22 +165,24 @@
 
 ---
 
-### SEC-08: Atomic POSIX Open (`O_NOFOLLOW`) & Symlink TOCTOU Elimination
+### SEC-08: Atomic POSIX Open (`openat` & `O_NOFOLLOW`) & Symlink TOCTOU Elimination
 - **1. Finding ID:** SEC-08
-- **2. Vulnerability Title:** File Truncation & Symlink TOCTOU Vulnerabilities in File Handling
+- **2. Vulnerability Title:** File Truncation, Directory Substitution & Symlink TOCTOU in File Handling
 - **3. Severity:** MEDIUM (CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:L — Base: 4.4)
 - **4. CWE Identifier:** CWE-59: Improper Link Resolution Before File Access / CWE-367: TOCTOU Race
 - **5. Affected Files:**
   - `Sources/Modules/AirDrop/AirDropModule.swift`
   - `Sources/Modules/LocalShare/LocalShareFileManager.swift`
   - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
-- **6. Root Cause:** Cocoa `FileManager.createFile` truncates existing files upon open and traverses symbolic links. Pre-checking existence followed by open introduced a Time-of-Check to Time-of-Use (TOCTOU) race condition.
+  - `Sources/Modules/LocalShare/LocalShareProtocol.swift`
+- **6. Root Cause:** Cocoa `FileManager.createFile` truncates existing files upon open and traverses symbolic links. Pre-checking existence followed by open introduced a Time-of-Check to Time-of-Use (TOCTOU) race condition. Furthermore, verifying parent directory path without pinning the directory descriptor allowed ancestor symlink swapping.
 - **7. Remediation Applied:**
-  - Upgraded file stream initialization in `LocalShareFileStreamWriter` to POSIX `open(fsPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)`. Wrapped returned descriptor into `FileHandle(fileDescriptor:closeOnDealloc:true)`.
+  - Upgraded file stream initialization in `LocalShareFileStreamWriter` to POSIX directory descriptor containment: opens parent directory with `open(dirPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`, verifies directory ownership via `fstat(dirFd, &st)`, and atomically creates leaf file via `openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)`. Wrapped returned descriptor into `FileHandle(fileDescriptor:closeOnDealloc:true)`.
+  - Added `LocalShareError.invalidFileName` rejecting empty or slash-containing path components.
   - Added numeric suffix retry loop in `LocalShareFileManager.beginFileStream` catching `LocalShareError.fileExists`.
   - Hardened `promoteSessionFiles` with numeric suffix resolution to guarantee existing user files are never overwritten.
   - AirDrop staging routed to dedicated `0700` directories with automatic post-transfer purging.
-- **8. Verification:** Test 107 verified atomic POSIX creation, ELOOP symlink rejection, and EEXIST non-overwrite semantics.
+- **8. Verification:** Test 107 verified atomic POSIX creation, ELOOP symlink rejection, EEXIST non-overwrite semantics, and directory descriptor containment.
 
 ---
 
@@ -214,13 +219,19 @@
   - `Sources/Modules/LocalShare/LocalShareServer.swift`
   - `Sources/Modules/LocalShare/LocalShareSecurity.swift`
   - `Sources/Modules/LocalShare/LocalShareSession.swift`
+  - `Sources/Modules/LocalShare/LocalShareClient.swift`
 - **7. Root Cause:**
   1. The LocalSend protocol relies on self-signed certificates without client certificate exchange. In `/prepare-upload`, peer identity (including fingerprint) is provided solely in unauthenticated JSON payload.
   2. If an attacker knows a favorite peer's fingerprint, claiming that fingerprint in JSON could bypass user consent prompts on an untrusted LAN.
+  3. Assuming loopback (`127.0.0.1` / `::1`) is an authenticated channel is flawed, as any local process can connect to the loopback port.
+  4. Unbounded PIN guesses allowed brute-force attacks against the 4-8 digit session PIN.
 - **8. Remediation Applied:**
-  - Added anti-spoofing gate in `LocalShareServer.handlePrepareUploadRoute`: incoming transfers claiming a favorite fingerprint from external LAN IPs CANNOT bypass prompt unless a shared secret PIN is provided or request originates from loopback.
+  - Added anti-spoofing gate in `LocalShareServer.handlePrepareUploadRoute`: incoming transfers claiming a favorite fingerprint CANNOT bypass prompt unless a valid shared secret PIN is provided.
+  - Reassessed loopback trust: automated loopback auto-acceptance is strictly gated behind test flag `isTestHarnessAutoAcceptEnabled` (defaulting to `false`). In production, loopback requests without PIN route to interactive user confirmation.
+  - Implemented PIN brute-force defense: progressive delay (up to 2.0s) and temporary lockouts in `LocalShareServer`: 60s lockout after 5 failures, 300s lockout after 10 failures, returning HTTP 429 Too Many Requests.
   - Implemented Out-of-band Short Authentication String (SAS / verification code) computation (`LocalShareSecurity.computeVerificationCode`): derives deterministic 6-digit verification code (`XXX-XXX`) from sorted endpoint fingerprints, enabling out-of-band user verification against active MITM.
-- **9. Verification:** Verified in Test 108 (SAS determinism & MITM detection) and Test 109 (Favorite spoofing rejection).
+  - Verified active MITM detection and `LocalSharePeerPinningDelegate` fail-closed TLS certificate pinning when encountering rogue certificates.
+- **9. Verification:** Verified in Test 108 Subtests A and B (SAS determinism, MITM detection & pinning fail-closed) and Test 109 Subtests A and B (Favorite spoofing rejection, PIN delay & HTTP 429 lockout).
 
 ---
 
@@ -235,6 +246,7 @@
 - **6. Root Cause:** Inbound HTTP requests had no upper bound on header buffer accumulation prior to parsing, allowing Slowloris and memory bloat attacks.
 - **7. Remediation Applied:**
   - Added `maxHeaderSize = 32 KB`. Requests exceeding 32 KB without terminating header delimiters immediately receive HTTP 431 `Request Header Fields Too Large` and connection is terminated.
+  - Added per-IP connection limits (`maxConnectionsPerIP = 8`, 16 for loopback).
   - Retained strict 15-second pre-header inactivity watchdog.
-- **8. Verification:** Verified in Test 35 Subtest 8 and Test 112 soak testing.
+- **8. Verification:** Verified in Test 35 Subtest 8, Test 111 writer quotas, and Test 112 soak testing.
 

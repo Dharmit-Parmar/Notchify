@@ -92,6 +92,21 @@ public final class LocalShareServer: @unchecked Sendable {
         }
     }
     
+    // Explicit Test Harness Mode Gate (Disables auto-accepting loopback in production)
+    private var _isTestHarnessAutoAcceptEnabled: Bool = false
+    public var isTestHarnessAutoAcceptEnabled: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _isTestHarnessAutoAcceptEnabled
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _isTestHarnessAutoAcceptEnabled = newValue
+        }
+    }
+    
     // Shared files available for reverse-download via browser / download API
     private var _sharedFiles: [URL] = []
     public var sharedDownloadFiles: [URL] {
@@ -165,6 +180,30 @@ public final class LocalShareServer: @unchecked Sendable {
     
     private let rateLimiter = LocalShareRateLimiter(maxRequests: 60, windowDuration: 1.0)
     private var activeConnectionCount: Int = 0
+    private var activeConnectionsByIP: [String: Int] = [:]
+    private var activeConnections: [ObjectIdentifier: NWConnection] = [:]
+    
+    private func registerActiveConnection(_ connection: NWConnection) {
+        lock.lock()
+        defer { lock.unlock() }
+        let id = ObjectIdentifier(connection)
+        activeConnections[id] = connection
+    }
+    
+    private func removeActiveConnection(_ connection: NWConnection) {
+        lock.lock()
+        defer { lock.unlock() }
+        let id = ObjectIdentifier(connection)
+        activeConnections.removeValue(forKey: id)
+    }
+    
+    // Anti-Brute-Force PIN State Machine
+    private struct FailedPinState {
+        var failCount: Int = 0
+        var lockoutUntil: Date? = nil
+        var lastAttempt: Date = Date()
+    }
+    private var failedPinAttemptsByIP: [String: FailedPinState] = [:]
     
     public var currentActiveConnections: Int {
         lock.lock()
@@ -172,20 +211,83 @@ public final class LocalShareServer: @unchecked Sendable {
         return activeConnectionCount
     }
     
-    private func incrementConnectionCount() -> Bool {
+    private func incrementConnectionCount(for clientIP: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         if activeConnectionCount >= LocalShareSecurity.maxSimultaneousConnections {
             return false
         }
+        let normIP = LocalShareSecurity.normalizeIP(clientIP)
+        let isLoopback = normIP == "127.0.0.1" || normIP == "::1" || normIP.isEmpty
+        let ipLimit = isLoopback ? LocalShareSecurity.maxConnectionsPerLoopback : LocalShareSecurity.maxConnectionsPerIP
+        let currentForIP = activeConnectionsByIP[normIP] ?? 0
+        if currentForIP >= ipLimit {
+            return false
+        }
         activeConnectionCount += 1
+        activeConnectionsByIP[normIP] = currentForIP + 1
         return true
     }
     
-    private func decrementConnectionCount() {
+    private func decrementConnectionCount(for clientIP: String) {
         lock.lock()
         defer { lock.unlock() }
         activeConnectionCount = max(0, activeConnectionCount - 1)
+        let normIP = LocalShareSecurity.normalizeIP(clientIP)
+        if let currentForIP = activeConnectionsByIP[normIP] {
+            if currentForIP <= 1 {
+                activeConnectionsByIP.removeValue(forKey: normIP)
+            } else {
+                activeConnectionsByIP[normIP] = currentForIP - 1
+            }
+        }
+    }
+    
+    private func checkPinLockout(clientIP: String) -> (isLockedOut: Bool, retryAfterSeconds: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        let normIP = LocalShareSecurity.normalizeIP(clientIP)
+        guard let state = failedPinAttemptsByIP[normIP], let lockoutUntil = state.lockoutUntil else {
+            return (false, 0)
+        }
+        let now = Date()
+        if now < lockoutUntil {
+            let remaining = Int(ceil(lockoutUntil.timeIntervalSince(now)))
+            return (true, max(1, remaining))
+        } else {
+            failedPinAttemptsByIP[normIP]?.lockoutUntil = nil
+            return (false, 0)
+        }
+    }
+    
+    private func recordFailedPinAttempt(clientIP: String) -> (delaySeconds: Double, isLockedOutNow: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        let normIP = LocalShareSecurity.normalizeIP(clientIP)
+        var state = failedPinAttemptsByIP[normIP] ?? FailedPinState()
+        state.failCount += 1
+        state.lastAttempt = Date()
+        
+        var delay: Double = 0.0
+        var lockedOut = false
+        if state.failCount >= 10 {
+            state.lockoutUntil = Date().addingTimeInterval(LocalShareSecurity.extendedPinLockoutDurationSeconds)
+            lockedOut = true
+        } else if state.failCount >= LocalShareSecurity.maxFailedPinAttemptsBeforeLockout {
+            state.lockoutUntil = Date().addingTimeInterval(LocalShareSecurity.pinLockoutDurationSeconds)
+            lockedOut = true
+        } else {
+            delay = min(2.0, Double(state.failCount) * 0.15)
+        }
+        failedPinAttemptsByIP[normIP] = state
+        return (delay, lockedOut)
+    }
+    
+    private func recordSuccessfulPinAttempt(clientIP: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let normIP = LocalShareSecurity.normalizeIP(clientIP)
+        failedPinAttemptsByIP.removeValue(forKey: normIP)
     }
     
     public init() {}
@@ -275,11 +377,17 @@ public final class LocalShareServer: @unchecked Sendable {
         self.listener = nil
         self.state = .stopped
         self.activeConnectionCount = 0
+        self.activeConnectionsByIP.removeAll()
+        let connsToCancel = Array(activeConnections.values)
+        activeConnections.removeAll()
         let callback = onStateChanged
         let observers = Array(stateObservers.values)
         lock.unlock()
         
         activeListener?.cancel()
+        for conn in connsToCancel {
+            conn.cancel()
+        }
         LocalShareSessionCoordinator.shared.reset()
         callback?(.stopped)
         for obs in observers {
@@ -453,16 +561,27 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
     }
     
     private func handleIncomingConnection(_ connection: NWConnection) {
-        guard incrementConnectionCount() else {
-            NSLog("[LocalShareServer] Max simultaneous connections reached (%d). Dropping connection.", LocalShareSecurity.maxSimultaneousConnections)
+        var remoteHost = "127.0.0.1"
+        if case .hostPort(let host, _) = connection.endpoint {
+            remoteHost = "\(host)"
+        }
+        let clientIP = LocalShareSecurity.normalizeIP(remoteHost)
+        
+        guard incrementConnectionCount(for: clientIP) else {
+            NSLog("[LocalShareServer] Max connections reached globally or for IP %@. Dropping connection.", clientIP)
             connection.cancel()
             return
         }
         
+        registerActiveConnection(connection)
+        
         let decremented = LocalShareAtomicFlag()
-        let onTerminal: @Sendable () -> Void = { [weak self] in
+        let onTerminal: @Sendable () -> Void = { [weak self, weak connection] in
             if decremented.testAndSet() {
-                self?.decrementConnectionCount()
+                self?.decrementConnectionCount(for: clientIP)
+                if let conn = connection {
+                    self?.removeActiveConnection(conn)
+                }
             }
         }
         
@@ -698,12 +817,29 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
     }
     
     private func handlePrepareUploadRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
-        // 1. PIN verification
+        // 1. PIN verification & anti-brute-force throttling / lockout
         if let required = requiredPin, !required.isEmpty {
+            let lockout = checkPinLockout(clientIP: request.remoteIP)
+            if lockout.isLockedOut {
+                sendRawResponse(
+                    connection: connection,
+                    statusCode: 429,
+                    reason: "Too Many Requests",
+                    body: "PIN lockout active. Retry in \(lockout.retryAfterSeconds) seconds.".data(using: .utf8)
+                )
+                return
+            }
+            
             let providedPin = request.queryParams["pin"]
             if providedPin != required {
+                let failureState = recordFailedPinAttempt(clientIP: request.remoteIP)
+                if failureState.delaySeconds > 0 {
+                    Thread.sleep(forTimeInterval: failureState.delaySeconds)
+                }
                 sendRawResponse(connection: connection, statusCode: 401, reason: "Unauthorized", body: nil)
                 return
+            } else {
+                recordSuccessfulPinAttempt(clientIP: request.remoteIP)
             }
         }
         
@@ -798,7 +934,8 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
         let normClientIP = LocalShareSecurity.normalizeIP(request.remoteIP)
         let isLoopback = normClientIP == "127.0.0.1" || normClientIP == "::1" || normClientIP.isEmpty
         let isPinAuthenticated = (requiredPin != nil && !requiredPin!.isEmpty && request.queryParams["pin"] == requiredPin)
-        let isCryptographicallyVerified = isLoopback || isPinAuthenticated
+        // Loopback does not inherently authenticate the process. In production, auto-accept requires PIN or explicit test mode flag.
+        let isCryptographicallyVerified = isPinAuthenticated || (isLoopback && isTestHarnessAutoAcceptEnabled)
         
         let favSet = favoriteFingerprints
         let isClaimingFavorite = favSet.contains(senderFp) ||
@@ -1159,10 +1296,27 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
     
     private func handlePrepareDownloadRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
         if let required = requiredPin, !required.isEmpty {
+            let lockout = checkPinLockout(clientIP: request.remoteIP)
+            if lockout.isLockedOut {
+                sendRawResponse(
+                    connection: connection,
+                    statusCode: 429,
+                    reason: "Too Many Requests",
+                    body: "PIN lockout active. Retry in \(lockout.retryAfterSeconds) seconds.".data(using: .utf8)
+                )
+                return
+            }
+            
             let providedPin = request.queryParams["pin"]
             if providedPin != required {
+                let failureState = recordFailedPinAttempt(clientIP: request.remoteIP)
+                if failureState.delaySeconds > 0 {
+                    Thread.sleep(forTimeInterval: failureState.delaySeconds)
+                }
                 sendRawResponse(connection: connection, statusCode: 401, reason: "Unauthorized", body: nil)
                 return
+            } else {
+                recordSuccessfulPinAttempt(clientIP: request.remoteIP)
             }
         }
         
@@ -1317,7 +1471,7 @@ private final class LocalShareAtomicFlag: @unchecked Sendable {
                     conn.cancel()
                 }
             } else {
-                self?.queue.asyncAfter(deadline: .now() + 3.0) { [weak connection] in
+                self?.queue.asyncAfter(deadline: .now() + 0.05) { [weak connection] in
                     connection?.cancel()
                 }
             }

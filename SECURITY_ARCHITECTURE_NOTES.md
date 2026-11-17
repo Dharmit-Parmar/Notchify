@@ -50,32 +50,46 @@ graph TD
 
 ## 2. Security Subsystems & Invariants
 
-### 1. Keychain Architecture & Identity Persistence (SEC-01)
+### 1. Keychain Architecture, ACL Semantics & Identity Persistence (SEC-01)
 *Reference: Apple TN3137 ("On Mac keychain APIs and implementations")*
 
-- **Keychain Implementation Distinction:**
+- **Keychain Implementation Reality:**
   - **File-Based Login Keychain:** Notchify currently stores its TLS private key (`localshare_p256_private_key`), certificate DER (`localshare_x509_certificate`), and PIN in the legacy macOS file-based login keychain (`~/Library/Keychains/login.keychain-db`) via `kSecClassGenericPassword` without `kSecUseDataProtectionKeychain`.
-  - **Data Protection Keychain vs. File-Based Keychain:** Apple's iOS-style Data Protection classes (`kSecAttrAccessible*`) are **only enforced** by the Data Protection Keychain (`keychaind`). In the file-based login keychain, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` is ignored; the keychain is encrypted and unlocked as a unified database tied to the user's macOS login session.
-- **Access Control List (SecAccess & SecACL):**
-  - Uses `SecAccessCreate(descriptor, nil, &access)` to configure item ACLs.
-  - Passing `nil` (NULL in C) explicitly authorizes **all binaries executing under the user's POSIX UID** to access the item without prompting the user.
-  - This design is essential for ad-hoc and development builds, where recompiled binaries receive new CDHashes on every compile; specifying an empty application list (`NSArray()`) or leaving default ACLs causes macOS `SecurityAgent` to display modal password dialogs or hang headless CLI test runners in `mach_msg2_trap`.
-- **Scoped Interaction Silencing:**
-  - `withUserInteractionDisabled`: Calls `SecKeychainGetUserInteractionAllowed(&original)` and temporarily disables interaction with `SecKeychainSetUserInteractionAllowed(false)` only for the duration of the query, strictly restoring `original` in a `defer` block. This prevents leaking disabled interaction state to unrelated Keychain operations in the host process.
-- **Developer ID & Notarization Migration Roadmap:**
-  - For future Developer ID signed releases with a stable Team ID, Notchify will migrate to the modern **Data Protection Keychain** (`kSecUseDataProtectionKeychain: true`) using `kSecAccessControl` and genuine `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, securely scoping secrets to the team application identifier.
+  - **Accessibility Attributes Inapplicable:** Apple's iOS-derived Data Protection classes (`kSecAttrAccessible*`, including `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) are **ignored** by the file-based login keychain (`login.keychain-db`). In this implementation, protection is governed entirely by the unlocking of the user's login keychain session (which occurs automatically when the user logs into macOS) and by `SecAccess` Access Control Lists (ACLs). The application does not claim hardware-bound Data Protection enforcement in its current configuration.
+- **Accurate SecAccess & SecACL Semantics:**
+  - `SecAccessCreate(descriptor, nil, &access)`: Apple's API specification defines that passing `nil` (`NULL` in C) for `trustedlist` defaults to **pre-authorizing only the application creating the item**, recording its designated code requirement in the `SecTrustedApplication` entry. It does **not** grant access to all applications or all processes sharing the user's UID.
+  - **Ad-Hoc Build Behavior vs. Recompilation:** In ad-hoc signed builds (`codesign -s -`), every recompilation generates a new unique designated code requirement (CDHash). When an independently compiled ad-hoc binary attempts to access an existing Keychain item:
+    - If user interaction is enabled, macOS displays an interactive `SecurityAgent` GUI dialog asking the user to authorize the new binary.
+    - If user interaction is disabled (`SecKeychainSetUserInteractionAllowed(false)`), `securityd` immediately returns `errSecAuthFailed` (`-25293`).
+  - **Developer ID & Production Signing Behavior:** When built with Apple Developer ID signing, the compiler and linker assign a stable designated requirement (`anchor apple generic and identifier "com.notch.NotchApp"`). Consequently, updated releases satisfy the designated requirement and access existing items without prompting.
+- **Reentrant Keychain Interaction Governor:**
+  - Replaced ad-hoc interaction disabling with `KeychainInteractionGovernor.shared.withInteractionDisabled`:
+    - Serializes concurrent Keychain access using an `NSRecursiveLock`.
+    - Implements reference-counted depth tracking so nested or concurrent calls cannot prematurely restore user interaction while another thread expects it disabled.
+    - Accurately captures and restores `originalState` on the final unwind.
+- **Developer ID & Data Protection Migration Roadmap:**
+  - Upon provisioning with an official Apple Developer ID certificate and the `keychain-access-groups` entitlement, Notchify will migrate to the modern **Data Protection Keychain** (`kSecUseDataProtectionKeychain: true`), replacing `SecAccess` with `kSecAccessControl` and enabling true hardware-enforced accessibility classes.
 
-### 2. Transport & ATS Network Security (SEC-02)
-- **App Transport Security (ATS) Enforcement:** `<key>NSAllowsArbitraryLoads</key>` is completely removed from `Resources/Info.plist` and `NotchApp.app/Contents/Info.plist`. External communications (Gemini, OpenAI, Telegram) strictly require TLS 1.2 / 1.3 with forward secrecy. `<key>NSAllowsLocalNetworking</key><true/>` is retained strictly for local peer-to-peer Wi-Fi transfers.
+### 2. Transport & ATS Network Security (SEC-02, SEC-11)
+- **App Transport Security (ATS) Enforcement:** `<key>NSAllowsArbitraryLoads</key>` is completely removed. External communications (Gemini, OpenAI, Telegram) strictly require TLS 1.2 / 1.3 with forward secrecy. `<key>NSAllowsLocalNetworking</key><true/>` is retained strictly for local peer-to-peer Wi-Fi transfers.
 - **Transport Classification (Server Pinning vs. Mutual TLS):**
   - Notchify implements **Server Certificate Fingerprint Pinning over TLS**, NOT Mutual TLS (mTLS).
-  - **Client-to-Server:** The client establishes TLS with the peer server and intercepts `NSURLAuthenticationMethodServerTrust` via `LocalSharePeerPinningDelegate`, validating that the peer's self-signed leaf certificate DER hashes to the expected SHA-256 fingerprint (`LocalShareSecurity.isFingerprintValid`).
+  - **Client-to-Server:** The client establishes TLS with the peer server and intercepts `NSURLAuthenticationMethodServerTrust` via `LocalSharePeerPinningDelegate`, validating that the peer's self-signed leaf certificate DER hashes to the expected SHA-256 fingerprint (`LocalShareSecurity.isFingerprintValid`). If a fingerprint mismatch occurs, the authentication challenge is cancelled and the connection fails closed.
   - **Server-to-Client:** The server listens on NWListener using its self-signed P-256 ECC certificate. Under the standard LocalSend protocol, clients do not present client certificates during the TLS handshake.
 - **First-Contact Trust & Out-of-Band Verification (SAS):**
-  - Because self-signed certificates on first contact cannot be validated by a Certificate Authority, a user clicking "Accept" does not prove identity against an active LAN MITM.
-  - **Short Authentication String (SAS):** Notchify computes a deterministic 6-digit verification code (`LocalShareSecurity.computeVerificationCode`) from the sorted SHA-256 fingerprints of both endpoints. Both sender and receiver display the identical verification code (e.g. `482-193`), allowing users to confirm out-of-band that no active MITM has intercepted the session.
-- **Gated Auto-Acceptance & Anti-Spoofing:**
-  - Incoming requests claiming to be a favorite device in their unauthenticated JSON body cannot bypass user confirmation unless authenticated via shared secret PIN (`requiredPin`) or originating on local loopback (`127.0.0.1` / `::1`). Unauthenticated LAN claims are strictly routed to the user acceptance gate.
+  - Because self-signed certificates on first contact lack a CA trust anchor, clicking "Accept" does not prove identity against an active LAN MITM.
+  - **Short Authentication String (SAS):** Notchify computes a deterministic 6-digit verification code (`LocalShareSecurity.computeVerificationCode`) from the sorted SHA-256 fingerprints of both endpoints (`XXX-XXX`). Both sender and receiver display the identical code, allowing users to verify out-of-band that no active MITM has intercepted the connection.
+  - **Trust Boundary:** Trust is never permanently established prior to explicit user confirmation.
+- **Reassessed Loopback Acceptance & Anti-Spoofing:**
+  - A loopback connection (`127.0.0.1` / `::1`) does not prove process authenticity (local browsers, other local processes, or malicious software can connect to loopback).
+  - In production, loopback connections claiming a favorite device without a shared PIN do **not** auto-accept; they are strictly routed to the user acceptance gate (`onIncomingSessionOffered`).
+  - Automated loopback acceptance is strictly restricted to test harness environments via `isTestHarnessAutoAcceptEnabled = true`.
+- **PIN Anti-Brute-Force Throttling & Lockout:**
+  - Tracks failed PIN attempts by IP.
+  - Progressive delays (up to 2.0s) are applied to failed attempts.
+  - 5 failed attempts trigger a 60-second temporary lockout (HTTP 429 Too Many Requests).
+  - 10 failed attempts trigger a 300-second lockout.
+  - Per-IP connection limits cap concurrent connections to 8 per external IP (16 for loopback).
 
 ### 3. API Token Protection & Redirect Security (SEC-03)
 - **Ephemeral URLSessions:** `AskAIService` and `TelegramClient` initialize dedicated `URLSession` instances with `URLSessionConfiguration.ephemeral`.
@@ -87,21 +101,30 @@ graph TD
 
 ### 4. LocalShare Server Concurrency & Denial-of-Service Defense (SEC-04, SEC-05, SEC-06)
 - **Single Active Session Mutex:** `LocalShareSessionCoordinator` enforces that only one transfer session exists at any given moment. Simultaneous attempts receive HTTP 409 Conflict.
-- **Connection Quota (Anti-DoS):** `activeConnectionCount` is tracked under `NSLock`; incoming connections exceeding `LocalShareSecurity.maxSimultaneousConnections` (32) are dropped immediately.
-- **Concurrent Writer Quota:** Active file stream writers are capped at `LocalShareSecurity.maxConcurrentWriters` (8) per session, preventing file descriptor exhaustion.
+- **Connection Quota (Anti-DoS):** `activeConnectionCount` is tracked under `NSLock`; incoming connections exceeding `LocalShareSecurity.maxSimultaneousConnections` (32) are dropped immediately. Per-IP connection limits prevent single-host socket exhaustion.
+- **Prompt Socket Reclamation:** All incoming `NWConnection` instances are tracked in `activeConnections` and explicitly cancelled during server teardown. Responses send `Connection: close` and close sockets after a 50ms buffer flush, preventing file descriptor exhaustion.
+- **Concurrent Writer Quota:** Active file stream writers are capped at `LocalShareSecurity.maxConcurrentWriters` (8) per session, preventing descriptor leaks.
 - **Slowloris & Header Flooding Protection:** Headers are limited to `LocalShareSecurity.maxHeaderSize` (32 KB); headers exceeding this threshold return HTTP 431 `Request Header Fields Too Large`. Inactivity watchdogs terminate stale connections after 15 seconds.
 - **Size Mismatch Defense:** Incoming uploads validate HTTP `Content-Length` against declared session metadata immediately in `handleUploadRoute`, rejecting mismatches with HTTP 400 before allocating disk storage.
 
-### 5. Filesystem Security & Atomic POSIX File Creation (SEC-08)
-- **Atomic POSIX File Creation:**
-  - `LocalShareFileStreamWriter` creates files using Darwin POSIX `open(fsPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)`.
-  - `O_CREAT | O_EXCL` guarantees atomic creation: if the destination file already exists, `open` fails with `EEXIST`, eliminating the TOCTOU overwrite race.
-  - `O_NOFOLLOW` ensures symbolic links are never followed: targeting a symlink fails immediately with `EEXIST`/`ELOOP`, preventing directory escape.
-  - `0o600` restricts file permissions to the current owner from the moment of inode creation.
+### 5. Filesystem Security & Directory-Relative POSIX Containment (SEC-08)
+- **Directory Descriptor & openat Primitives:**
+  - Rather than resolving full path strings with `open`, `LocalShareFileStreamWriter` opens the parent session directory descriptor using `open(dirPath, O_RDONLY | O_DIRECTORY | O_CLOEXEC)`.
+  - Verifies directory ownership and directory mode via `fstat(dirFd, &st)` (`S_ISDIR`).
+  - Calls `openat(dirFd, fileName, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)` on the sanitized leaf component.
+  - This prevents ancestor directory symlink swaps (TOCTOU races) between path checks and creation, ensures `O_NOFOLLOW` prevents symlink escaping, and allocates the file with mode `0600` atomically.
 - **Non-Overwriting Promotion:** Completed files promoted from the session directory to the active receive folder (`promoteSessionFiles`) automatically increment numeric suffixes (`file (1).ext`, `file (2).ext`), guaranteeing user files are never overwritten.
-- **macOS Quarantine Tagging:** Completed files are annotated with `com.apple.quarantine` extended attributes so Gatekeeper validates them before execution.
+- **macOS Quarantine Extended Attribute (`com.apple.quarantine`):**
+  - Completed files are annotated with `com.apple.quarantine`.
+  - **Accurate Security Scope:** Quarantine tagging ensures that when a user subsequently opens the received file via GUI surfaces (Finder, Dock, LaunchServices), macOS evaluates the file with Gatekeeper and scans it against known malware signatures using XProtect before presenting the execution prompt. It does **not** perform an immediate proactive background scan at the moment of download, nor does it constrain execution initiated directly via terminal shells or POSIX `execve`.
 
 ### 6. Process Memory & Platform Governance (SEC-09, SEC-10)
+- **App Sandbox vs. System Architecture:**
+  - Notchify is intentionally non-sandboxed because its core functionality requires capabilities unavailable in App Sandbox:
+    - Floating window positioning pinned at `.screenSaver` or `.mainMenu` level above system menu bars.
+    - Global keyboard event monitoring (`NSEvent.addGlobalMonitorForEvents`) in `ThockModule` to measure inter-keystroke intervals (which requires Accessibility TCC consent, not available in Mac App Store sandbox).
+    - Dynamic custom directory file staging without requiring repeated user-interactive file open panels.
+  - Distribution model is **Direct Distribution** via Apple Developer ID and Apple Notarization, which provides cryptographic tamper-proofing, ticket stapling, and Gatekeeper compatibility without sandboxing constraints.
 - **Private Darwin SPI Elimination:** Zero private SPIs are linked.
 - **Cooperative Memory Relief:** Idle periods trigger `malloc_zone_pressure_relief(malloc_default_zone(), 0)`.
 - **Keyboard Monitoring Scope:** Global keyboard monitoring in `ThockModule` is restricted strictly to measuring inter-key interval duration; zero keycodes, characters, or text buffers are ever captured or logged.

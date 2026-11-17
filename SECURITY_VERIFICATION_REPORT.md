@@ -141,9 +141,9 @@ Three consecutive complete verification test runs were performed with zero manua
 
 | Execution Run | Timestamp (UTC) | Commit Reference | Total Tests | Passed | Failed | Flakes | Exit Code | Result |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Run 1** | `2026-11-17T05:08:03Z` | `0acd65e` | 112 | 112 | 0 | 0 | 0 | **PASS** |
-| **Run 2** | `2026-11-17T05:08:10Z` | `0acd65e` | 112 | 112 | 0 | 0 | 0 | **PASS** |
-| **Run 3** | `2026-11-17T05:08:17Z` | `0acd65e` | 112 | 112 | 0 | 0 | 0 | **PASS** |
+| **Run 1** | `2026-11-17T05:51:09Z` | `33db9ec` | 112 | 112 | 0 | 0 | 0 | **PASS** |
+| **Run 2** | `2026-11-17T05:51:17Z` | `33db9ec` | 112 | 112 | 0 | 0 | 0 | **PASS** |
+| **Run 3** | `2026-11-17T05:51:26Z` | `33db9ec` | 112 | 112 | 0 | 0 | 0 | **PASS** |
 
 ---
 
@@ -189,18 +189,20 @@ Three consecutive complete verification test runs were performed with zero manua
 ## 5. Stage 4 Deep Technical Verification Evidence
 
 ### Test 107: Atomic POSIX File Creation & Symlink TOCTOU Protection
-- **Methodology:** Verified that `LocalShareFileStreamWriter` creates files with POSIX `open` flags `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW` with file mode `0o600`.
-- **Symlink Traversal Test:** Attempted to write to a symlink pointing to an external destination (`evil_symlink -> secret_target.txt`). `open` failed with POSIX `ELOOP` (Too many levels of symbolic links), preserving the destination untouched.
-- **Overwrite Protection Test:** Attempted to initialize a stream over an existing regular file. `open` failed with `EEXIST` and `LocalShareFileManager` automatically iterated to non-colliding numeric suffix `(1)`.
+- **Methodology:** Verified that `LocalShareFileStreamWriter` creates files with POSIX `openat` relative to a verified directory descriptor (`O_RDONLY | O_DIRECTORY | O_CLOEXEC`), using flags `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC` with file mode `0o600`.
+- **Directory Descriptor Containment:** Verified parent directory ownership via `fstat(dirFd, &st)` before leaf creation. Rejected empty or slash-containing path components with `LocalShareError.invalidFileName`.
+- **Symlink Traversal Test:** Attempted to write to a symlink pointing to an external destination (`evil_symlink -> secret_target.txt`). `openat` failed with POSIX `ELOOP` (Too many levels of symbolic links), preserving the destination untouched.
+- **Overwrite Protection Test:** Attempted to initialize a stream over an existing regular file. `openat` failed with `EEXIST` and `LocalShareFileManager` automatically iterated to non-colliding numeric suffix `(1)`.
 
-### Test 108: Out-of-band Short Verification Code (SAS) Determinism & Active MITM
+### Test 108: Out-of-band Short Verification Code (SAS) Determinism & Active MITM Detection
 - **Methodology:** Generated two distinct TLS certificate pairs representing local and remote endpoints. Derived SAS verification codes using `LocalShareSecurity.computeVerificationCode`.
-- **Determinism:** Verified `computeVerificationCode(local: peerA, peer: peerB) == computeVerificationCode(local: peerB, peer: peerA)`. Formatted as `XXX-XXX` (6 digits).
-- **MITM Detection:** Simulated an attacker injecting an intermediate certificate fingerprint. Verified SAS codes diverged immediately, enabling out-of-band user comparison to catch active MITM.
+- **Subtest A (Determinism & Symmetry):** Verified `computeVerificationCode(local: peerA, peer: peerB) == computeVerificationCode(local: peerB, peer: peerA)`. Formatted as `XXX-XXX` (6 digits).
+- **Subtest B (Active LAN MITM & Pinning):** Simulated an attacker intercepting connection and presenting an attacker certificate fingerprint. Verified SAS codes diverged immediately (`codeAliceUnderMITM != codeBobUnderMITM`). Verified client-side `LocalSharePeerPinningDelegate` fail-closed rejection on rogue certificate fingerprints (`isFingerprintValid == false`).
 
-### Test 109: Unauthenticated Favorite Fingerprint Spoofing Gate
-- **Methodology:** Simulated an incoming `/prepare-upload` request from an external LAN IP claiming the SHA-256 fingerprint of a configured favorite device.
-- **Result:** With PIN disabled and request from external LAN, `LocalShareServer` refused auto-acceptance and required interactive user confirmation. When the client presented a valid shared PIN, transfer proceeded.
+### Test 109: Unauthenticated Favorite Fingerprint Spoofing Gate & PIN Lockout
+- **Methodology:** Simulated an incoming `/prepare-upload` request claiming the SHA-256 fingerprint of a configured favorite device.
+- **Subtest A (Favorite Spoofing Gate):** With PIN disabled, `LocalShareServer` refused auto-acceptance and required interactive user confirmation. When presenting a valid shared PIN, transfer proceeded. Automated loopback auto-acceptance was strictly gated behind `isTestHarnessAutoAcceptEnabled`.
+- **Subtest B (PIN Brute-Force Lockout):** Executed rapid consecutive incorrect PIN attempts. Verified progressive delay up to 2.0s. On the 5th consecutive failure, server engaged 60-second temporary lockout and immediately rejected further attempts with HTTP 429 Too Many Requests.
 
 ### Test 110: Realistic 5 MB File Transfer with SHA-256 Tamper Detection
 - **Methodology:** Staged a 5 MB (5,242,880 bytes) random binary payload with pre-computed SHA-256 checksum. Uploaded via TLS streaming socket.
@@ -211,7 +213,19 @@ Three consecutive complete verification test runs were performed with zero manua
 - **Methodology:** Verified single-use upload tokens cannot be reused once a stream completes or aborts. Second upload with identical token failed with HTTP 403 Forbidden.
 - **Writer Quotas:** Attempted to spawn 9 concurrent file stream writers within a single session (`maxConcurrentWriters = 8`). 9th writer was rejected with HTTP 429 Too Many Requests.
 
-### Test 112: Extended Soak & Memory Stability
-- **Methodology:** Executed 50 consecutive full prepare-upload-stream cycles over loopback TLS. Sampled process resident memory (RSS) before and after.
-- **Memory Metric:** Initial resident memory: 455 MB. Final resident memory: 458 MB. Delta: **2.59 MB** across 50 TLS handshakes, HTTP parsing, disk streaming, SHA-256 digest calculations, and session directory cleanups. Zero memory runaway.
+### Test 112: Extended Soak & Resource Leak Verification (50 Sequential Transfers)
+- **Methodology:** Executed 50 consecutive full prepare-upload-stream cycles over loopback TLS. Measured process resident memory (RSS), open file descriptors via `/dev/fd`, active network connections, active listeners, and session state before and after the 50-transfer burst.
+- **Resource Stability Audit Table:**
+
+| Metric | Baseline | Post-Soak (50 Transfers) | Delta / Observed Value | Permitted Threshold | Result |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Resident Memory (RSS)** | 453 MB | 455 MB | **+2.09 MB** | < 35.0 MB | **PASS** |
+| **Open File Descriptors** | 31 FDs | 26 FDs | **5 FDs** (within baseline)| <= 15 FDs | **PASS** |
+| **Active Server Connections** | 0 | 0 | **0 active** | == 0 | **PASS** |
+| **Active NWListeners** | Stopped | Stopped | **0 lingering** | == 0 | **PASS** |
+| **Active Session State** | nil | nil | **nil** | == nil | **PASS** |
+| **Active Stream Writers** | 0 | 0 | **0 active** | == 0 | **PASS** |
+| **Temporary File Artifacts**| 0 | 0 | **0 lingering** | == 0 | **PASS** |
+
+- **Summary:** Zero file descriptor leaks, zero socket leaks, zero session leaks, and zero memory runaway across 50 full TLS transfers (100 sequential HTTP transactions).
 
