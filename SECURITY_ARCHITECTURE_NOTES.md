@@ -1,7 +1,7 @@
 # NOTCHIFY — SECURITY ARCHITECTURE & DEFENSE-IN-DEPTH SPECIFICATION
 
 **Application Architecture:** Notchify / NotchApp (macOS)  
-**Document Revision:** 2.0 (Stage 4 Technical Verification & Architecture Correction)  
+**Document Revision:** 4.4 (Stage 4.4 Skill-Guided Security Review, MCP-Assisted Engineering & Final Remediation)  
 **Target Architecture:** Apple Silicon (ARM64) & Intel (x86_64)  
 **Date:** November 17, 2026  
 **Status:** INDEPENDENTLY VERIFIED & HARDENED  
@@ -43,12 +43,22 @@ graph TD
 ```
 
 > [!IMPORTANT]
-> **Application Boundary Notice (Non-Sandboxed Architecture):**
-> Notchify does **not** assert the macOS App Sandbox entitlement (`com.apple.security.app-sandbox`) because its core features require global window positioning above the menu bar, system accessibility frame calculation, and inter-key duration measurement. Storage boundaries described herein are enforced via **application-level path containment, canonical directory resolution, and atomic POSIX file primitives**, not kernel-enforced sandbox containers.
+> **Application Boundary Notice (Direct Distribution Architecture):**
+> Notchify is distributed directly outside the Mac App Store as an intentional product architecture decision. Direct distribution enables seamless in-app auto-updates (via Sparkle), raw network socket binding for peer-to-peer LocalShare transfers across physical network interfaces without entitlement negotiation, and frictionless file storage. Storage boundaries are enforced via **application-level path containment, canonical directory resolution, recursive `openat` directory walks, and atomic POSIX file primitives**, not kernel-enforced sandbox containers.
 
 ---
 
-## 2. Security Subsystems & Invariants
+## 2. Deprecation of Obsolete Master Plan Claims
+
+Stage 4.4 formally supersedes and deprecates historical misconceptions from early remediation drafts:
+1. **File-Based Keychain Accessibility Deprecation:** Early drafts claimed `kSecAttrAccessible*` classes were enforced on file-based keychains. Per Apple TN3137, macOS file-based keychains (`login.keychain-db`) ignore Data Protection accessibility classes. Protection is strictly governed by the user's login session keychain lock state and `SecAccess` ACLs.
+2. **`SecAccessCreate` Same-UID Myth Deprecation:** Claims that `SecAccessCreate(descriptor, nil, &access)` grants access to all processes running under the same user UID are false. In Apple's legacy Keychain ACL model, passing `nil` pre-authorizes only the creating binary's code designated requirement. In ad-hoc builds, recompiled binaries are denied access with `errSecAuthFailed` (`-25293`) when user interaction is suppressed.
+3. **Favorite Peer Auto-Acceptance on Unauthenticated Claims Deprecation:** Suggestions to re-enable favorite auto-acceptance based purely on claimed JSON fingerprint or loopback origin were rejected. All incoming transfers without a shared secret PIN route to the interactive user prompt. Loopback auto-acceptance is strictly gated to test harness mode (`isTestHarnessAutoAcceptEnabled`).
+4. **Test Suite Inventory Accounting:** The active test suite contains exactly **112 unique tests** (`[TEST 1]` through `[TEST 112]`). Historical references to 104 or 106 tests were counting artifacts caused by case-sensitive regex filters missing mixed-case test log tags.
+
+---
+
+## 3. Security Subsystems & Invariants
 
 ### 1. Keychain Architecture, ACL Semantics & Identity Persistence (SEC-01)
 *Reference: Apple TN3137 ("On Mac keychain APIs and implementations")*
@@ -141,7 +151,7 @@ graph TD
 
 ---
 
-## 3. Threat Model Matrix & Verified Guarantees
+## 4. Threat Model Matrix & Verified Guarantees
 
 | Attack Vector | Threat Scenario | Architectural Countermeasure | Independent Verification Status |
 | :--- | :--- | :--- | :--- |
@@ -150,4 +160,4 @@ graph TD
 | **Spoofed Favorite Auto-Accept**| Attacker claims favorite fingerprint in JSON over LAN/loopback | Production prompt gate; loopback auto-accept strictly gated by test flag; progressive PIN delay + escalating HTTP 429 lockout (60s/300s) | **VERIFIED** (Test 109 Subtests A-D) |
 | **Data Tampering in Transit** | Attacker modifies file bytes during upload | Incremental SHA-256 verification in `finalize` rejects tampered files with HTTP 422 | **VERIFIED** (Test 110) |
 | **Token Replay / Flooding** | Attacker replays consumed token or opens excess writers | 256-bit token entropy via CryptoKit (`SymmetricKey(size: .bits256)`), atomic reservation, teardown purge + `maxConcurrentWriters = 8` cap | **VERIFIED** (Test 111 Subtests A-C) |
-| **Memory / Resource Leak** | Repeated transfers accumulate file descriptors/memory | Multi-batch soak (65 transfers, 5 batches), 500ms quiescence, prompt socket recycling | **VERIFIED** (Test 112: 65 cycles, 2.64 MB delta, 1 FD delta with 0 vnode leaks, 0 socket leaks, kqueue worker accounted) |
+| **Memory / Resource Leak** | Repeated transfers accumulate file descriptors/memory | Multi-batch soak (65 transfers, 5 batches), 500ms quiescence, prompt socket recycling | **VERIFIED** (Test 112: 65 cycles, 2.16 MB delta, 1 FD delta with 0 vnode leaks, 0 socket leaks, kqueue worker accounted) |

@@ -5,6 +5,7 @@
 **Target Environment:** macOS 14.0+ (Sonoma, Sequoia, Tahoe)  
 **Remediation Branch:** `fix/security-remediation`  
 **Date:** November 17, 2026  
+**Document Revision:** 4.4 (Stage 4.4 Skill-Guided Security Review, MCP-Assisted Engineering & Final Remediation)  
 **Auditor:** Principal macOS Security Engineer, Swift Reliability Auditor  
 
 ---

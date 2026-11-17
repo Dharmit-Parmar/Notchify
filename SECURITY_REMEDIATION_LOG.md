@@ -307,3 +307,26 @@
      - Corrected SEC-03: clarified that `URLCache` caches HTTP response bodies on disk, not request headers.
      - Corrected SEC-01: confirmed the 97-byte P-256 private key is an exportable software key stored in `login.keychain-db`, not a Secure Enclave key.
 - **Verification:** 112/112 tests pass cleanly. All 8 security integrity gates passed. Production identity preserved 100% intact.
+
+---
+
+### Step 22: Stage 4.4 Skill-Guided Security Review, MCP-Assisted Engineering & Final Sign-Off
+- **Date:** November 17, 2026
+- **Status:** COMPLETED & INDEPENDENTLY VERIFIED (112/112 TESTS PASSING — 3 CONSECUTIVE CLEAN RUNS)
+- **Skills Discovered & Applied:**
+  - Loaded and applied `axiom-security` (`keychain.md`, `cryptokit.md`, `file-protection-ref.md`), `security-audit`, `axiom-concurrency`, `gsd-secure-phase`, `axiom-macos`, `axiom-swift`, `axiom-testing`, `gravitas`, and `ponytail`.
+  - Formally documented absence of "Cloudflare Security" in the active skills environment.
+- **MCP Server Discovery & Technical Findings:**
+  - Discovered configured MCP server `virustotal_virustotal`.
+  - Investigated server identified as "Virtual Tools"; determined to be a phonetic/colloquial misnomer for VirusTotal or an unconfigured server.
+  - Confirmed `virustotal_virustotal` exposes external threat intelligence tools (`get_file_report`, `submit_file`) which are inapplicable for local AST static analysis and would violate privacy/security boundaries if used to upload private code or keys.
+- **Production Identity Verification (Read-Only):**
+  - Executed `verify_production_identity.swift` read-only against `login.keychain-db`.
+  - Verified 284-byte X.509 certificate DER and computed SHA-256 fingerprint: `1ed5e4bbbb954b14228175481dbb11db66415462e07dc1586211002b825d4f35` (100% match).
+  - Verified 97-byte ANSI X9.63 P-256 private key and performed successful in-memory signing test with zero Keychain prompts.
+  - Verified `~/Library/Preferences/NotchApp.plist.backup_production` (4483 bytes) intact and untouched.
+- **Architecture & Document Reconciliation:**
+  - Reconciled `SECURITY_ARCHITECTURE_NOTES.md` header from Revision 2.0 to Revision 4.4.
+  - Formally recorded deprecation of obsolete master plan assumptions (file-based `kSecAttrAccessible*`, `SecAccessCreate` same-UID access myths, loopback/JSON favorite auto-accept, test inventory count).
+  - Updated all 5 security documents to Revision 4.4 with exact soak and resource metrics.
+- **Verification:** 112/112 tests pass cleanly across 3 consecutive runs on clean tree. 8/8 security integrity gates passed. Production identity preserved 100% intact.

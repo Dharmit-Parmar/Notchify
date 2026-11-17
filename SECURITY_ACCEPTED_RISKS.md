@@ -1,7 +1,7 @@
 # NOTCHIFY — SECURITY ACCEPTED RISKS & THREAT MODEL DECISIONS
 
 **Application:** Notchify / NotchApp (macOS)  
-**Document Revision:** 3.0 (Stage 4.3 Final Evidence Reconciliation & Honest Threat Model Sign-Off)  
+**Document Revision:** 4.4 (Stage 4.4 Skill-Guided Security Review, MCP-Assisted Engineering & Final Remediation)  
 **Date:** November 17, 2026  
 **Auditor / System Architect:** Principal macOS Application Security Engineer  
 
@@ -128,5 +128,5 @@ This document formally records all accepted security risks, architectural trade-
 | **RISK-01** | Self-Signed LAN TLS | Low | Low | Out-of-band 6-digit SAS code comparison & fingerprint pinning | **VERIFIED** (Test 108 Subtests A-C) |
 | **RISK-02** | File-Based Login Keychain Open ACL | Very Low | Low | Pre-authorizes creating app designated requirement; `0600` permissions; Developer ID migration planned | **VERIFIED** (TN3137 audit) |
 | **RISK-03** | Unauthenticated LocalSend Client | Very Low | Negligible | Gated auto-acceptance requires PIN; loopback gated to test harness; prompts user on LAN claims | **VERIFIED** (Test 109 Subtests A-D) |
-| **RISK-04** | Non-Sandboxed Application | Very Low | Medium | Recursive `openat` / `fstat` walk with `O_CREAT \| O_EXCL \| O_NOFOLLOW` & quarantine tagging | **VERIFIED** (Test 107 Subtests A-F) |
+| **RISK-04** | Non-Sandboxed Application | Very Low | Medium | Recursive `openat` / `fstat` walk with `O_CREAT \| O_EXCL \| O_NOFOLLOW` & quarantine tagging | **VERIFIED** (Test 107 Subtests A-G) |
 | **RISK-05** | Accessibility & Event Monitor | Very Low | Negligible | Zero text/keycode capture; timestamp interval tracking only | **VERIFIED** (Test 97) |

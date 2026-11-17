@@ -2,7 +2,7 @@
 
 **Application:** Notchify / NotchApp  
 **Verification Date:** November 17, 2026  
-**Document Revision:** 3.0 (Stage 4.3 Final Evidence Reconciliation & Sign-Off)  
+**Document Revision:** 4.4 (Stage 4.4 Skill-Guided Security Review, MCP-Assisted Engineering & Final Remediation)  
 **Platform:** macOS 27.2.1 (ARM64 / Apple Silicon)  
 **Verification Tooling:** Native Swift Verification Runner, Bash Security Suite, Process Sampler, Security CLI  
 **Overall Result:** **112 / 112 TESTS PASSED (100% SUCCESS — 3 CONSECUTIVE CLEAN RUNS)**  
