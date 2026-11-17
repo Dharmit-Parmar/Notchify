@@ -60,20 +60,20 @@ public final class NotchShellCoordinator: ObservableObject {
         )
     }
     
+    public var quickControlsExpandedHeight: CGFloat {
+        guard SettingsStore.shared.showQuickControls else { return 0.0 }
+        let qcManager = QuickControlsManager.shared
+        guard qcManager.state.isPanelVisible else { return 0.0 }
+        let count = CGFloat(SettingsStore.shared.enabledQuickControls.count)
+        guard count > 0 else { return 0.0 }
+        let panelRowsHeight = (count * 46.0) + (max(0, count - 1) * 8.0) + 16.0
+        return 38.0 + panelRowsHeight
+    }
+    
     public var currentExpandedLayout: ExpandedLayout {
         let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
         let geom = NotchGeometry.current(for: screen)
         let store = SettingsStore.shared
-        let qcManager = QuickControlsManager.shared
-        let qcHeight: CGFloat = {
-            guard store.showQuickControls else { return 0.0 }
-            if qcManager.state.isPanelVisible {
-                let count = CGFloat(store.enabledQuickControls.count)
-                return 32.0 + (count * 38.0) + 16.0
-            } else {
-                return 0.0
-            }
-        }()
         return NotchGeometry.expandedLayout(
             geometry: geom,
             notchWidth: store.notchWidth,
@@ -83,7 +83,7 @@ public final class NotchShellCoordinator: ObservableObject {
             verticalOffset: store.verticalNotchOffset,
             dashboardLayoutFlow: store.dashboardLayoutFlow,
             activeWidgetsCount: store.activeDashboardWidgets.count,
-            quickControlsHeight: qcHeight
+            quickControlsHeight: quickControlsExpandedHeight
         )
     }
     
@@ -271,8 +271,8 @@ public final class NotchShellCoordinator: ObservableObject {
         let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self = self else { return }
-                guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive, !self.isTypingInWidget else {
-                    if !self.isTypingInWidget && (self.state != .expanded || self.isLockedOpen || self.isFileDraggingActive) {
+                guard self.state == .expanded, !self.isLockedOpen, !self.isFileDraggingActive, !self.isTypingInWidget, !QuickControlsManager.shared.isInteractingWithSlider else {
+                    if !self.isTypingInWidget && !QuickControlsManager.shared.isInteractingWithSlider && (self.state != .expanded || self.isLockedOpen || self.isFileDraggingActive) {
                         self.stopExpandedWatchdog()
                     }
                     return
@@ -426,7 +426,7 @@ public final class NotchShellCoordinator: ObservableObject {
         hoverWorkItem = nil
         isHovered = false
         
-        guard !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen, !isTypingInWidget, state != .collapsed else { return }
+        guard !isLockedOpen, !isFileDraggingActive, !isMenuOrPopoverOpen, !isTypingInWidget, !QuickControlsManager.shared.isInteractingWithSlider, state != .collapsed else { return }
         
         if collapseWorkItem != nil { return }
         
@@ -443,7 +443,7 @@ public final class NotchShellCoordinator: ObservableObject {
                     return
                 }
             }
-            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen, !self.isTypingInWidget else { return }
+            guard !self.isHovered, !self.isLockedOpen, !self.isFileDraggingActive, !self.isMenuOrPopoverOpen, !self.isTypingInWidget, !QuickControlsManager.shared.isInteractingWithSlider else { return }
             
             self.stopExpandedWatchdog()
             self.idleDimWorkItem?.cancel()

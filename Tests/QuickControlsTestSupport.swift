@@ -82,7 +82,9 @@ public protocol QuickControlsServiceProtocol: AnyObject, Sendable {
     func setVolume(_ volume: Float) -> Bool
     func setMuted(_ muted: Bool) -> Bool
     func getBrightness() -> QuickControlInfo
+    func setBrightness(_ brightness: Float) -> Bool
     func getKeyboardBacklight() -> QuickControlInfo
+    func setKeyboardBacklight(_ brightness: Float) -> Bool
     func observeVolumeChanges(handler: @escaping @Sendable (QuickControlInfo) -> Void) -> AnyCancellable
 }
 
@@ -232,6 +234,11 @@ public final class SystemControlsService: QuickControlsServiceProtocol, @uncheck
         )
     }
     
+    public func setBrightness(_ brightness: Float) -> Bool {
+        // Direct built-in brightness requires private DisplayServices SPI; public API returns false
+        return false
+    }
+    
     public func getKeyboardBacklight() -> QuickControlInfo {
         QuickControlInfo(
             kind: .keyboardBacklight,
@@ -240,6 +247,11 @@ public final class SystemControlsService: QuickControlsServiceProtocol, @uncheck
             availability: .unsupported(reason: "Keyboard Backlight is managed by macOS Keyboard Settings."),
             deviceName: "Internal Backlit Keyboard"
         )
+    }
+    
+    public func setKeyboardBacklight(_ brightness: Float) -> Bool {
+        // Direct keyboard backlight requires private CoreBrightness SPI; public API returns false
+        return false
     }
     
     public func observeVolumeChanges(handler: @escaping @Sendable (QuickControlInfo) -> Void) -> AnyCancellable {
@@ -254,6 +266,12 @@ public final class MockQuickControlsService: QuickControlsServiceProtocol, @unch
     public var mockDeviceName: String = "Test Mock Headphones"
     public var mockAvailability: QuickControlAvailability = .available
     
+    public var mockBrightness: Float = 0.80
+    public var mockBrightnessAvailability: QuickControlAvailability = .available
+    
+    public var mockKeyboardBrightness: Float = 0.40
+    public var mockKeyboardBrightnessAvailability: QuickControlAvailability = .available
+    
     public init() {}
     
     public func getVolume() -> QuickControlInfo {
@@ -267,6 +285,7 @@ public final class MockQuickControlsService: QuickControlsServiceProtocol, @unch
     }
     
     public func setVolume(_ volume: Float) -> Bool {
+        guard mockAvailability.isUsable else { return false }
         mockVolume = max(0.0, min(1.0, volume))
         if mockVolume > 0 && mockIsMuted {
             mockIsMuted = false
@@ -275,6 +294,7 @@ public final class MockQuickControlsService: QuickControlsServiceProtocol, @unch
     }
     
     public func setMuted(_ muted: Bool) -> Bool {
+        guard mockAvailability.isUsable else { return false }
         mockIsMuted = muted
         return true
     }
@@ -282,21 +302,33 @@ public final class MockQuickControlsService: QuickControlsServiceProtocol, @unch
     public func getBrightness() -> QuickControlInfo {
         QuickControlInfo(
             kind: .brightness,
-            volume: 0.8,
+            volume: mockBrightness,
             isMuted: false,
-            availability: .unsupported(reason: "Displays Settings"),
+            availability: mockBrightnessAvailability,
             deviceName: "Display"
         )
+    }
+    
+    public func setBrightness(_ brightness: Float) -> Bool {
+        guard mockBrightnessAvailability.isUsable else { return false }
+        mockBrightness = max(0.0, min(1.0, brightness))
+        return true
     }
     
     public func getKeyboardBacklight() -> QuickControlInfo {
         QuickControlInfo(
             kind: .keyboardBacklight,
-            volume: 0.5,
+            volume: mockKeyboardBrightness,
             isMuted: false,
-            availability: .unsupported(reason: "Keyboard Settings"),
+            availability: mockKeyboardBrightnessAvailability,
             deviceName: "Keyboard"
         )
+    }
+    
+    public func setKeyboardBacklight(_ brightness: Float) -> Bool {
+        guard mockKeyboardBrightnessAvailability.isUsable else { return false }
+        mockKeyboardBrightness = max(0.0, min(1.0, brightness))
+        return true
     }
     
     public func observeVolumeChanges(handler: @escaping @Sendable (QuickControlInfo) -> Void) -> AnyCancellable {
@@ -404,7 +436,17 @@ public final class QuickControlsManager: ObservableObject {
     @Published public var volumeAvailability: QuickControlAvailability = .available
     @Published public var activeAudioDeviceName: String = "Built-in Speakers"
     
+    @Published public var brightness: Float = 0.80
+    @Published public var brightnessAvailability: QuickControlAvailability = .unsupported(reason: "System Managed")
+    
+    @Published public var keyboardBrightness: Float = 0.40
+    @Published public var keyboardBrightnessAvailability: QuickControlAvailability = .unsupported(reason: "Hardware Managed")
+    
     public private(set) var isInteractingWithSlider: Bool = false
+    public private(set) var interactionScreenRect: CGRect = .zero
+    public private(set) var isPointerInsideInteractionRegion: Bool = false
+    public var closeGraceTask: Task<Void, Never>?
+    
     private var service: QuickControlsServiceProtocol = SystemControlsService.shared
     private var cancellables = Set<AnyCancellable>()
     
@@ -422,12 +464,25 @@ public final class QuickControlsManager: ObservableObject {
         refreshHardwareState()
     }
     
+    public func updateInteractionRegion(_ screenRect: CGRect) {
+        guard screenRect.width > 0 && screenRect.height > 0 else { return }
+        self.interactionScreenRect = screenRect
+    }
+    
     public func refreshHardwareState() {
         let volInfo = service.getVolume()
         self.volume = volInfo.volume
         self.isMuted = volInfo.isMuted
         self.volumeAvailability = volInfo.availability
         self.activeAudioDeviceName = volInfo.deviceName
+        
+        let brightInfo = service.getBrightness()
+        self.brightness = brightInfo.volume
+        self.brightnessAvailability = brightInfo.availability
+        
+        let kbdInfo = service.getKeyboardBacklight()
+        self.keyboardBrightness = kbdInfo.volume
+        self.keyboardBrightnessAvailability = kbdInfo.availability
     }
     
     public func setVolumeValue(_ newValue: Float) {
@@ -446,17 +501,67 @@ public final class QuickControlsManager: ObservableObject {
         _ = service.setMuted(newMuted)
     }
     
+    public func setBrightnessValue(_ newValue: Float) {
+        let clamped = max(0.0, min(1.0, newValue))
+        self.brightness = clamped
+        _ = service.setBrightness(clamped)
+    }
+    
+    public func setKeyboardBrightnessValue(_ newValue: Float) {
+        let clamped = max(0.0, min(1.0, newValue))
+        self.keyboardBrightness = clamped
+        _ = service.setKeyboardBacklight(clamped)
+    }
+    
+    public func onPointerEnteredRegion() {
+        closeGraceTask?.cancel()
+        closeGraceTask = nil
+        isPointerInsideInteractionRegion = true
+        
+        let isPinned = SettingsStore.shared.quickControlsPinned
+        if isPinned {
+            state = .pinned
+        } else {
+            state = .hoverPreview
+        }
+    }
+    
+    public func onPointerExitedRegion() {
+        isPointerInsideInteractionRegion = false
+        
+        guard !SettingsStore.shared.quickControlsPinned else { return }
+        guard !isInteractingWithSlider else { return }
+        guard state != .closed else { return }
+        
+        closeGraceTask?.cancel()
+        closeGraceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            guard !SettingsStore.shared.quickControlsPinned else { return }
+            guard !self.isInteractingWithSlider else { return }
+            guard NSEvent.pressedMouseButtons == 0 else { return }
+            
+            let currentMouse = NSEvent.mouseLocation
+            let safeRegion = self.interactionScreenRect.insetBy(dx: -6, dy: -6)
+            if self.interactionScreenRect != .zero && safeRegion.contains(currentMouse) {
+                self.isPointerInsideInteractionRegion = true
+                return
+            }
+            self.state = .closed
+        }
+    }
+    
     public func onDisclosureHoverEntered() {
-        guard state != .pinned && state != .interacting else { return }
-        self.state = .hoverPreview
+        onPointerEnteredRegion()
     }
     
     public func onDisclosureOrPanelHoverExited() {
-        guard state != .pinned && state != .interacting else { return }
-        self.state = .closed
+        onPointerExitedRegion()
     }
     
     public func onSliderDragStarted() {
+        closeGraceTask?.cancel()
+        closeGraceTask = nil
         self.isInteractingWithSlider = true
         self.state = .interacting
     }
@@ -467,6 +572,11 @@ public final class QuickControlsManager: ObservableObject {
             self.state = .pinned
         } else {
             self.state = .hoverPreview
+            let currentMouse = NSEvent.mouseLocation
+            let safeRegion = interactionScreenRect.insetBy(dx: -6, dy: -6)
+            if interactionScreenRect != .zero && !safeRegion.contains(currentMouse) {
+                onPointerExitedRegion()
+            }
         }
     }
     
@@ -474,9 +584,16 @@ public final class QuickControlsManager: ObservableObject {
         let store = SettingsStore.shared
         store.quickControlsPinned.toggle()
         if store.quickControlsPinned {
+            closeGraceTask?.cancel()
+            closeGraceTask = nil
             self.state = .pinned
         } else {
             self.state = .hoverPreview
+            let currentMouse = NSEvent.mouseLocation
+            let safeRegion = interactionScreenRect.insetBy(dx: -6, dy: -6)
+            if interactionScreenRect != .zero && !safeRegion.contains(currentMouse) {
+                onPointerExitedRegion()
+            }
         }
     }
 }

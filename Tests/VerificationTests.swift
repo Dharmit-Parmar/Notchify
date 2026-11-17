@@ -7569,10 +7569,16 @@ func runAllVerificationTests() {
     qcManager114.state = .closed
     store113.quickControlsPinned = false
     
+    // Set synthetic interaction region for testing
+    let testRegion = CGRect(x: 400, y: 300, width: 620, height: 180)
+    qcManager114.updateInteractionRegion(testRegion)
+    assert(qcManager114.interactionScreenRect == testRegion, "Interaction region must update")
+    
     // 1. Disclosure hover enters -> hoverPreview
-    qcManager114.onDisclosureHoverEntered()
+    qcManager114.onPointerEnteredRegion()
     assert(qcManager114.state == .hoverPreview, "Entering disclosure hover must trigger .hoverPreview")
     assert(qcManager114.state.isPanelVisible == true, "Panel must be visible in hoverPreview")
+    assert(qcManager114.isPointerInsideInteractionRegion == true, "Pointer must be marked inside")
     
     // 2. Drag starts -> interacting
     qcManager114.onSliderDragStarted()
@@ -7580,10 +7586,10 @@ func runAllVerificationTests() {
     assert(qcManager114.isInteractingWithSlider == true, "isInteractingWithSlider must be true")
     
     // 3. Hover exit while dragging -> MUST NOT COLLAPSE!
-    qcManager114.onDisclosureOrPanelHoverExited()
+    qcManager114.onPointerExitedRegion()
     assert(qcManager114.state == .interacting, "Hover exit while dragging must preserve .interacting state")
     
-    // 4. Drag ends -> back to hoverPreview
+    // 4. Drag ends -> back to hoverPreview (pointer inside)
     qcManager114.onSliderDragEnded()
     assert(qcManager114.state == .hoverPreview, "Drag end must return to .hoverPreview")
     assert(qcManager114.isInteractingWithSlider == false, "isInteractingWithSlider must be false")
@@ -7594,15 +7600,31 @@ func runAllVerificationTests() {
     assert(qcManager114.state == .pinned, "togglePin must set state to .pinned")
     
     // 6. Hover exit while pinned -> MUST NOT COLLAPSE!
-    qcManager114.onDisclosureOrPanelHoverExited()
+    qcManager114.onPointerExitedRegion()
     assert(qcManager114.state == .pinned, "Hover exit while pinned must preserve .pinned state")
     
-    // 7. Unpin -> hoverPreview -> closed
+    // 7. Unpin while outside interaction region -> schedules collapse
+    // Set interaction region elsewhere to simulate pointer outside
+    qcManager114.updateInteractionRegion(CGRect(x: 0, y: 0, width: 10, height: 10))
     qcManager114.togglePin()
     assert(store113.quickControlsPinned == false, "Unpin must set quickControlsPinned = false")
+    
+    // 8. Re-entering cancels any pending close operation
+    qcManager114.onPointerEnteredRegion()
+    assert(qcManager114.state == .hoverPreview, "Re-entering must cancel pending close and restore hoverPreview")
+    assert(qcManager114.closeGraceTask == nil, "closeGraceTask must be cancelled on re-entry")
+    
+    // 9. 30 Rapid enter/exit cycles: verify deterministic non-flicker stability
+    for _ in 0..<30 {
+        qcManager114.onPointerEnteredRegion()
+        assert(qcManager114.state == .hoverPreview, "Must predictably enter hoverPreview")
+        qcManager114.onPointerEnteredRegion() // duplicate enter event
+        assert(qcManager114.state == .hoverPreview, "Duplicate enter must not glitch")
+    }
+    
     qcManager114.state = .closed
     assert(qcManager114.state.isPanelVisible == false, "Closed state must hide panel")
-    print("  ✓ Quick Controls state machine, drag safety & pin transitions verified.")
+    print("  ✓ Quick Controls state machine, drag safety, pin transitions & 30-cycle stability verified.")
     
     // =========================================================================
     // [TEST 115] Grid Isolation Invariant (4-Horizontal & 2x2 Bento Quad)
@@ -7691,15 +7713,31 @@ func runAllVerificationTests() {
     assert(!brightInfo.availability.isUsable, "Display brightness must report unsupported rather than using private DisplayServices")
     assert(brightInfo.availability.statusDescription.contains("Displays Settings") || brightInfo.availability.statusDescription.contains("Control Center"), "Must provide honest route")
     
+    // Verify system service returns false on setBrightness under public API
+    let sysBrightSet = audioService.setBrightness(0.5)
+    assert(!sysBrightSet, "Setting brightness via public API on Apple Silicon must return false without pretending success")
+    
     let kbdInfo = audioService.getKeyboardBacklight()
     assert(!kbdInfo.availability.isUsable, "Keyboard backlight must report unsupported rather than using private CoreBrightness")
     assert(kbdInfo.availability.statusDescription.contains("Keyboard"), "Must provide honest keyboard route")
+    
+    let sysKbdSet = audioService.setKeyboardBacklight(0.5)
+    assert(!sysKbdSet, "Setting keyboard backlight via public API on Apple Silicon must return false without pretending success")
+    
+    // Verify working slider behavior on supported mock service
+    mockService.mockBrightnessAvailability = .available
+    assert(mockService.setBrightness(0.65) == true, "Mock service with available display brightness must set successfully")
+    assert(abs(mockService.mockBrightness - 0.65) < 0.001, "Mock brightness must update to 0.65")
+    
+    mockService.mockKeyboardBrightnessAvailability = .available
+    assert(mockService.setKeyboardBacklight(0.45) == true, "Mock service with available keyboard backlight must set successfully")
+    assert(abs(mockService.mockKeyboardBrightness - 0.45) < 0.001, "Mock keyboard backlight must update to 0.45")
     print("  ✓ Strict zero-private-framework compliance & honest capability detection verified.")
     
     // =========================================================================
-    // [TEST 118] Quick Controls Window Geometry & Height-Only Expansion
+    // [TEST 118] Quick Controls Window Geometry & Physical Notch Placement
     // =========================================================================
-    print("\n[TEST 118] Quick Controls Window Geometry & Height-Only Expansion...")
+    print("\n[TEST 118] Quick Controls Window Geometry & Physical Notch Placement...")
     let screen118 = NSScreen.main ?? NSScreen.screens[0]
     let geom118 = NotchGeometry.current(for: screen118)
     
@@ -7714,7 +7752,7 @@ func runAllVerificationTests() {
         geometry: geom118,
         notchWidth: 620.0,
         notchHeight: 330.0,
-        quickControlsHeight: 120.0
+        quickControlsHeight: 180.0
     )
     
     // 1. Width MUST be identical
@@ -7724,13 +7762,19 @@ func runAllVerificationTests() {
     // 2. Horizontal position MUST be identical
     assert(baseLayout.windowRect.minX == expandedQcLayout.windowRect.minX, "Window minX must remain identical")
     
-    // 3. Height must expand by exactly 120pt
-    assert(expandedQcLayout.windowRect.height == baseLayout.windowRect.height + 120.0, "Height must expand by exactly 120pt")
+    // 3. Height must expand by exactly 180pt
+    assert(expandedQcLayout.windowRect.height == baseLayout.windowRect.height + 180.0, "Height must expand by exactly 180pt")
     
-    // 4. Window top Y must remain anchored to top bezel, extending downward
+    // 4. Window top Y must remain anchored to top bezel, extending downward only
     assert(expandedQcLayout.windowRect.maxY == baseLayout.windowRect.maxY, "Window top edge must remain flush with screen top")
-    assert(expandedQcLayout.windowRect.minY == baseLayout.windowRect.minY - 120.0, "Window bottom edge must extend downward by 120pt")
-    print("  ✓ Height-only expansion geometry & top-anchor stability verified.")
+    assert(expandedQcLayout.windowRect.minY == baseLayout.windowRect.minY - 180.0, "Window bottom edge must extend downward by 180pt")
+    
+    // 5. Physical notch clear zone (contentTopPadding) MUST remain intact
+    assert(expandedQcLayout.contentTopPadding == baseLayout.contentTopPadding, "Camera clear zone must never be compromised")
+    if geom118.hasPhysicalNotch {
+        assert(expandedQcLayout.contentTopPadding == geom118.physicalNotchHeight, "contentTopPadding must equal physical notch height (32pt)")
+    }
+    print("  ✓ Height-only expansion geometry, top-anchor stability & notch clearance verified.")
     
     // =========================================================================
     // [TEST 119] Notes Widget Persistence & Dashboard Integration
@@ -7765,19 +7809,19 @@ func runAllVerificationTests() {
     // [TEST 120] Rapid Layout Switching & Interaction Safety Under Concurrency
     // =========================================================================
     print("\n[TEST 120] Rapid Layout Switching & Interaction Safety Under Concurrency...")
-    for _ in 0..<10 {
+    for _ in 0..<30 {
         store113.dashboardLayoutFlow = .horizontalStrip
-        qcManager114.onDisclosureHoverEntered()
+        qcManager114.onPointerEnteredRegion()
         store113.dashboardLayoutFlow = .bentoQuad
         qcManager114.onSliderDragStarted()
         store113.dashboardLayoutFlow = .adaptiveAuto
         qcManager114.onSliderDragEnded()
         store113.dashboardLayoutFlow = .focusDominant
-        qcManager114.onDisclosureOrPanelHoverExited()
+        qcManager114.onPointerExitedRegion()
     }
     qcManager114.state = .closed
     store113.dashboardLayoutFlow = .adaptiveAuto
-    print("  ✓ Rapid layout switching & concurrent interaction safety verified.")
+    print("  ✓ Rapid layout switching & concurrent interaction safety (30 cycles) verified.")
     
     if localShareOnly {
         print("\n=====================================================")

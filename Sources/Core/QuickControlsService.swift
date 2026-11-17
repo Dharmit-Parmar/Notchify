@@ -457,7 +457,10 @@ public final class QuickControlsManager: ObservableObject {
     
     @Published public var isInteractingWithSlider: Bool = false
     
-    private var hoverGraceTask: Task<Void, Never>?
+    // MARK: - Interaction Region Tracking (Screen Coordinates)
+    public private(set) var interactionScreenRect: CGRect = .zero
+    public private(set) var isPointerInsideInteractionRegion: Bool = false
+    private var closeGraceTask: Task<Void, Never>?
     
     public init(service: QuickControlsServiceProtocol = SystemControlsService.shared) {
         self.service = service
@@ -477,6 +480,11 @@ public final class QuickControlsManager: ObservableObject {
         self.service = SystemControlsService.shared
         refreshAll()
         startServiceObserving()
+    }
+    
+    public func updateInteractionRegion(_ screenRect: CGRect) {
+        guard screenRect.width > 0 && screenRect.height > 0 else { return }
+        self.interactionScreenRect = screenRect
     }
     
     public func refreshAll() {
@@ -537,50 +545,100 @@ public final class QuickControlsManager: ObservableObject {
         _ = service.setKeyboardBacklight(Float(clamped))
     }
     
-    // MARK: - State Machine Transitions
-    public func onDisclosureHoverEntered() {
-        hoverGraceTask?.cancel()
-        hoverGraceTask = nil
+    // MARK: - State Machine Transitions (One Authoritative Hover/Interacting/Pinned Model)
+    public func onPointerEnteredRegion() {
+        closeGraceTask?.cancel()
+        closeGraceTask = nil
+        isPointerInsideInteractionRegion = true
         
         let isPinned = SettingsStore.shared.quickControlsPinned
         if isPinned {
-            state = .pinned
-        } else if state == .closed {
-            state = .hoverPreview
+            if state != .pinned {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    state = .pinned
+                }
+            }
+        } else {
+            if state != .hoverPreview {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    state = .hoverPreview
+                }
+            }
         }
     }
     
-    public func onDisclosureOrPanelHoverExited() {
+    public func onPointerExitedRegion() {
+        isPointerInsideInteractionRegion = false
+        
         // If pinned or actively dragging a slider, NEVER collapse!
         guard !SettingsStore.shared.quickControlsPinned else { return }
         guard !isInteractingWithSlider else { return }
+        guard state != .closed else { return }
         
-        // Grace period (350ms) to allow moving pointer comfortably between row and panel
-        hoverGraceTask?.cancel()
-        hoverGraceTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
+        // Cancel any previous pending close operation
+        closeGraceTask?.cancel()
+        
+        // Start cancellable grace-period task (400ms)
+        closeGraceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
+            
+            // Re-verify ALL conditions before closing
             guard !SettingsStore.shared.quickControlsPinned else { return }
             guard !self.isInteractingWithSlider else { return }
-            self.state = .closed
+            guard NSEvent.pressedMouseButtons == 0 else { return }
+            
+            // Re-check actual pointer location in global screen coordinates
+            let currentMouse = NSEvent.mouseLocation
+            let safeRegion = self.interactionScreenRect.insetBy(dx: -6, dy: -6)
+            if self.interactionScreenRect != .zero && safeRegion.contains(currentMouse) {
+                // Pointer has re-entered or is still grazing the region!
+                self.isPointerInsideInteractionRegion = true
+                return
+            }
+            
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                self.state = .closed
+            }
         }
+    }
+    
+    // Aliases for backwards compatibility with tests and callers
+    public func onDisclosureHoverEntered() {
+        onPointerEnteredRegion()
+    }
+    
+    public func onDisclosureOrPanelHoverExited() {
+        onPointerExitedRegion()
     }
     
     public func togglePin() {
         let store = SettingsStore.shared
         store.quickControlsPinned.toggle()
         if store.quickControlsPinned {
-            state = .pinned
+            closeGraceTask?.cancel()
+            closeGraceTask = nil
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                state = .pinned
+            }
             FeedbackManager.playPin()
         } else {
-            state = .hoverPreview
             FeedbackManager.playClick()
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                state = .hoverPreview
+            }
+            let currentMouse = NSEvent.mouseLocation
+            let safeRegion = interactionScreenRect.insetBy(dx: -6, dy: -6)
+            if interactionScreenRect != .zero && !safeRegion.contains(currentMouse) {
+                // If the pointer is already outside the interaction region, schedule collapse
+                onPointerExitedRegion()
+            }
         }
     }
     
     public func onSliderDragStarted() {
-        hoverGraceTask?.cancel()
-        hoverGraceTask = nil
+        closeGraceTask?.cancel()
+        closeGraceTask = nil
         self.isInteractingWithSlider = true
         self.state = .interacting
     }
@@ -590,7 +648,13 @@ public final class QuickControlsManager: ObservableObject {
         if SettingsStore.shared.quickControlsPinned {
             self.state = .pinned
         } else {
-            self.state = .hoverPreview
+            let currentMouse = NSEvent.mouseLocation
+            let safeRegion = interactionScreenRect.insetBy(dx: -6, dy: -6)
+            if interactionScreenRect != .zero && safeRegion.contains(currentMouse) {
+                self.state = .hoverPreview
+            } else {
+                onPointerExitedRegion()
+            }
         }
     }
     

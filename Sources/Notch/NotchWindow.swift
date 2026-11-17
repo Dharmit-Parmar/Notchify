@@ -135,21 +135,11 @@ public final class NotchPanel: NSPanel {
     }
     
     public static func calculateFrame(for state: NotchState, store: SettingsStore, screen: NSScreen) -> NSRect {
-        let geometry = NotchGeometry.current(for: screen)
-        
         if state == .expanded {
-            let layout = NotchGeometry.expandedLayout(
-                geometry: geometry,
-                notchWidth: store.notchWidth,
-                notchHeight: store.notchHeight,
-                attachment: store.positionAttachment,
-                horizontalOffset: store.horizontalNotchOffset,
-                verticalOffset: store.verticalNotchOffset,
-                dashboardLayoutFlow: store.dashboardLayoutFlow,
-                activeWidgetsCount: store.activeDashboardWidgets.count
-            )
-            return layout.windowRect
+            // Sole source of truth for expanded geometry, incorporating current screen and Quick Controls height
+            return NotchShellCoordinator.shared.currentExpandedLayout.windowRect
         } else {
+            let geometry = NotchGeometry.current(for: screen)
             let layout = NotchGeometry.collapsedLayout(
                 geometry: geometry,
                 style: store.compactIndicatorStyle,
