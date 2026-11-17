@@ -443,7 +443,12 @@ public final class QuickControlsManager: ObservableObject {
     
     private var service: QuickControlsServiceProtocol
     
-    @Published public var state: QuickControlsState = .closed
+    @Published public var state: QuickControlsState = .closed {
+        didSet {
+            guard state != oldValue else { return }
+            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+        }
+    }
     @Published public var volume: Double = 0.50
     @Published public var isMuted: Bool = false
     @Published public var activeAudioDeviceName: String = "Speakers"
@@ -590,9 +595,21 @@ public final class QuickControlsManager: ObservableObject {
             
             // Re-check actual pointer location in global screen coordinates
             let currentMouse = NSEvent.mouseLocation
-            let safeRegion = self.interactionScreenRect.insetBy(dx: -6, dy: -6)
-            if self.interactionScreenRect != .zero && safeRegion.contains(currentMouse) {
-                // Pointer has re-entered or is still grazing the region!
+            let safeRegion = self.interactionScreenRect.insetBy(dx: -8, dy: -8)
+            
+            // Dual-source check: PreferenceKey screen region OR AppKit panel bottom bounds
+            var isStillInside = (self.interactionScreenRect != .zero && safeRegion.contains(currentMouse))
+            if !isStillInside, let panel = NotchShellCoordinator.shared.panel {
+                let panelFrame = panel.frame.insetBy(dx: -8, dy: -8)
+                let qcBottomBandHeight = NotchShellCoordinator.shared.quickControlsExpandedHeight + 50.0
+                let qcBand = CGRect(x: panelFrame.minX, y: panelFrame.minY, width: panelFrame.width, height: qcBottomBandHeight)
+                if qcBand.contains(currentMouse) {
+                    isStillInside = true
+                }
+            }
+            
+            if isStillInside {
+                // Pointer has re-entered or is still interacting within the region!
                 self.isPointerInsideInteractionRegion = true
                 return
             }

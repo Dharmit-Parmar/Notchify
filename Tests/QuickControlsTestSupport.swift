@@ -542,7 +542,7 @@ public final class QuickControlsManager: ObservableObject {
             guard NSEvent.pressedMouseButtons == 0 else { return }
             
             let currentMouse = NSEvent.mouseLocation
-            let safeRegion = self.interactionScreenRect.insetBy(dx: -6, dy: -6)
+            let safeRegion = self.interactionScreenRect.insetBy(dx: -8, dy: -8)
             if self.interactionScreenRect != .zero && safeRegion.contains(currentMouse) {
                 self.isPointerInsideInteractionRegion = true
                 return

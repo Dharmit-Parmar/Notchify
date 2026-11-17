@@ -7614,12 +7614,23 @@ func runAllVerificationTests() {
     assert(qcManager114.state == .hoverPreview, "Re-entering must cancel pending close and restore hoverPreview")
     assert(qcManager114.closeGraceTask == nil, "closeGraceTask must be cancelled on re-entry")
     
-    // 9. 30 Rapid enter/exit cycles: verify deterministic non-flicker stability
-    for _ in 0..<30 {
+    // 9. 30 Rapid alternating enter/exit cycles: verify deterministic non-flicker stability
+    for i in 0..<30 {
+        // Pointer enters
         qcManager114.onPointerEnteredRegion()
-        assert(qcManager114.state == .hoverPreview, "Must predictably enter hoverPreview")
-        qcManager114.onPointerEnteredRegion() // duplicate enter event
-        assert(qcManager114.state == .hoverPreview, "Duplicate enter must not glitch")
+        assert(qcManager114.state == .hoverPreview, "Enter iteration \(i) must be in .hoverPreview")
+        assert(qcManager114.isPointerInsideInteractionRegion == true, "Pointer must be marked inside")
+        assert(qcManager114.closeGraceTask == nil, "Pending grace task must be cancelled on entry")
+        
+        // Pointer exits (grace task starts)
+        qcManager114.onPointerExitedRegion()
+        assert(qcManager114.state == .hoverPreview, "Exit must not immediately close, must retain preview during grace")
+        assert(qcManager114.closeGraceTask != nil, "Exit must start cancellable grace task")
+        
+        // Rapid re-entry before grace expires cancels exit and restores preview
+        qcManager114.onPointerEnteredRegion()
+        assert(qcManager114.state == .hoverPreview, "Re-entry must seamlessly cancel pending close")
+        assert(qcManager114.closeGraceTask == nil, "Grace task must be cancelled on re-entry")
     }
     
     qcManager114.state = .closed
@@ -7774,7 +7785,32 @@ func runAllVerificationTests() {
     if geom118.hasPhysicalNotch {
         assert(expandedQcLayout.contentTopPadding == geom118.physicalNotchHeight, "contentTopPadding must equal physical notch height (32pt)")
     }
-    print("  ✓ Height-only expansion geometry, top-anchor stability & notch clearance verified.")
+    
+    // 6. 20 Consecutive Dynamic Grow/Shrink Cycles: verify window expands and strictly shrinks back
+    for cycle in 1...20 {
+        // Open Quick Controls
+        let cycleOpened = NotchGeometry.expandedLayout(
+            geometry: geom118,
+            notchWidth: 620.0,
+            notchHeight: 330.0,
+            quickControlsHeight: 180.0
+        )
+        assert(cycleOpened.windowRect.height == baseLayout.windowRect.height + 180.0, "Cycle \(cycle): Window must expand to full height")
+        assert(cycleOpened.windowRect.maxY == baseLayout.windowRect.maxY, "Cycle \(cycle): Top must stay anchored")
+        
+        // Close Quick Controls
+        let cycleClosed = NotchGeometry.expandedLayout(
+            geometry: geom118,
+            notchWidth: 620.0,
+            notchHeight: 330.0,
+            quickControlsHeight: 0.0
+        )
+        assert(cycleClosed.windowRect.height == baseLayout.windowRect.height, "Cycle \(cycle): Window must shrink cleanly back to base height")
+        assert(cycleClosed.windowRect.minY == baseLayout.windowRect.minY, "Cycle \(cycle): Bottom edge must return to base without trailing empty space")
+        assert(cycleClosed.windowRect.maxY == baseLayout.windowRect.maxY, "Cycle \(cycle): Top anchor must remain flush with screen top")
+        assert(cycleClosed.windowRect.width == baseLayout.windowRect.width, "Cycle \(cycle): Width must remain strictly invariant")
+    }
+    print("  ✓ Height-only expansion geometry, top-anchor stability, 20-cycle shrink/grow & notch clearance verified.")
     
     // =========================================================================
     // [TEST 119] Notes Widget Persistence & Dashboard Integration

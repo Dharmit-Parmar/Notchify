@@ -9,6 +9,7 @@ public struct NotchRootView: View {
     @ObservedObject var store = SettingsStore.shared
     @ObservedObject var themeEngine = DynamicThemeEngine.shared
     @ObservedObject private var airDropModule = AirDropModule.shared
+    @ObservedObject private var quickControls = QuickControlsManager.shared
     
     public init() {}
     
@@ -91,7 +92,8 @@ public struct NotchRootView: View {
                                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: coordinator.isIdleDimmed)
                             )
                     }
-                    .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
+                    .frame(width: expandedSize.width, alignment: .top)
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
         }

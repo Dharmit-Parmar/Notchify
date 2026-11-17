@@ -64,10 +64,29 @@ public final class NotchShellCoordinator: ObservableObject {
         guard SettingsStore.shared.showQuickControls else { return 0.0 }
         let qcManager = QuickControlsManager.shared
         guard qcManager.state.isPanelVisible else { return 0.0 }
-        let count = CGFloat(SettingsStore.shared.enabledQuickControls.count)
-        guard count > 0 else { return 0.0 }
-        let panelRowsHeight = (count * 46.0) + (max(0, count - 1) * 8.0) + 16.0
-        return 38.0 + panelRowsHeight
+        let enabled = SettingsStore.shared.enabledQuickControls
+        guard !enabled.isEmpty else { return 0.0 }
+        
+        var totalRowsHeight: CGFloat = 0.0
+        for kind in enabled {
+            switch kind {
+            case .volume:
+                totalRowsHeight += 52.0
+            case .brightness:
+                totalRowsHeight += qcManager.brightnessAvailability.isUsable ? 52.0 : 36.0
+            case .keyboardBacklight:
+                totalRowsHeight += qcManager.keyboardBrightnessAvailability.isUsable ? 52.0 : 36.0
+            }
+        }
+        let spacing = CGFloat(max(0, enabled.count - 1)) * 6.0
+        // Disclosure bar + card borders + inner content + row spacing
+        return 53.0 + totalRowsHeight + spacing
+    }
+    
+    public func onQuickControlsLayoutChanged(animated: Bool = true) {
+        guard state == .expanded else { return }
+        objectWillChange.send()
+        panel?.updateFrame(for: .expanded, animated: animated && !DesignSystem.reduceMotion)
     }
     
     public var currentExpandedLayout: ExpandedLayout {
@@ -131,15 +150,6 @@ public final class NotchShellCoordinator: ObservableObject {
                 self.refreshLayouts()
             }
         }
-        
-        qcStateCancellable = QuickControlsManager.shared.$state
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    guard let self = self, self.state == .expanded else { return }
-                    self.panel?.updateFrame(for: .expanded, animated: !DesignSystem.reduceMotion)
-                }
-            }
         
         ProcessMemoryGovernor.shared.start()
     }

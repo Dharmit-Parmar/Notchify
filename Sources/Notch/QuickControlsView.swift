@@ -22,13 +22,13 @@ public struct QuickControlsSectionView: View {
     
     public var body: some View {
         VStack(spacing: 6) {
-            // 1. Specular Divider Above Quick Controls
+            // 1. Specular Top Divider
             Rectangle()
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
                 .padding(.horizontal, 4)
             
-            // 2. Disclosure Bar
+            // 2. Interactive Disclosure Bar
             QuickControlsDisclosureRow()
             
             // 3. System Controls Panel (Revealed on Hover Preview, Pinned, or Interacting)
@@ -49,11 +49,11 @@ public struct QuickControlsSectionView: View {
         .padding(.bottom, 6)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(manager.state.isPanelVisible ? Color.white.opacity(0.04) : Color.clear)
+                .fill(manager.state.isPanelVisible ? Color.white.opacity(0.03) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(manager.state.isPanelVisible ? Color.white.opacity(0.08) : Color.clear, lineWidth: 0.8)
+                .strokeBorder(manager.state.isPanelVisible ? Color.white.opacity(0.06) : Color.clear, lineWidth: 0.8)
         )
         // Measure global screen interaction frame accurately across dynamic window resizing
         .background(
@@ -104,7 +104,7 @@ public struct QuickControlsDisclosureRow: View {
     
     public var body: some View {
         HStack(spacing: 8) {
-            // Left Title + Icon Target (Unambiguous Button)
+            // Left Title + Icon Target
             Button(action: {
                 toggleExpansion()
             }) {
@@ -114,7 +114,7 @@ public struct QuickControlsDisclosureRow: View {
                         .foregroundColor(manager.state.isPanelVisible ? DesignSystem.accentColor : Color.white.opacity(0.75))
                     
                     Text("Quick Controls")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                         .foregroundColor(manager.state.isPanelVisible ? .white : Color.white.opacity(0.85))
                 }
                 .contentShape(Rectangle())
@@ -124,7 +124,7 @@ public struct QuickControlsDisclosureRow: View {
             
             Spacer()
             
-            // Pin Button Target (Dedicated Unambiguous Hit Target)
+            // Pin Toggle Button
             Button(action: {
                 manager.togglePin()
             }) {
@@ -144,6 +144,10 @@ public struct QuickControlsDisclosureRow: View {
                 .background(
                     Capsule()
                         .fill(store.quickControlsPinned ? DesignSystem.accentColor.opacity(0.18) : Color.white.opacity(0.06))
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(store.quickControlsPinned ? DesignSystem.accentColor.opacity(0.35) : Color.white.opacity(0.08), lineWidth: 0.8)
+                        )
                 )
                 .contentShape(Capsule())
             }
@@ -151,7 +155,7 @@ public struct QuickControlsDisclosureRow: View {
             .help(store.quickControlsPinned ? "Unpin Quick Controls" : "Pin Quick Controls Open")
             .accessibilityLabel(store.quickControlsPinned ? "Unpin Quick Controls" : "Pin Quick Controls")
             
-            // Chevron Indicator Button
+            // Chevron Expansion Indicator
             Button(action: {
                 toggleExpansion()
             }) {
@@ -179,7 +183,7 @@ public struct QuickControlsPanelView: View {
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ForEach(store.enabledQuickControls) { kind in
                 switch kind {
                 case .volume:
@@ -194,7 +198,7 @@ public struct QuickControlsPanelView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.black.opacity(0.25))
+                .fill(Color.black.opacity(0.20))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -222,7 +226,8 @@ public struct VolumeControlRow: View {
     }
     
     public var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
+            // Header Row
             HStack(spacing: 8) {
                 // Mute / Speaker Toggle Icon Button
                 Button(action: {
@@ -231,8 +236,8 @@ public struct VolumeControlRow: View {
                 }) {
                     ZStack {
                         Circle()
-                            .fill(manager.isMuted ? Color.red.opacity(0.2) : Color.white.opacity(0.08))
-                            .frame(width: 22, height: 22)
+                            .fill(manager.isMuted ? Color.red.opacity(0.20) : Color.white.opacity(0.08))
+                            .frame(width: 24, height: 24)
                         
                         Image(systemName: volumeIcon)
                             .font(.system(size: 11, weight: .semibold))
@@ -246,11 +251,11 @@ public struct VolumeControlRow: View {
                 // Title and Device Subtitle
                 VStack(alignment: .leading, spacing: 1) {
                     Text("System Volume")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                     
                     Text(manager.activeAudioDeviceName)
-                        .font(.system(size: 9))
+                        .font(.system(size: 9.5, weight: .regular))
                         .foregroundColor(DesignSystem.secondaryText)
                         .lineLimit(1)
                 }
@@ -261,7 +266,7 @@ public struct VolumeControlRow: View {
                 Text(manager.isMuted ? "Muted" : "\(Int(round(manager.volume * 100)))%")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundColor(manager.isMuted ? Color.red : .white)
-                    .frame(width: 44, alignment: .trailing)
+                    .frame(width: 48, alignment: .trailing)
             }
             
             // Interactive Direct-Manipulation Slider Track
@@ -274,7 +279,7 @@ public struct VolumeControlRow: View {
                     // Track Background
                     Capsule()
                         .fill(Color.white.opacity(0.12))
-                        .frame(height: 7)
+                        .frame(height: 6)
                     
                     // Filled Track
                     Capsule()
@@ -287,16 +292,16 @@ public struct VolumeControlRow: View {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: progressWidth, height: 7)
+                        .frame(width: progressWidth, height: 6)
                     
                     // Thumb Pill Indicator
                     Circle()
                         .fill(Color.white)
                         .frame(width: 13, height: 13)
-                        .shadow(color: Color.black.opacity(0.4), radius: 2, y: 1)
+                        .shadow(color: Color.black.opacity(0.35), radius: 2, y: 1)
                         .offset(x: max(0, min(width - 13, progressWidth - 6.5)))
                 }
-                .frame(height: 18)
+                .frame(height: 16)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
@@ -311,7 +316,7 @@ public struct VolumeControlRow: View {
                         }
                 )
             }
-            .frame(height: 18)
+            .frame(height: 16)
             .focusable()
             .onKeyPress(.leftArrow) {
                 manager.setVolumeValue(max(0.0, manager.volume - 0.05))
@@ -335,25 +340,34 @@ public struct VolumeControlRow: View {
                 }
             }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.05), lineWidth: 0.8)
+        )
     }
 }
 
-// MARK: - Display Brightness Control Row (Honest Capability Detection & System Route)
+// MARK: - Display Brightness Control Row (Honest Capability Detection & Native Action Route)
 public struct BrightnessControlRow: View {
     @ObservedObject private var manager = QuickControlsManager.shared
     
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
+            // Header Row
             HStack(spacing: 8) {
-                // Sun Icon
+                // Sun Icon Badge
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 22, height: 22)
+                        .fill(Color(red: 1.0, green: 0.78, blue: 0.18).opacity(0.14))
+                        .frame(width: 24, height: 24)
                     
                     Image(systemName: "sun.max.fill")
                         .font(.system(size: 11, weight: .semibold))
@@ -362,11 +376,11 @@ public struct BrightnessControlRow: View {
                 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Display Brightness")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                     
-                    Text(manager.brightnessAvailability.isUsable ? "Hardware Synchronized" : "System Managed (F1 / F2)")
-                        .font(.system(size: 9))
+                    Text(manager.brightnessAvailability.isUsable ? "Hardware Synchronized" : "Built-in Display · Use F1 / F2 keys")
+                        .font(.system(size: 9.5, weight: .regular))
                         .foregroundColor(DesignSystem.secondaryText)
                         .lineLimit(1)
                 }
@@ -377,44 +391,47 @@ public struct BrightnessControlRow: View {
                     Text("\(Int(round(manager.brightness * 100)))%")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
-                        .frame(width: 44, alignment: .trailing)
+                        .frame(width: 48, alignment: .trailing)
                 } else {
-                    // System Settings Route Button
+                    // Clean Native Settings Action Pill
                     Button(action: {
                         manager.openSystemDisplaysSettings()
                         FeedbackManager.playClick()
                     }) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             Text("Displays...")
                                 .font(.system(size: 9.5, weight: .semibold))
                             Image(systemName: "arrow.up.forward.square")
                                 .font(.system(size: 8))
                         }
                         .foregroundColor(DesignSystem.accentColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
                         .background(
                             Capsule()
                                 .fill(DesignSystem.accentColor.opacity(0.14))
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(DesignSystem.accentColor.opacity(0.28), lineWidth: 0.8)
+                                )
                         )
                     }
                     .buttonStyle(.plain)
-                    .help("Open macOS Displays Settings (Direct brightness control restricted to system SPI)")
+                    .help("Open macOS Displays Settings")
                     .accessibilityLabel("Open macOS Displays Settings")
                 }
             }
             
-            // Slider Track (Active when usable, Gracefully Disabled when restricted)
-            GeometryReader { geo in
-                let width = geo.size.width
-                
-                if manager.brightnessAvailability.isUsable {
+            // Interactive Slider Track (Rendered ONLY when Usable / Supported)
+            if manager.brightnessAvailability.isUsable {
+                GeometryReader { geo in
+                    let width = geo.size.width
                     let progressWidth = max(0, min(width, width * CGFloat(manager.brightness)))
                     
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(Color.white.opacity(0.12))
-                            .frame(height: 7)
+                            .frame(height: 6)
                         
                         Capsule()
                             .fill(
@@ -424,15 +441,15 @@ public struct BrightnessControlRow: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .frame(width: progressWidth, height: 7)
+                            .frame(width: progressWidth, height: 6)
                         
                         Circle()
                             .fill(Color.white)
                             .frame(width: 13, height: 13)
-                            .shadow(color: Color.black.opacity(0.4), radius: 2, y: 1)
+                            .shadow(color: Color.black.opacity(0.35), radius: 2, y: 1)
                             .offset(x: max(0, min(width - 13, progressWidth - 6.5)))
                     }
-                    .frame(height: 18)
+                    .frame(height: 16)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0)
@@ -446,67 +463,54 @@ public struct BrightnessControlRow: View {
                                 manager.onSliderDragEnded()
                             }
                     )
-                } else {
-                    // Gracefully Disabled Rail with Honest Public-API State Indicator
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.06))
-                            .frame(height: 7)
-                        
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
-                            .frame(height: 7)
-                        
-                        HStack(spacing: 4) {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 7))
-                                .foregroundColor(Color.white.opacity(0.35))
-                            Text("Managed by macOS Displays Settings & Control Center")
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundColor(Color.white.opacity(0.35))
-                        }
-                        .padding(.leading, 6)
-                    }
-                    .frame(height: 18)
-                    .help("Direct brightness requires private DisplayServices framework. Use F1/F2 keys or click Displays... above.")
                 }
+                .frame(height: 16)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Display Brightness Slider")
+                .accessibilityValue("\(Int(round(manager.brightness * 100))) percent")
             }
-            .frame(height: 18)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Display Brightness Control, \(manager.brightnessAvailability.isUsable ? "\(Int(round(manager.brightness * 100))) percent" : "Managed by macOS Displays Settings")")
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.05), lineWidth: 0.8)
+        )
     }
 }
 
-// MARK: - Keyboard Backlight Control Row (Honest Capability Detection & Hardware Route)
+// MARK: - Keyboard Backlight Control Row (Honest Capability Detection & Native Action Route)
 public struct KeyboardBacklightControlRow: View {
     @ObservedObject private var manager = QuickControlsManager.shared
     
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 6) {
+            // Header Row
             HStack(spacing: 8) {
-                // Keyboard Icon
+                // Keyboard Icon Badge
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 22, height: 22)
+                        .fill(Color(red: 0.45, green: 0.75, blue: 1.0).opacity(0.14))
+                        .frame(width: 24, height: 24)
                     
                     Image(systemName: "keyboard.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Color(red: 0.5, green: 0.8, blue: 1.0))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(red: 0.45, green: 0.75, blue: 1.0))
                 }
                 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Keyboard Backlight")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                     
-                    Text(manager.keyboardBrightnessAvailability.isUsable ? "Hardware Synchronized" : "Hardware Managed (F5 / F6)")
-                        .font(.system(size: 9))
+                    Text(manager.keyboardBrightnessAvailability.isUsable ? "Hardware Synchronized" : "Ambient Light · Use F5 / F6 keys")
+                        .font(.system(size: 9.5, weight: .regular))
                         .foregroundColor(DesignSystem.secondaryText)
                         .lineLimit(1)
                 }
@@ -517,62 +521,65 @@ public struct KeyboardBacklightControlRow: View {
                     Text("\(Int(round(manager.keyboardBrightness * 100)))%")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
-                        .frame(width: 44, alignment: .trailing)
+                        .frame(width: 48, alignment: .trailing)
                 } else {
-                    // System Keyboard Settings Route Button
+                    // Clean Native Settings Action Pill
                     Button(action: {
                         manager.openSystemKeyboardSettings()
                         FeedbackManager.playClick()
                     }) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             Text("Keyboard...")
                                 .font(.system(size: 9.5, weight: .semibold))
                             Image(systemName: "arrow.up.forward.square")
                                 .font(.system(size: 8))
                         }
                         .foregroundColor(DesignSystem.accentColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
                         .background(
                             Capsule()
                                 .fill(DesignSystem.accentColor.opacity(0.14))
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(DesignSystem.accentColor.opacity(0.28), lineWidth: 0.8)
+                                )
                         )
                     }
                     .buttonStyle(.plain)
-                    .help("Open macOS Keyboard Settings (Direct keyboard backlight control restricted to system SPI)")
+                    .help("Open macOS Keyboard Settings")
                     .accessibilityLabel("Open macOS Keyboard Settings")
                 }
             }
             
-            // Slider Track (Active when usable, Gracefully Disabled when restricted)
-            GeometryReader { geo in
-                let width = geo.size.width
-                
-                if manager.keyboardBrightnessAvailability.isUsable {
+            // Interactive Slider Track (Rendered ONLY when Usable / Supported)
+            if manager.keyboardBrightnessAvailability.isUsable {
+                GeometryReader { geo in
+                    let width = geo.size.width
                     let progressWidth = max(0, min(width, width * CGFloat(manager.keyboardBrightness)))
                     
                     ZStack(alignment: .leading) {
                         Capsule()
                             .fill(Color.white.opacity(0.12))
-                            .frame(height: 7)
+                            .frame(height: 6)
                         
                         Capsule()
                             .fill(
                                 LinearGradient(
-                                    colors: [Color(red: 0.5, green: 0.8, blue: 1.0).opacity(0.85), Color(red: 0.5, green: 0.8, blue: 1.0)],
+                                    colors: [Color(red: 0.45, green: 0.75, blue: 1.0).opacity(0.85), Color(red: 0.45, green: 0.75, blue: 1.0)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
-                            .frame(width: progressWidth, height: 7)
+                            .frame(width: progressWidth, height: 6)
                         
                         Circle()
                             .fill(Color.white)
                             .frame(width: 13, height: 13)
-                            .shadow(color: Color.black.opacity(0.4), radius: 2, y: 1)
+                            .shadow(color: Color.black.opacity(0.35), radius: 2, y: 1)
                             .offset(x: max(0, min(width - 13, progressWidth - 6.5)))
                     }
-                    .frame(height: 18)
+                    .frame(height: 16)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0)
@@ -586,36 +593,22 @@ public struct KeyboardBacklightControlRow: View {
                                 manager.onSliderDragEnded()
                             }
                     )
-                } else {
-                    // Gracefully Disabled Rail with Honest Public-API State Indicator
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.06))
-                            .frame(height: 7)
-                        
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
-                            .frame(height: 7)
-                        
-                        HStack(spacing: 4) {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 7))
-                                .foregroundColor(Color.white.opacity(0.35))
-                            Text("Managed by macOS Keyboard Settings & Hardware Keys")
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundColor(Color.white.opacity(0.35))
-                        }
-                        .padding(.leading, 6)
-                    }
-                    .frame(height: 18)
-                    .help("Direct keyboard backlight requires private CoreBrightness framework. Use F5/F6 keys or click Keyboard... above.")
                 }
+                .frame(height: 16)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Keyboard Backlight Slider")
+                .accessibilityValue("\(Int(round(manager.keyboardBrightness * 100))) percent")
             }
-            .frame(height: 18)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Keyboard Backlight Control, \(manager.keyboardBrightnessAvailability.isUsable ? "\(Int(round(manager.keyboardBrightness * 100))) percent" : "Managed by macOS Keyboard Settings")")
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.05), lineWidth: 0.8)
+        )
     }
 }

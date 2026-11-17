@@ -391,7 +391,7 @@ public struct ModularDashboardView: View {
         GeometryReader { geo in
             let targetExpanded = NotchShellCoordinator.shared.currentExpandedLayout
             let totalWidth = max(geo.size.width, targetExpanded.targetWidth - (store.contentHorizontalPadding * 2.0))
-            let totalHeight = max(geo.size.height, targetExpanded.contentRect.height - 96.0)
+            let totalHeight = geo.size.height > 0 ? geo.size.height : max(100.0, store.notchHeight - 96.0)
             let dividerSpacing: CGFloat = 12.0
             let availableWidth = max(0, totalWidth - dividerSpacing)
             

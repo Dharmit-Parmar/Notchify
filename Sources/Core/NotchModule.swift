@@ -146,17 +146,24 @@ public class SettingsStore: ObservableObject {
     
     // Quick Controls Configuration (Beneath Dashboard)
     @Published public var showQuickControls: Bool = true {
-        didSet { UserDefaults.standard.set(showQuickControls, forKey: "NotchApp_ShowQuickControls") }
+        didSet {
+            UserDefaults.standard.set(showQuickControls, forKey: "NotchApp_ShowQuickControls")
+            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+        }
     }
     
     @Published public var quickControlsPinned: Bool = false {
-        didSet { UserDefaults.standard.set(quickControlsPinned, forKey: "NotchApp_QuickControlsPinned") }
+        didSet {
+            UserDefaults.standard.set(quickControlsPinned, forKey: "NotchApp_QuickControlsPinned")
+            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+        }
     }
     
     @Published public var enabledQuickControls: [QuickControlKind] = [.volume, .brightness, .keyboardBacklight] {
         didSet {
             let serialized = enabledQuickControls.map { $0.rawValue }
             UserDefaults.standard.set(serialized, forKey: "NotchApp_EnabledQuickControls")
+            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
         }
     }
     
@@ -245,7 +252,10 @@ public class SettingsStore: ObservableObject {
     
     // Geometry & Layout: allow generous breathing room for tools and calendar
     @Published public var notchWidth: CGFloat = 620.0 {
-        didSet { UserDefaults.standard.set(Double(notchWidth), forKey: "NotchApp_NotchWidth") }
+        didSet {
+            UserDefaults.standard.set(Double(notchWidth), forKey: "NotchApp_NotchWidth")
+            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+        }
     }
     @Published public var notchHeight: CGFloat = 330.0 {
         didSet {
@@ -255,6 +265,7 @@ public class SettingsStore: ObservableObject {
                 return
             }
             UserDefaults.standard.set(Double(clamped), forKey: "NotchApp_NotchHeight")
+            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
         }
     }
     @Published public var hoverTriggerHeight: CGFloat = 34.0 {
