@@ -96,7 +96,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             title: "Alerts",
             iconName: "bell.fill",
             themeColor: Color(red: 0.98, green: 0.56, blue: 0.24),
-            factory: { NotificationModule() }
+            factory: { NotificationModule.shared }
         )
         
         // Background bundle discovery (Symlinks managed safely without launch mutations)
@@ -107,8 +107,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         CompanionCoordinator.shared.start()
         setupSettingsObserver()
         
-        if ProcessInfo.processInfo.environment["NOTCH_AUTO_START_THOCK"] == "1" {
-            ThockModule.shared.startEngine()
+        // Automatic Thock Engine Restoration if previously active before quit
+        let isThockEnabled = (SettingsStore.shared.enabledModules["thock"] ?? true) && ThockModule.shared.isEnabled
+        let isThockInstalled = ThockModule.shared.isInstalled
+        let shouldAutoStartThock = ThockModule.shared.shouldAutoStart || ProcessInfo.processInfo.environment["NOTCH_AUTO_START_THOCK"] == "1"
+        
+        if isThockEnabled && isThockInstalled && shouldAutoStartThock {
+            ThockModule.shared.restoreEngineOnLaunch()
         }
     }
     

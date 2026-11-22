@@ -1,5 +1,0 @@
-Commit: b6bac62 (commit4_phase3_slotsdrag)
-Git subject: feat(phase3): live draggable slot widths, snap thresholds, dotted dividers, ratio persistence, and focus dominant layout
-Idle CPU: 0.0 | Idle MEM: 20M
-Active Hover CPU: 0.1 | Active MEM: 67M
-Top Sample Raw (Active): 12396  NotchApp 0.1  67M 

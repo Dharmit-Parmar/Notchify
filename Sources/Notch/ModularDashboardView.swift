@@ -1,5 +1,13 @@
 import SwiftUI
 
+// NOTE / RECOVERY:
+// Previously this file was accidentally overwritten with the contents of DesignSystem.swift,
+// which caused the Swift compiler error:
+//   "error: 'MultiZonePalette' is ambiguous for type lookup in this context"
+// and caused ModularDashboardView() to be missing from scope in NotchRootView.swift.
+// The enhanced DesignSystem implementation has now been correctly homed in Sources/UI/DesignSystem.swift,
+// and ModularDashboardView is preserved here with its full grid and focus layout implementations.
+
 // MARK: - Dotted Vertical Divider for Live Drag-Resizing
 @MainActor
 public final class DividerUIState: ObservableObject {

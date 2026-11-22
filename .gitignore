@@ -72,7 +72,6 @@ Packages/
 Package.resolved
 NotchApp
 NotchApp.app/
-artifacts/redesign/
 
 # ------------------------------------------------------------------------------
 # 3. XCODE & DERIVED DATA
@@ -107,7 +106,6 @@ xcuserdata/
 crashlog/
 /tmp/
 scratch/
-AUDIT_REPORT.md
 
 # ------------------------------------------------------------------------------
 # 6. LOCAL TOOLING & AGENT CACHES
@@ -115,10 +113,9 @@ AUDIT_REPORT.md
 .gemini/
 .claude/
 .planning/
-graphify-out/cache/
-graphify-out/.graphify_python
-graphify-out/.graphify_root
 .idea/
 .vscode/
+graphify-out/cache/
+graphify-out/.graphify_*
 *.swp
 *~

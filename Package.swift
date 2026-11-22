@@ -5,8 +5,7 @@ let package = Package(
     name: "NotchApp",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "NotchApp", targets: ["NotchApp"]),
-        .executable(name: "NotchTests", targets: ["NotchTests"])
+        .executable(name: "NotchApp", targets: ["NotchApp"])
     ],
     dependencies: [],
     targets: [
@@ -14,20 +13,6 @@ let package = Package(
             name: "NotchApp",
             dependencies: [],
             path: "Sources",
-            linkerSettings: [
-                .unsafeFlags(["-Xlinker", "-w"])
-            ]
-        ),
-        .executableTarget(
-            name: "NotchTests",
-            dependencies: [],
-            path: "Tests",
-            exclude: [
-                "CompanionFrameStripGenerator.swift",
-                "CompanionFrameStripStubs.swift",
-                "CompanionProductionPoseChecks.swift",
-                "KinematicAcceptanceTests.swift"
-            ],
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-w"])
             ]

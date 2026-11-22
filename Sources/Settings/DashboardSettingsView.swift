@@ -3,10 +3,22 @@ import UniformTypeIdentifiers
 
 public struct DashboardSettingsView: View {
     @ObservedObject private var store = SettingsStore.shared
-    @StateObject private var uiState = DashboardSettingsUIState()
-    
+
+    // FIX: track which key/model field has focus so we can render a visible
+    // focus ring — `.textFieldStyle(.plain)` removes the native one.
+    private enum KeyField: Hashable { case geminiKey, geminiModel, openAIKey, openAIModel }
+    @FocusState private var focusedField: KeyField?
+
     public init() {}
-    
+
+    // FIX: `Divider().background(...)` doesn't recolour the divider line.
+    // A plain Rectangle does.
+    private var themedDivider: some View {
+        Rectangle()
+            .fill(SettingsInk.tint(0.12))
+            .frame(height: 1)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             // Header Description
@@ -19,276 +31,272 @@ public struct DashboardSettingsView: View {
                     .font(.system(size: 12))
                     .foregroundColor(SettingsInk.secondary)
             }
-            
-            // Live Notch Layout Preview & Trigger
+
             layoutMiniPreviewSection
-            
-            // Layout Mode Selector (Side-by-Side Strip vs 2x2 Bento vs Smart Adaptive)
             layoutModeSelectionSection
-            
-            // 4-Slot Canvas
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("DASHBOARD SLOTS CANVAS")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(SettingsInk.secondary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    Text("Reorder, assign, or set 1-space / 2-space size")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(SettingsInk.tertiary)
-                        .lineLimit(1)
-                }
-                
-                if store.dashboardLayoutFlow == .horizontalStrip {
-                    // Single row horizontal strip representation
-                    HStack(spacing: 6) {
-                        ForEach(0..<4, id: \.self) { index in
-                            if index > 0 && store.dashboardSlots[index - 1] != nil && store.dashboardSlots[index] != nil {
-                                Rectangle()
-                                    .stroke(SettingsInk.tint(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                                    .frame(width: 1)
-                                    .padding(.vertical, 8)
-                            }
-                            
-                            SlotDropCard(
-                                slotIndex: index,
-                                title: "Slot \(index + 1)",
-                                widget: store.dashboardSlots[index],
-                                onDrop: { widget in store.setDashboardSlot(at: index, widget: widget) },
-                                onClear: { store.setDashboardSlot(at: index, widget: nil) }
-                            )
+            layoutSlotsSection
+            availableWidgetsPaletteSection
+            quickLayoutPresetsSection
+
+            themedDivider
+            notesCustomizationSection
+
+            themedDivider
+            clockCustomizationSection
+
+            themedDivider
+            aiAssistantCustomizationSection
+
+            themedDivider
+            quickControlsCustomizationSection
+        }
+    }
+
+    // MARK: - Slots Canvas
+
+    private var layoutSlotsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("DASHBOARD SLOTS CANVAS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(SettingsInk.secondary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text("Reorder, assign, or set 1-space / 2-space size")
+                    .font(.system(size: 10.5))
+                    .foregroundColor(SettingsInk.tertiary)
+                    .lineLimit(1)
+            }
+
+            if store.dashboardLayoutFlow == .horizontalStrip {
+                HStack(spacing: 6) {
+                    ForEach(0..<4, id: \.self) { index in
+                        if index > 0 && store.dashboardSlots[index - 1] != nil && store.dashboardSlots[index] != nil {
+                            Rectangle()
+                                .stroke(SettingsInk.tint(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                .frame(width: 1)
+                                .padding(.vertical, 8)
                         }
+
+                        SlotDropCard(
+                            slotIndex: index,
+                            title: "Slot \(index + 1)",
+                            widget: store.dashboardSlots[index],
+                            onDrop: { widget in store.setDashboardSlot(at: index, widget: widget) },
+                            onClear: { store.setDashboardSlot(at: index, widget: nil) }
+                        )
                     }
-                } else if store.dashboardLayoutFlow == .focusDominant {
-                    // Focus Dominant (Primary Dominant Slot + Companion Slot)
-                    let hasBoth = store.dashboardSlots[0] != nil && store.dashboardSlots[1] != nil
-                    
-                    HStack(spacing: 0) {
+                }
+            } else if store.dashboardLayoutFlow == .focusDominant {
+                let hasBoth = store.dashboardSlots[0] != nil && store.dashboardSlots[1] != nil
+
+                HStack(spacing: 0) {
+                    SlotDropCard(
+                        slotIndex: 0,
+                        title: "Slot 1 (Dominant)",
+                        widget: store.dashboardSlots[0],
+                        onDrop: { widget in store.setDashboardSlot(at: 0, widget: widget) },
+                        onClear: { store.setDashboardSlot(at: 0, widget: nil) }
+                    )
+                    .frame(maxWidth: .infinity)
+
+                    if hasBoth {
+                        DottedDividerView(totalWidth: 500)
+                            .frame(height: 52)
+                    } else {
+                        Spacer().frame(width: 8)
+                    }
+
+                    SlotDropCard(
+                        slotIndex: 1,
+                        title: "Slot 2 (Companion)",
+                        widget: store.dashboardSlots[1],
+                        onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
+                        onClear: { store.setDashboardSlot(at: 1, widget: nil) }
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .coordinateSpace(name: "DashboardContainer")
+            } else {
+                let leftHasFilled = (store.dashboardSlots[0] != nil || store.dashboardSlots[2] != nil)
+                let rightHasFilled = (store.dashboardSlots[1] != nil || store.dashboardSlots[3] != nil)
+
+                HStack(spacing: 0) {
+                    VStack(spacing: 10) {
                         SlotDropCard(
                             slotIndex: 0,
-                            title: "Slot 1 (Dominant)",
+                            title: "Slot 1 (Top Left)",
                             widget: store.dashboardSlots[0],
                             onDrop: { widget in store.setDashboardSlot(at: 0, widget: widget) },
                             onClear: { store.setDashboardSlot(at: 0, widget: nil) }
                         )
-                        .frame(maxWidth: .infinity)
-                        
-                        // Interactive dotted draggable divider only between adjacent FILLED slots
-                        if hasBoth {
-                            DottedDividerView(totalWidth: 500)
-                                .frame(height: 52)
-                        } else {
-                            Spacer().frame(width: 8)
-                        }
-                        
+
+                        SlotDropCard(
+                            slotIndex: 2,
+                            title: "Slot 3 (Bottom Left)",
+                            widget: store.dashboardSlots[2],
+                            onDrop: { widget in store.setDashboardSlot(at: 2, widget: widget) },
+                            onClear: { store.setDashboardSlot(at: 2, widget: nil) }
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    if leftHasFilled && rightHasFilled {
+                        DottedDividerView(totalWidth: 500)
+                            .frame(height: 120)
+                    } else {
+                        Spacer().frame(width: 10)
+                    }
+
+                    VStack(spacing: 10) {
                         SlotDropCard(
                             slotIndex: 1,
-                            title: "Slot 2 (Companion)",
+                            title: "Slot 2 (Top Right)",
                             widget: store.dashboardSlots[1],
                             onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
                             onClear: { store.setDashboardSlot(at: 1, widget: nil) }
                         )
-                        .frame(maxWidth: .infinity)
-                    }
-                    .coordinateSpace(name: "DashboardContainer")
-                } else {
-                    // 2x2 Quad Grid representation with dotted draggable vertical divider between filled columns
-                    let leftHasFilled = (store.dashboardSlots[0] != nil || store.dashboardSlots[2] != nil)
-                    let rightHasFilled = (store.dashboardSlots[1] != nil || store.dashboardSlots[3] != nil)
-                    
-                    HStack(spacing: 0) {
-                        // Left Column (Slot 1 & 3)
-                        VStack(spacing: 10) {
-                            SlotDropCard(
-                                slotIndex: 0,
-                                title: "Slot 1 (Top Left)",
-                                widget: store.dashboardSlots[0],
-                                onDrop: { widget in store.setDashboardSlot(at: 0, widget: widget) },
-                                onClear: { store.setDashboardSlot(at: 0, widget: nil) }
-                            )
-                            
-                            SlotDropCard(
-                                slotIndex: 2,
-                                title: "Slot 3 (Bottom Left)",
-                                widget: store.dashboardSlots[2],
-                                onDrop: { widget in store.setDashboardSlot(at: 2, widget: widget) },
-                                onClear: { store.setDashboardSlot(at: 2, widget: nil) }
-                            )
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        // Dotted draggable vertical divider only between adjacent FILLED columns
-                        if leftHasFilled && rightHasFilled {
-                            DottedDividerView(totalWidth: 500)
-                                .frame(height: 120)
-                        } else {
-                            Spacer().frame(width: 10)
-                        }
-                        
-                        // Right Column (Slot 2 & 4)
-                        VStack(spacing: 10) {
-                            SlotDropCard(
-                                slotIndex: 1,
-                                title: "Slot 2 (Top Right)",
-                                widget: store.dashboardSlots[1],
-                                onDrop: { widget in store.setDashboardSlot(at: 1, widget: widget) },
-                                onClear: { store.setDashboardSlot(at: 1, widget: nil) }
-                            )
-                            
-                            SlotDropCard(
-                                slotIndex: 3,
-                                title: "Slot 4 (Bottom Right)",
-                                widget: store.dashboardSlots[3],
-                                onDrop: { widget in store.setDashboardSlot(at: 3, widget: widget) },
-                                onClear: { store.setDashboardSlot(at: 3, widget: nil) }
-                            )
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .coordinateSpace(name: "DashboardContainer")
-                }
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(SettingsInk.tint(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
-                    )
-            )
-            
-            // Available Widgets Palette
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("AVAILABLE WIDGETS PALETTE")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(SettingsInk.secondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Text("Drag card into slot or tap + to assign")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(SettingsInk.tertiary)
-                        .lineLimit(1)
-                }
-                
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 10)], spacing: 10) {
-                    ForEach(DashboardWidgetType.allCases) { widget in
-                        let isPlaced = store.dashboardSlots.contains(widget)
-                        let placedSlotIndex = store.dashboardSlots.firstIndex(of: widget)
-                        
-                        DraggableWidgetPaletteCard(
-                            widget: widget,
-                            isPlaced: isPlaced,
-                            placedSlotIndex: placedSlotIndex,
-                            onQuickAssign: {
-                                if let firstEmpty = store.dashboardSlots.firstIndex(where: { $0 == nil }) {
-                                    store.setDashboardSlot(at: firstEmpty, widget: widget)
-                                } else {
-                                    store.setDashboardSlot(at: 0, widget: widget)
-                                }
-                            },
-                            onEject: {
-                                store.removeDashboardWidget(widget)
-                            }
+
+                        SlotDropCard(
+                            slotIndex: 3,
+                            title: "Slot 4 (Bottom Right)",
+                            widget: store.dashboardSlots[3],
+                            onDrop: { widget in store.setDashboardSlot(at: 3, widget: widget) },
+                            onClear: { store.setDashboardSlot(at: 3, widget: nil) }
                         )
                     }
+                    .frame(maxWidth: .infinity)
                 }
+                .coordinateSpace(name: "DashboardContainer")
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(SettingsInk.tint(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
-                    )
-            )
-            
-            // Quick Layout Presets
-            VStack(alignment: .leading, spacing: 10) {
-                Text("QUICK LAYOUT PRESETS")
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(SettingsInk.tint(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
+                )
+        )
+    }
+
+    // MARK: - Available Widgets Palette
+
+    private var availableWidgetsPaletteSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("AVAILABLE WIDGETS PALETTE")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(SettingsInk.secondary)
                     .lineLimit(1)
-                
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 8)], spacing: 8) {
-                    PresetButton(title: "Classic Duo", subtitle: "Media + Calendar") {
-                        store.dashboardLayoutFlow = .adaptiveAuto
-                        store.setSpan(2, for: .nowPlaying)
-                        store.setSpan(2, for: .calendar)
-                        store.applyPresetDashboard(slots: [.nowPlaying, .calendar, nil, nil])
-                    }
-                    
-                    PresetButton(title: "4 Side-by-Side Strip", subtitle: "Clock + Cal + Notes + Media") {
-                        store.dashboardLayoutFlow = .horizontalStrip
-                        store.setSpan(1, for: .clock)
-                        store.setSpan(1, for: .calendar)
-                        store.setSpan(1, for: .notes)
-                        store.setSpan(1, for: .nowPlaying)
-                        store.applyPresetDashboard(slots: [.clock, .calendar, .notes, .nowPlaying])
-                    }
-                    
-                    PresetButton(title: "3-Widget Studio", subtitle: "Notes (2-Space) + Clock + Cal") {
-                        store.dashboardLayoutFlow = .horizontalStrip
-                        store.setSpan(2, for: .notes)
-                        store.setSpan(1, for: .clock)
-                        store.setSpan(1, for: .calendar)
-                        store.applyPresetDashboard(slots: [.notes, .clock, .calendar, nil])
-                    }
-                    
-                    PresetButton(title: "Productivity 4-Grid", subtitle: "Notes + Clock + Cal + Media") {
-                        store.dashboardLayoutFlow = .bentoQuad
-                        store.setSpan(1, for: .notes)
-                        store.setSpan(1, for: .clock)
-                        store.setSpan(1, for: .calendar)
-                        store.setSpan(1, for: .nowPlaying)
-                        store.applyPresetDashboard(slots: [.notes, .clock, .calendar, .nowPlaying])
-                    }
-                    
-                    PresetButton(title: "AI & Notes Studio", subtitle: "Ask AI (2-Sp) + Notes (2-Sp)") {
-                        store.dashboardLayoutFlow = .adaptiveAuto
-                        store.setSpan(2, for: .askAI)
-                        store.setSpan(2, for: .notes)
-                        store.applyPresetDashboard(slots: [.askAI, .notes, nil, nil])
-                    }
-                    
-                    PresetButton(title: "Power Dashboard", subtitle: "Battery + Clock + Cal + Notes") {
-                        store.dashboardLayoutFlow = .horizontalStrip
-                        store.setSpan(1, for: .battery)
-                        store.setSpan(1, for: .clock)
-                        store.setSpan(1, for: .calendar)
-                        store.setSpan(1, for: .notes)
-                        store.applyPresetDashboard(slots: [.battery, .clock, .calendar, .notes])
-                    }
+                Spacer()
+                Text("Drag card into slot or tap + to assign")
+                    .font(.system(size: 10.5))
+                    .foregroundColor(SettingsInk.tertiary)
+                    .lineLimit(1)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 10)], spacing: 10) {
+                ForEach(DashboardWidgetType.allCases) { widget in
+                    let isPlaced = store.dashboardSlots.contains(widget)
+                    let placedSlotIndex = store.dashboardSlots.firstIndex(of: widget)
+
+                    DraggableWidgetPaletteCard(
+                        widget: widget,
+                        isPlaced: isPlaced,
+                        placedSlotIndex: placedSlotIndex,
+                        onQuickAssign: {
+                            if let firstEmpty = store.dashboardSlots.firstIndex(where: { $0 == nil }) {
+                                store.setDashboardSlot(at: firstEmpty, widget: widget)
+                            } else {
+                                store.setDashboardSlot(at: 0, widget: widget)
+                            }
+                        },
+                        onEject: {
+                            store.removeDashboardWidget(widget)
+                        }
+                    )
                 }
             }
-            
-            Divider().background(SettingsInk.tint(0.12))
-            
-            // Notes Widget Customization Section
-            notesCustomizationSection
-            
-            Divider().background(SettingsInk.tint(0.12))
-            
-            // Clock Customization Section
-            clockCustomizationSection
-            
-            Divider().background(SettingsInk.tint(0.12))
-            
-            // AI Assistant Customization Section
-            aiAssistantCustomizationSection
-            
-            Divider().background(SettingsInk.tint(0.12))
-            
-            // Quick Controls Customization Section
-            quickControlsCustomizationSection
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(SettingsInk.tint(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
+                )
+        )
+    }
+
+    // MARK: - Quick Layout Presets
+
+    private var quickLayoutPresetsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("QUICK LAYOUT PRESETS")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(SettingsInk.secondary)
+                .lineLimit(1)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 8)], spacing: 8) {
+                // FIX: spans → slots → flow. Applying flow first could let a
+                // store that re-lays-out on flow change overwrite the spans.
+                PresetButton(title: "Classic Duo", subtitle: "Media + Calendar") {
+                    store.setSpan(2, for: .nowPlaying)
+                    store.setSpan(2, for: .calendar)
+                    store.applyPresetDashboard(slots: [.nowPlaying, .calendar, nil, nil])
+                    store.dashboardLayoutFlow = .adaptiveAuto
+                }
+
+                PresetButton(title: "4 Side-by-Side Strip", subtitle: "Clock + Cal + Notes + Media") {
+                    store.setSpan(1, for: .clock)
+                    store.setSpan(1, for: .calendar)
+                    store.setSpan(1, for: .notes)
+                    store.setSpan(1, for: .nowPlaying)
+                    store.applyPresetDashboard(slots: [.clock, .calendar, .notes, .nowPlaying])
+                    store.dashboardLayoutFlow = .horizontalStrip
+                }
+
+                PresetButton(title: "3-Widget Studio", subtitle: "Notes (2-Space) + Clock + Cal") {
+                    store.setSpan(2, for: .notes)
+                    store.setSpan(1, for: .clock)
+                    store.setSpan(1, for: .calendar)
+                    store.applyPresetDashboard(slots: [.notes, .clock, .calendar, nil])
+                    store.dashboardLayoutFlow = .horizontalStrip
+                }
+
+                PresetButton(title: "Productivity 4-Grid", subtitle: "Notes + Clock + Cal + Media") {
+                    store.setSpan(1, for: .notes)
+                    store.setSpan(1, for: .clock)
+                    store.setSpan(1, for: .calendar)
+                    store.setSpan(1, for: .nowPlaying)
+                    store.applyPresetDashboard(slots: [.notes, .clock, .calendar, .nowPlaying])
+                    store.dashboardLayoutFlow = .bentoQuad
+                }
+
+                PresetButton(title: "AI & Notes Studio", subtitle: "Ask AI (2-Sp) + Notes (2-Sp)") {
+                    store.setSpan(2, for: .askAI)
+                    store.setSpan(2, for: .notes)
+                    store.applyPresetDashboard(slots: [.askAI, .notes, nil, nil])
+                    store.dashboardLayoutFlow = .adaptiveAuto
+                }
+
+                PresetButton(title: "Power Dashboard", subtitle: "Battery + Clock + Cal + Notes") {
+                    store.setSpan(1, for: .battery)
+                    store.setSpan(1, for: .clock)
+                    store.setSpan(1, for: .calendar)
+                    store.setSpan(1, for: .notes)
+                    store.applyPresetDashboard(slots: [.battery, .clock, .calendar, .notes])
+                    store.dashboardLayoutFlow = .horizontalStrip
+                }
+            }
         }
     }
-    
+
     // MARK: - Notes Widget Customization Section
     private var notesCustomizationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -301,7 +309,7 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(red: 0.98, green: 0.72, blue: 0.20))
                 }
-                
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text("QUICK NOTES WIDGET CUSTOMIZATION")
                         .font(.system(size: 11, weight: .bold))
@@ -310,11 +318,10 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
                 }
-                
+
                 Spacer()
             }
-            
-            // Toggle for Notes AI
+
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Enable AI Assistant in Notes")
@@ -324,17 +331,16 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 Toggle("", isOn: $store.isNotesAIEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.04)))
-            
-            // If Notes AI is enabled: Show Unified Login Status or Prompt to Login
+
             if store.isNotesAIEnabled {
                 if AskAIService.shared.hasAnyCloudLogin {
                     HStack(spacing: 8) {
@@ -365,21 +371,21 @@ public struct DashboardSettingsView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color.orange)
-                            Text("AI Login Required for Notes & Ask AI")
+                            Text("AI API Key Required for Notes & Ask AI")
                                 .font(.system(size: 10.5, weight: .bold))
                                 .foregroundColor(SettingsInk.primary)
                         }
-                        Text("To use AI in Notes and Ask AI, sign in with your Google account or configure an API key. Once logged in, your session is automatically shared between Notes and Ask AI.")
+                        Text("To use AI in Notes and Ask AI, configure a Google Gemini or OpenAI API key. You can get a free Gemini key from Google AI Studio.")
                             .font(.system(size: 9.5))
                             .foregroundColor(SettingsInk.secondary)
-                        
+
                         HStack(spacing: 8) {
                             Button {
                                 AskAIService.shared.connectGoogleAccount()
                             } label: {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "person.crop.circle.badge.checkmark")
-                                    Text("Sign in with Google")
+                                    Image(systemName: "arrow.up.right.square")
+                                    Text("Get Free Gemini Key")
                                 }
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(SettingsInk.primary)
@@ -388,7 +394,7 @@ public struct DashboardSettingsView: View {
                                 .background(Capsule().fill(AIProvider.gemini.tintColor))
                             }
                             .buttonStyle(.plain)
-                            
+
                             Button {
                                 withAnimation {
                                     AskAIService.shared.switchProvider(to: .gpt)
@@ -426,15 +432,16 @@ public struct DashboardSettingsView: View {
                 )
         )
     }
-    
+
     // MARK: - Layout Mode Selection Section
+
     private var layoutModeSelectionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("LAYOUT ORIENTATION MODE")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(SettingsInk.secondary)
                 .lineLimit(1)
-            
+
             HStack(spacing: 8) {
                 ForEach(DashboardLayoutFlow.allCases) { flow in
                     Button {
@@ -470,47 +477,47 @@ public struct DashboardSettingsView: View {
                     .accessibilityAddTraits(store.dashboardLayoutFlow == flow ? [.isButton, .isSelected] : .isButton)
                 }
             }
-            
+
             if store.dashboardLayoutFlow == .focusDominant {
-                Button {
-                    store.autoRotateCompanion.toggle()
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text("Auto-Rotate Companion Widget")
-                                    .font(.system(size: 11.5, weight: .semibold))
-                                    .foregroundColor(SettingsInk.primary)
-                                Text("Default: OFF")
-                                    .font(.system(size: 8.5))
-                                    .foregroundColor(Color.orange)
-                            }
-                            Text("Cycles through secondary tools every 30s only while the notch is collapsed.")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(SettingsInk.secondary)
+                // FIX: previously this row was a Button whose label contained
+                // a Toggle bound to the same state. Clicking the toggle fired
+                // BOTH the outer button action and the toggle binding —
+                // double-toggle, ends up where it started. Only the toggle is
+                // interactive now.
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Auto-Rotate Companion Widget")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(SettingsInk.primary)
+                            Text("Default: OFF")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(Color.orange)
                         }
-                        Spacer()
-                        Toggle("", isOn: $store.autoRotateCompanion)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .labelsHidden()
+                        Text("Cycles through secondary tools every 30s only while the notch is collapsed.")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(SettingsInk.secondary)
                     }
-                    .contentShape(Rectangle())
+                    Spacer()
+                    Toggle("", isOn: $store.autoRotateCompanion)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .labelsHidden()
                 }
-                .buttonStyle(.plain)
-                .pointerHoverCursor()
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(SettingsInk.tint(0.03)))
+                .accessibilityElement(children: .combine)
                 .accessibilityLabel("Auto-Rotate Companion Widget")
                 .accessibilityHint("When enabled, periodically cycles the companion widget every 30 seconds only while the notch is hidden.")
             }
         }
     }
-    
+
     // MARK: - Mini Layout Preview
+
     private var layoutMiniPreviewSection: some View {
         let activeCount = store.activeDashboardWidgets.count
-        
+
         return HStack(spacing: 16) {
             // Live Notch Silhouette Mini View
             ZStack(alignment: .top) {
@@ -521,39 +528,56 @@ public struct DashboardSettingsView: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(SettingsInk.tint(0.18), lineWidth: 0.8)
                     )
-                
+
                 // Camera notch simulator
                 RoundedRectangle(cornerRadius: 3)
                     .fill(Color.black)
                     .frame(width: 32, height: 7)
-                
-                // Mini widget slots inside preview
+
+                // FIX: the mini preview was fabricating bars when the
+                // dashboard was empty:
+                //   • horizontalStrip used `max(1, activeCount)` → 1 bar at 0
+                //   • focusDominant unconditionally drew 2 bars
+                //   • bentoQuad / adaptiveAuto fell into the 4-bar `else`
+                //     branch when `activeCount == 0`
+                // Each branch now explicitly handles `activeCount == 0`.
                 Group {
                     if store.dashboardLayoutFlow == .horizontalStrip {
-                        // 4 side-by-side columns
-                        HStack(spacing: 3) {
-                            let count = max(1, activeCount)
-                            ForEach(0..<count, id: \.self) { i in
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(colorForSlot(i).opacity(0.75))
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if activeCount == 0 {
+                            emptyPreviewPlaceholder
+                        } else {
+                            HStack(spacing: 3) {
+                                ForEach(0..<activeCount, id: \.self) { i in
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(colorForSlot(i).opacity(0.75))
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
                             }
                         }
                     } else if store.dashboardLayoutFlow == .focusDominant {
-                        // Focus Dominant (70% dominant + 30% companion with dotted line)
-                        HStack(spacing: 3) {
+                        if activeCount == 0 {
+                            emptyPreviewPlaceholder
+                        } else if activeCount == 1 {
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(DesignSystem.accentColor.opacity(0.85))
-                                .frame(maxWidth: .infinity)
-                            Rectangle()
-                                .stroke(SettingsInk.tint(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
-                                .frame(width: 1)
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.orange.opacity(0.75))
-                                .frame(width: 32)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            HStack(spacing: 3) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(DesignSystem.accentColor.opacity(0.85))
+                                    .frame(maxWidth: .infinity)
+                                Rectangle()
+                                    .stroke(SettingsInk.tint(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                                    .frame(width: 1)
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.orange.opacity(0.75))
+                                    .frame(width: 32)
+                            }
                         }
                     } else if store.dashboardLayoutFlow == .bentoQuad || store.dashboardLayoutFlow == .adaptiveAuto {
-                        if activeCount == 1 {
+                        if activeCount == 0 {
+                            emptyPreviewPlaceholder
+                        } else if activeCount == 1 {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(DesignSystem.accentColor.opacity(0.6))
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -598,14 +622,14 @@ public struct DashboardSettingsView: View {
                 FeedbackManager.playHover()
                 NotchShellCoordinator.shared.previewDashboard(duration: 5.0)
             }
-            
+
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text("Mode: \(store.dashboardLayoutFlow.title)")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(SettingsInk.primary)
                         .lineLimit(1)
-                    
+
                     Text("\(activeCount) of 4 Active")
                         .font(.system(size: 9.5, weight: .bold, design: .rounded))
                         .foregroundColor(DesignSystem.accentColor)
@@ -614,15 +638,15 @@ public struct DashboardSettingsView: View {
                         .background(Capsule().fill(DesignSystem.accentColor.opacity(0.18)))
                         .lineLimit(1)
                 }
-                
+
                 Text(stretchExplanationText(activeCount))
                     .font(.system(size: 10.5))
                     .foregroundColor(SettingsInk.secondary)
                     .lineLimit(2)
             }
-            
+
             Spacer()
-            
+
             // Live Preview on Notch Button
             Button {
                 FeedbackManager.playHover()
@@ -647,16 +671,28 @@ public struct DashboardSettingsView: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.03)))
     }
-    
+
+    // FIX: shared empty state for every branch of the mini preview.
+    private var emptyPreviewPlaceholder: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "rectangle.dashed")
+                .font(.system(size: 10))
+            Text("Empty")
+                .font(.system(size: 8, weight: .medium))
+        }
+        .foregroundColor(Color.white.opacity(0.3))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func colorForSlot(_ index: Int) -> Color {
         switch index % 4 {
         case 0: return DesignSystem.accentColor
-        case 1: return Color(red: 0.20, green: 0.50, blue: 0.98) // macOS System Blue
-        case 2: return Color(red: 0.90, green: 0.62, blue: 0.30) // Warm Amber
-        default: return Color(red: 0.30, green: 0.72, blue: 0.55) // Refined Sage
+        case 1: return Color(red: 0.20, green: 0.50, blue: 0.98)
+        case 2: return Color(red: 0.90, green: 0.62, blue: 0.30)
+        default: return Color(red: 0.30, green: 0.72, blue: 0.55)
         }
     }
-    
+
     private func stretchExplanationText(_ count: Int) -> String {
         if store.dashboardLayoutFlow == .focusDominant {
             return "70% primary dominant widget + 30% companion glance widget. Live draggable divider."
@@ -672,7 +708,7 @@ public struct DashboardSettingsView: View {
         default: return "All 4 quadrants active in a balanced 2×2 Bento Grid."
         }
     }
-    
+
     // MARK: - Clock Customization Section
     private var clockCustomizationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -680,15 +716,14 @@ public struct DashboardSettingsView: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(SettingsInk.secondary)
                 .lineLimit(1)
-            
+
             VStack(alignment: .leading, spacing: 12) {
-                // Dial Style Picker Row
                 HStack(spacing: 8) {
                     Text("Dial Aesthetics:")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(SettingsInk.primary)
                         .lineLimit(1)
-                    
+
                     ForEach(ClockDialStyle.allCases) { style in
                         Button {
                             store.clockDialStyle = style
@@ -712,14 +747,13 @@ public struct DashboardSettingsView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                
-                // Toggles Row
+
                 HStack(spacing: 24) {
                     Toggle("24-Hour Time", isOn: $store.clockIs24Hour)
                         .font(.system(size: 11, weight: .medium))
                         .toggleStyle(.switch)
                         .lineLimit(1)
-                    
+
                     Toggle("Smooth Seconds", isOn: $store.clockShowSeconds)
                         .font(.system(size: 11, weight: .medium))
                         .toggleStyle(.switch)
@@ -737,7 +771,7 @@ public struct DashboardSettingsView: View {
                 )
         )
     }
-    
+
     // MARK: - AI Assistant Customization Section
     private var aiAssistantCustomizationSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -750,7 +784,7 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(red: 0.68, green: 0.42, blue: 0.98))
                 }
-                
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text("AI ASSISTANT (SIRI, GEMINI, CHATGPT)")
                         .font(.system(size: 11, weight: .bold))
@@ -759,16 +793,15 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
                 }
-                
+
                 Spacer()
             }
-            
-            // Engine Selector Pills
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("DEFAULT PROVIDER")
                     .font(.system(size: 9.5, weight: .bold))
                     .foregroundColor(SettingsInk.secondary)
-                
+
                 HStack(spacing: 8) {
                     ForEach(AIProvider.allCases) { provider in
                         let isSelected = store.aiDefaultProvider == provider
@@ -800,8 +833,7 @@ public struct DashboardSettingsView: View {
                     }
                 }
             }
-            
-            // Provider Specific Configuration
+
             if store.aiDefaultProvider == .siri {
                 HStack(spacing: 10) {
                     Image(systemName: "checkmark.seal.fill")
@@ -857,14 +889,14 @@ public struct DashboardSettingsView: View {
                         .padding(8)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.08)))
                     }
-                    
+
                     HStack {
                         Button {
                             AskAIService.shared.connectGoogleAccount()
                         } label: {
                             HStack(spacing: 5) {
-                                Image(systemName: "person.crop.circle.badge.checkmark")
-                                Text(store.connectedGoogleEmail.isEmpty ? "Sign in with Google (Instant Zero-Key Login)" : "Open Gemini Web Workspace")
+                                Image(systemName: "arrow.up.right.square")
+                                Text("Get Gemini API Key (Google AI Studio)")
                             }
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(SettingsInk.primary)
@@ -873,17 +905,17 @@ public struct DashboardSettingsView: View {
                             .background(Capsule().fill(AIProvider.gemini.tintColor))
                         }
                         .buttonStyle(.plain)
-                        
+
                         Spacer()
-                        
-                        Text(store.connectedGoogleEmail.isEmpty ? "Uses Google session without requiring API key" : "gemini.google.com")
+
+                        Text("aistudio.google.com")
                             .font(.system(size: 9.5))
                             .foregroundColor(SettingsInk.tertiary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(store.connectedGoogleEmail.isEmpty ? "GOOGLE GEMINI API KEY" : "CUSTOM GEMINI API KEY OVERRIDE (OPTIONAL)")
+                            Text("GOOGLE GEMINI API KEY")
                                 .font(.system(size: 9.5, weight: .bold))
                                 .foregroundColor(SettingsInk.secondary)
                             Spacer()
@@ -896,20 +928,29 @@ public struct DashboardSettingsView: View {
                                     .foregroundColor(.green)
                             }
                         }
-                        if !store.connectedGoogleEmail.isEmpty {
-                            Text("Google Account (\(store.connectedGoogleEmail)) is active. A manual API key is completely optional.")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(SettingsInk.secondary)
-                        }
-                        SecureField("AIzaSy... (optional override)", text: $store.geminiApiKey)
+                        Text("Enter your Google AI Studio API key to enable Gemini features across Notes and Ask AI.")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(SettingsInk.secondary)
+                        SecureField("AIzaSy...", text: $store.geminiApiKey)
                             .textFieldStyle(.plain)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(SettingsInk.primary)
+                            .focused($focusedField, equals: .geminiKey)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(SettingsInk.tint(0.07))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .strokeBorder(
+                                                focusedField == .geminiKey ? DesignSystem.accentColor : Color.clear,
+                                                lineWidth: 1.5
+                                            )
+                                    )
+                            )
                     }
-                    
+
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("MODEL")
@@ -919,11 +960,22 @@ public struct DashboardSettingsView: View {
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 11))
                                 .foregroundColor(SettingsInk.primary)
+                                .focused($focusedField, equals: .geminiModel)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(SettingsInk.tint(0.07))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .strokeBorder(
+                                                    focusedField == .geminiModel ? DesignSystem.accentColor : Color.clear,
+                                                    lineWidth: 1.5
+                                                )
+                                        )
+                                )
                         }
-                        
+
                         VStack(alignment: .leading, spacing: 4) {
                             Text("RAM FOOTPRINT")
                                 .font(.system(size: 9.5, weight: .bold))
@@ -952,14 +1004,14 @@ public struct DashboardSettingsView: View {
                             .background(Capsule().fill(AIProvider.gpt.tintColor))
                         }
                         .buttonStyle(.plain)
-                        
+
                         Spacer()
-                        
+
                         Text("Opens platform.openai.com/api-keys")
                             .font(.system(size: 9.5))
                             .foregroundColor(SettingsInk.tertiary)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("OPENAI API KEY")
@@ -979,11 +1031,22 @@ public struct DashboardSettingsView: View {
                             .textFieldStyle(.plain)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(SettingsInk.primary)
+                            .focused($focusedField, equals: .openAIKey)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(SettingsInk.tint(0.07))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .strokeBorder(
+                                                focusedField == .openAIKey ? DesignSystem.accentColor : Color.clear,
+                                                lineWidth: 1.5
+                                            )
+                                    )
+                            )
                     }
-                    
+
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("MODEL")
@@ -993,11 +1056,22 @@ public struct DashboardSettingsView: View {
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 11))
                                 .foregroundColor(SettingsInk.primary)
+                                .focused($focusedField, equals: .openAIModel)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.07)))
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(SettingsInk.tint(0.07))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .strokeBorder(
+                                                    focusedField == .openAIModel ? DesignSystem.accentColor : Color.clear,
+                                                    lineWidth: 1.5
+                                                )
+                                        )
+                                )
                         }
-                        
+
                         VStack(alignment: .leading, spacing: 4) {
                             Text("RAM FOOTPRINT")
                                 .font(.system(size: 9.5, weight: .bold))
@@ -1021,7 +1095,7 @@ public struct DashboardSettingsView: View {
                 )
         )
     }
-    
+
     // MARK: - Quick Controls Customization Section
     private var quickControlsCustomizationSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1034,7 +1108,7 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(DesignSystem.accentColor)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text("SYSTEM QUICK CONTROLS")
                         .font(.system(size: 11, weight: .bold))
@@ -1043,11 +1117,10 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
                 }
-                
+
                 Spacer()
             }
-            
-            // Master Toggle
+
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Show Quick Controls in Dashboard")
@@ -1057,9 +1130,9 @@ public struct DashboardSettingsView: View {
                         .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 Toggle("", isOn: $store.showQuickControls)
                     .toggleStyle(.switch)
                     .tint(DesignSystem.accentColor)
@@ -1068,9 +1141,8 @@ public struct DashboardSettingsView: View {
             .padding(10)
             .background(SettingsInk.tint(0.04))
             .cornerRadius(8)
-            
+
             if store.showQuickControls {
-                // Pin Preference Toggle
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Keep Quick Controls Pinned Open")
@@ -1080,9 +1152,9 @@ public struct DashboardSettingsView: View {
                             .font(.system(size: 10))
                             .foregroundColor(SettingsInk.secondary)
                     }
-                    
+
                     Spacer()
-                    
+
                     Toggle("", isOn: $store.quickControlsPinned)
                         .toggleStyle(.switch)
                         .tint(DesignSystem.accentColor)
@@ -1091,13 +1163,12 @@ public struct DashboardSettingsView: View {
                 .padding(10)
                 .background(SettingsInk.tint(0.04))
                 .cornerRadius(8)
-                
-                // Individual Controls Selection
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ENABLED CONTROLS")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(SettingsInk.secondary)
-                    
+
                     ForEach(QuickControlKind.allCases) { kind in
                         let isEnabled = store.enabledQuickControls.contains(kind)
                         HStack(spacing: 10) {
@@ -1105,19 +1176,19 @@ public struct DashboardSettingsView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(isEnabled ? DesignSystem.accentColor : SettingsInk.secondary)
                                 .frame(width: 16)
-                            
+
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(kind.title)
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(SettingsInk.primary)
-                                
+
                                 Text(kind == .volume ? "Hardware synchronized via Core Audio HAL" : (kind == .brightness ? "System Managed (Quick Displays Settings Route)" : "Hardware Managed (Keyboard F5/F6 & Keyboard Settings)"))
                                     .font(.system(size: 9))
                                     .foregroundColor(SettingsInk.secondary)
                             }
-                            
+
                             Spacer()
-                            
+
                             Toggle("", isOn: Binding<Bool>(
                                 get: { store.enabledQuickControls.contains(kind) },
                                 set: { newValue in
@@ -1139,8 +1210,7 @@ public struct DashboardSettingsView: View {
                         .cornerRadius(6)
                     }
                 }
-                
-                // Reset to default button
+
                 Button(action: {
                     store.resetQuickControlsSettings()
                     FeedbackManager.playClick()
@@ -1170,13 +1240,13 @@ public struct DashboardSettingsView: View {
     }
 }
 
-// MARK: - Helper UI State
-@MainActor
-final class DashboardSettingsUIState: ObservableObject {
-    @Published var draggedWidget: DashboardWidgetType? = nil
-}
-
-@MainActor
+// MARK: - Drop Target State
+// NOTE / COMPATIBILITY FIX:
+// When compiling via Swift CLI with Apple Command Line Tools (without full Xcode.app installed),
+// `@State` invokes the external macro `SwiftUIMacros.StateMacro` which is not present in CLT:
+//   "error: external macro implementation type 'SwiftUIMacros.StateMacro' could not be found for macro 'State()'; plugin for module 'SwiftUIMacros' not found"
+// We use `@StateObject private var targetState = DropTargetState()` to bypass the macro requirement
+// and ensure compilation succeeds under CLI/release builds.
 final class DropTargetState: ObservableObject {
     @Published var isTargeted: Bool = false
 }
@@ -1189,15 +1259,15 @@ struct SlotDropCard: View {
     let widget: DashboardWidgetType?
     let onDrop: (DashboardWidgetType) -> Void
     let onClear: () -> Void
-    
+
+    // NOTE: Using @StateObject instead of @State to avoid SwiftUIMacros.StateMacro CLT error.
     @StateObject private var targetState = DropTargetState()
-    
+
     var body: some View {
         ZStack {
             if let widget = widget {
-                // Occupied Slot View
                 let currentSpan = store.span(for: widget)
-                
+
                 HStack(spacing: 8) {
                     ZStack {
                         Circle()
@@ -1207,23 +1277,22 @@ struct SlotDropCard: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(widget.tintColor)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 1) {
                         Text(widget.title)
                             .font(.system(size: 11.5, weight: .bold, design: .rounded))
                             .foregroundColor(SettingsInk.primary)
                             .lineLimit(1)
                             .fixedSize(horizontal: false, vertical: true)
-                        
+
                         Text(title)
                             .font(.system(size: 9))
                             .foregroundColor(SettingsInk.secondary)
                             .lineLimit(1)
                     }
-                    
+
                     Spacer()
-                    
-                    // Span Selector Button: 1 Space vs 2 Spaces
+
                     Button {
                         FeedbackManager.playClick()
                         let nextSpan = currentSpan == 1 ? 2 : 1
@@ -1239,8 +1308,7 @@ struct SlotDropCard: View {
                     }
                     .buttonStyle(.plain)
                     .help("Toggle slot span: 1 space or 2 spaces")
-                    
-                    // Eject / Remove Button
+
                     Button {
                         FeedbackManager.playClick()
                         onClear()
@@ -1266,7 +1334,6 @@ struct SlotDropCard: View {
                     NSItemProvider(object: widget.rawValue as NSString)
                 }
             } else {
-                // Empty Slot Drop Placeholder (Clickable to quick-assign or accept drop)
                 Button {
                     if let firstUnplaced = DashboardWidgetType.allCases.first(where: { !store.dashboardSlots.contains($0) }) {
                         FeedbackManager.playPin()
@@ -1277,7 +1344,7 @@ struct SlotDropCard: View {
                         Image(systemName: "plus.circle")
                             .font(.system(size: 14))
                             .foregroundColor(targetState.isTargeted ? DesignSystem.accentColor : SettingsInk.tint(0.25))
-                        
+
                         VStack(alignment: .leading, spacing: 1) {
                             Text(title)
                                 .font(.system(size: 10.5, weight: .semibold))
@@ -1288,7 +1355,7 @@ struct SlotDropCard: View {
                                 .foregroundColor(SettingsInk.tint(0.3))
                                 .lineLimit(1)
                         }
-                        
+
                         Spacer()
                     }
                     .padding(.horizontal, 8)
@@ -1311,9 +1378,15 @@ struct SlotDropCard: View {
         }
         .frame(height: 50)
         .onDrop(of: [.text, .plainText], isTargeted: $targetState.isTargeted) { providers in
-            guard let provider = providers.first else { return false }
+            guard let provider = providers.first,
+                  provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
+                    || provider.hasItemConformingToTypeIdentifier(UTType.text.identifier)
+            else {
+                return false
+            }
             _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-                guard let raw = string as? String, let droppedType = DashboardWidgetType(rawValue: raw) else { return }
+                guard let raw = string as? String,
+                      let droppedType = DashboardWidgetType(rawValue: raw) else { return }
                 DispatchQueue.main.async {
                     FeedbackManager.playPin()
                     onDrop(droppedType)
@@ -1332,10 +1405,10 @@ struct DraggableWidgetPaletteCard: View {
     let placedSlotIndex: Int?
     let onQuickAssign: () -> Void
     let onEject: () -> Void
-    
+
     var body: some View {
         let currentSpan = store.span(for: widget)
-        
+
         HStack(spacing: 8) {
             Button {
                 if isPlaced {
@@ -1356,14 +1429,14 @@ struct DraggableWidgetPaletteCard: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(isPlaced ? widget.tintColor.opacity(0.6) : widget.tintColor)
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 1) {
                         Text(widget.title)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundColor(isPlaced ? SettingsInk.secondary : .white)
+                            .foregroundColor(isPlaced ? SettingsInk.secondary : DesignSystem.primaryText)
                             .lineLimit(1)
                             .fixedSize(horizontal: false, vertical: true)
-                        
+
                         if isPlaced, let idx = placedSlotIndex {
                             Text("In Slot \(idx + 1)")
                                 .font(.system(size: 8.5, weight: .bold))
@@ -1376,7 +1449,7 @@ struct DraggableWidgetPaletteCard: View {
                                 .lineLimit(1)
                         }
                     }
-                    
+
                     Spacer()
                 }
                 .contentShape(Rectangle())
@@ -1385,8 +1458,7 @@ struct DraggableWidgetPaletteCard: View {
             .pointerHoverCursor()
             .accessibilityLabel("\(widget.title) Widget")
             .accessibilityHint(isPlaced ? "Placed in slot. Click to toggle width." : "Click to assign to first available slot.")
-            
-            // Span selector pill
+
             Button {
                 FeedbackManager.playClick()
                 let nextSpan = currentSpan == 1 ? 2 : 1
@@ -1403,7 +1475,7 @@ struct DraggableWidgetPaletteCard: View {
             .buttonStyle(.plain)
             .pointerHoverCursor()
             .help("Set widget space: 1 space or 2 spaces")
-            
+
             if isPlaced {
                 Button {
                     FeedbackManager.playClick()
@@ -1454,7 +1526,7 @@ struct PresetButton: View {
     let title: String
     let subtitle: String
     let action: () -> Void
-    
+
     var body: some View {
         Button {
             FeedbackManager.playPin()

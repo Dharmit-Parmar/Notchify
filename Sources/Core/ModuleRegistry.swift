@@ -21,8 +21,14 @@ public final class ModuleRegistry: ObservableObject {
             NotchShellCoordinator.shared.onActiveModuleChanged()
         }
     }
+    
+    // Intelligent Hover Intent & Accidental Activation Suppression
     private var suppressedHoverId: String? = nil
+    private var isExpansionInProgress: Bool = false
     private var tabHoverWorkItem: DispatchWorkItem?
+    private var pendingHoverTarget: String? = nil
+    private var expansionCooldownWorkItem: DispatchWorkItem?
+    private let tabHoverDwellDelay: TimeInterval = 0.28 // 280ms dwell delay
     private var cancellables = Set<AnyCancellable>()
     
     private let orderStorageKey = "NotchApp_ModuleOrder"
@@ -151,7 +157,32 @@ public final class ModuleRegistry: ObservableObject {
         return mod.isEnabled
     }
     
-    // Hover action: When mouse enters a tab, preview it after a smooth dwell
+    // Notch Expansion Lifecycle: Ensures Dashboard is active and suppresses accidental hover on the tab under the cursor
+    public func onNotchExpanding() {
+        cancelPendingTabHover()
+        expansionCooldownWorkItem?.cancel()
+        
+        // Preserve Dashboard as default on expansion unless explicitly pinned to a module
+        if pinnedModuleId == nil {
+            if hoveredModuleId != nil {
+                modules.first(where: { $0.id == hoveredModuleId })?.stop()
+                hoveredModuleId = nil
+            }
+        }
+        
+        isExpansionInProgress = true
+        
+        // Expansion cooldown window matching notch spring animation (~0.35s - 0.40s)
+        let cooldownItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.isExpansionInProgress = false
+            self.expansionCooldownWorkItem = nil
+        }
+        expansionCooldownWorkItem = cooldownItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.38, execute: cooldownItem)
+    }
+
+    // Hover action: When mouse enters a tab, preview it after an intentional dwell delay
     public func onTabHover(_ id: String?) {
         guard let id = id else {
             // Hovering over Dashboard home tab (id == nil)
@@ -162,24 +193,52 @@ public final class ModuleRegistry: ObservableObject {
         // If a module or Dashboard is pinned, hovering over other tabs must NOT switch the view
         guard pinnedModuleId == nil else { return }
         
+        // If the notch is currently expanding, record the tab underneath the pointer and suppress auto-activation
+        if isExpansionInProgress {
+            suppressedHoverId = id
+            cancelPendingTabHover()
+            return
+        }
+        
+        // If this tab was already underneath the pointer on expansion and hasn't been exited yet, keep it suppressed
         if id == suppressedHoverId {
             return
         }
-        suppressedHoverId = nil
         
+        // Cancel any pending activation from a previously hovered tab
         cancelPendingTabHover()
         guard hoveredModuleId != id else { return }
+        
+        pendingHoverTarget = id
+        // 250-300ms continuous hover dwell delay before activating module
         let workItem = DispatchWorkItem { [weak self] in
-            self?.activateHoveredModule(id)
+            guard let self = self else { return }
+            guard self.suppressedHoverId != id, !self.isExpansionInProgress else { return }
+            self.activateHoveredModule(id)
         }
         tabHoverWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + tabHoverDwellDelay, execute: workItem)
     }
     
-    // Hover over Dashboard home tab: smoothly previews the Home Dashboard
+    // Hover exit: Cancel pending activation only if the exiting tab is the pending target
+    public func onTabHoverExit(_ id: String) {
+        if pendingHoverTarget == id {
+            cancelPendingTabHover()
+        }
+        
+        // Once pointer exits the tab hit area, clear suppression so intentional re-entry activates normally
+        if suppressedHoverId == id {
+            suppressedHoverId = nil
+        }
+    }
+    
+    // Hover over Dashboard home tab: smoothly previews the Home Dashboard after dwell delay
     public func onDashboardHover() {
         cancelPendingTabHover()
+        guard pinnedModuleId == nil else { return }
         guard hoveredModuleId != nil || activeModuleId != nil else { return }
+        
+        pendingHoverTarget = "dashboard"
         let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             if self.pinnedModuleId == nil {
@@ -187,10 +246,30 @@ public final class ModuleRegistry: ObservableObject {
             }
         }
         tabHoverWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + tabHoverDwellDelay, execute: workItem)
+    }
+    
+    public func onDashboardHoverExit() {
+        if pendingHoverTarget == "dashboard" {
+            cancelPendingTabHover()
+        }
+    }
+    
+    public func onNavBarHoverExit() {
+        cancelPendingTabHover()
+    }
+    
+    public func clearSuppression() {
+        suppressedHoverId = nil
+        isExpansionInProgress = false
+        expansionCooldownWorkItem?.cancel()
+        expansionCooldownWorkItem = nil
+        cancelPendingTabHover()
     }
     
     public func hoverToHome() {
+        tabHoverWorkItem = nil
+        pendingHoverTarget = nil
         if let currentId = activeModuleId {
             modules.first(where: { $0.id == currentId })?.stop()
         }
@@ -201,6 +280,7 @@ public final class ModuleRegistry: ObservableObject {
 
     private func activateHoveredModule(_ id: String) {
         tabHoverWorkItem = nil
+        pendingHoverTarget = nil
         guard hoveredModuleId != id else { return }
         let previousActive = activeModuleId
         hoveredModuleId = id
@@ -216,11 +296,10 @@ public final class ModuleRegistry: ObservableObject {
     
     // Explicit Select / Pin Module
     public func selectModule(_ id: String) {
-        cancelPendingTabHover()
+        clearSuppression()
         let prevId = activeModuleId
         pinnedModuleId = id
         hoveredModuleId = id
-        suppressedHoverId = nil
         FeedbackManager.playPin()
         
         if prevId != id {
@@ -233,7 +312,7 @@ public final class ModuleRegistry: ObservableObject {
     
     // Click action: Toggle Pin / Return to Home
     public func toggleDashboardPin() {
-        cancelPendingTabHover()
+        clearSuppression()
         let prevId = activeModuleId
         
         if isDashboardPinned {
@@ -246,7 +325,6 @@ public final class ModuleRegistry: ObservableObject {
             // Pin the Home Dashboard!
             pinnedModuleId = "dashboard"
             hoveredModuleId = nil
-            suppressedHoverId = nil
             FeedbackManager.playPin()
         }
         
@@ -256,7 +334,7 @@ public final class ModuleRegistry: ObservableObject {
     }
     
     public func togglePin(_ id: String) {
-        cancelPendingTabHover()
+        clearSuppression()
         let prevId = activeModuleId
         
         if pinnedModuleId == id {
@@ -269,7 +347,6 @@ public final class ModuleRegistry: ObservableObject {
             // Pin this secondary module
             pinnedModuleId = id
             hoveredModuleId = id
-            suppressedHoverId = nil
             FeedbackManager.playPin()
         }
         
@@ -282,11 +359,10 @@ public final class ModuleRegistry: ObservableObject {
     }
     
     public func returnToHome() {
-        cancelPendingTabHover()
+        clearSuppression()
         activeModule?.stop()
         pinnedModuleId = nil
         hoveredModuleId = nil
-        suppressedHoverId = nil
         FeedbackManager.playClick()
     }
 
@@ -350,19 +426,29 @@ public final class ModuleRegistry: ObservableObject {
         UserDefaults.standard.set(moduleOrder, forKey: orderStorageKey)
     }
 
-    private func cancelPendingTabHover() {
+    public func cancelPendingTabHover() {
         tabHoverWorkItem?.cancel()
         tabHoverWorkItem = nil
+        pendingHoverTarget = nil
+    }
+    
+    /// Returns the loaded module instance ONLY if it has already been instantiated.
+    /// Does NOT trigger the factory for uninstantiated lazy modules.
+    public func loadedModule<T>(for id: String, as type: T.Type = T.self) -> T? {
+        guard let m = modules.first(where: { $0.id == id }) else { return nil }
+        if let lazy = m as? LazyNotchModule {
+            return lazy.loadedInstance as? T
+        }
+        return m as? T
     }
     
     public func stopAll() {
-        cancelPendingTabHover()
+        clearSuppression()
         for m in modules {
             m.stop()
         }
         hoveredModuleId = nil
         pinnedModuleId = nil
-        suppressedHoverId = nil
     }
     
     public func unloadInactiveModules() {

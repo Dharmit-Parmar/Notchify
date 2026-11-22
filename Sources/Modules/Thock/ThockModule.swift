@@ -1,16 +1,16 @@
-import SwiftUI
 import AppKit
 import ApplicationServices
 import Combine
 import Darwin
+import SwiftUI
 
 // MARK: - Subsections Enum
 public enum ThockSubSection: String, CaseIterable, Identifiable {
     case keySound = "Key Sound"
     case asmr = "Ambient ASMR"
-    
+
     public var id: String { rawValue }
-    
+
     public var icon: String {
         switch self {
         case .keySound: return "keyboard"
@@ -27,8 +27,11 @@ public struct ThockPackMeta: Identifiable, Hashable {
     public let switchType: String
     public let acousticProfile: String
     public var isFavorite: Bool
-    
-    public init(name: String, displayName: String, switchType: String, acousticProfile: String, isFavorite: Bool = false) {
+
+    public init(
+        name: String, displayName: String, switchType: String, acousticProfile: String,
+        isFavorite: Bool = false
+    ) {
         self.name = name
         self.displayName = displayName
         self.switchType = switchType
@@ -41,7 +44,7 @@ public struct ThockPackMeta: Identifiable, Hashable {
 @MainActor
 public final class ThockModule: NotchModule {
     public static let shared = ThockModule()
-    
+
     public let id = "thock"
     public let title = "Thock"
     public let iconName = "keyboard"
@@ -52,54 +55,67 @@ public final class ThockModule: NotchModule {
             }
         }
     }
-    
+
     nonisolated public static let pinnedKeySoundCommit = "264ef80f73c38b1d45a6c3e69fa127775b7a5e49"
-    
+
     // Dynamic Portable Paths (SEC-C-3: Hardened Binary Security & Safe Fallback)
     nonisolated public static func resolveKeySoundDirectory() -> URL {
         let fm = FileManager.default
         let homeDir = URL(fileURLWithPath: NSHomeDirectory())
-        
+
         // 1. Primary secure target: user Application Support directory (~/Library/Application Support/Notch/KeySound)
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? homeDir.appendingPathComponent("Library/Application Support")
+        let appSupport =
+            fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? homeDir.appendingPathComponent("Library/Application Support")
         let notchKeySound = appSupport.appendingPathComponent("Notch/KeySound")
-        if validateBinarySecurity(at: notchKeySound.appendingPathComponent("target/release/thock-cli")) {
+        if validateBinarySecurity(
+            at: notchKeySound.appendingPathComponent("target/release/thock-cli"))
+        {
             return notchKeySound
         }
-        
+
         // 2. Safe developer path for existing local installs (opt-in; default active if local copy present)
-        let allowDevPath = UserDefaults.standard.object(forKey: "NotchApp_AllowDevKeySound") as? Bool ?? true
+        let allowDevPath =
+            UserDefaults.standard.object(forKey: "NotchApp_AllowDevKeySound") as? Bool ?? true
         if allowDevPath {
             let docKeySound = homeDir.appendingPathComponent("Doc/KeySound")
-            if validateBinarySecurity(at: docKeySound.appendingPathComponent("target/release/thock-cli")) {
+            if validateBinarySecurity(
+                at: docKeySound.appendingPathComponent("target/release/thock-cli"))
+            {
                 migrateLocalDevKeySoundIfNeeded(from: docKeySound, to: notchKeySound)
-                if validateBinarySecurity(at: notchKeySound.appendingPathComponent("target/release/thock-cli")) {
+                if validateBinarySecurity(
+                    at: notchKeySound.appendingPathComponent("target/release/thock-cli"))
+                {
                     return notchKeySound
                 }
                 return docKeySound
             }
             let documentsKeySound = homeDir.appendingPathComponent("Documents/KeySound")
-            if validateBinarySecurity(at: documentsKeySound.appendingPathComponent("target/release/thock-cli")) {
+            if validateBinarySecurity(
+                at: documentsKeySound.appendingPathComponent("target/release/thock-cli"))
+            {
                 migrateLocalDevKeySoundIfNeeded(from: documentsKeySound, to: notchKeySound)
-                if validateBinarySecurity(at: notchKeySound.appendingPathComponent("target/release/thock-cli")) {
+                if validateBinarySecurity(
+                    at: notchKeySound.appendingPathComponent("target/release/thock-cli"))
+                {
                     return notchKeySound
                 }
                 return documentsKeySound
             }
         }
-        
+
         // Default target for new installations
         return notchKeySound
     }
-    
+
     nonisolated public static func validateBinarySecurity(at url: URL) -> Bool {
         let path = url.path
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else { return false }
-        
+
         var statBuf = stat()
         guard lstat(path, &statBuf) == 0 else { return false }
-        
+
         // 1. Must NOT be a symbolic link
         if (statBuf.st_mode & S_IFMT) == S_IFLNK {
             return false
@@ -120,15 +136,17 @@ public final class ThockModule: NotchModule {
         guard (statBuf.st_mode & S_IXUSR) != 0 else {
             return false
         }
-        
+
         return true
     }
-    
-    nonisolated public static func migrateLocalDevKeySoundIfNeeded(from sourceDir: URL, to targetDir: URL) {
+
+    nonisolated public static func migrateLocalDevKeySoundIfNeeded(
+        from sourceDir: URL, to targetDir: URL
+    ) {
         let fm = FileManager.default
         let sourceBin = sourceDir.appendingPathComponent("target/release/thock-cli")
         guard validateBinarySecurity(at: sourceBin) else { return }
-        
+
         let targetBinDir = targetDir.appendingPathComponent("target/release")
         let targetBin = targetBinDir.appendingPathComponent("thock-cli")
         if !fm.fileExists(atPath: targetBin.path) {
@@ -136,63 +154,66 @@ public final class ThockModule: NotchModule {
             try? fm.copyItem(at: sourceBin, to: targetBin)
             try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: targetBin.path)
         }
-        
+
         let sourcePacks = sourceDir.appendingPathComponent("packs")
         let targetPacks = targetDir.appendingPathComponent("packs")
         if fm.fileExists(atPath: sourcePacks.path) && !fm.fileExists(atPath: targetPacks.path) {
             try? fm.copyItem(at: sourcePacks, to: targetPacks)
         }
     }
-    
+
     public var projectDir: URL { Self.resolveKeySoundDirectory() }
     public var binaryURL: URL { projectDir.appendingPathComponent("target/release/thock-cli") }
     public var packsDir: URL { projectDir.appendingPathComponent("packs") }
     public var settingsURL: URL { packsDir.appendingPathComponent(".settings.json") }
     public var favoritesURL: URL { packsDir.appendingPathComponent(".favorites.json") }
-    
+
     // Installation State
     public var isInstalled: Bool {
         Self.validateBinarySecurity(at: binaryURL)
     }
     @Published public var isInstalling: Bool = false
     @Published public var installProgressMessage: String = ""
-    
+
     // Active Subsection
     @Published public var selectedSection: ThockSubSection = .keySound
-    
+
     // Permissions State (Both Accessibility & Input Monitoring)
     @Published public var hasAccessibilityPermission: Bool = false
     @Published public var hasInputMonitoringPermission: Bool = false
     public var allPermissionsGranted: Bool {
         hasAccessibilityPermission && hasInputMonitoringPermission
     }
-    @Published public var isAccessibilityGranted: Bool = false // Backwards compatibility
-    
+    @Published public var isAccessibilityGranted: Bool = false  // Backwards compatibility
+
     // Banner Dismissal State (Ensures status/permission tags appear once with dismiss cross)
-    @Published public var hasDismissedAuthorizedBanner: Bool = UserDefaults.standard.bool(forKey: "thock_authorized_banner_dismissed")
-    @Published public var hasDismissedPermissionsNotice: Bool = UserDefaults.standard.bool(forKey: "thock_permissions_notice_dismissed")
-    @Published public var hasDismissedInstallNotice: Bool = UserDefaults.standard.bool(forKey: "thock_install_notice_dismissed")
-    
+    @Published public var hasDismissedAuthorizedBanner: Bool = UserDefaults.standard.bool(
+        forKey: "thock_authorized_banner_dismissed")
+    @Published public var hasDismissedPermissionsNotice: Bool = UserDefaults.standard.bool(
+        forKey: "thock_permissions_notice_dismissed")
+    @Published public var hasDismissedInstallNotice: Bool = UserDefaults.standard.bool(
+        forKey: "thock_install_notice_dismissed")
+
     public func dismissAuthorizedBanner() {
         hasDismissedAuthorizedBanner = true
         UserDefaults.standard.set(true, forKey: "thock_authorized_banner_dismissed")
     }
-    
+
     public func dismissPermissionsNotice() {
         hasDismissedPermissionsNotice = true
         UserDefaults.standard.set(true, forKey: "thock_permissions_notice_dismissed")
     }
-    
+
     public func dismissInstallNotice() {
         hasDismissedInstallNotice = true
         UserDefaults.standard.set(true, forKey: "thock_install_notice_dismissed")
     }
-    
+
     // Engine State
     @Published public var isRunning: Bool = false
     @Published public var processPID: Int32? = nil
     @Published public var statusSubtitle: String = "Engine Offline"
-    
+
     // Dedicated Volume Controls (Key Sound vs ASMR)
     @Published public var keyVolume: Double = 70.0 {
         didSet {
@@ -203,7 +224,7 @@ public final class ThockModule: NotchModule {
             }
         }
     }
-    @Published public var volume: Double = 70.0 // Kept for backwards compatibility
+    @Published public var volume: Double = 70.0  // Kept for backwards compatibility
     @Published public var asmrVolume: Double = 50.0 {
         didSet {
             let intVal = Int(asmrVolume.rounded())
@@ -212,28 +233,38 @@ public final class ThockModule: NotchModule {
             }
         }
     }
-    
+
     // Mute States & Pre-Mute Memory
     @Published public var isKeyMuted: Bool = false
     private var preMuteKeyVolume: Double = 70.0
-    
+
     @Published public var isAsmrMuted: Bool = false
     private var preMuteAsmrVolume: Double = 50.0
-    
+
     // Editable Percentage Strings for Direct User Typing
     @Published public var keyVolumeText: String = "70"
     @Published public var asmrVolumeText: String = "50"
-    
+
     // Switch Pack State
     @Published public var currentPack: String = "nk_cream"
     @Published public var availablePacks: [ThockPackMeta] = []
     @Published public var favoritePacks: Set<String> = []
-    
+
     // ASMR Layer Toggles
     @Published public var rainActive: Bool = false
     @Published public var windActive: Bool = false
     @Published public var thunderActive: Bool = false
-    
+
+    // Persistent Auto-Start Preference (Restores engine on app launch if active before quit)
+    private static let autoStartKey = "NotchApp_ThockEngineShouldAutoStart"
+    @Published public var shouldAutoStart: Bool {
+        didSet {
+            UserDefaults.standard.set(shouldAutoStart, forKey: Self.autoStartKey)
+        }
+    }
+    @Published public var isStartingEngine: Bool = false
+    private var hasAttemptedAutoRestore: Bool = false
+
     // Process Piping & Ownership Tracking (Strictly tracks ONLY child process spawned by Notch)
     private var process: Process?
     public private(set) nonisolated(unsafe) var spawnedProcess: Process?
@@ -243,49 +274,92 @@ public final class ThockModule: NotchModule {
     private var outPipe: Pipe?
     private var activeHeartbeatTimer: AnyCancellable?
     private var processGeneration: Int = 0
-    
-    // Process Start-Time Validation (SEC-C-4: Prevent PID-Reuse Race Conditions)
+
+    // Process identity validation (SEC-C-4).
+    // The token combines seconds and microseconds so a PID reused within the
+    // same second cannot pass the ownership check merely because its second
+    // component matches.
     public static func processStartTime(pid: pid_t) -> UInt64? {
         guard pid > 1 else { return nil }
+
         var bsdInfo = proc_bsdinfo()
-        let size = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsdInfo, Int32(MemoryLayout<proc_bsdinfo>.size))
-        guard size == MemoryLayout<proc_bsdinfo>.size else { return nil }
-        return bsdInfo.pbi_start_tvsec
+        let expectedSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+        let actualSize = proc_pidinfo(
+            pid,
+            PROC_PIDTBSDINFO,
+            0,
+            &bsdInfo,
+            expectedSize
+        )
+
+        guard actualSize == expectedSize,
+            bsdInfo.pbi_uid == geteuid()
+        else {
+            return nil
+        }
+
+        let seconds = UInt64(bsdInfo.pbi_start_tvsec)
+        let microseconds = UInt64(bsdInfo.pbi_start_tvusec)
+        guard microseconds < 1_000_000 else { return nil }
+
+        let (base, multiplyOverflow) = seconds.multipliedReportingOverflow(by: 1_000_000)
+        guard !multiplyOverflow else { return nil }
+
+        let (token, addOverflow) = base.addingReportingOverflow(microseconds)
+        guard !addOverflow else { return nil }
+
+        return token
     }
-    
+
+    private func hasValidatedProcessIdentity(pid: pid_t) -> Bool {
+        guard pid > 1,
+            let expectedStart = spawnedProcessStartTime,
+            let currentStart = Self.processStartTime(pid: pid)
+        else {
+            return false
+        }
+
+        return currentStart == expectedStart
+    }
+
     @discardableResult
     private func safeKill(pid: pid_t, signal: Int32) -> Int32 {
-        guard pid > 1 else { return -1 }
-        if let expectedStart = self.spawnedProcessStartTime,
-           let currentStart = Self.processStartTime(pid: pid),
-           currentStart != expectedStart {
-            return -1 // PID reuse detected! Refuse to signal foreign process.
+        guard hasValidatedProcessIdentity(pid: pid) else {
+            return -1
         }
+
         return kill(pid, signal)
     }
-    
+
     @discardableResult
     private func safeKillGroup(pgid: pid_t, signal: Int32) -> Int32 {
-        guard pgid > 1 else { return -1 }
-        if let expectedStart = self.spawnedProcessStartTime,
-           let currentStart = Self.processStartTime(pid: pgid),
-           currentStart != expectedStart {
-            return -1 // PID reuse detected! Refuse to signal foreign process group.
+        // A process-group ID is not sufficient proof of ownership. Require the
+        // group leader to be our verified child and confirm it still leads this
+        // exact process group before sending any group signal.
+        guard pgid > 1,
+            getpgid(pgid) == pgid,
+            hasValidatedProcessIdentity(pid: pgid),
+            getpgid(pgid) == pgid
+        else {
+            return -1
         }
+
         return kill(-pgid, signal)
     }
-    
+
     public init() {
         signal(SIGPIPE, SIG_IGN)
+        self.shouldAutoStart = UserDefaults.standard.bool(forKey: Self.autoStartKey)
+
         // Fast, non-blocking synchronous file reads
         loadFavoritesFromDisk()
         loadPacksFromDisk()
         loadSettingsFromDisk()
         checkAllPermissions()
-        
+
         // Zero-overhead check for running process
         checkProcessStateZeroOverhead()
-        
+
         // Listen for application termination to guarantee cleanup of spawned child process
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
@@ -303,7 +377,7 @@ public final class ThockModule: NotchModule {
             proc.terminate()
         }
     }
-    
+
     // MARK: - NotchModule Protocol Lifecycle
     public func start() {
         if availablePacks.isEmpty {
@@ -315,124 +389,117 @@ public final class ThockModule: NotchModule {
         startLightweightMonitor()
         resumeChildProcess()
     }
-    
+
     public func stop() {
         // Stop the heartbeat when notch collapses to conserve CPU & prevent thermal load!
         stopLightweightMonitor()
     }
-    
+
     private var isChildSuspended = false
-    
+
     public func suspendChildProcess() {
-        guard let pid = self.spawnedPID ?? self.processPID, isRunning, !isChildSuspended else { return }
-        safeKill(pid: pid, signal: SIGSTOP)
+        guard let pid = spawnedPID, isRunning, !isChildSuspended else { return }
+        guard safeKill(pid: pid, signal: SIGSTOP) == 0 else { return }
         isChildSuspended = true
     }
-    
+
     public func resumeChildProcess() {
-        guard let pid = self.spawnedPID ?? self.processPID, isRunning, isChildSuspended else { return }
-        safeKill(pid: pid, signal: SIGCONT)
+        guard let pid = spawnedPID, isRunning, isChildSuspended else { return }
+        guard safeKill(pid: pid, signal: SIGCONT) == 0 else { return }
         isChildSuspended = false
     }
-    
-    // MARK: - Process Group & Orphan Hygiene (SEC-C-4: Precise Realpath & UID Ownership)
+
+    // MARK: - Orphan Hygiene
+    // Intentionally do not discover and kill processes by executable path.
+    // A matching path, UID, or parent PID does not establish that a process
+    // belongs to this Notchify instance. A future orphan sweeper must first
+    // validate an explicit PID + high-resolution start-identity record created
+    // at launch. Until that metadata exists, doing nothing is the safe behavior.
     nonisolated public static func sweepOrphanProcesses() {
-        let rawBinaryPath = resolveKeySoundDirectory().appendingPathComponent("target/release/thock-cli").path
-        let binaryPath = URL(fileURLWithPath: rawBinaryPath).resolvingSymlinksInPath().path
-        let currentUID = geteuid()
-        
-        var pids = [pid_t](repeating: 0, count: 2048)
-        let byteCount = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids, Int32(MemoryLayout<pid_t>.stride * pids.count))
-        guard byteCount > 0 else { return }
-        let count = Int(byteCount) / MemoryLayout<pid_t>.stride
-        
-        let myPid = getpid()
-        var pathBuffer = [CChar](repeating: 0, count: 4096)
-        
-        for i in 0..<count {
-            let pid = pids[i]
-            guard pid > 1 && pid != myPid else { continue }
-            
-            var bsdInfo = proc_bsdinfo()
-            let size = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &bsdInfo, Int32(MemoryLayout<proc_bsdinfo>.size))
-            guard size > 0 else { continue }
-            
-            // Only sweep orphaned processes reparented to launchd (ppid == 1)
-            guard bsdInfo.pbi_ppid == 1 else { continue }
-            
-            // Must belong to the current user (SEC-C-4: prevent terminating other users' processes)
-            guard bsdInfo.pbi_uid == currentUID else { continue }
-            
-            let pathLen = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
-            guard pathLen > 0 else { continue }
-            let rawExecPath = pathBuffer.withUnsafeBufferPointer { ptr in
-                String(cString: ptr.baseAddress!)
-            }
-            let execPath = URL(fileURLWithPath: rawExecPath).resolvingSymlinksInPath().path
-            
-            // Precise realpath match: never sweep foreign binaries based on suffix (SEC-C-4)
-            if execPath == binaryPath {
-                // Orphaned thock-cli detected! Terminate it cleanly.
-                kill(-pid, SIGTERM)
-                kill(pid, SIGTERM)
-                usleep(20_000)
-                if kill(pid, 0) == 0 {
-                    kill(-pid, SIGKILL)
-                    kill(pid, SIGKILL)
-                }
-            }
-        }
+        // Deliberately disabled: never signal an unproven process.
     }
-    
+
     public func terminateProcess() {
         processGeneration += 1
         stopLightweightMonitor()
-        
-        let targetPid = self.spawnedPID ?? self.processPID
-        
-        // Try gentle exit command on stdin first
-        if let inPipe = self.inPipe {
+
+        let targetPid = spawnedPID ?? spawnedProcess?.processIdentifier
+        let processHandle = spawnedProcess
+
+        // Ask the engine to exit cleanly before sending signals.
+        if let inPipe {
             if let data = "exit\n".data(using: .utf8) {
                 try? inPipe.fileHandleForWriting.write(contentsOf: data)
             }
             try? inPipe.fileHandleForWriting.close()
         }
-        
-        if let proc = self.spawnedProcess {
-            proc.terminate()
-        }
-        
-        if let pid = targetPid, pid > 1 {
-            // Signal process group and process safely (SEC-C-4: start-time validated)
-            safeKillGroup(pgid: pid, signal: SIGTERM)
-            safeKill(pid: pid, signal: SIGTERM)
-            
-            // Give up to 100ms for clean termination
+
+        if let pid = targetPid,
+            pid > 1,
+            hasValidatedProcessIdentity(pid: pid)
+        {
+
+            // Signal the verified process group first. Because the group
+            // leader is verified to have pgid == pid, a successful group signal
+            // already includes the leader; avoid sending it twice.
+            let groupTermResult = safeKillGroup(pgid: pid, signal: SIGTERM)
+            let termResult =
+                groupTermResult == 0
+                ? 0
+                : safeKill(pid: pid, signal: SIGTERM)
+
+            // Foundation's Process handle is a fallback for our direct child
+            // only. Never use an unverified raw PID as a fallback target.
+            if termResult != 0, processHandle?.isRunning == true {
+                processHandle?.terminate()
+            }
+
             let deadline = Date().addingTimeInterval(0.10)
-            while safeKill(pid: pid, signal: 0) == 0 && Date() < deadline {
+            while Date() < deadline {
+                let isStillRunning =
+                    processHandle?.isRunning
+                    ?? (safeKill(pid: pid, signal: 0) == 0)
+                guard isStillRunning,
+                    hasValidatedProcessIdentity(pid: pid)
+                else {
+                    break
+                }
                 usleep(5_000)
             }
-            
-            // If still running after deadline, force terminate via SIGKILL strictly to spawned process & group
-            if safeKill(pid: pid, signal: 0) == 0 {
-                safeKillGroup(pgid: pid, signal: SIGKILL)
-                safeKill(pid: pid, signal: SIGKILL)
+
+            // Only force-kill while the original process identity is still
+            // demonstrably present. If it has exited, do not signal a reused PID
+            // or an unverified process group.
+            let isStillRunning =
+                processHandle?.isRunning
+                ?? (safeKill(pid: pid, signal: 0) == 0)
+            if isStillRunning, hasValidatedProcessIdentity(pid: pid) {
+                let groupKillResult = safeKillGroup(pgid: pid, signal: SIGKILL)
+                if groupKillResult != 0 {
+                    _ = safeKill(pid: pid, signal: SIGKILL)
+                }
             }
+        } else if processHandle?.isRunning == true {
+            // The PID identity could not be proven. Foundation still owns this
+            // Process instance, so request termination through that handle only.
+            processHandle?.terminate()
         }
-        
-        self.outPipe?.fileHandleForReading.readabilityHandler = nil
-        try? self.outPipe?.fileHandleForReading.close()
-        self.inPipe = nil
-        self.outPipe = nil
-        self.process = nil
-        self.spawnedProcess = nil
-        self.spawnedPID = nil
-        self.spawnedProcessStartTime = nil
-        self.processPID = nil
-        self.isRunning = false
-        self.statusSubtitle = "Engine Stopped"
+
+        outPipe?.fileHandleForReading.readabilityHandler = nil
+        try? outPipe?.fileHandleForReading.close()
+        inPipe = nil
+        outPipe = nil
+        process = nil
+        spawnedProcess = nil
+        spawnedPID = nil
+        spawnedProcessStartTime = nil
+        processPID = nil
+        isChildSuspended = false
+        isRunning = false
+        isStartingEngine = false
+        statusSubtitle = "Engine Stopped"
     }
-    
+
     // MARK: - Thermal-Optimized Zero-Overhead Monitor (No fork/exec pgrep loops!)
     public func startLightweightMonitor() {
         guard activeHeartbeatTimer == nil else { return }
@@ -444,43 +511,105 @@ public final class ThockModule: NotchModule {
                 self?.checkAllPermissions()
             }
     }
-    
+
     public func stopLightweightMonitor() {
         activeHeartbeatTimer?.cancel()
         activeHeartbeatTimer = nil
     }
-    
+
     public func checkProcessStateZeroOverhead() {
-        if let pid = self.spawnedPID {
-            // safeKill with signal 0 checks liveness and verifies start time matches
-            if safeKill(pid: pid, signal: 0) == 0 {
-                if !self.isRunning {
-                    self.isRunning = true
-                    self.statusSubtitle = "Active · PID \(pid)"
-                }
-                return
-            } else {
-                // Process terminated externally or PID recycled
-                self.isRunning = false
-                self.processPID = nil
-                self.spawnedProcess = nil
-                self.spawnedPID = nil
-                self.spawnedProcessStartTime = nil
-                self.statusSubtitle = "Engine Offline"
+        if let pid = spawnedPID {
+            // Do not interpret an identity-query failure as proof that the child
+            // exited. The Process handle is the authoritative indication that
+            // our launched child is still running; an unverifiable PID is never
+            // signalled and is never silently replaced with another process.
+            if let processHandle = spawnedProcess, !processHandle.isRunning {
+                isRunning = false
+                processPID = nil
+                spawnedProcess = nil
+                spawnedPID = nil
+                spawnedProcessStartTime = nil
+                isChildSuspended = false
+                statusSubtitle = "Engine Offline"
                 return
             }
+
+            guard let currentStart = Self.processStartTime(pid: pid) else {
+                isRunning = spawnedProcess?.isRunning ?? isRunning
+                statusSubtitle = "Engine Running · Identity Unavailable"
+                return
+            }
+
+            if let expectedStart = spawnedProcessStartTime {
+                guard currentStart == expectedStart else {
+                    // The PID now identifies a different process. Do not signal
+                    // it. Keep the Foundation handle only if it still reports
+                    // that our original child is running.
+                    if spawnedProcess?.isRunning != true {
+                        isRunning = false
+                        processPID = nil
+                        spawnedProcess = nil
+                        spawnedPID = nil
+                        spawnedProcessStartTime = nil
+                        isChildSuspended = false
+                        statusSubtitle = "Engine Offline"
+                    } else {
+                        isRunning = true
+                        statusSubtitle = "Engine Running · Identity Changed"
+                    }
+                    return
+                }
+            } else {
+                // A missing identity is not permission to signal. Capture one
+                // only while the retained Process handle confirms our child.
+                guard spawnedProcess?.isRunning == true else {
+                    statusSubtitle = "Engine Status Unverified"
+                    return
+                }
+                spawnedProcessStartTime = currentStart
+            }
+
+            if safeKill(pid: pid, signal: 0) == 0 {
+                isRunning = true
+                processPID = pid
+                statusSubtitle = "Active · PID \(pid)"
+            } else if spawnedProcess?.isRunning == true {
+                // A failed signal-0 check can be a permission/query failure,
+                // not necessarily process exit. Retain ownership state safely.
+                isRunning = true
+                statusSubtitle = "Engine Running · Status Unverified"
+            } else {
+                isRunning = false
+                processPID = nil
+                spawnedProcess = nil
+                spawnedPID = nil
+                spawnedProcessStartTime = nil
+                isChildSuspended = false
+                statusSubtitle = "Engine Offline"
+            }
+            return
         }
-        
-        if let proc = self.spawnedProcess, proc.isRunning {
-            self.isRunning = true
-            self.processPID = proc.processIdentifier
-            self.spawnedPID = proc.processIdentifier
-            self.spawnedProcessStartTime = Self.processStartTime(pid: proc.processIdentifier)
-            self.statusSubtitle = "Active · PID \(proc.processIdentifier)"
+
+        if let processHandle = spawnedProcess, processHandle.isRunning {
+            let childPid = processHandle.processIdentifier
+            guard childPid > 1,
+                let startIdentity = Self.processStartTime(pid: childPid)
+            else {
+                isRunning = true
+                processPID = childPid > 1 ? childPid : nil
+                statusSubtitle = "Engine Running · Identity Unavailable"
+                return
+            }
+
+            isRunning = true
+            processPID = childPid
+            spawnedPID = childPid
+            spawnedProcessStartTime = startIdentity
+            statusSubtitle = "Active · PID \(childPid)"
             return
         }
     }
-    
+
     // MARK: - Permissions & TCC Monitoring (Both Accessibility & Input Monitoring)
     public func checkAllPermissions() {
         let ax = AXIsProcessTrusted()
@@ -493,19 +622,19 @@ public final class ThockModule: NotchModule {
             UserDefaults.standard.set(false, forKey: "thock_permissions_notice_dismissed")
         }
     }
-    
+
     public func requestAllPermissions() {
         FeedbackManager.playClick()
-        
+
         // 1. Accessibility system prompt
         let key = "AXTrustedCheckOptionPrompt" as CFString
         let options = [key: true] as CFDictionary
         let axGranted = AXIsProcessTrustedWithOptions(options)
         self.hasAccessibilityPermission = axGranted
-        
+
         // 2. Input Monitoring system prompt via IOHIDRequestAccess
         Self.requestIOHIDListenAccess()
-        
+
         // 3. Trigger CGEvent tap creation to register with TCC Input Monitoring
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
         _ = CGEvent.tapCreate(
@@ -516,39 +645,46 @@ public final class ThockModule: NotchModule {
             callback: { _, _, event, _ in Unmanaged.passUnretained(event) },
             userInfo: nil
         )
-        
+
         self.hasInputMonitoringPermission = Self.checkIOHIDListenAccess()
         self.isAccessibilityGranted = hasAccessibilityPermission && hasInputMonitoringPermission
-        
+
         // 4. Proactively open both System Settings panes so user can directly toggle switches!
         openAccessibilitySettings()
         openInputMonitoringSettings()
     }
-    
+
     public func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+        if let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        {
             NSWorkspace.shared.open(url)
         }
     }
-    
+
     public func openInputMonitoringSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEventAccess") {
+        if let url = URL(
+            string:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEventAccess")
+        {
             NSWorkspace.shared.open(url)
         }
     }
-    
+
     // Dynamic IOKit loader for Input Monitoring access checks
     private static let hidCheckAccessFunc: (@convention(c) (UInt32) -> Int32)? = {
         guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
-              let sym = dlsym(handle, "IOHIDCheckAccess") else {
+            let sym = dlsym(handle, "IOHIDCheckAccess")
+        else {
             return nil
         }
         return unsafeBitCast(sym, to: (@convention(c) (UInt32) -> Int32).self)
     }()
-    
+
     private static let hidRequestAccessFunc: (@convention(c) (UInt32) -> Bool)? = {
         guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW),
-              let sym = dlsym(handle, "IOHIDRequestAccess") else {
+            let sym = dlsym(handle, "IOHIDRequestAccess")
+        else {
             return nil
         }
         return unsafeBitCast(sym, to: (@convention(c) (UInt32) -> Bool).self)
@@ -559,7 +695,7 @@ public final class ThockModule: NotchModule {
         // kIOHIDRequestTypeListenEvent = 1; 0 = granted, 1 = denied, 2 = not determined
         return fn(1) == 0
     }
-    
+
     @discardableResult
     public static func requestIOHIDListenAccess() -> Bool {
         guard let fn = hidRequestAccessFunc else { return false }
@@ -569,7 +705,7 @@ public final class ThockModule: NotchModule {
     nonisolated private static let ansiRegex: NSRegularExpression? = {
         try? NSRegularExpression(pattern: #"\x1b\[[0-9;]*[a-zA-Z]"#, options: [])
     }()
-    
+
     // Pack validation helper (SEC-C-5: restricts pack names to ^[A-Za-z0-9_-]+$)
     nonisolated public static func isValidPackName(_ name: String) -> Bool {
         guard !name.isEmpty else { return false }
@@ -577,20 +713,24 @@ public final class ThockModule: NotchModule {
             c.isLetter || c.isNumber || c == "_" || c == "-"
         }
     }
-    
+
     // MARK: - Pack Discovery & Settings Sync
     public func loadPacksFromDisk() {
         var names: [String] = []
-        if let entries = try? FileManager.default.contentsOfDirectory(at: packsDir, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles) {
+        if let entries = try? FileManager.default.contentsOfDirectory(
+            at: packsDir, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles)
+        {
             for entry in entries {
                 var isDir: ObjCBool = false
                 let name = entry.lastPathComponent
-                if FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue, Self.isValidPackName(name) {
+                if FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDir),
+                    isDir.boolValue, Self.isValidPackName(name)
+                {
                     names.append(name)
                 }
             }
         }
-        
+
         let favs = favoritePacks
         self.availablePacks = names.sorted(by: { a, b in
             let aFav = favs.contains(a)
@@ -609,47 +749,71 @@ public final class ThockModule: NotchModule {
             )
         }
     }
-    
+
     public func loadFavoritesFromDisk() {
         if let data = try? Data(contentsOf: favoritesURL),
-           let favs = try? JSONDecoder().decode(Set<String>.self, from: data) {
+            let favs = try? JSONDecoder().decode(Set<String>.self, from: data)
+        {
             self.favoritePacks = favs
         }
     }
-    
+
     public func loadSettingsFromDisk() {
-        struct Settings: Codable { var volume: Double?; var pack: String?; var asmrVolume: Double? }
+        struct Settings: Codable {
+            var volume: Double?
+            var pack: String?
+            var asmrVolume: Double?
+        }
         guard let data = try? Data(contentsOf: settingsURL),
-              let s = try? JSONDecoder().decode(Settings.self, from: data) else { return }
-        if let v = s.volume { keyVolume = v; volume = v; keyVolumeText = "\(Int(v.rounded()))" }
+            let s = try? JSONDecoder().decode(Settings.self, from: data)
+        else { return }
+        if let v = s.volume {
+            keyVolume = v
+            volume = v
+            keyVolumeText = "\(Int(v.rounded()))"
+        }
         if let p = s.pack, !p.isEmpty { currentPack = p }
-        if let a = s.asmrVolume { asmrVolume = a; asmrVolumeText = "\(Int(a.rounded()))" }
+        if let a = s.asmrVolume {
+            asmrVolume = a
+            asmrVolumeText = "\(Int(a.rounded()))"
+        }
     }
-    
+
     public func saveSettingsToDisk() {
-        struct Settings: Codable { let volume: Double; let pack: String; let asmrVolume: Double }
+        struct Settings: Codable {
+            let volume: Double
+            let pack: String
+            let asmrVolume: Double
+        }
         let kv = isKeyMuted ? preMuteKeyVolume : keyVolume
         let av = isAsmrMuted ? preMuteAsmrVolume : asmrVolume
         try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
-        if let data = try? JSONEncoder().encode(Settings(volume: kv, pack: currentPack, asmrVolume: av)) {
+        if let data = try? JSONEncoder().encode(
+            Settings(volume: kv, pack: currentPack, asmrVolume: av))
+        {
             try? data.write(to: settingsURL, options: .atomic)
         }
     }
-    
+
     // MARK: - Direct Audio Audition / Preview
     public func playPackSample(_ packName: String) {
-        let safePackName = (packName as NSString).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safePackName = (packName as NSString).lastPathComponent.trimmingCharacters(
+            in: .whitespacesAndNewlines)
         guard Self.isValidPackName(safePackName) else { return }
         let packDir = packsDir.appendingPathComponent(safePackName).standardizedFileURL
         guard packDir.path.hasPrefix(packsDir.standardizedFileURL.path) else { return }
         var wavURL: URL? = nil
-        if let files = try? FileManager.default.contentsOfDirectory(at: packDir, includingPropertiesForKeys: nil) {
+        if let files = try? FileManager.default.contentsOfDirectory(
+            at: packDir, includingPropertiesForKeys: nil)
+        {
             wavURL = files.first(where: { $0.pathExtension.lowercased() == "wav" })
         }
         // Fallback for procedural packs (e.g. cherry mx) that don't store standalone wavs
         if wavURL == nil {
             let fallbackDir = packsDir.appendingPathComponent("banana_split_lubed")
-            if let files = try? FileManager.default.contentsOfDirectory(at: fallbackDir, includingPropertiesForKeys: nil) {
+            if let files = try? FileManager.default.contentsOfDirectory(
+                at: fallbackDir, includingPropertiesForKeys: nil)
+            {
                 wavURL = files.first(where: { $0.pathExtension.lowercased() == "wav" })
             }
         }
@@ -659,24 +823,25 @@ public final class ThockModule: NotchModule {
             sound.play()
         }
     }
-    
+
     public func auditionCurrentPack() {
         playPackSample(currentPack)
     }
-    
+
     // MARK: - Auto-Installer & GitHub Setup Pipeline
     public func downloadAndSetupThock() {
         guard !isInstalling else { return }
         isInstalling = true
         installProgressMessage = "Preparing installation directory..."
         FeedbackManager.playClick()
-        
+
         let targetDir = projectDir
-        
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             // Step 1: Ensure directory structure
             do {
-                try FileManager.default.createDirectory(at: targetDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(
+                    at: targetDir.deletingLastPathComponent(), withIntermediateDirectories: true)
             } catch {
                 Task { @MainActor [weak self] in
                     self?.isInstalling = false
@@ -684,29 +849,42 @@ public final class ThockModule: NotchModule {
                 }
                 return
             }
-            
+
             // Safe copy instead of symlink (SEC-C-3): never create symlinks to user-writable dev folders
-            let devSource = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Doc/KeySound")
-            if targetDir != devSource && !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("target/release/thock-cli").path) {
+            let devSource = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(
+                "Doc/KeySound")
+            if targetDir != devSource
+                && !FileManager.default.fileExists(
+                    atPath: targetDir.appendingPathComponent("target/release/thock-cli").path)
+            {
                 Self.migrateLocalDevKeySoundIfNeeded(from: devSource, to: targetDir)
             }
-            
+
             // Step 2: If repo still not present, git clone from GitHub and checkout verified pinned commit SHA
-            if !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("Cargo.toml").path) {
+            if !FileManager.default.fileExists(
+                atPath: targetDir.appendingPathComponent("Cargo.toml").path)
+            {
                 Task { @MainActor [weak self] in
                     self?.installProgressMessage = "Cloning KeySound from GitHub..."
                 }
                 let cloneProc = Process()
                 cloneProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-                cloneProc.arguments = ["clone", "https://github.com/Dharmit-Parmar/KeySound.git", targetDir.path]
+                cloneProc.arguments = [
+                    "clone", "https://github.com/Dharmit-Parmar/KeySound.git", targetDir.path,
+                ]
                 cloneProc.environment = SafeEnvironment.make()
                 do {
                     try cloneProc.run()
                     cloneProc.waitUntilExit()
                     guard cloneProc.terminationStatus == 0 else {
-                        throw NSError(domain: "GitClone", code: Int(cloneProc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "git clone exited with code \(cloneProc.terminationStatus)"])
+                        throw NSError(
+                            domain: "GitClone", code: Int(cloneProc.terminationStatus),
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "git clone exited with code \(cloneProc.terminationStatus)"
+                            ])
                     }
-                    
+
                     let checkoutProc = Process()
                     checkoutProc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
                     checkoutProc.arguments = ["checkout", Self.pinnedKeySoundCommit]
@@ -715,53 +893,71 @@ public final class ThockModule: NotchModule {
                     try checkoutProc.run()
                     checkoutProc.waitUntilExit()
                     guard checkoutProc.terminationStatus == 0 else {
-                        throw NSError(domain: "GitCheckout", code: Int(checkoutProc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "git checkout exited with code \(checkoutProc.terminationStatus)"])
+                        throw NSError(
+                            domain: "GitCheckout", code: Int(checkoutProc.terminationStatus),
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "git checkout exited with code \(checkoutProc.terminationStatus)"
+                            ])
                     }
                 } catch {
                     Task { @MainActor [weak self] in
                         self?.isInstalling = false
-                        self?.installProgressMessage = "Git clone failed: \(error.localizedDescription)"
+                        self?.installProgressMessage =
+                            "Git clone failed: \(error.localizedDescription)"
                     }
                     return
                 }
             }
-            
+
             // Step 3: Build release binary with Cargo if binary is missing
-            if !FileManager.default.fileExists(atPath: targetDir.appendingPathComponent("target/release/thock-cli").path) {
+            if !FileManager.default.fileExists(
+                atPath: targetDir.appendingPathComponent("target/release/thock-cli").path)
+            {
                 Task { @MainActor [weak self] in
                     self?.installProgressMessage = "Compiling acoustic engine with cargo..."
                 }
-                
+
                 let cargoPaths = [
-                    URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cargo/bin/cargo").path,
+                    URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(
+                        ".cargo/bin/cargo"
+                    ).path,
                     "/opt/homebrew/bin/cargo",
                     "/usr/local/bin/cargo",
-                    "/usr/bin/cargo"
+                    "/usr/bin/cargo",
                 ]
-                let cargoPath = cargoPaths.first(where: { FileManager.default.fileExists(atPath: $0) }) ?? "/usr/bin/cargo"
-                
+                let cargoPath =
+                    cargoPaths.first(where: { FileManager.default.fileExists(atPath: $0) })
+                    ?? "/usr/bin/cargo"
+
                 let cargoProc = Process()
                 cargoProc.executableURL = URL(fileURLWithPath: cargoPath)
                 cargoProc.arguments = ["build", "--locked", "--release", "--bin", "thock-cli"]
                 cargoProc.currentDirectoryURL = targetDir
-                
+
                 cargoProc.environment = SafeEnvironment.make()
-                
+
                 do {
                     try cargoProc.run()
                     cargoProc.waitUntilExit()
                     guard cargoProc.terminationStatus == 0 else {
-                        throw NSError(domain: "CargoBuild", code: Int(cargoProc.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "cargo build exited with code \(cargoProc.terminationStatus)"])
+                        throw NSError(
+                            domain: "CargoBuild", code: Int(cargoProc.terminationStatus),
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "cargo build exited with code \(cargoProc.terminationStatus)"
+                            ])
                     }
                 } catch {
                     Task { @MainActor [weak self] in
                         self?.isInstalling = false
-                        self?.installProgressMessage = "Compilation error: \(error.localizedDescription)"
+                        self?.installProgressMessage =
+                            "Compilation error: \(error.localizedDescription)"
                     }
                     return
                 }
             }
-            
+
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.isInstalling = false
@@ -777,41 +973,60 @@ public final class ThockModule: NotchModule {
             }
         }
     }
-    
-    // MARK: - Process Execution (Start & Stop)
-    public func startEngine() {
-        guard !isRunning else { return }
-        FeedbackManager.playClick()
-        
+
+    // MARK: - Process Execution (Start & Stop & Auto-Restoration)
+    public func restoreEngineOnLaunch() {
+        guard !hasAttemptedAutoRestore else { return }
+        hasAttemptedAutoRestore = true
+
+        guard !isRunning, spawnedProcess == nil, !isStartingEngine else { return }
+        guard isInstalled, Self.validateBinarySecurity(at: binaryURL) else { return }
+
+        isStartingEngine = true
+        statusSubtitle = "Restoring Engine..."
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.startEngine(isAutoRestoration: true)
+        }
+    }
+
+    public func startEngine(isAutoRestoration: Bool = false) {
+        guard !isRunning, spawnedProcess == nil else { return }
+        guard !isStartingEngine || isAutoRestoration else { return }
+
+        isStartingEngine = true
+        if !isAutoRestoration {
+            shouldAutoStart = true
+            FeedbackManager.playClick()
+        }
+
         processGeneration += 1
         let currentGen = processGeneration
-        
-        // Sweep any stale orphan processes in background before launching a fresh engine
-        DispatchQueue.global(qos: .utility).async {
-            Self.sweepOrphanProcesses()
-        }
-        
+
         guard Self.validateBinarySecurity(at: binaryURL) else {
+            isStartingEngine = false
+            statusSubtitle = "Engine Offline"
             return
         }
-        
+
         let proc = Process()
         proc.executableURL = binaryURL
         proc.currentDirectoryURL = projectDir
-        
+
         proc.environment = SafeEnvironment.make(extra: ["TERM": "xterm-256color"])
-        
+
         let inP = Pipe()
         let outP = Pipe()
         proc.standardInput = inP
         proc.standardOutput = outP
         proc.standardError = outP
-        
+
         self.inPipe = inP
         self.outPipe = outP
         self.process = proc
         self.spawnedProcess = proc
-        
+
         outP.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else {
@@ -823,43 +1038,72 @@ public final class ThockModule: NotchModule {
             let clean: String
             if let regex = Self.ansiRegex {
                 let range = NSRange(location: 0, length: rawStr.utf16.count)
-                clean = regex.stringByReplacingMatches(in: rawStr, options: [], range: range, withTemplate: "")
+                clean = regex.stringByReplacingMatches(
+                    in: rawStr, options: [], range: range, withTemplate: "")
             } else {
                 clean = rawStr
             }
-            
+
             DispatchQueue.main.async {
                 self?.parseOutputTelemetry(clean)
             }
         }
-        
+
         proc.terminationHandler = { [weak self] p in
             DispatchQueue.main.async {
                 guard let self else { return }
                 guard self.processGeneration == currentGen else { return }
                 guard self.spawnedProcess === p else { return }
                 self.outPipe?.fileHandleForReading.readabilityHandler = nil
-                self.inPipe = nil; self.outPipe = nil; self.process = nil
-                self.spawnedProcess = nil; self.spawnedPID = nil; self.spawnedProcessStartTime = nil; self.processPID = nil
+                self.inPipe = nil
+                self.outPipe = nil
+                self.process = nil
+                self.spawnedProcess = nil
+                self.spawnedPID = nil
+                self.spawnedProcessStartTime = nil
+                self.processPID = nil
                 self.isRunning = false
+                self.isStartingEngine = false
                 self.statusSubtitle = "Engine Stopped"
             }
         }
-        
+
         do {
             try proc.run()
             let childPid = proc.processIdentifier
-            if childPid > 1 {
-                // Isolate child process in its own process group
-                setpgid(childPid, childPid)
+
+            guard childPid > 1,
+                let startIdentity = Self.processStartTime(pid: childPid)
+            else {
+                // Never mark an engine active unless its process identity can
+                // be recorded. Stop only through the retained Process handle;
+                // no raw PID or process-group signal is allowed here.
+                spawnedPID = childPid > 1 ? childPid : nil
+                processPID = childPid > 1 ? childPid : nil
+                spawnedProcessStartTime = nil
+                isRunning = false
+                isStartingEngine = false
+                statusSubtitle = "Engine Identity Could Not Be Verified"
+                if proc.isRunning {
+                    proc.terminate()
+                }
+                return
             }
+
+            // Isolate the child if possible. safeKillGroup independently checks
+            // getpgid(childPid) before any future process-group signal.
+            _ = setpgid(childPid, childPid)
+
             self.isRunning = true
+            self.isStartingEngine = false
             self.spawnedPID = childPid
-            self.spawnedProcessStartTime = Self.processStartTime(pid: childPid)
+            self.spawnedProcessStartTime = startIdentity
             self.processPID = childPid
             self.statusSubtitle = "Active · PID \(childPid)"
-            FeedbackManager.playSuccess()
-            
+            if !isAutoRestoration {
+                FeedbackManager.playSuccess()
+            }
+
             // Sync current volume and asmr state to spawned engine
             let kv = isKeyMuted ? 0 : Int(keyVolume.rounded())
             let av = isAsmrMuted ? 0 : Int(asmrVolume.rounded())
@@ -868,23 +1112,28 @@ public final class ThockModule: NotchModule {
             if !currentPack.isEmpty {
                 sendCommand("pack \(currentPack)", echo: false)
             }
-            
+
             startLightweightMonitor()
         } catch {
             self.isRunning = false
+            self.isStartingEngine = false
             self.spawnedProcess = nil
             self.spawnedPID = nil
             self.spawnedProcessStartTime = nil
             self.processPID = nil
+            self.statusSubtitle = "Engine Offline"
         }
     }
-    
+
     public func stopEngine() {
         FeedbackManager.playClick()
+        shouldAutoStart = false
+        isStartingEngine = false
         terminateProcess()
     }
-    
+
     public func toggleEngine() {
+        guard !isStartingEngine else { return }
         if isRunning {
             stopEngine()
         } else if !isInstalled {
@@ -893,24 +1142,28 @@ public final class ThockModule: NotchModule {
             startEngine()
         }
     }
-    
+
     // MARK: - Process Communication (Standard Input)
     public func sendCommand(_ cmd: String, echo: Bool = true) {
         let trimmed = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        
+
         // SEC-C-5: Reject \n, \r, and control characters to prevent stdin command injection
-        guard !trimmed.contains(where: { $0.isNewline || ($0.asciiValue != nil && $0.asciiValue! < 32) }) else {
+        guard
+            !trimmed.contains(where: {
+                $0.isNewline || ($0.asciiValue != nil && $0.asciiValue! < 32)
+            })
+        else {
             return
         }
-        
+
         if let inPipe = self.inPipe, isRunning {
             if let data = "\(trimmed)\n".data(using: .utf8) {
                 try? inPipe.fileHandleForWriting.write(contentsOf: data)
             }
         }
     }
-    
+
     // MARK: - Volume Controls & Mute Actions
     public func toggleKeyMute() {
         FeedbackManager.playClick()
@@ -923,7 +1176,7 @@ public final class ThockModule: NotchModule {
             updateKeyVolume(0.0)
         }
     }
-    
+
     public func toggleAsmrMute() {
         FeedbackManager.playClick()
         if isAsmrMuted {
@@ -935,12 +1188,15 @@ public final class ThockModule: NotchModule {
             updateAsmrVolume(0.0)
         }
     }
-    
+
     public func setKeyVolumeFromText(_ text: String) {
         let digits = text.filter { $0.isNumber }
         if let val = Double(digits) {
             let clamped = max(0, min(100, val))
-            guard clamped != keyVolume else { keyVolumeText = "\(Int(clamped))"; return }
+            guard clamped != keyVolume else {
+                keyVolumeText = "\(Int(clamped))"
+                return
+            }
             if isKeyMuted && clamped > 0 { isKeyMuted = false }
             self.keyVolume = clamped
             self.volume = clamped
@@ -950,12 +1206,15 @@ public final class ThockModule: NotchModule {
             }
         }
     }
-    
+
     public func setAsmrVolumeFromText(_ text: String) {
         let digits = text.filter { $0.isNumber }
         if let val = Double(digits) {
             let clamped = max(0, min(100, val))
-            guard clamped != asmrVolume else { asmrVolumeText = "\(Int(clamped))"; return }
+            guard clamped != asmrVolume else {
+                asmrVolumeText = "\(Int(clamped))"
+                return
+            }
             if isAsmrMuted && clamped > 0 { isAsmrMuted = false }
             self.asmrVolume = clamped
             saveSettingsToDisk()
@@ -964,7 +1223,7 @@ public final class ThockModule: NotchModule {
             }
         }
     }
-    
+
     public func selectPack(_ packName: String) {
         guard Self.isValidPackName(packName) else { return }
         guard currentPack != packName else {
@@ -975,16 +1234,16 @@ public final class ThockModule: NotchModule {
         self.currentPack = packName
         saveSettingsToDisk()
         FeedbackManager.playDrop()
-        
+
         // Immediate audible preview
         playPackSample(packName)
-        
+
         if isRunning {
             sendCommand("pack \(packName)", echo: false)
         }
         statusSubtitle = "Pack: \(packName.replacingOccurrences(of: "_", with: " ").capitalized)"
     }
-    
+
     public func updateKeyVolume(_ newVol: Double) {
         self.keyVolume = newVol
         self.volume = newVol
@@ -994,16 +1253,16 @@ public final class ThockModule: NotchModule {
         }
         if newVol > 0 && isKeyMuted { isKeyMuted = false }
         saveSettingsToDisk()
-        
+
         if isRunning {
             sendCommand("vol \(intVal)", echo: false)
         }
     }
-    
+
     public func updateVolume(_ newVol: Double) {
         updateKeyVolume(newVol)
     }
-    
+
     public func updateAsmrVolume(_ newVol: Double) {
         self.asmrVolume = newVol
         let intVal = Int(newVol.rounded())
@@ -1012,12 +1271,12 @@ public final class ThockModule: NotchModule {
         }
         if newVol > 0 && isAsmrMuted { isAsmrMuted = false }
         saveSettingsToDisk()
-        
+
         if isRunning {
             sendCommand("asmr vol \(intVal)", echo: false)
         }
     }
-    
+
     public func toggleRain() {
         rainActive.toggle()
         FeedbackManager.playClick()
@@ -1025,7 +1284,7 @@ public final class ThockModule: NotchModule {
             sendCommand("asmr rain \(rainActive ? "on" : "off")", echo: false)
         }
     }
-    
+
     public func toggleWind() {
         windActive.toggle()
         FeedbackManager.playClick()
@@ -1033,7 +1292,7 @@ public final class ThockModule: NotchModule {
             sendCommand("asmr wind \(windActive ? "on" : "off")", echo: false)
         }
     }
-    
+
     public func toggleThunder() {
         thunderActive.toggle()
         FeedbackManager.playClick()
@@ -1041,7 +1300,7 @@ public final class ThockModule: NotchModule {
             sendCommand("asmr thunder \(thunderActive ? "on" : "off")", echo: false)
         }
     }
-    
+
     public func muteAllAsmr() {
         FeedbackManager.playClick()
         rainActive = false
@@ -1051,7 +1310,7 @@ public final class ThockModule: NotchModule {
             sendCommand("asmr none", echo: false)
         }
     }
-    
+
     public func toggleFavorite(_ packName: String) {
         if favoritePacks.contains(packName) {
             favoritePacks.remove(packName)
@@ -1064,7 +1323,7 @@ public final class ThockModule: NotchModule {
         loadPacksFromDisk()
         FeedbackManager.playClick()
     }
-    
+
     // MARK: - Internal Helpers
     private func parseOutputTelemetry(_ text: String) {
         if text.contains("Rain [ON") { self.rainActive = true }
@@ -1074,8 +1333,9 @@ public final class ThockModule: NotchModule {
         if text.contains("Thunder [ON") { self.thunderActive = true }
         if text.contains("Thunder [OFF") { self.thunderActive = false }
     }
-    
-    private static func knownPackMetadata(for name: String) -> (switchType: String, profile: String) {
+
+    private static func knownPackMetadata(for name: String) -> (switchType: String, profile: String)
+    {
         switch name {
         case "bubble_heaven":
             return ("Custom Linear", "Zoom 75 + WS Morandi bubbly pop")
@@ -1109,19 +1369,20 @@ public final class ThockModule: NotchModule {
             return ("Mechanical Switch", "High-fidelity acoustic capture")
         }
     }
-    
+
     // MARK: - Compact & Expanded Views
     public func makeCompactView() -> AnyView {
         AnyView(
             HStack(spacing: 5) {
                 Image(systemName: "keyboard")
                     .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundColor(isRunning ? DesignSystem.accentColor : Color.white.opacity(0.8))
-                
+                    .foregroundColor(
+                        isRunning ? DesignSystem.accentColor : Color.white.opacity(0.8))
+
                 Text("Thock")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.white)
-                
+
                 if isRunning {
                     Circle()
                         .fill(Color.green)
@@ -1131,7 +1392,7 @@ public final class ThockModule: NotchModule {
             }
         )
     }
-    
+
     public func makeExpandedView() -> AnyView {
         AnyView(
             ThockExpandedView(module: self)
@@ -1145,7 +1406,7 @@ public struct ThockExpandedView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchCompact) private var notchCompact
     @Environment(\.notchTight) private var notchTight
-    
+
     public var body: some View {
         VStack(spacing: notchTight ? 4 : (notchCompact ? 6 : 8)) {
             // SUB-NAVIGATION DOCK: Key Sound · Ambient ASMR · CLI Terminal
@@ -1160,44 +1421,58 @@ public struct ThockExpandedView: View {
                     }) {
                         HStack(spacing: notchTight ? 3 : 5) {
                             Image(systemName: section.icon)
-                                .font(.system(size: notchTight ? 8 : 9, weight: isCurrent ? .bold : .medium))
+                                .font(
+                                    .system(
+                                        size: notchTight ? 8 : 9,
+                                        weight: isCurrent ? .bold : .medium))
                             Text(section.rawValue)
-                                .font(.system(size: notchTight ? 9 : 10, weight: isCurrent ? .bold : .medium, design: .rounded))
+                                .font(
+                                    .system(
+                                        size: notchTight ? 9 : 10,
+                                        weight: isCurrent ? .bold : .medium, design: .rounded))
                         }
                         .foregroundColor(isCurrent ? .white : Color.white.opacity(0.6))
                         .padding(.horizontal, notchTight ? 7 : 10)
                         .padding(.vertical, notchTight ? 3 : 4.5)
                         .background(
                             Capsule()
-                                .fill(isCurrent ? DesignSystem.structureColor : Color.white.opacity(0.04))
+                                .fill(
+                                    isCurrent
+                                        ? DesignSystem.structureColor : Color.white.opacity(0.04))
                         )
                         .overlay(
                             Capsule()
-                                .strokeBorder(isCurrent ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isCurrent ? 1.0 : 0.6)
+                                .strokeBorder(
+                                    isCurrent
+                                        ? DesignSystem.accentColor : Color.white.opacity(0.08),
+                                    lineWidth: isCurrent ? 1.0 : 0.6)
                         )
                     }
                     .buttonStyle(.spring)
                 }
-                
+
                 Spacer()
-                
+
                 // Live Engine Status Pill
                 HStack(spacing: 4) {
                     Circle()
                         .fill(module.isRunning ? Color.green : Color.white.opacity(0.3))
                         .frame(width: 6, height: 6)
-                        .shadow(color: module.isRunning ? Color.green.opacity(0.8) : Color.clear, radius: 4)
-                    
+                        .shadow(
+                            color: module.isRunning ? Color.green.opacity(0.8) : Color.clear,
+                            radius: 4)
+
                     Text(module.isRunning ? "PID \(module.processPID ?? 0)" : "Offline")
                         .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                        .foregroundColor(module.isRunning ? Color.green : DesignSystem.secondaryText)
+                        .foregroundColor(
+                            module.isRunning ? Color.green : DesignSystem.secondaryText)
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
                 .background(Capsule().fill(Color.white.opacity(0.04)))
             }
             .padding(.horizontal, 4)
-            
+
             // SUBSECTION CONTENT
             switch module.selectedSection {
             case .keySound:
@@ -1215,7 +1490,7 @@ public struct ThockExpandedView: View {
             module.stopLightweightMonitor()
         }
     }
-    
+
     // MARK: - Subsection 1: Key Sound View
     private var keySoundSectionView: some View {
         VStack(spacing: 8) {
@@ -1227,19 +1502,21 @@ public struct ThockExpandedView: View {
                             Image(systemName: "exclamationmark.shield.fill")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.2))
-                            
+
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Permissions Required for Global Typing Sounds")
                                     .font(.system(size: 9.5, weight: .bold, design: .rounded))
                                     .foregroundColor(.white)
-                                
-                                Text("macOS requires both permissions to capture typing in background apps and play authentic switch audio.")
-                                    .font(.system(size: 8, weight: .regular))
-                                    .foregroundColor(Color.white.opacity(0.75))
+
+                                Text(
+                                    "macOS requires both permissions to capture typing in background apps and play authentic switch audio."
+                                )
+                                .font(.system(size: 8, weight: .regular))
+                                .foregroundColor(Color.white.opacity(0.75))
                             }
-                            
+
                             Spacer()
-                            
+
                             // Master Request Button
                             Button(action: { module.requestAllPermissions() }) {
                                 Text("Grant Permissions")
@@ -1247,7 +1524,8 @@ public struct ThockExpandedView: View {
                                     .foregroundColor(.black)
                                     .padding(.horizontal, 9)
                                     .padding(.vertical, 4.5)
-                                    .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
+                                    .background(
+                                        Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
                             }
                             .buttonStyle(.spring)
                             .help("Trigger system authorization dialogs and open settings panes")
@@ -1266,18 +1544,22 @@ public struct ThockExpandedView: View {
                             .buttonStyle(.plain)
                             .help("Dismiss notice")
                         }
-                        
+
                         // Detailed Permission Checklist Row with Reveal App in Finder
                         HStack(spacing: 6) {
                             // Accessibility Status Badge
                             HStack(spacing: 4) {
-                                Image(systemName: module.hasAccessibilityPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(module.hasAccessibilityPermission ? Color.green : Color.red)
+                                Image(
+                                    systemName: module.hasAccessibilityPermission
+                                        ? "checkmark.circle.fill" : "xmark.circle.fill"
+                                )
+                                .font(.system(size: 8))
+                                .foregroundColor(
+                                    module.hasAccessibilityPermission ? Color.green : Color.red)
                                 Text("Accessibility")
                                     .font(.system(size: 8, weight: .medium, design: .rounded))
                                     .foregroundColor(Color.white.opacity(0.85))
-                                
+
                                 Button(action: { module.openAccessibilitySettings() }) {
                                     Image(systemName: "arrow.up.forward.square")
                                         .font(.system(size: 7.5))
@@ -1289,16 +1571,20 @@ public struct ThockExpandedView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2.5)
                             .background(Capsule().fill(Color.white.opacity(0.05)))
-                            
+
                             // Input Monitoring Status Badge
                             HStack(spacing: 4) {
-                                Image(systemName: module.hasInputMonitoringPermission ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(module.hasInputMonitoringPermission ? Color.green : Color.red)
+                                Image(
+                                    systemName: module.hasInputMonitoringPermission
+                                        ? "checkmark.circle.fill" : "xmark.circle.fill"
+                                )
+                                .font(.system(size: 8))
+                                .foregroundColor(
+                                    module.hasInputMonitoringPermission ? Color.green : Color.red)
                                 Text("Input Monitoring")
                                     .font(.system(size: 8, weight: .medium, design: .rounded))
                                     .foregroundColor(Color.white.opacity(0.85))
-                                
+
                                 Button(action: { module.openInputMonitoringSettings() }) {
                                     Image(systemName: "arrow.up.forward.square")
                                         .font(.system(size: 7.5))
@@ -1310,9 +1596,9 @@ public struct ThockExpandedView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2.5)
                             .background(Capsule().fill(Color.white.opacity(0.05)))
-                            
+
                             Spacer()
-                            
+
                             // Reveal in Finder & Copy Path for Easy Drag-and-Drop
                             Button(action: { PermissionsHelper.revealAppInFinder() }) {
                                 HStack(spacing: 3) {
@@ -1327,7 +1613,9 @@ public struct ThockExpandedView: View {
                                 .background(Capsule().fill(Color(red: 1.0, green: 0.8, blue: 0.2)))
                             }
                             .buttonStyle(.spring)
-                            .help("Highlight NotchApp in Finder to drag directly into System Settings (+)")
+                            .help(
+                                "Highlight NotchApp in Finder to drag directly into System Settings (+)"
+                            )
 
                             Button(action: { PermissionsHelper.copyAppPathToClipboard() }) {
                                 HStack(spacing: 3) {
@@ -1352,32 +1640,38 @@ public struct ThockExpandedView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .strokeBorder(Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.35), lineWidth: 0.8)
+                            .strokeBorder(
+                                Color(red: 1.0, green: 0.75, blue: 0.2).opacity(0.35),
+                                lineWidth: 0.8)
                     )
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 }
             }
-            
+
             // Thock Missing / Auto-Setup Banner
             if !module.isInstalled && !module.hasDismissedInstallNotice {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(DesignSystem.accentColor)
-                    
+
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Thock Acoustic Engine Not Installed")
                             .font(.system(size: 9.5, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
-                        
-                        Text(module.isInstalling ? module.installProgressMessage : "Clone & compile the open-source mechanical keyboard sound engine from GitHub in 1 click.")
-                            .font(.system(size: 8, weight: .regular))
-                            .foregroundColor(Color.white.opacity(0.75))
-                            .lineLimit(1)
+
+                        Text(
+                            module.isInstalling
+                                ? module.installProgressMessage
+                                : "Clone & compile the open-source mechanical keyboard sound engine from GitHub in 1 click."
+                        )
+                        .font(.system(size: 8, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.75))
+                        .lineLimit(1)
                     }
-                    
+
                     Spacer()
-                    
+
                     if module.isInstalling {
                         HStack(spacing: 5) {
                             ProgressView()
@@ -1404,7 +1698,7 @@ public struct ThockExpandedView: View {
                         }
                         .buttonStyle(.spring)
                         .help("Clone KeySound from GitHub and build thock-cli binary automatically")
-                        
+
                         Button(action: {
                             withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                                 module.dismissInstallNotice()
@@ -1422,36 +1716,63 @@ public struct ThockExpandedView: View {
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(DesignSystem.accentColor.opacity(0.3), lineWidth: 0.8))
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(
+                        Color.white.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(
+                        DesignSystem.accentColor.opacity(0.3), lineWidth: 0.8)
+                )
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
-            
+
             // Top Controls Bar: Engine Power, Audition Sound & Key Sound Volume
             HStack(spacing: 10) {
                 // Engine Start / Stop Button
                 Button(action: { module.toggleEngine() }) {
                     HStack(spacing: 5) {
-                        Image(systemName: module.isRunning ? "stop.fill" : (module.isInstalled ? "play.fill" : "arrow.down.circle"))
+                        if module.isStartingEngine {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .frame(width: 9, height: 9)
+                            Text("Starting...")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                        } else {
+                            Image(
+                                systemName: module.isRunning
+                                    ? "stop.fill"
+                                    : (module.isInstalled ? "play.fill" : "arrow.down.circle")
+                            )
                             .font(.system(size: 9, weight: .bold))
-                        Text(module.isRunning ? "Stop Engine" : (module.isInstalled ? "Start Engine" : "Install Engine"))
+                            Text(
+                                module.isRunning
+                                    ? "Stop Engine"
+                                    : (module.isInstalled ? "Start Engine" : "Install Engine")
+                            )
                             .font(.system(size: 10, weight: .bold, design: .rounded))
+                        }
                     }
                     .foregroundColor(module.isRunning ? Color.white : Color.black)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(
                         Capsule()
-                            .fill(module.isRunning ? Color.red.opacity(0.85) : DesignSystem.accentColor)
+                            .fill(
+                                module.isRunning
+                                    ? Color.red.opacity(0.85) : DesignSystem.accentColor)
                     )
                     .overlay(
                         Capsule()
                             .strokeBorder(Color.white.opacity(0.4), lineWidth: 0.8)
                     )
-                    .shadow(color: (module.isRunning ? Color.red : DesignSystem.accentColor).opacity(0.25), radius: 5, y: 1)
+                    .shadow(
+                        color: (module.isRunning ? Color.red : DesignSystem.accentColor).opacity(
+                            0.25), radius: 5, y: 1)
                 }
                 .buttonStyle(.spring)
-                
+                .disabled(module.isStartingEngine)
+
                 // Audition Current Pack Sound Button
                 Button(action: { module.auditionCurrentPack() }) {
                     HStack(spacing: 4) {
@@ -1469,22 +1790,28 @@ public struct ThockExpandedView: View {
                 }
                 .buttonStyle(.spring)
                 .help("Play an instant acoustic preview of the active switch")
-                
+
                 Spacer()
-                
+
                 // Key Sound Volume Controls (Mute + Slider + Direct Type Input)
                 HStack(spacing: 6) {
                     // Mute Button
                     Button(action: { module.toggleKeyMute() }) {
-                        Image(systemName: module.isKeyMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 9.5))
-                            .foregroundColor(module.isKeyMuted ? Color.red : DesignSystem.accentColor)
-                            .padding(4)
-                            .background(Circle().fill(module.isKeyMuted ? Color.red.opacity(0.18) : Color.white.opacity(0.06)))
+                        Image(
+                            systemName: module.isKeyMuted
+                                ? "speaker.slash.fill" : "speaker.wave.2.fill"
+                        )
+                        .font(.system(size: 9.5))
+                        .foregroundColor(module.isKeyMuted ? Color.red : DesignSystem.accentColor)
+                        .padding(4)
+                        .background(
+                            Circle().fill(
+                                module.isKeyMuted
+                                    ? Color.red.opacity(0.18) : Color.white.opacity(0.06)))
                     }
                     .buttonStyle(.plain)
                     .help(module.isKeyMuted ? "Unmute Key Sound" : "Mute Key Sound")
-                    
+
                     if !notchCompact {
                         Text("Volume")
                             .font(.system(size: 9.5, weight: .semibold, design: .rounded))
@@ -1492,7 +1819,7 @@ public struct ThockExpandedView: View {
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                     }
-                    
+
                     Slider(
                         value: $module.keyVolume,
                         in: 0...100,
@@ -1505,7 +1832,7 @@ public struct ThockExpandedView: View {
                     )
                     .frame(width: 65)
                     .accentColor(DesignSystem.accentColor)
-                    
+
                     // Direct Type Input Box with % Suffix
                     HStack(spacing: 2) {
                         TextField("70", text: $module.keyVolumeText)
@@ -1520,7 +1847,7 @@ public struct ThockExpandedView: View {
                             .onSubmit {
                                 module.setKeyVolumeFromText(module.keyVolumeText)
                             }
-                        
+
                         Text("%")
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(DesignSystem.accentColor.opacity(0.8))
@@ -1530,15 +1857,20 @@ public struct ThockExpandedView: View {
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6).strokeBorder(
+                            Color.white.opacity(0.12), lineWidth: 0.8)
+                    )
                     .help("Type exact volume percentage (0–100) and press Enter")
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).strokeBorder(
+                        Color.white.opacity(0.08), lineWidth: 0.8))
             }
-            
+
             // Sound Pack Selector Carousel & Profiles (14 Switch Types)
             VStack(alignment: .leading, spacing: notchTight ? 2 : 4) {
                 if !notchTight {
@@ -1546,17 +1878,19 @@ public struct ThockExpandedView: View {
                         Text("Mechanical Switch Profiles")
                             .font(.system(size: 10, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
-                        
+
                         Spacer()
-                        
+
                         if !notchCompact {
-                            Text("Selected: \(module.currentPack.replacingOccurrences(of: "_", with: " ").capitalized)")
-                                .font(.system(size: 8.5, weight: .medium, design: .rounded))
-                                .foregroundColor(DesignSystem.accentColor)
+                            Text(
+                                "Selected: \(module.currentPack.replacingOccurrences(of: "_", with: " ").capitalized)"
+                            )
+                            .font(.system(size: 8.5, weight: .medium, design: .rounded))
+                            .foregroundColor(DesignSystem.accentColor)
                         }
                     }
                 }
-                
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: notchTight ? 4 : 6) {
                         ForEach(module.availablePacks) { pack in
@@ -1571,26 +1905,39 @@ public struct ThockExpandedView: View {
                                                 .font(.system(size: 7))
                                                 .foregroundColor(Color.yellow)
                                         }
-                                        
+
                                         Text(pack.displayName)
-                                            .font(.system(size: notchTight ? 8.5 : 9.5, weight: isSelected ? .bold : .medium, design: .rounded))
-                                            .foregroundColor(isSelected ? .white : Color.white.opacity(0.9))
+                                            .font(
+                                                .system(
+                                                    size: notchTight ? 8.5 : 9.5,
+                                                    weight: isSelected ? .bold : .medium,
+                                                    design: .rounded)
+                                            )
+                                            .foregroundColor(
+                                                isSelected ? .white : Color.white.opacity(0.9)
+                                            )
                                             .lineLimit(1)
-                                        
+
                                         Spacer(minLength: 0)
-                                        
+
                                         if isSelected {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .font(.system(size: 8))
                                                 .foregroundColor(DesignSystem.accentColor)
                                         }
                                     }
-                                    
+
                                     Text(pack.switchType)
-                                        .font(.system(size: notchTight ? 7 : 7.5, weight: .semibold))
-                                        .foregroundColor(isSelected ? DesignSystem.accentColor : DesignSystem.secondaryText)
+                                        .font(
+                                            .system(size: notchTight ? 7 : 7.5, weight: .semibold)
+                                        )
+                                        .foregroundColor(
+                                            isSelected
+                                                ? DesignSystem.accentColor
+                                                : DesignSystem.secondaryText
+                                        )
                                         .lineLimit(1)
-                                    
+
                                     if !notchCompact {
                                         Text(pack.acousticProfile)
                                             .font(.system(size: 7, weight: .regular))
@@ -1598,22 +1945,34 @@ public struct ThockExpandedView: View {
                                             .lineLimit(1)
                                     }
                                 }
-                                .frame(width: notchTight ? 105 : (notchCompact ? 120 : 135), alignment: .leading)
+                                .frame(
+                                    width: notchTight ? 105 : (notchCompact ? 120 : 135),
+                                    alignment: .leading
+                                )
                                 .padding(.horizontal, notchTight ? 6 : 8)
                                 .padding(.vertical, notchTight ? 3.5 : (notchCompact ? 4.5 : 6))
                                 .background(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(isSelected ? DesignSystem.structureColor : Color.white.opacity(0.04))
+                                        .fill(
+                                            isSelected
+                                                ? DesignSystem.structureColor
+                                                : Color.white.opacity(0.04))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .strokeBorder(isSelected ? DesignSystem.accentColor : Color.white.opacity(0.08), lineWidth: isSelected ? 1.2 : 0.8)
+                                        .strokeBorder(
+                                            isSelected
+                                                ? DesignSystem.accentColor
+                                                : Color.white.opacity(0.08),
+                                            lineWidth: isSelected ? 1.2 : 0.8)
                                 )
                             }
                             .buttonStyle(.spring)
                             .contextMenu {
                                 Button(action: { module.toggleFavorite(pack.name) }) {
-                                    Label(pack.isFavorite ? "Unfavorite" : "Favorite", systemImage: pack.isFavorite ? "star.slash" : "star")
+                                    Label(
+                                        pack.isFavorite ? "Unfavorite" : "Favorite",
+                                        systemImage: pack.isFavorite ? "star.slash" : "star")
                                 }
                                 Button(action: { module.playPackSample(pack.name) }) {
                                     Label("Audition Sound", systemImage: "speaker.wave.2")
@@ -1627,7 +1986,7 @@ public struct ThockExpandedView: View {
             }
         }
     }
-    
+
     // MARK: - Subsection 2: Ambient ASMR View
     private var asmrSectionView: some View {
         VStack(spacing: 8) {
@@ -1636,15 +1995,23 @@ public struct ThockExpandedView: View {
                 HStack(spacing: 6) {
                     // ASMR Mute Button
                     Button(action: { module.toggleAsmrMute() }) {
-                        Image(systemName: module.isAsmrMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 9.5))
-                            .foregroundColor(module.isAsmrMuted ? Color.red : Color(red: 0.35, green: 0.8, blue: 1.0))
-                            .padding(4)
-                            .background(Circle().fill(module.isAsmrMuted ? Color.red.opacity(0.18) : Color.white.opacity(0.06)))
+                        Image(
+                            systemName: module.isAsmrMuted
+                                ? "speaker.slash.fill" : "speaker.wave.2.fill"
+                        )
+                        .font(.system(size: 9.5))
+                        .foregroundColor(
+                            module.isAsmrMuted ? Color.red : Color(red: 0.35, green: 0.8, blue: 1.0)
+                        )
+                        .padding(4)
+                        .background(
+                            Circle().fill(
+                                module.isAsmrMuted
+                                    ? Color.red.opacity(0.18) : Color.white.opacity(0.06)))
                     }
                     .buttonStyle(.plain)
                     .help(module.isAsmrMuted ? "Unmute ASMR" : "Mute ASMR")
-                    
+
                     if !notchCompact {
                         Text("Volume")
                             .font(.system(size: 9.5, weight: .semibold, design: .rounded))
@@ -1652,7 +2019,7 @@ public struct ThockExpandedView: View {
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                     }
-                    
+
                     Slider(
                         value: $module.asmrVolume,
                         in: 0...100,
@@ -1665,7 +2032,7 @@ public struct ThockExpandedView: View {
                     )
                     .frame(width: 65)
                     .accentColor(Color(red: 0.35, green: 0.8, blue: 1.0))
-                    
+
                     // Direct Type Input Box with % Suffix
                     HStack(spacing: 2) {
                         TextField("50", text: $module.asmrVolumeText)
@@ -1680,7 +2047,7 @@ public struct ThockExpandedView: View {
                             .onSubmit {
                                 module.setAsmrVolumeFromText(module.asmrVolumeText)
                             }
-                        
+
                         Text("%")
                             .font(.system(size: 8.5, weight: .bold, design: .monospaced))
                             .foregroundColor(Color(red: 0.35, green: 0.8, blue: 1.0).opacity(0.8))
@@ -1690,16 +2057,21 @@ public struct ThockExpandedView: View {
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6).strokeBorder(
+                            Color.white.opacity(0.12), lineWidth: 0.8)
+                    )
                     .help("Type exact ASMR volume percentage (0–100) and press Enter")
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3.5)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.8))
-                
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).strokeBorder(
+                        Color.white.opacity(0.08), lineWidth: 0.8))
+
                 Spacer()
-                
+
                 // Mute All ASMR Soundscapes Button
                 Button(action: { module.muteAllAsmr() }) {
                     HStack(spacing: 4) {
@@ -1717,7 +2089,7 @@ public struct ThockExpandedView: View {
                 .buttonStyle(.spring)
                 .help("Turn off all active ASMR ambient layers")
             }
-            
+
             // Bento Cards for Rain, Wind, Thunder Soundscapes
             HStack(spacing: 8) {
                 // Rain Card
@@ -1729,7 +2101,7 @@ public struct ThockExpandedView: View {
                     activeColor: Color(red: 0.3, green: 0.75, blue: 1.0),
                     action: { module.toggleRain() }
                 )
-                
+
                 // Wind Card
                 AsmrLayerCard(
                     title: "Organic Wind",
@@ -1739,7 +2111,7 @@ public struct ThockExpandedView: View {
                     activeColor: Color(red: 0.45, green: 0.85, blue: 0.95),
                     action: { module.toggleWind() }
                 )
-                
+
                 // Thunder Card
                 AsmrLayerCard(
                     title: "Thunder Strike",
@@ -1763,7 +2135,7 @@ private struct AsmrLayerCard: View {
     let isActive: Bool
     let activeColor: Color
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -1775,24 +2147,24 @@ private struct AsmrLayerCard: View {
                         .font(.system(size: 11))
                         .foregroundColor(isActive ? activeColor : Color.white.opacity(0.5))
                 }
-                
+
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
                         Text(title)
                             .font(.system(size: 9.5, weight: .bold, design: .rounded))
                             .foregroundColor(isActive ? .white : Color.white.opacity(0.85))
-                        
+
                         Circle()
                             .fill(isActive ? activeColor : Color.white.opacity(0.2))
                             .frame(width: 4, height: 4)
                     }
-                    
+
                     Text(isActive ? "Active · Playing" : description)
                         .font(.system(size: 7.5, weight: .regular))
                         .foregroundColor(isActive ? activeColor : DesignSystem.secondaryText)
                         .lineLimit(1)
                 }
-                
+
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1804,7 +2176,9 @@ private struct AsmrLayerCard: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(isActive ? activeColor.opacity(0.6) : Color.white.opacity(0.08), lineWidth: isActive ? 1.0 : 0.6)
+                    .strokeBorder(
+                        isActive ? activeColor.opacity(0.6) : Color.white.opacity(0.08),
+                        lineWidth: isActive ? 1.0 : 0.6)
             )
         }
         .buttonStyle(.spring)

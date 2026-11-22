@@ -1,5 +1,0 @@
-Commit: 0c19662 (commit0_baseline)
-Git subject: feat(thock,ui): remove CLI terminal, add dismiss cross button to status tags, modernize Keychain
-Idle CPU: 0.0 | Idle MEM: 19M
-Active Hover CPU: 0.2 | Active MEM: 67M
-Top Sample Raw (Active): 11516  NotchApp 0.2  67M 

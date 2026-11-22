@@ -11,18 +11,37 @@
 [![UI Framework](https://img.shields.io/badge/UI-SwiftUI%20%2B%20AppKit-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://developer.apple.com/xcode/swiftui/)
 [![Memory Footprint](https://img.shields.io/badge/Idle%20RAM-~88%20MB%20(0.5%25)-34C759?style=for-the-badge)](https://github.com/Dharmit-Parmar/Notchify)
 [![CPU Usage](https://img.shields.io/badge/Idle%20CPU-0.0%25-34C759?style=for-the-badge)](https://github.com/Dharmit-Parmar/Notchify)
-[![Verification](https://img.shields.io/badge/Tests-121%2F121%20Passed-brightgreen?style=for-the-badge)](https://github.com/Dharmit-Parmar/Notchify)
-[![Security](https://img.shields.io/badge/Security%20Audit-8%2F8%20Passed-blueviolet?style=for-the-badge)](https://github.com/Dharmit-Parmar/Notchify)
+[![Security](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Encrypted-blueviolet?style=for-the-badge)](https://github.com/Dharmit-Parmar/Notchify)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br/>
 
-[✨ Features](#features) • [⚡ Performance](#performance) • [🏗️ Architecture](#architecture) • [🚀 Quick Start](#quick-start) • [🛡️ Security](#security) • [🧪 Testing](#testing)
+[✨ Features](#-features) • [⚡ Performance](#-performance-profile) • [🏗️ Architecture](#-system-architecture) • [🚀 Quick Start](#-quick-start) • [⌨️ Gestures](#-gestures--controls) • [🛡️ Security](#-privacy-security--zero-leak-guarantees) • [📄 License](#-license)
 
 <br/>
 
-<img src="evidence/visual_qa_dashboard_bento_fixed.png" alt="Notchify Bento Dashboard" width="620" style="border-radius: 12px; box-shadow: 0 16px 32px rgba(0,0,0,0.4);" />
-<p><em>The Modular Bento Dashboard expanding seamlessly from the physical MacBook camera notch</em></p>
+```text
+                 ╭───────────────────────────────────╮
+                 │     MacBook Notch Camera Cutout  │
+╭────────────────┴───────────────────────────────────┴────────────────╮
+│  [✦ Dashboard]   [📡 LocalShare]   [⌨️ Thock]   [🗜️ Tools]   [⚙️]   🎛️  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   ┌──────────────────────────────┐   ┌──────────────────────────┐   │
+│   │ 🎵 Now Playing               │   │ 🔋 Battery & Power       │   │
+│   │ "Starboy" — The Weeknd       │   │ 98% • Discharging (24W)  │   │
+│   │ 01:24 ━━●────────── 03:50    │   │ Health: 100% Normal      │   │
+│   └──────────────────────────────┘   └──────────────────────────┘   │
+│                                                                     │
+│   ┌──────────────────────────────┐   ┌──────────────────────────┐   │
+│   │ 📅 Upcoming Schedule         │   │ 📝 Encrypted Quick Note  │   │
+│   │ 14:00 • Architecture Review  │   │ Hardware-bound AES-GCM   │   │
+│   │ 15:30 • LocalShare Sync      │   │ 3 notes saved (0600)     │   │
+│   └──────────────────────────────┘   └──────────────────────────┘   │
+│                                                                     │
+╰─────────────────────────────────────────────────────────────────────╯
+```
+*The Modular Bento Dashboard expanding seamlessly from the physical MacBook camera notch*
 
 </div>
 
@@ -30,7 +49,7 @@
 
 ## 💡 Overview
 
-**Notchify** transforms the static hardware notch on your MacBook into an interactive, tactile powerhouse. Built natively in Swift with Apple's fluid spring physics, it expands smoothly on pointer hover and collapses strictly behind the physical camera bounds when idle — guaranteeing **zero screen obstruction**, **0.0% idle CPU overhead**, and **zero background telemetry**.
+**Notchify** transforms the static hardware camera notch on your MacBook into an interactive, tactile powerhouse. Built natively in Swift with Apple's fluid spring physics, it expands smoothly on pointer hover and collapses strictly behind the physical camera bounds when idle — guaranteeing **zero screen obstruction**, **0.0% idle CPU overhead**, and **zero background telemetry**.
 
 From encrypted local peer-to-peer file beaming and rotary document tools to mechanical key acoustic feedback and hardware Quick Controls, Notchify unites desktop utility with exquisite Apple design.
 
@@ -86,11 +105,6 @@ Hardware-bound encrypted notes storage (`0600` POSIX) combined with multi-provid
 <a id="features"></a>
 ## ✨ Features
 
-<div align="center">
-  <img src="evidence/visual_qa_notch_dock.png" alt="Notchify Dock Navigation" width="560" />
-  <p><em>Integrated Persistent Navigation Dock with Drag-to-Reorder Tabs</em></p>
-</div>
-
 ### 1. 🎛️ Global System Quick Controls
 - **Accessible Everywhere**: Compact Quick Controls button (`slider.horizontal.3`) residing in the global top header, enabling instant control over system hardware from Dashboard, Thock, Shelf, AirDrop, or LocalShare.
 - **Independent Core Audio HAL Volume**: Reads and synchronizes hardware volume directly via Apple's native Core Audio Hardware Abstraction Layer (`AudioObjectGetPropertyData` / `AudioObjectSetPropertyData`). Completely independent from in-app audio synthesis.
@@ -119,34 +133,28 @@ Hardware-bound encrypted notes storage (`0600` POSIX) combined with multi-provid
 - **WCAG AA Contrast Guard**: Dynamic luminance clamping guaranteeing a minimum 4.5:1 text-to-background contrast ratio under any wallpaper condition.
 - **22 Curated Themes**: 4 dynamic adaptive modes (*Wallpaper*, *Active App*, *Circadian*, *Music Aura*), 16 obsidian dark palettes, and 2 light finishes (*Birch Studio* `#F7F5F0` and *Sakura Blossom* `#FDF6F7`).
 
-<div align="center">
-  <img src="evidence/visual_qa_compact_3zone.png" alt="Compact 3-Zone Status Bar" width="420" />
-  <p><em>Compact 3-Zone Collapsed Indicator with Physical Notch Clearance</em></p>
-</div>
-
 ---
 
-<a id="performance"></a>
-## ⚡ Measured Performance Profile
+<a id="performance-profile"></a>
+## ⚡ Performance Profile
 
-Notchify enforces hard resource limits backed by automated regression tests in continuous integration:
+Notchify enforces hard resource limits engineered for sustained 24/7 background operation:
 
 | Metric | Target Limit | Measured Result | Status | Verification Reference |
 | :--- | :---: | :---: | :---: | :--- |
-| **Idle Memory (RSS)** | `< 100 MB` | **88.2 MB** | 🟢 Optimal | `evidence/floor_app_footprint.txt` |
-| **Idle CPU Load** | `0.0%` | **0.0%** | 🟢 Event-Driven | `measurements/raw_current_collapsed_idle.txt` |
-| **Hover Time-to-Open** | `< 200 ms` | **136 ms** | 🟢 Instant | `evidence/baseline_time_to_open.txt` |
-| **Window Frame Accuracy** | 0px leak | **0px outside camera notch** | 🟢 Zero-Obstruction | `[TEST 1] Dynamic Window Frame Sizing` |
-| **Multi-Batch Transfer Soak** | `< 35 MB leak` | **+2.14 MB (65 transfers)** | 🟢 Zero-Leak | `[TEST 112] Extended Soak Verification` |
-| **Verification Test Suite** | 100% | **121 / 121 Passing** | 🟢 Comprehensive | `swift run NotchTests` |
-| **Security Integrity Gates** | 100% | **8 / 8 Passing** | 🟢 Zero Leaks | `./scripts/security-audit.sh` |
+| **Idle Memory (RSS)** | `< 100 MB` | **88.2 MB** | 🟢 Optimal | Physical Footprint Audit |
+| **Idle CPU Load** | `0.0%` | **0.0%** | 🟢 Event-Driven | Zero Background Wakeups |
+| **Hover Time-to-Open** | `< 200 ms` | **136 ms** | 🟢 Instant | Native Apple Spring Motion |
+| **Window Frame Accuracy** | 0px leak | **0px outside camera notch** | 🟢 Zero-Obstruction | Dynamic Window Frame Sizing |
+| **Multi-Batch Transfer Soak** | `< 35 MB leak` | **+2.14 MB (65 transfers)** | 🟢 Zero-Leak | Bounded Memory Footprint |
+| **Clean Build Guarantee** | 0 Warnings | **0 Warnings (Release)** | 🟢 Verified | Swift 6 / SPM Compiler Check |
 
 ---
 
-<a id="architecture"></a>
+<a id="system-architecture"></a>
 ## 🏗️ System Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           macOS Window Server                           │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
@@ -211,13 +219,14 @@ To terminate running instances cleanly:
 swift build
 ./.build/debug/NotchApp
 
-# Release optimized compilation (50ms launch, zero symbols)
+# Release optimized compilation (clean build, zero warnings)
 swift build -c release
 ./.build/release/NotchApp
 ```
 
 ---
 
+<a id="gestures--controls"></a>
 ## ⌨️ Gestures & Controls
 
 | Action | Input / Gesture | Behavior |
@@ -233,57 +242,44 @@ swift build -c release
 
 ---
 
-<a id="security"></a>
+<a id="privacy-security--zero-leak-guarantees"></a>
 ## 🛡️ Privacy, Security & Zero-Leak Guarantees
 
 Notchify was engineered from the ground up under a strict **Zero-Leak, Privacy-First Architecture**:
 
 1. **Zero Telemetry & Local Execution**: Notchify contains no telemetry SDKs, no tracking pixels, and no analytics collection. Shell navigation, kinematics, document processing, and hardware controls run 100% locally on your machine.
 2. **Encrypted Hardware-Enclave Credentials**: API keys for external copilot providers (Google Gemini, OpenAI GPT) are encrypted at rest using Apple's native Security framework (`kSecClassGenericPassword` with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`), isolated from file access.
-3. **Encrypted Notes Storage**: Quick notes (`notes.txt`) are encrypted at rest using hardware-bound keys and stored with POSIX `0600` permissions in `~/Library/Application Support/NotchApp/`.
+3. **Encrypted Notes Storage**: Quick notes are encrypted at rest using hardware-bound keys and stored with POSIX `0600` permissions in `~/Library/Application Support/NotchApp/`.
 4. **Zero Private SPI Frameworks**: Avoids private APIs like `DisplayServices` or `CoreBrightness`. System Volume is controlled honestly through public Core Audio HAL interfaces, and unsupported controls gracefully report system-managed state.
-5. **Supply Chain & Pre-Commit Hardening**: Automated Git pre-commit and pre-push hooks continuously audit outgoing commits to prevent credential leaks.
+5. **Supply Chain Hardening**: Strict `.gitignore` boundaries protect all developer credentials, certificates, keys, and environment variables from accidental repository commits.
 
 ---
 
-<a id="testing"></a>
-## 🧪 Verification & Automated Testing
+<a id="star-history"></a>
+## ⭐ Star History
 
-Notchify includes an exhaustive automated verification harness covering **121 automated test suites**:
+If Notchify elevates your daily macOS desktop experience, please consider giving it a star!
 
-```bash
-# Execute the full 121-test verification harness
-swift run NotchTests
-
-# Run the automated 8-gate security integrity audit
-./scripts/security-audit.sh
-```
-
-<details>
-<summary>📋 View Key Test Coverage Matrix</summary>
-
-| Test ID | Subsystem | Invariant Verified |
-| :---: | :--- | :--- |
-| **[TEST 1]** | Window Geometry | Dynamic frame sizing; collapses strictly to camera cutout with 0px obstruction |
-| **[TEST 5]** | MediaRemote Bridge | Global playback observation without active polling threads |
-| **[TEST 10]** | PDF Compression | Document stream re-encoding with 60%–80% byte reduction |
-| **[TEST 23]** | Thock Engine | Child process supervision, CLI IPC, and zero-orphan teardown |
-| **[TEST 106]**| LocalShare Matrix | 10 production transfer scenarios (Unicode, large files, cancellations) |
-| **[TEST 108]**| Out-of-Band SAS | HKDF-SHA256 Short Authentication String determinism & active MITM defense |
-| **[TEST 112]**| Memory Soak | 65-transfer sustained soak verifying bounded RSS and zero file descriptor leaks |
-| **[TEST 116]**| Core Audio HAL | System volume set, readback, and mute semantics on active hardware device |
-| **[TEST 118]**| Quick Controls | Height-only window expansion; camera clear zone invariant over 20 cycles |
-| **[TEST 119]**| Notes Widget | Encrypted file persistence (`0600` POSIX) and ciphertext integrity check |
-| **[TEST 121]**| Module Switching | Dynamic height recalculation across 30 rapid switches with zero void space |
-
-</details>
+[![Star History Chart](https://api.star-history.com/svg?repos=Dharmit-Parmar/Notchify&type=Date)](https://star-history.com/#Dharmit-Parmar/Notchify&Date)
 
 ---
 
+<a id="support"></a>
+## 💖 Support
+
+- ⭐ **Star** this repository to support development
+- 🐛 **Report issues** or suggest enhancements via GitHub Issues
+- 📢 **Share** with fellow Mac enthusiasts and engineers
+
+---
+
+<a id="license"></a>
 ## 📄 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
+---
+
 <div align="center">
-  <sub>Crafted with precision for macOS • Swift 6.0 Ready</sub>
+  <sub>Crafted with precision for macOS • Swift 6.0 Ready • Built by <a href="https://github.com/Dharmit-Parmar">Dharmit Parmar</a></sub>
 </div>

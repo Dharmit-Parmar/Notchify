@@ -134,7 +134,7 @@ public final class MirrorModule: NotchModule {
         viewers = max(0, viewers - 1)
         if viewers == 0 {
             isUserPaused = false
-            stop()
+            stop(force: true)
         }
     }
     
@@ -145,6 +145,11 @@ public final class MirrorModule: NotchModule {
     }
     
     public func stop() {
+        stop(force: false)
+    }
+    
+    public func stop(force: Bool) {
+        if !force && viewers > 0 { return }
         guard isActive || isRunning else { return }
         isActive = false
         manager.stop { [weak self] in

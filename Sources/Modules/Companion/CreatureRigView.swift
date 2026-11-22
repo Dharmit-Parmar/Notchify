@@ -55,7 +55,7 @@ public struct CreatureRigView: View {
     }
     
     public var body: some View {
-        let isDormant = coordinator.state == .inDen || (coordinator.state == .sleeping && NotchShellCoordinator.shared.state == .collapsed)
+        let isDormant = !store.isCompanionEnabled || coordinator.state == .inDen || (CompanionPanel.shared != nil && !(CompanionPanel.shared?.isVisible ?? false)) || (coordinator.state == .sleeping && NotchShellCoordinator.shared.state == .collapsed)
         TimelineView(.animation(paused: isDormant)) { timelineContext in
             Canvas { context, _ in
                 // Zero CPU / early exit if in den or dormant

@@ -21,6 +21,7 @@ public final class BatteryModule: NotchModule {
     
     private var powerRunLoopSource: CFRunLoopSource?
     private var powerObserver: NSObjectProtocol?
+    private var lastRefreshTime: Date = .distantPast
     
     public init() {
         refresh()
@@ -63,7 +64,11 @@ public final class BatteryModule: NotchModule {
         }
     }
     
-    public func refresh() {
+    public func refresh(force: Bool = false) {
+        let now = Date()
+        guard force || now.timeIntervalSince(lastRefreshTime) >= 1.0 else { return }
+        lastRefreshTime = now
+        
         self.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
         
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),

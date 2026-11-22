@@ -43,6 +43,39 @@ public struct NotesWidgetView: View {
         noteStorage.text.count
     }
 
+    @ViewBuilder
+    private var saveStatusIndicator: some View {
+        switch noteStorage.saveState {
+        case .saving:
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(Color.yellow.opacity(0.85))
+                    .frame(width: 5, height: 5)
+                if span > 1 && !notchTight {
+                    Text("Saving…")
+                        .font(.system(size: 8.5))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
+            }
+            .transition(.opacity)
+        case .failed(let msg):
+            HStack(spacing: 3) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 8.5))
+                    .foregroundColor(.orange)
+                if span > 1 && !notchTight {
+                    Text("Save failed")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+            }
+            .help(msg)
+            .transition(.opacity)
+        case .saved:
+            EmptyView()
+        }
+    }
+
     public var body: some View {
         Group {
             if span == 1 {
@@ -83,6 +116,8 @@ public struct NotesWidgetView: View {
                     .fixedSize(horizontal: true, vertical: false)
 
                 Spacer()
+
+                saveStatusIndicator
 
                 if !notchTight {
                     Text("\(wordCount)w")
@@ -235,9 +270,12 @@ public struct NotesWidgetView: View {
                     Text("Quick Memo")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                    Text("\(wordCount) words · \(charCount) characters")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundColor(DesignSystem.secondaryText)
+                    HStack(spacing: 5) {
+                        Text("\(wordCount) words · \(charCount) characters")
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(DesignSystem.secondaryText)
+                        saveStatusIndicator
+                    }
                 }
 
                 Spacer()
@@ -382,9 +420,12 @@ public struct NotesWidgetView: View {
                     Text("TELEMETRY")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(DesignSystem.secondaryText)
-                    Text("\(wordCount) Words · \(charCount) Characters")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
+                    HStack(spacing: 6) {
+                        Text("\(wordCount) Words · \(charCount) Characters")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.white)
+                        saveStatusIndicator
+                    }
                 }
 
                 Spacer()

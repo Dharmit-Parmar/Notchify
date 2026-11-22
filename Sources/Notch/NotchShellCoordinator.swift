@@ -13,12 +13,15 @@ public final class NotchShellCoordinator: ObservableObject {
     @Published public var state: NotchState = .collapsed {
         didSet {
             guard state != oldValue else { return }
-            if state == .expanded && !isLockedOpen {
-                startExpandedWatchdog()
-                ProcessMemoryGovernor.shared.notifyStateChanged(isExpanded: true)
+            if state == .expanded {
+                ModuleRegistry.shared.onNotchExpanding()
+                if !isLockedOpen {
+                    startExpandedWatchdog()
+                    ProcessMemoryGovernor.shared.notifyStateChanged(isExpanded: true)
+                }
             } else if state == .collapsed {
                 stopExpandedWatchdog()
-                MirrorModule.shared.stop()
+                MirrorModule.shared.stop(force: true)
                 ModuleRegistry.shared.stopAll()
                 ModuleRegistry.shared.unloadInactiveModules()
                 NowPlayingModule.shared.evictArtworkOnCollapse()
@@ -51,6 +54,8 @@ public final class NotchShellCoordinator: ObservableObject {
             attachment: store.positionAttachment,
             wingWidth: store.wingWidth,
             collapsedHeight: store.collapsedNotchHeight,
+            hoverTriggerWidth: store.hoverTriggerWidth,
+            hoverTriggerHeight: store.hoverTriggerHeight,
             horizontalOffset: store.horizontalNotchOffset,
             verticalOffset: store.verticalNotchOffset,
             activeEvents: ActiveNotchEvents(
@@ -131,7 +136,7 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func refreshLayouts() {
-        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        let screen = panel?.refreshScreenReference() ?? NSScreen.main ?? NSScreen.screens[0]
         self.geometry = NotchGeometry.current(for: screen)
         self.panel?.updateFrame(for: self.state, animated: false)
     }
@@ -523,10 +528,14 @@ public final class NotchShellCoordinator: ObservableObject {
         
         guard force || (!isLockedOpen && !isFileDraggingActive && !isMenuOrPopoverOpen) else { return }
         if isHovered { isHovered = false }
-        withAnimation(transitionAnimation) {
+        if force {
             self.state = .collapsed
+        } else {
+            withAnimation(transitionAnimation) {
+                self.state = .collapsed
+            }
         }
-        panel?.updateFrame(for: .collapsed, animated: !DesignSystem.reduceMotion)
+        panel?.updateFrame(for: .collapsed, animated: force ? false : !DesignSystem.reduceMotion)
     }
     
     public func toggleLock() {

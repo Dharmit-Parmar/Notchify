@@ -228,6 +228,16 @@ public final class ShelfModule: NotchModule {
         } else if item.isImage {
             selectedTool = .enhance
         }
+        
+        NotificationModule.shared.addNotification(
+            NotificationItem(
+                appName: "Shelf",
+                appIconName: "folder.fill",
+                title: "File Added to Tray",
+                body: url.lastPathComponent,
+                bundleId: ""
+            )
+        )
     }
 
     public func removeItem(id: UUID) {
@@ -611,8 +621,34 @@ public final class ShelfModule: NotchModule {
         panel.allowedContentTypes = [.pdf]
         
         if panel.runModal() == .OK, let destination = panel.url {
-            try? FileManager.default.removeItem(at: destination)
-            if (try? FileManager.default.copyItem(at: result.fileURL, to: destination)) != nil {
+            let parentDir = destination.deletingLastPathComponent()
+            let tempURL = parentDir.appendingPathComponent(".tmp_\(UUID().uuidString).pdf")
+            
+            var success = false
+            defer {
+                if FileManager.default.fileExists(atPath: tempURL.path) {
+                    try? FileManager.default.removeItem(at: tempURL)
+                }
+            }
+            
+            do {
+                try FileManager.default.copyItem(at: result.fileURL, to: tempURL)
+                let tempAttrs = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+                guard let tempSize = tempAttrs[.size] as? NSNumber, tempSize.intValue > 0 else {
+                    throw NSError(domain: "ShelfModule", code: -1, userInfo: [NSLocalizedDescriptionKey: "Zero size temp document"])
+                }
+                
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    _ = try FileManager.default.replaceItemAt(destination, withItemAt: tempURL, backupItemName: nil, options: .usingNewMetadataOnly)
+                } else {
+                    try FileManager.default.moveItem(at: tempURL, to: destination)
+                }
+                success = true
+            } catch {
+                success = false
+            }
+            
+            if success {
                 addItem(destination)
                 statusMessage = "Saved to \(destination.lastPathComponent)!"
                 FeedbackManager.playSuccess()

@@ -93,9 +93,8 @@ public struct QuickControlsDisclosureRow: View {
     private func toggleExpansion() {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
             if manager.state.isPanelVisible {
-                if !store.quickControlsPinned {
-                    manager.state = .closed
-                }
+                store.quickControlsPinned = false
+                manager.state = .closed
             } else {
                 manager.state = .hoverPreview
             }

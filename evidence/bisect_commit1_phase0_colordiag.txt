@@ -1,5 +1,0 @@
-Commit: 880920b (commit1_phase0_colordiag)
-Git subject: feat(phase0): diagnose and fix wallpaper and app color detection with robust fallback chain
-Idle CPU: 0.0 | Idle MEM: 19M
-Active Hover CPU: 6.6 | Active MEM: 55M-
-Top Sample Raw (Active): 11726  NotchApp 6.6  55M-

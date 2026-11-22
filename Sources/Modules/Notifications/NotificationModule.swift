@@ -23,6 +23,8 @@ public struct NotificationItem: Identifiable, Equatable {
 
 @MainActor
 public final class NotificationModule: NotchModule {
+    public static let shared = NotificationModule()
+    
     public let id = "notifications"
     public let title = "Notifications"
     public let iconName = "bell.fill"
@@ -30,32 +32,10 @@ public final class NotificationModule: NotchModule {
     
     @Published public var notifications: [NotificationItem] = []
     
-    public init() {
-        loadMockInitialNotifications()
-    }
+    public init() {}
     
     public func start() {}
     public func stop() {}
-    
-    private func loadMockInitialNotifications() {
-        // Safe starting items demonstrating notification mirroring
-        notifications = [
-            NotificationItem(
-                appName: "Calendar",
-                appIconName: "calendar",
-                title: "Sprint Review & Planning",
-                body: "In 15 minutes",
-                bundleId: "com.apple.iCal"
-            ),
-            NotificationItem(
-                appName: "Messages",
-                appIconName: "message.fill",
-                title: "New Alert",
-                body: "All system services operating normally.",
-                bundleId: "com.apple.MobileSMS"
-            )
-        ]
-    }
     
     public func addNotification(_ item: NotificationItem) {
         notifications.insert(item, at: 0)
@@ -68,11 +48,19 @@ public final class NotificationModule: NotchModule {
         notifications.removeAll(where: { $0.id == id })
     }
     
+    public func clearAll() {
+        notifications.removeAll()
+    }
+    
     public func openSourceApp(for item: NotificationItem) {
         if !item.bundleId.isEmpty {
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: item.bundleId) {
                 NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                return
             }
+        }
+        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName?.lowercased() == item.appName.lowercased() }) {
+            app.activate()
         }
     }
     
@@ -102,10 +90,27 @@ public struct NotificationModuleExpandedView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Notification Stream")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Notch In-App Alerts")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Text("Activity stream for Notchify transfers, downloads, and events")
+                        .font(.system(size: 10))
+                        .foregroundColor(DesignSystem.secondaryText)
+                }
                 Spacer()
+                if !module.notifications.isEmpty {
+                    Button(action: {
+                        FeedbackManager.playClick()
+                        module.clearAll()
+                    }) {
+                        Text("Clear All")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundColor(DesignSystem.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear all notifications")
+                }
                 Text("Capped to \(DesignSystem.maxNotificationCards) items")
                     .font(.system(size: 10))
                     .foregroundColor(DesignSystem.tertiaryText)
@@ -116,9 +121,13 @@ public struct NotificationModuleExpandedView: View {
                     Image(systemName: "bell.slash")
                         .font(.system(size: 22))
                         .foregroundColor(DesignSystem.tertiaryText)
-                    Text("No recent notifications")
-                        .font(.system(size: 11))
+                    Text("No recent alerts")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(DesignSystem.secondaryText)
+                    Text("In-app notifications for transfers, downloads, and system events will appear here")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(DesignSystem.tertiaryText)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -173,7 +182,7 @@ public struct NotificationModuleExpandedView: View {
                         }
                     }
                 }
-                .frame(maxHeight: 120)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }

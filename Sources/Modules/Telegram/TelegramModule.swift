@@ -48,6 +48,14 @@ public struct DirectMessenger {
         }
     }
     
+    public static func sanitizeE164Phone(_ input: String) -> String {
+        var digits = input.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        if digits.hasPrefix("00") {
+            digits = String(digits.dropFirst(2))
+        }
+        return digits
+    }
+    
     @MainActor
     public static func dispatch(
         platform: String,
@@ -72,7 +80,7 @@ public struct DirectMessenger {
         config.activates = false
         
         if platform == "WhatsApp" {
-            let digits = handle.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+            let digits = Self.sanitizeE164Phone(handle)
             let encoded = cleanText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             let urlString = digits.isEmpty ? "whatsapp://send?text=\(encoded)" : "whatsapp://send?phone=\(digits)&text=\(encoded)"
             
@@ -97,11 +105,11 @@ public struct DirectMessenger {
                 rawHandle = String(rawHandle.dropFirst(5))
             }
             
-            let digits = rawHandle.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+            let digits = Self.sanitizeE164Phone(rawHandle)
             let cleanUser = rawHandle.trimmingCharacters(in: CharacterSet(charactersIn: "@ "))
             let encoded = cleanText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             
-            let isPhone = rawHandle.hasPrefix("+") || (digits.count >= 7 && !rawHandle.contains("@") && cleanUser.allSatisfy { $0.isNumber || $0 == "+" || $0 == " " || $0 == "-" || $0 == "(" || $0 == ")" })
+            let isPhone = rawHandle.hasPrefix("+") || (digits.count >= 7 && digits.count <= 15 && !rawHandle.contains("@") && cleanUser.allSatisfy { $0.isNumber || $0 == "+" || $0 == " " || $0 == "-" || $0 == "(" || $0 == ")" })
             
             let urlString: String
             if cleanUser.isEmpty && digits.isEmpty {
@@ -202,7 +210,7 @@ public struct ContactSafetyValidator {
         let isPhoneNumber = (platform == "WhatsApp") || (handleType == "Number")
         
         if isPhoneNumber {
-            // Strict Phone Number Safety Validation (India +91 & 10 digits restriction)
+            // International Phone Number Safety Validation (E.164: 7 to 15 digits)
             var cleaned = trimmedHandle.replacingOccurrences(of: " ", with: "")
                 .replacingOccurrences(of: "-", with: "")
                 .replacingOccurrences(of: "(", with: "")
@@ -217,23 +225,14 @@ public struct ContactSafetyValidator {
                 return (false, "", "Phone numbers may only contain digits and '+'")
             }
             
-            // Check country code and digit count
-            var mobileDigits = cleaned
-            if mobileDigits.hasPrefix("91") && mobileDigits.count > 10 {
-                // Strip +91 country prefix to isolate the 10-digit mobile number
-                mobileDigits = String(mobileDigits.dropFirst(2))
-            } else if mobileDigits.hasPrefix("0") && mobileDigits.count == 11 {
-                // Strip trunk 0
-                mobileDigits = String(mobileDigits.dropFirst())
+            // Validate E.164 digit range
+            if cleaned.count < 7 {
+                return (false, "", "Error: Phone number is too short. Minimum 7 digits required.")
+            } else if cleaned.count > 15 {
+                return (false, "", "Error: Phone number exceeds 15 digits (ITU-T E.164 standard).")
             }
             
-            if mobileDigits.count > 10 {
-                return (false, "", "Error: Number exceeds 10 digits. Indian mobile numbers must be exactly 10 digits.")
-            } else if mobileDigits.count < 10 {
-                return (false, "", "Error: Number has only \(mobileDigits.count) digits. Please enter a 10-digit mobile number.")
-            }
-            
-            let standardized = "+91" + mobileDigits
+            let standardized = "+" + cleaned
             return (true, standardized, nil)
         } else {
             // Username validation for Telegram (@username)
@@ -306,16 +305,30 @@ public final class TelegramModule: NotchModule {
         self.customContactsURL = customContactsURL
         self.fileStore = fileStore
         
-        // Secure Hardware Keychain Retrieval & Legacy Plist Residue Eradication
+        // Secure Hardware Keychain Retrieval & Validated Legacy Plist Migration
         let keychainToken = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token")
         let legacyToken = UserDefaults.standard.string(forKey: "NotchApp_TelegramBotToken")
-        if let token = keychainToken, !token.isEmpty {
-            self.botToken = token
-        } else if let legacy = legacyToken, !legacy.isEmpty {
-            self.botToken = legacy
-            KeychainHelper.shared.saveSecret(legacy, forKey: "telegram_bot_token")
+        
+        if let token = keychainToken, !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.botToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Keychain is authoritative; safely remove plaintext residue if it still exists
+            UserDefaults.standard.removeObject(forKey: "NotchApp_TelegramBotToken")
+        } else if let legacy = legacyToken, !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let clean = legacy.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.botToken = clean
+            // Step 3: Write legacy value to Keychain
+            let saveSucceeded = KeychainHelper.shared.saveSecret(clean, forKey: "telegram_bot_token")
+            // Step 4 & 5: Verify write succeeded AND can be retrieved accurately
+            if saveSucceeded,
+               let retrieved = KeychainHelper.shared.loadSecret(forKey: "telegram_bot_token"),
+               retrieved == clean {
+                // Step 6: Only remove plaintext legacy value after verified retrieval
+                UserDefaults.standard.removeObject(forKey: "NotchApp_TelegramBotToken")
+            } else {
+                // Preserve legacy credential in UserDefaults to avoid data loss
+                print("[TelegramModule] Keychain migration unverified; preserving legacy storage.")
+            }
         }
-        UserDefaults.standard.removeObject(forKey: "NotchApp_TelegramBotToken") // Erase plaintext plist residue
         
         loadSavedContacts()
         self.isAccessibilityGranted = DirectMessenger.isAccessibilityGranted
@@ -400,8 +413,10 @@ public final class TelegramModule: NotchModule {
             self.contacts = saved
             self.selectedContactId = saved.first?.id
             self.userHasModifiedContacts = true
-            persistContacts()
-            UserDefaults.standard.removeObject(forKey: contactsStorageKey)
+            let persisted = persistContacts()
+            if persisted {
+                UserDefaults.standard.removeObject(forKey: contactsStorageKey)
+            }
         } else {
             setupDefaultWelcomeContact()
         }
@@ -425,13 +440,28 @@ public final class TelegramModule: NotchModule {
         self.selectedContactId = welcome.id
     }
     
-    private func persistContacts() {
-        guard userHasModifiedContacts else { return }
-        if let encoded = try? JSONEncoder().encode(contacts) {
-            let target = contactsFileURL
-            try? fileStore.write(data: encoded, to: target)
+    @discardableResult
+    private func persistContacts() -> Bool {
+        guard userHasModifiedContacts else { return true }
+        guard let encoded = try? JSONEncoder().encode(contacts) else {
+            return false
         }
-        UserDefaults.standard.removeObject(forKey: contactsStorageKey)
+        let target = contactsFileURL
+        do {
+            try fileStore.write(data: encoded, to: target)
+            // Verification: ensure ciphertext on disk can be read and decoded accurately
+            guard let verifyData = try fileStore.read(from: target),
+                  let verified = try? JSONDecoder().decode([ChatContact].self, from: verifyData),
+                  verified.count == contacts.count else {
+                return false
+            }
+            // Only after confirmed write and verification remove legacy storage
+            UserDefaults.standard.removeObject(forKey: contactsStorageKey)
+            return true
+        } catch {
+            // Write failed: retain contacts in memory and keep legacy UserDefaults entry untouched
+            return false
+        }
     }
     
     public var selectedContact: ChatContact? {

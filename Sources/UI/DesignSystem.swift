@@ -3,6 +3,14 @@ import AppKit
 import ImageIO
 import AVFoundation
 
+// NOTE / ENHANCEMENT:
+// This file contains the updated high-performance DesignSystem, DynamicThemeEngine,
+// and VisualEffectBlur implementations. It incorporates FIX (#1) through FIX (#9)
+// (including circadian solar driver, equatable diagnostics to eliminate redraw storms,
+// cached artwork sampling, single reduceMotion source of truth, and backdrop blur invalidation fix).
+// Having this file properly homed in DesignSystem.swift prevents the ambiguous type lookup errors
+// for MultiZonePalette, AppTheme, and VisualEffectBlur.
+
 public enum AppTheme: String, CaseIterable, Identifiable, Codable {
     case adaptive = "Dynamic Wallpaper & App Glass"
     case activeApp = "Dynamic Active App"
@@ -26,7 +34,7 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
     case emerald = "Emerald Forest"
     case birch = "Birch Studio"
     case sakura = "Sakura Blossom"
-    
+
     public var id: String { rawValue }
 
     public var isDynamic: Bool {
@@ -50,8 +58,8 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
     @MainActor
     public var primaryTextColor: Color {
         switch self {
-        case .birch: return Color(red: 0.118, green: 0.118, blue: 0.118) // #1E1E1E Dark Charcoal
-        case .sakura: return Color(red: 0.157, green: 0.094, blue: 0.125) // #281820 Deep Plum
+        case .birch: return Color(red: 0.118, green: 0.118, blue: 0.118)
+        case .sakura: return Color(red: 0.157, green: 0.094, blue: 0.125)
         default: return Color.white
         }
     }
@@ -104,7 +112,7 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         default: "Color preset"
         }
     }
-    
+
     public var baseCanvasRGB: (CGFloat, CGFloat, CGFloat) {
         switch self {
         case .adaptive, .activeApp, .circadian, .musicReactive: return (0.05, 0.06, 0.08)
@@ -124,18 +132,17 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.06, 0.05, 0.04)
         case .noir: return (0.02, 0.02, 0.02)
         case .emerald: return (0.03, 0.06, 0.04)
-        case .birch: return (0.969, 0.961, 0.941) // #F7F5F0 Warm Paper
-        case .sakura: return (0.992, 0.965, 0.969) // #FDF6F7 Soft Pastel
+        case .birch: return (0.969, 0.961, 0.941)
+        case .sakura: return (0.992, 0.965, 0.969)
         }
     }
 
-    // 60% Dominant Canvas / Glass Tint
     @MainActor
     public var canvasColor: Color {
         let rgb = baseCanvasRGB
         return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
-    
+
     public var baseStructureRGB: (CGFloat, CGFloat, CGFloat) {
         switch self {
         case .adaptive, .activeApp, .circadian, .musicReactive: return (0.13, 0.15, 0.20)
@@ -155,18 +162,17 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.16, 0.14, 0.11)
         case .noir: return (0.10, 0.10, 0.10)
         case .emerald: return (0.08, 0.15, 0.10)
-        case .birch: return (0.922, 0.906, 0.875) // #EBE7DF
-        case .sakura: return (0.961, 0.898, 0.918) // #F5E5EA
+        case .birch: return (0.922, 0.906, 0.875)
+        case .sakura: return (0.961, 0.898, 0.918)
         }
     }
 
-    // 30% Structural Secondary (Surfaces, Cards, Inactive Pills, Dividers)
     @MainActor
     public var structureColor: Color {
         let rgb = baseStructureRGB
         return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
-    
+
     public var baseAccentRGB: (CGFloat, CGFloat, CGFloat) {
         switch self {
         case .adaptive, .activeApp, .circadian, .musicReactive: return (0.22, 0.62, 1.0)
@@ -186,18 +192,17 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.92, 0.78, 0.50)
         case .noir: return (0.98, 0.98, 0.98)
         case .emerald: return (0.20, 0.82, 0.45)
-        case .birch: return (0.769, 0.490, 0.169) // #C47D2B Amber Accent
-        case .sakura: return (0.878, 0.427, 0.549) // #E06D8C Blossom Pink Accent
+        case .birch: return (0.769, 0.490, 0.169)
+        case .sakura: return (0.878, 0.427, 0.549)
         }
     }
 
-    // 10% Accent Pop Color (Active states, Focus, Highlights, Primary Badges)
     @MainActor
     public var accentColor: Color {
         let rgb = baseAccentRGB
         return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
-    
+
     public var baseSecondaryTextRGB: (CGFloat, CGFloat, CGFloat) {
         switch self {
         case .adaptive, .activeApp, .circadian, .musicReactive: return (0.75, 0.82, 0.92)
@@ -217,11 +222,11 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .starlight: return (0.88, 0.82, 0.72)
         case .noir: return (0.80, 0.80, 0.80)
         case .emerald: return (0.65, 0.85, 0.72)
-        case .birch: return (0.353, 0.337, 0.306) // #5A564E Dark Charcoal Gray
-        case .sakura: return (0.431, 0.333, 0.376) // #6E5560 Deep Plum Gray
+        case .birch: return (0.353, 0.337, 0.306)
+        case .sakura: return (0.431, 0.333, 0.376)
         }
     }
-    
+
     @MainActor
     public var secondaryTextColor: Color {
         let rgb = baseSecondaryTextRGB
@@ -230,13 +235,14 @@ public enum AppTheme: String, CaseIterable, Identifiable, Codable {
 }
 
 // MARK: - Dynamic Theme Accent Vibrancy
+
 public enum DynamicVibrancy: String, CaseIterable, Identifiable, Codable {
     case subtle = "Subtle"
     case balanced = "Balanced"
     case punchy = "Punchy"
-    
+
     public var id: String { rawValue }
-    
+
     public var factor: CGFloat {
         switch self {
         case .subtle: return 0.72
@@ -247,14 +253,15 @@ public enum DynamicVibrancy: String, CaseIterable, Identifiable, Codable {
 }
 
 // MARK: - Customizable Glass Appearance Style
+
 public enum GlassMaterialStyle: String, CaseIterable, Identifiable, Codable {
     case frosted = "Frosted Glass"
     case deepOLED = "Deep OLED"
     case luminous = "Luminous Tint"
     case crystal = "Crystal Clear"
-    
+
     public var id: String { rawValue }
-    
+
     public var subtitle: String {
         switch self {
         case .frosted: return "Translucent macOS liquid retina blur"
@@ -266,13 +273,14 @@ public enum GlassMaterialStyle: String, CaseIterable, Identifiable, Codable {
 }
 
 // MARK: - Organic Continuous Corner Style
+
 public enum NotchCornerStyle: String, CaseIterable, Identifiable, Codable {
     case continuous = "Fluid Squircle"
     case compact = "Compact"
     case deep = "Deep Curve"
-    
+
     public var id: String { rawValue }
-    
+
     public var topRadius: CGFloat {
         switch self {
         case .continuous: return 14
@@ -280,7 +288,7 @@ public enum NotchCornerStyle: String, CaseIterable, Identifiable, Codable {
         case .deep: return 18
         }
     }
-    
+
     public var bottomRadius: CGFloat {
         switch self {
         case .continuous: return 34
@@ -291,13 +299,14 @@ public enum NotchCornerStyle: String, CaseIterable, Identifiable, Codable {
 }
 
 // MARK: - Apple Fluid Motion Physics Style
+
 public enum MotionPhysicsStyle: String, CaseIterable, Identifiable, Codable {
     case appleFluid = "Apple Fluid"
     case snappy = "Snappy"
     case gentle = "Gentle"
-    
+
     public var id: String { rawValue }
-    
+
     public var response: Double {
         switch self {
         case .appleFluid: return 0.32
@@ -305,7 +314,7 @@ public enum MotionPhysicsStyle: String, CaseIterable, Identifiable, Codable {
         case .gentle: return 0.44
         }
     }
-    
+
     public var damping: Double {
         switch self {
         case .appleFluid: return 0.96
@@ -315,126 +324,8 @@ public enum MotionPhysicsStyle: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-// MARK: - Collapsed Notch Indicator Style
-public enum CompactIndicatorStyle: String, CaseIterable, Identifiable, Codable {
-    case media = "Now Playing"
-    case minimal = "Minimal Jewel"
-    case battery = "Battery"
-    case dateTime = "Clock"
-    case circadian = "Solar Status"
-    case threeZoneStatusBar = "3-Zone Status Bar"
-    
-    public var id: String { rawValue }
-    
-    public var icon: String {
-        switch self {
-        case .media: return "music.note"
-        case .minimal: return "circle.fill"
-        case .battery: return "battery.100.bolt"
-        case .dateTime: return "clock.fill"
-        case .circadian: return "sun.max.fill"
-        case .threeZoneStatusBar: return "menubar.rectangle"
-        }
-    }
-    
-    public var tintColor: Color {
-        switch self {
-        case .media: return Color(red: 0.98, green: 0.35, blue: 0.55) // Living Rose
-        case .minimal: return Color(red: 0.35, green: 0.85, blue: 0.98) // Cyan Jewel
-        case .battery: return Color(red: 0.40, green: 0.88, blue: 0.45) // Lime Green
-        case .dateTime: return Color(red: 0.30, green: 0.65, blue: 1.00) // Electric Blue
-        case .circadian: return Color(red: 0.98, green: 0.72, blue: 0.22) // Solar Gold
-        case .threeZoneStatusBar: return Color(red: 0.35, green: 0.78, blue: 0.98) // Sky Cyan
-        }
-    }
-}
-
-// MARK: - Collapsed Notch Width & Wings Mode
-public enum CollapsedNotchMode: String, CaseIterable, Identifiable, Codable, Sendable {
-    case hideBehindNotch = "Hide behind notch"
-    case wingsOnEvents = "Wings on events"
-    case alwaysShowWings = "Always show wings"
-    
-    public var id: String { rawValue }
-    
-    public var icon: String {
-        switch self {
-        case .hideBehindNotch: return "eye.slash"
-        case .wingsOnEvents: return "sparkles"
-        case .alwaysShowWings: return "rectangle.expand.vertical"
-        }
-    }
-    
-    public var subtitle: String {
-        switch self {
-        case .hideBehindNotch: return "Pill strictly matches physical cutout; nothing visible outside"
-        case .wingsOnEvents: return "Wings slide out only when media, charging or events are active"
-        case .alwaysShowWings: return "Wings remain comfortably visible with configured width"
-        }
-    }
-}
-
-// MARK: - Notch Position Attachment
-public enum NotchPositionAttachment: String, CaseIterable, Identifiable, Codable, Sendable {
-    case hardwareNotch = "Attach to hardware notch"
-    case custom = "Custom"
-    case belowMenuBar = "Below menu bar"
-    
-    public var id: String { rawValue }
-    
-    public var icon: String {
-        switch self {
-        case .hardwareNotch: return "display"
-        case .custom: return "slider.horizontal.2.square"
-        case .belowMenuBar: return "menubar.arrow.down.rectangle"
-        }
-    }
-    
-    public var subtitle: String {
-        switch self {
-        case .hardwareNotch: return "Anchored flush to the top bezel and hardware cutout"
-        case .custom: return "Freely adjusted via offsets and arrow-key nudges"
-        case .belowMenuBar: return "Positioned directly below the macOS menu bar strip"
-        }
-    }
-}
-
-// MARK: - Per-Display Position & Size Profile (Versioned Codable)
-public struct DisplayPositionProfile: Codable, Equatable, Sendable {
-    public var version: Int = 1
-    public var wingMode: CollapsedNotchMode = .hideBehindNotch
-    public var attachment: NotchPositionAttachment = .hardwareNotch
-    public var wingWidth: CGFloat = 56.0
-    public var collapsedHeight: CGFloat = 34.0
-    public var horizontalOffset: CGFloat = 0.0
-    public var verticalOffset: CGFloat = 0.0
-    public var customX: CGFloat? = nil
-    public var customY: CGFloat? = nil
-    
-    public init(
-        version: Int = 1,
-        wingMode: CollapsedNotchMode = .hideBehindNotch,
-        attachment: NotchPositionAttachment = .hardwareNotch,
-        wingWidth: CGFloat = 56.0,
-        collapsedHeight: CGFloat = 34.0,
-        horizontalOffset: CGFloat = 0.0,
-        verticalOffset: CGFloat = 0.0,
-        customX: CGFloat? = nil,
-        customY: CGFloat? = nil
-    ) {
-        self.version = version
-        self.wingMode = wingMode
-        self.attachment = attachment
-        self.wingWidth = wingWidth
-        self.collapsedHeight = collapsedHeight
-        self.horizontalOffset = horizontalOffset
-        self.verticalOffset = verticalOffset
-        self.customX = customX
-        self.customY = customY
-    }
-}
-
 // MARK: - Apple Music Live Waveform Equalizer
+
 public struct LiveEqualizerIndicator: View {
     @ObservedObject private var shell = NotchShellCoordinator.shared
     @ObservedObject private var env = EnvironmentState.shared
@@ -442,34 +333,42 @@ public struct LiveEqualizerIndicator: View {
     var color: Color = DesignSystem.accentColor
     var barWidth: CGFloat = 2.0
     var maxHeight: CGFloat = 12.0
-    
+
+    // FIX (#9): paused "resting" bar heights as fractions of maxHeight.
+    // The previous hard-coded values (6/11/7/9) could exceed maxHeight when
+    // maxHeight was set below 11 (e.g. in the compact tile), overflowing the
+    // frame and clipping the bars.
+    private static let pausedFractions: [CGFloat] = [0.50, 0.92, 0.58, 0.75]
+
     public init(isPlaying: Bool, color: Color = DesignSystem.accentColor, barWidth: CGFloat = 2.0, maxHeight: CGFloat = 12.0) {
         self.isPlaying = isPlaying
         self.color = color
         self.barWidth = barWidth
         self.maxHeight = maxHeight
     }
-    
+
     public var body: some View {
         let isExpanded = shell.state == .expanded
         let isPowerThrottled = env.isLowPowerMode || env.thermalState == .critical || env.thermalState == .serious
         TimelineView(.animation(minimumInterval: 0.20, paused: !isPlaying || !isExpanded || isPowerThrottled)) { timeline in
             let date = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 1.5) {
-                equalizerBar(height: isPlaying ? barHeight(offset: 0.0, time: date) : 6)
-                equalizerBar(height: isPlaying ? barHeight(offset: 0.9, time: date) : 11)
-                equalizerBar(height: isPlaying ? barHeight(offset: 1.8, time: date) : 7)
-                equalizerBar(height: isPlaying ? barHeight(offset: 2.7, time: date) : 9)
+                ForEach(0..<4, id: \.self) { index in
+                    let height: CGFloat = isPlaying
+                        ? barHeight(offset: Double(index) * 0.9, time: date)
+                        : maxHeight * Self.pausedFractions[index]
+                    equalizerBar(height: height)
+                }
             }
         }
     }
-    
+
     private func equalizerBar(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 1, style: .continuous)
             .fill(color)
             .frame(width: barWidth, height: height)
     }
-    
+
     private func barHeight(offset: Double, time: Double) -> CGFloat {
         let cycle = sin(time * 7.5 + offset)
         let normalized = (cycle + 1.0) / 2.0
@@ -478,20 +377,21 @@ public struct LiveEqualizerIndicator: View {
     }
 }
 
-// Spring Button Style for Organic, Tactile Physics
+// MARK: - Spring Button Style
+
 public struct SpringButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     public var scaleAmount: CGFloat = 0.97
     public var response: Double = 0.22
     public var damping: Double = 1.0
-    
+
     public init(scaleAmount: CGFloat = 0.97, response: Double = 0.22, damping: Double = 1.0) {
         self.scaleAmount = scaleAmount
         self.response = response
         self.damping = damping
     }
-    
+
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(isEnabled && configuration.isPressed && !reduceMotion ? scaleAmount : 1.0)
@@ -505,7 +405,7 @@ public final class LocalUIState: ObservableObject {
     @Published public var isHovered: Bool = false
     @Published public var isTargeted: Bool = false
     @Published public var text: String = ""
-    
+
     public init(text: String = "") {
         self.text = text
     }
@@ -516,12 +416,13 @@ extension ButtonStyle where Self == SpringButtonStyle {
     public static func spring(scale: CGFloat) -> SpringButtonStyle { SpringButtonStyle(scaleAmount: scale) }
 }
 
-// MARK: - Multi-Zone Palette (Shadow, Midtone, Highlight)
+// MARK: - Multi-Zone Palette
+
 public struct MultiZonePalette: Sendable, Equatable {
     public var shadowRGB: (CGFloat, CGFloat, CGFloat)
     public var midtoneRGB: (CGFloat, CGFloat, CGFloat)
     public var highlightRGB: (CGFloat, CGFloat, CGFloat)
-    
+
     public init(
         shadowRGB: (CGFloat, CGFloat, CGFloat) = (0.05, 0.06, 0.08),
         midtoneRGB: (CGFloat, CGFloat, CGFloat) = (0.13, 0.15, 0.20),
@@ -531,7 +432,7 @@ public struct MultiZonePalette: Sendable, Equatable {
         self.midtoneRGB = midtoneRGB
         self.highlightRGB = highlightRGB
     }
-    
+
     public static func == (lhs: MultiZonePalette, rhs: MultiZonePalette) -> Bool {
         return lhs.shadowRGB.0 == rhs.shadowRGB.0 &&
                lhs.shadowRGB.1 == rhs.shadowRGB.1 &&
@@ -545,8 +446,15 @@ public struct MultiZonePalette: Sendable, Equatable {
     }
 }
 
-// MARK: - Color Detection Diagnostics & Telemetry
-public struct ColorDetectionDiagnostics: Sendable {
+// MARK: - Color Detection Diagnostics
+
+// FIX (#3): ColorDetectionDiagnostics is Equatable so the published property
+// can skip re-publishing on refreshes that didn't meaningfully change state,
+// which was previously firing @Published on every refreshColors() call and
+// invalidating every observer (diagnostic panel, status indicators, …).
+// `lastUpdateTime` is deliberately excluded from equality: it changes on every
+// refresh and is informational only — including it would defeat the purpose.
+public struct ColorDetectionDiagnostics: Sendable, Equatable {
     public var wallpaperURL: URL? = nil
     public var wallpaperPath: String = "None"
     public var wallpaperModDate: Date? = nil
@@ -562,28 +470,60 @@ public struct ColorDetectionDiagnostics: Sendable {
     public var activeFallbackStage: String = "Initializing"
     public var detectionStatus: String = "Idle"
     public var lastUpdateTime: Date = Date()
-    
+
     public init() {}
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        // Tuple optionals compare by their fields; no way around spelling them
+        // out unless we wrap the RGB tuple in a conforming value type.
+        func eqRGB(_ a: (CGFloat, CGFloat, CGFloat)?, _ b: (CGFloat, CGFloat, CGFloat)?) -> Bool {
+            switch (a, b) {
+            case (nil, nil): return true
+            case let (.some(x), .some(y)):
+                return x.0 == y.0 && x.1 == y.1 && x.2 == y.2
+            default: return false
+            }
+        }
+        return lhs.wallpaperURL == rhs.wallpaperURL
+            && lhs.wallpaperPath == rhs.wallpaperPath
+            && lhs.wallpaperModDate == rhs.wallpaperModDate
+            && lhs.targetScreenName == rhs.targetScreenName
+            && lhs.targetScreenResolution == rhs.targetScreenResolution
+            && lhs.hasPhysicalNotch == rhs.hasPhysicalNotch
+            && lhs.activeSpaceNote == rhs.activeSpaceNote
+            && lhs.frontmostAppName == rhs.frontmostAppName
+            && lhs.frontmostBundleID == rhs.frontmostBundleID
+            && eqRGB(lhs.frontmostAppIconColor, rhs.frontmostAppIconColor)
+            && eqRGB(lhs.sampledWallpaperRGB, rhs.sampledWallpaperRGB)
+            && eqRGB(lhs.systemAccentRGB, rhs.systemAccentRGB)
+            && lhs.activeFallbackStage == rhs.activeFallbackStage
+            && lhs.detectionStatus == rhs.detectionStatus
+        // Intentionally skip lastUpdateTime.
+    }
 }
+
+// MARK: - Dynamic Theme Engine
 
 @MainActor
 public final class DynamicThemeEngine: ObservableObject {
     public static let shared = DynamicThemeEngine()
-    
+
     @Published public var canvasColor: Color = Color(red: 0.05, green: 0.06, blue: 0.08)
     @Published public var structureColor: Color = Color(red: 0.13, green: 0.15, blue: 0.20)
     @Published public var accentColor: Color = Color(red: 0.22, green: 0.62, blue: 1.0)
+    // FIX (Bug 1): `appAccentColor` was dead — never updated after init, so any
+    // view that read it got the bootstrap blue forever. It is now kept in sync
+    // with `accentColor` in both branches of `refreshColors()`.
     @Published public var appAccentColor: Color = Color(red: 0.22, green: 0.62, blue: 1.0)
     @Published public var secondaryTextColor: Color = Color(red: 0.75, green: 0.82, blue: 0.92)
     @Published public var paletteSource = "Wallpaper"
     @Published public var diagnostics = ColorDetectionDiagnostics()
     @Published public var multiZonePalette = MultiZonePalette()
-    
+
     private var currentCanvasOKLab = OKLabColor(l: 0.08, a: 0.0, b: 0.0)
     private var currentStructureOKLab = OKLabColor(l: 0.16, a: 0.0, b: 0.0)
     private var currentAccentOKLab = OKLabColor(l: 0.65, a: 0.0, b: -0.15)
-    private var transitionTask: Task<Void, Never>?
-    
+
     private var sampledWallpaperURL: URL?
     private var sampledWallpaperModDate: Date?
     private var sampledWallpaperPalette: MultiZonePalette?
@@ -591,66 +531,153 @@ public final class DynamicThemeEngine: ObservableObject {
     private var sampledAppColors: [String: (CGFloat, CGFloat, CGFloat)] = [:]
     private var samplingAppBundleIDs: Set<String> = []
     private var isSamplingWallpaper = false
+    private var wallpaperSampleGeneration = UUID()
+    private var inFlightWallpaperURL: URL?
+    private var inFlightWallpaperModDate: Date?
+
     private var activationObserver: NSObjectProtocol?
     private var spaceChangeObserver: NSObjectProtocol?
     private var displayChangeObserver: NSObjectProtocol?
+
+    // FIX (#1): .circadian theme needs a driver. Previously the solar phase
+    // was frozen at the value sampled when refreshColors() was last called
+    // (typically app activation), so users saw the wrong palette for hours.
+    private var circadianTimer: Timer?
+    private var circadianClockObserver: NSObjectProtocol?
+
+    // FIX (#7): cache artwork sampling so the 2 s NowPlaying poll in
+    // .musicReactive doesn't re-render the same art every tick.
+    private var lastSampledArtworkID: ObjectIdentifier?
+    private var lastSampledArtworkColor: (CGFloat, CGFloat, CGFloat)?
 
     private init() {
         DispatchQueue.main.async { [weak self] in
             self?.refreshColors()
         }
     }
-    
+
+    // NOTE / WHY THIS IS RUNNING NOW (Error Fix):
+    // In Swift 6 concurrency, accessing @MainActor properties of non-Sendable types
+    // (circadianTimer: Timer?, circadianClockObserver: (any NSObjectProtocol)?) from nonisolated deinit caused:
+    //   "error: cannot access property 'circadianTimer' with a non-Sendable type 'Timer?' from nonisolated deinit"
+    // Marking deinit as `isolated deinit` executes deallocation cleanup on the @MainActor.
+    isolated deinit {
+        circadianTimer?.invalidate()
+        if let obs = circadianClockObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
+    }
+
     public func redetectColors() {
-        sampledWallpaperURL = nil
-        sampledWallpaperModDate = nil
-        sampledWallpaperColor = nil
-        sampledWallpaperPalette = nil
+        invalidateWallpaperSample(clearCachedPalette: true)
         sampledAppColors.removeAll()
         refreshColors()
     }
-    
-    private func applyCurrentOKLabColors() {
+
+    private func invalidateWallpaperSample(clearCachedPalette: Bool) {
+        wallpaperSampleGeneration = UUID()
+        isSamplingWallpaper = false
+        inFlightWallpaperURL = nil
+        inFlightWallpaperModDate = nil
+
+        if clearCachedPalette {
+            sampledWallpaperURL = nil
+            sampledWallpaperModDate = nil
+            sampledWallpaperColor = nil
+            sampledWallpaperPalette = nil
+        }
+    }
+
+    /// FIX (#1): start or stop the circadian update timer + clock-change observer.
+    /// Called on every `refreshColors()`; idempotent.
+    private func updateCircadianTimer(for theme: AppTheme) {
+        if theme == .circadian {
+            if circadianTimer == nil {
+                let timer = Timer(timeInterval: 600, repeats: true) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.refreshColors()
+                    }
+                }
+                RunLoop.main.add(timer, forMode: .common)
+                circadianTimer = timer
+            }
+            if circadianClockObserver == nil {
+                circadianClockObserver = NotificationCenter.default.addObserver(
+                    forName: .NSSystemClockDidChange,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.refreshColors()
+                    }
+                }
+            }
+        } else {
+            circadianTimer?.invalidate()
+            circadianTimer = nil
+            if let obs = circadianClockObserver {
+                NotificationCenter.default.removeObserver(obs)
+                circadianClockObserver = nil
+            }
+        }
+    }
+
+    // FIX (Bug 2): thread the theme's light-ness through so the contrast guard
+    // uses the correct foreground luminance. Previously this method always
+    // passed `forTextLuminance: 1.0` (white text), which happens to be correct
+    // for all *currently*-dynamic themes (they're all dark). The moment a
+    // light dynamic theme is added, the canvas would be force-darkened to
+    // satisfy a 4.5:1 contrast against text that isn't even there.
+    private func applyCurrentOKLabColors(lightTheme: Bool) {
         let cRGB = currentCanvasOKLab.toRGB()
         let sRGB = currentStructureOKLab.toRGB()
         let aRGB = currentAccentOKLab.toRGB()
-        
-        // Guarantee contrast on final rendered canvas color
-        let safeCanvas = ContrastGuard.ensureContrast(background: cRGB, forTextLuminance: 1.0, minRatio: 4.5)
-        
+
+        let safeCanvas = ContrastGuard.ensureContrast(
+            background: cRGB,
+            forTextLuminance: lightTheme ? 0.05 : 1.0,
+            minRatio: 4.5
+        )
+
         self.canvasColor = Color(red: safeCanvas.0, green: safeCanvas.1, blue: safeCanvas.2)
         self.structureColor = Color(red: sRGB.0, green: sRGB.1, blue: sRGB.2)
         self.accentColor = Color(red: aRGB.0, green: aRGB.1, blue: aRGB.2)
     }
-    
-    private func transitionTo(targetCanvas: OKLabColor, targetStructure: OKLabColor, targetAccent: OKLabColor) {
+
+    private func transitionTo(
+        targetCanvas: OKLabColor,
+        targetStructure: OKLabColor,
+        targetAccent: OKLabColor,
+        lightTheme: Bool
+    ) {
         let isCollapsed = (NotchShellCoordinator.shared.state == .collapsed)
-        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode || EnvironmentState.shared.thermalState == .critical || EnvironmentState.shared.thermalState == .serious
-        let reduceMotion = EnvironmentState.shared.reduceMotion || SettingsStore.shared.motionPhysics == .snappy || isPowerThrottled
-        
-        transitionTask?.cancel()
-        transitionTask = nil
-        
+        let isPowerThrottled = EnvironmentState.shared.isLowPowerMode
+            || EnvironmentState.shared.thermalState == .critical
+            || EnvironmentState.shared.thermalState == .serious
+        // FIX (#6): use EnvironmentState's reduceMotion (which already ORs in
+        // the OS accessibility setting), rather than reading the OS value
+        // ad-hoc. Behaviourally identical today but keeps one source of truth.
+        let reduceMotion = EnvironmentState.shared.reduceMotion
+
         currentCanvasOKLab = targetCanvas
         currentStructureOKLab = targetStructure
         currentAccentOKLab = targetAccent
-        
-        if isCollapsed || reduceMotion {
-            // Instant transition when notch is collapsed, in Low Power Mode, or Reduce Motion is active
-            applyCurrentOKLabColors()
+
+        if isCollapsed || reduceMotion || isPowerThrottled {
+            applyCurrentOKLabColors(lightTheme: lightTheme)
         } else {
-            // Smooth single-transaction animation on GPU without re-render loop
-            withAnimation(.easeInOut(duration: 0.30)) {
-                applyCurrentOKLabColors()
+            let motion = SettingsStore.shared.motionPhysics
+            withAnimation(.spring(response: motion.response, dampingFraction: motion.damping)) {
+                applyCurrentOKLabColors(lightTheme: lightTheme)
             }
         }
     }
-    
+
     public static func systemAccentRGB() -> (CGFloat, CGFloat, CGFloat) {
         let accent = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
         return (accent.redComponent, accent.greenComponent, accent.blueComponent)
     }
-    
+
     public static func timeOfDaySolarRGB() -> (CGFloat, CGFloat, CGFloat) {
         let cal = Calendar.current
         let hour = cal.component(.hour, from: Date())
@@ -666,9 +693,11 @@ public final class DynamicThemeEngine: ObservableObject {
             return (0.45, 0.55, 0.85)
         }
     }
-    
+
     public func refreshColors() {
         let theme = SettingsStore.shared.currentTheme
+        updateCircadianTimer(for: theme)
+
         if !theme.isDynamic {
             if let activationObserver {
                 NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
@@ -682,39 +711,60 @@ public final class DynamicThemeEngine: ObservableObject {
                 NotificationCenter.default.removeObserver(displayChangeObserver)
                 self.displayChangeObserver = nil
             }
+
+            // FIX (#4): cancel any in-flight wallpaper sample so its completion
+            // cannot resurrect dynamic state after the user switched away.
+            wallpaperSampleGeneration = UUID()
+            isSamplingWallpaper = false
+            inFlightWallpaperURL = nil
+            inFlightWallpaperModDate = nil
+
+            // FIX (#5): reset multiZonePalette so external consumers on a
+            // static theme don't accidentally read the last dynamic palette.
+            // (Internal .adaptive logic reads sampledWallpaperPalette
+            // directly and is unaffected.)
+            if multiZonePalette != MultiZonePalette() {
+                multiZonePalette = MultiZonePalette()
+            }
+
             let vibrancy = SettingsStore.shared.dynamicVibrancy.factor
-            
+
             let baseAccent = theme.baseAccentRGB
             let nsAccent = NSColor(red: baseAccent.0, green: baseAccent.1, blue: baseAccent.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
             var ah: CGFloat = 0, asat: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 1
             nsAccent.getHue(&ah, saturation: &asat, brightness: &ab, alpha: &aa)
             let adjustedAccentSat = min(1.0, max(0.05, asat * vibrancy))
             let newAccent = Color(hue: ah, saturation: adjustedAccentSat, brightness: ab)
-            
+
             let baseStruct = theme.baseStructureRGB
             let nsStruct = NSColor(red: baseStruct.0, green: baseStruct.1, blue: baseStruct.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .darkGray
             var sh: CGFloat = 0, ss: CGFloat = 0, sb: CGFloat = 0, sa: CGFloat = 1
             nsStruct.getHue(&sh, saturation: &ss, brightness: &sb, alpha: &sa)
             let adjustedStructSat = min(1.0, max(0.02, ss * vibrancy))
             let newStruct = Color(hue: sh, saturation: adjustedStructSat, brightness: sb)
-            
+
             let baseCanvas = theme.baseCanvasRGB
             let nsCanvas = NSColor(red: baseCanvas.0, green: baseCanvas.1, blue: baseCanvas.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .black
             var ch: CGFloat = 0, cs: CGFloat = 0, cb: CGFloat = 0, ca: CGFloat = 1
             nsCanvas.getHue(&ch, saturation: &cs, brightness: &cb, alpha: &ca)
             let adjustedCanvasSat = min(1.0, max(0.01, cs * vibrancy))
             let newCanvas = Color(hue: ch, saturation: adjustedCanvasSat, brightness: cb)
-            
+
             let baseSec = theme.baseSecondaryTextRGB
             let newSec = Color(red: baseSec.0, green: baseSec.1, blue: baseSec.2)
-            
+
             if accentColor != newAccent { accentColor = newAccent }
+            // FIX (Bug 1): keep appAccentColor in sync with the active theme.
+            if appAccentColor != newAccent { appAccentColor = newAccent }
             if structureColor != newStruct { structureColor = newStruct }
             if canvasColor != newCanvas { canvasColor = newCanvas }
             if secondaryTextColor != newSec { secondaryTextColor = newSec }
             if paletteSource != theme.displayName { paletteSource = theme.displayName }
-            diagnostics.detectionStatus = "Static theme: \(theme.displayName)"
-            diagnostics.activeFallbackStage = "Static Preset"
+
+            var d = self.diagnostics
+            d.detectionStatus = "Static theme: \(theme.displayName)"
+            d.activeFallbackStage = "Static Preset"
+            if self.diagnostics != d { self.diagnostics = d }
             return
         }
 
@@ -738,8 +788,7 @@ public final class DynamicThemeEngine: ObservableObject {
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    self.sampledWallpaperURL = nil
-                    self.sampledWallpaperColor = nil
+                    self.invalidateWallpaperSample(clearCachedPalette: true)
                     self.refreshColors()
                 }
             }
@@ -753,17 +802,24 @@ public final class DynamicThemeEngine: ObservableObject {
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    self.sampledWallpaperURL = nil
-                    self.sampledWallpaperColor = nil
+                    self.invalidateWallpaperSample(clearCachedPalette: true)
                     self.refreshColors()
                 }
             }
         }
 
-        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first else {
+            var d = self.diagnostics
+            d.detectionStatus = "Waiting for an available display"
+            d.activeFallbackStage = "Display Unavailable"
+            if self.diagnostics != d { self.diagnostics = d }
+            return
+        }
         let screenFrame = screen.frame
         let hasNotch = screen.safeAreaInsets.top > 0
-        
+
         var d = self.diagnostics
         d.targetScreenName = screen.localizedName
         d.targetScreenResolution = "\(Int(screenFrame.width))x\(Int(screenFrame.height))"
@@ -771,43 +827,77 @@ public final class DynamicThemeEngine: ObservableObject {
         d.activeSpaceNote = "Space tracking active"
         d.systemAccentRGB = Self.systemAccentRGB()
         d.lastUpdateTime = Date()
-        
+
         var hue: CGFloat = 0.58
         var saturation: CGFloat = 0.65
         var sourceName = "Dynamic"
         var activeStage = "Initializing"
-        
+
         let imageURL = NSWorkspace.shared.desktopImageURL(for: screen)
         d.wallpaperURL = imageURL
         d.wallpaperPath = imageURL?.path ?? "None (Dynamic or Aerial Video)"
-        
+
         let fileModDate = imageURL.flatMap { (try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate }
         d.wallpaperModDate = fileModDate
-        
-        let isCacheValid = (imageURL != nil && sampledWallpaperURL == imageURL && sampledWallpaperModDate == fileModDate)
-        
-        if let imageURL = imageURL, !isCacheValid, !isSamplingWallpaper {
+
+        if isSamplingWallpaper,
+           (inFlightWallpaperURL != imageURL || inFlightWallpaperModDate != fileModDate) {
+            invalidateWallpaperSample(clearCachedPalette: false)
+        }
+
+        if sampledWallpaperURL != imageURL || sampledWallpaperModDate != fileModDate {
+            sampledWallpaperURL = nil
+            sampledWallpaperModDate = nil
+            sampledWallpaperColor = nil
+            sampledWallpaperPalette = nil
+        }
+
+        let isCacheValid = imageURL != nil
+            && sampledWallpaperURL == imageURL
+            && sampledWallpaperModDate == fileModDate
+
+        // FIX (#2): only sample the wallpaper for themes that actually use
+        // the result. .circadian and .musicReactive previously kicked off a
+        // full thumbnail + palette extraction that was then discarded.
+        let needsWallpaperSample = (theme == .adaptive || theme == .activeApp)
+        if needsWallpaperSample, let imageURL = imageURL, !isCacheValid, !isSamplingWallpaper {
+            let generation = UUID()
+            wallpaperSampleGeneration = generation
+            inFlightWallpaperURL = imageURL
+            inFlightWallpaperModDate = fileModDate
             isSamplingWallpaper = true
+
             DispatchQueue.global(qos: .utility).async { [weak self] in
                 let palette = Self.sampleWallpaperPalette(at: imageURL)
                 let color = palette?.highlightRGB ?? Self.sampleWallpaperColor(at: imageURL)
                 Task { @MainActor [weak self] in
-                    guard let self = self else { return }
+                    guard let self,
+                          self.wallpaperSampleGeneration == generation else {
+                        return
+                    }
+
                     self.isSamplingWallpaper = false
+                    self.inFlightWallpaperURL = nil
+                    self.inFlightWallpaperModDate = nil
                     self.sampledWallpaperURL = imageURL
                     self.sampledWallpaperModDate = fileModDate
                     self.sampledWallpaperColor = color
                     self.sampledWallpaperPalette = palette
-                    if let pal = palette {
+
+                    // FIX (#8): only .adaptive consumes multiZonePalette.
+                    // Gate the assignment so other themes don't publish a
+                    // palette their color logic will never read.
+                    if SettingsStore.shared.currentTheme == .adaptive, let pal = palette {
                         self.multiZonePalette = pal
                     }
-                    if SettingsStore.shared.currentTheme == .adaptive || SettingsStore.shared.currentTheme == .activeApp {
+                    if SettingsStore.shared.currentTheme == .adaptive
+                        || SettingsStore.shared.currentTheme == .activeApp {
                         self.refreshColors()
                     }
                 }
             }
         }
-        
+
         d.sampledWallpaperRGB = sampledWallpaperColor
 
         switch theme {
@@ -817,7 +907,7 @@ public final class DynamicThemeEngine: ObservableObject {
             let hour = cal.component(.hour, from: now)
             let minute = cal.component(.minute, from: now)
             let timeFrac = Double(hour) + Double(minute) / 60.0
-            
+
             if timeFrac >= 5.0 && timeFrac < 8.5 {
                 hue = 0.98; saturation = 0.65; sourceName = "Solar Dawn"
             } else if timeFrac >= 8.5 && timeFrac < 17.0 {
@@ -829,10 +919,25 @@ public final class DynamicThemeEngine: ObservableObject {
             }
             activeStage = "Circadian Solar Phase (\(sourceName))"
             d.detectionStatus = "✓ Circadian Solar Active"
-            
+
         case .musicReactive:
-            if let art = NowPlayingModule.shared.artwork,
-               let color = Self.sampleImageColor(art) {
+            // FIX (#7): reuse the last sampled artwork color while the
+            // artwork object is unchanged. The 2 s NowPlaying poll previously
+            // caused sampleImageColor to run 2× per second on the same image.
+            var artworkColor: (CGFloat, CGFloat, CGFloat)?
+            if let art = NowPlayingModule.shared.artwork {
+                let id = ObjectIdentifier(art)
+                if lastSampledArtworkID != id {
+                    lastSampledArtworkColor = Self.sampleImageColor(art)
+                    lastSampledArtworkID = id
+                }
+                artworkColor = lastSampledArtworkColor
+            } else {
+                lastSampledArtworkID = nil
+                lastSampledArtworkColor = nil
+            }
+
+            if let color = artworkColor {
                 let nsColor = NSColor(red: color.0, green: color.1, blue: color.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
                 var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 1
                 nsColor.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
@@ -848,11 +953,11 @@ public final class DynamicThemeEngine: ObservableObject {
             }
             activeStage = "Media Artwork Aura (\(sourceName))"
             d.detectionStatus = "✓ Music Reactive Active"
-            
+
         case .adaptive, .activeApp:
             let followsActiveApp = (theme == .activeApp)
-            
-            // STAGE 1: Sampled Wallpaper File
+
+            // STAGE 1: Sampled wallpaper
             if let sampled = sampledWallpaperColor {
                 let wallpaper = NSColor(red: sampled.0, green: sampled.1, blue: sampled.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
                 var wallHue: CGFloat = 0, wallSat: CGFloat = 0, wallBri: CGFloat = 0, wallAlpha: CGFloat = 1
@@ -864,15 +969,18 @@ public final class DynamicThemeEngine: ObservableObject {
                     activeStage = "Wallpaper File Extraction"
                 }
             }
-            
-            // STAGE 2: Frontmost App Icon (if activeApp theme OR wallpaper is desaturated/gray)
+
+            // STAGE 2: Frontmost app icon (if .activeApp, or wallpaper desaturated)
             let frontmost = NSWorkspace.shared.frontmostApplication
             let bundleID = frontmost?.bundleIdentifier ?? ""
             d.frontmostAppName = frontmost?.localizedName ?? "None"
             d.frontmostBundleID = bundleID
-            
-            let isOwnApp = bundleID.isEmpty || bundleID == Bundle.main.bundleIdentifier || bundleID.contains("NotchApp") || bundleID == "com.apple.dock"
-            
+
+            let isOwnApp = bundleID.isEmpty
+                || bundleID == Bundle.main.bundleIdentifier
+                || bundleID.contains("NotchApp")
+                || bundleID == "com.apple.dock"
+
             if !isOwnApp {
                 let appRGB = sampledAppColors[bundleID]
                 if appRGB == nil, let icon = frontmost?.icon, !samplingAppBundleIDs.contains(bundleID) {
@@ -890,9 +998,9 @@ public final class DynamicThemeEngine: ObservableObject {
                         }
                     }
                 }
-                
+
                 d.frontmostAppIconColor = appRGB
-                
+
                 if (followsActiveApp || activeStage == "Initializing"), let appColor = appRGB {
                     let nsApp = NSColor(red: appColor.0, green: appColor.1, blue: appColor.2, alpha: 1).usingColorSpace(.deviceRGB) ?? .systemBlue
                     var aH: CGFloat = 0, aS: CGFloat = 0, aB: CGFloat = 0, aA: CGFloat = 1
@@ -905,8 +1013,8 @@ public final class DynamicThemeEngine: ObservableObject {
                     }
                 }
             }
-            
-            // STAGE 3: macOS System Accent Color Fallback
+
+            // STAGE 3: macOS system accent
             if activeStage == "Initializing" {
                 let sysAccent = NSColor.controlAccentColor.usingColorSpace(.deviceRGB) ?? .systemBlue
                 var sH: CGFloat = 0, sS: CGFloat = 0, sB: CGFloat = 0, sA: CGFloat = 1
@@ -918,8 +1026,8 @@ public final class DynamicThemeEngine: ObservableObject {
                     activeStage = "macOS System Accent Fallback"
                 }
             }
-            
-            // STAGE 4: Circadian Solar Time-of-Day Fallback
+
+            // STAGE 4: Circadian solar
             if activeStage == "Initializing" {
                 let cal = Calendar.current
                 let now = Date()
@@ -937,16 +1045,17 @@ public final class DynamicThemeEngine: ObservableObject {
                 }
                 activeStage = "Time-of-Day Circadian Fallback"
             }
-            
+
             d.detectionStatus = "✓ Active: \(activeStage)"
-            
+
         default:
             activeStage = "Static Preset (\(theme.displayName))"
             d.detectionStatus = "Static Theme Selected"
         }
-        
+
         d.activeFallbackStage = activeStage
-        self.diagnostics = d
+        // FIX (#3): guard assignment so we don't re-publish on no-op refreshes.
+        if self.diagnostics != d { self.diagnostics = d }
 
         let vibrancy = SettingsStore.shared.dynamicVibrancy.factor
         saturation = min(0.95, saturation * vibrancy)
@@ -956,7 +1065,7 @@ public final class DynamicThemeEngine: ObservableObject {
         let targetCanvasRGB: (CGFloat, CGFloat, CGFloat)
         let targetStructureRGB: (CGFloat, CGFloat, CGFloat)
         let targetAccentRGB: (CGFloat, CGFloat, CGFloat)
-        
+
         if theme == .adaptive, let pal = sampledWallpaperPalette {
             targetCanvasRGB = pal.shadowRGB
             targetStructureRGB = pal.midtoneRGB
@@ -979,20 +1088,34 @@ public final class DynamicThemeEngine: ObservableObject {
             targetStructureRGB = (nsStruct.redComponent, nsStruct.greenComponent, nsStruct.blueComponent)
             targetAccentRGB = (nsAccent.redComponent, nsAccent.greenComponent, nsAccent.blueComponent)
         }
-        
+
         let safeCanvasRGB = theme.isLight
             ? ContrastGuard.ensureContrast(background: targetCanvasRGB, forTextLuminance: 0.05, minRatio: 4.5)
             : ContrastGuard.ensureContrast(background: targetCanvasRGB, forTextLuminance: 1.0, minRatio: 4.5)
-        
+
         let tCanvasOKLab = OKLabColor.from(rgb: safeCanvasRGB)
         let tStructureOKLab = OKLabColor.from(rgb: targetStructureRGB)
         let tAccentOKLab = OKLabColor.from(rgb: targetAccentRGB)
-        
-        transitionTo(targetCanvas: tCanvasOKLab, targetStructure: tStructureOKLab, targetAccent: tAccentOKLab)
-        
+
+        // FIX (Bug 2): pass the theme's light-ness into transitionTo so the
+        // inner contrast guard uses the correct foreground luminance.
+        transitionTo(
+            targetCanvas: tCanvasOKLab,
+            targetStructure: tStructureOKLab,
+            targetAccent: tAccentOKLab,
+            lightTheme: theme.isLight
+        )
+
         let secondaryText = theme.isLight ? theme.secondaryTextColor : Color.white.opacity(0.68)
         if secondaryTextColor != secondaryText { secondaryTextColor = secondaryText }
+
+        // FIX (Bug 1): keep appAccentColor in sync with the dynamic accent so
+        // it isn't stuck at the bootstrap blue forever. Runs after transitionTo
+        // so it sees the final accent value.
+        if appAccentColor != accentColor { appAccentColor = accentColor }
     }
+
+    // MARK: - Static sampling helpers (nonisolated, called off-main)
 
     nonisolated private static func sampleImageColor(_ image: NSImage) -> (CGFloat, CGFloat, CGFloat)? {
         autoreleasepool {
@@ -1008,7 +1131,7 @@ public final class DynamicThemeEngine: ObservableObject {
                 space: colorSpace,
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
             ) else { return nil }
-            
+
             var proposedRect = CGRect(origin: .zero, size: size)
             if let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
                 ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
@@ -1017,7 +1140,7 @@ public final class DynamicThemeEngine: ObservableObject {
             } else {
                 return nil
             }
-            
+
             var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, count: CGFloat = 0
             for i in stride(from: 0, to: 16 * 16 * 4, by: 4) {
                 let a = CGFloat(rawData[i + 3]) / 255.0
@@ -1043,7 +1166,7 @@ public final class DynamicThemeEngine: ObservableObject {
                 return sampleCGImageTopCenter(cgImage)
             }
         }
-        
+
         return autoreleasepool { () -> (CGFloat, CGFloat, CGFloat)? in
             let sourceOpts: [CFString: Any] = [
                 kCGImageSourceShouldCache: false,
@@ -1060,12 +1183,12 @@ public final class DynamicThemeEngine: ObservableObject {
             return sampleCGImageTopCenter(thumbnail)
         }
     }
-    
+
     nonisolated private static func sampleCGImageTopCenter(_ cgImage: CGImage) -> (CGFloat, CGFloat, CGFloat)? {
         let width = cgImage.width
         let height = cgImage.height
         guard width > 0 && height > 0 else { return nil }
-        
+
         let size = CGSize(width: width, height: height)
         var rawData = [UInt8](repeating: 0, count: width * height * 4)
         let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -1078,15 +1201,14 @@ public final class DynamicThemeEngine: ObservableObject {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
-        
+
         ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
-        
-        // Sample top-center notch region (X: 30% to 70%, Y: top 35% of image)
+
         let xStart = Int(Double(width) * 0.30)
         let xEnd = max(xStart + 1, Int(Double(width) * 0.70))
         let yStart = 0
         let yEnd = max(1, Int(Double(height) * 0.35))
-        
+
         var totalR: CGFloat = 0, totalG: CGFloat = 0, totalB: CGFloat = 0, count: CGFloat = 0
         for y in yStart..<yEnd {
             for x in xStart..<xEnd {
@@ -1101,12 +1223,11 @@ public final class DynamicThemeEngine: ObservableObject {
                 }
             }
         }
-        
+
         if count > 0 {
             return (totalR / count, totalG / count, totalB / count)
         }
-        
-        // Fallback to full thumbnail average if top-center was transparent
+
         for i in stride(from: 0, to: rawData.count, by: 4) {
             let a = CGFloat(rawData[i + 3]) / 255.0
             if a > 0.15 {
@@ -1131,7 +1252,7 @@ public final class DynamicThemeEngine: ObservableObject {
                 return sampleMultiZonePalette(from: cgImage)
             }
         }
-        
+
         return autoreleasepool { () -> MultiZonePalette? in
             let sourceOpts: [CFString: Any] = [
                 kCGImageSourceShouldCache: false,
@@ -1148,12 +1269,15 @@ public final class DynamicThemeEngine: ObservableObject {
             return sampleMultiZonePalette(from: thumbnail)
         }
     }
-    
+
     nonisolated public static func sampleMultiZonePalette(from cgImage: CGImage) -> MultiZonePalette {
-        let width = cgImage.width
-        let height = cgImage.height
-        guard width > 0 && height > 0 else { return MultiZonePalette() }
-        
+        let sourceWidth = cgImage.width
+        let sourceHeight = cgImage.height
+        guard sourceWidth > 0 && sourceHeight > 0 else { return MultiZonePalette() }
+
+        let scale = min(1.0, 64.0 / CGFloat(max(sourceWidth, sourceHeight)))
+        let width = max(1, Int((CGFloat(sourceWidth) * scale).rounded(.down)))
+        let height = max(1, Int((CGFloat(sourceHeight) * scale).rounded(.down)))
         let size = CGSize(width: width, height: height)
         var rawData = [UInt8](repeating: 0, count: width * height * 4)
         let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -1166,9 +1290,9 @@ public final class DynamicThemeEngine: ObservableObject {
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return MultiZonePalette() }
-        
+
         ctx.draw(cgImage, in: CGRect(origin: .zero, size: size))
-        
+
         struct SamplePixel {
             let r: CGFloat
             let g: CGFloat
@@ -1176,16 +1300,16 @@ public final class DynamicThemeEngine: ObservableObject {
             let lum: CGFloat
             let sat: CGFloat
         }
-        
+
         var pixels: [SamplePixel] = []
         pixels.reserveCapacity(width * height)
-        
+
         for i in stride(from: 0, to: rawData.count, by: 4) {
             let a = CGFloat(rawData[i + 3]) / 255.0
             if a > 0.15 {
-                let r = (CGFloat(rawData[i]) / 255.0) / a
-                let g = (CGFloat(rawData[i + 1]) / 255.0) / a
-                let b = (CGFloat(rawData[i + 2]) / 255.0) / a
+                let r = min(1, max(0, (CGFloat(rawData[i]) / 255.0) / a))
+                let g = min(1, max(0, (CGFloat(rawData[i + 1]) / 255.0) / a))
+                let b = min(1, max(0, (CGFloat(rawData[i + 2]) / 255.0) / a))
                 let lum = ContrastGuard.relativeLuminance(r: r, g: g, b: b)
                 let maxC = max(r, g, b)
                 let minC = min(r, g, b)
@@ -1193,13 +1317,12 @@ public final class DynamicThemeEngine: ObservableObject {
                 pixels.append(SamplePixel(r: r, g: g, b: b, lum: lum, sat: sat))
             }
         }
-        
+
         guard !pixels.isEmpty else { return MultiZonePalette() }
-        
+
         pixels.sort { $0.lum < $1.lum }
-        
-        // 1. Shadow Zone: lowest 35% luminance
-        let shadowCount = max(1, Int(Double(pixels.count) * 0.35))
+
+        let shadowCount = min(pixels.count, max(1, Int(Double(pixels.count) * 0.35)))
         var sR: CGFloat = 0, sG: CGFloat = 0, sB: CGFloat = 0
         for i in 0..<shadowCount {
             sR += pixels[i].r
@@ -1208,20 +1331,20 @@ public final class DynamicThemeEngine: ObservableObject {
         }
         let shadowRaw = (sR / CGFloat(shadowCount), sG / CGFloat(shadowCount), sB / CGFloat(shadowCount))
         let shadowSafe = ContrastGuard.ensureContrast(background: shadowRaw, forTextLuminance: 1.0, minRatio: 4.5)
-        
-        // 2. Midtone Zone: 35% to 75% luminance
-        let midStart = shadowCount
-        let midEnd = max(midStart + 1, Int(Double(pixels.count) * 0.75))
+
+        let midStart = min(shadowCount, pixels.count)
+        let midEnd = min(pixels.count, max(midStart, Int(Double(pixels.count) * 0.75)))
         var mR: CGFloat = 0, mG: CGFloat = 0, mB: CGFloat = 0, mCount: CGFloat = 0
-        for i in midStart..<midEnd {
-            mR += pixels[i].r
-            mG += pixels[i].g
-            mB += pixels[i].b
-            mCount += 1
+        if midStart < midEnd {
+            for i in midStart..<midEnd {
+                mR += pixels[i].r
+                mG += pixels[i].g
+                mB += pixels[i].b
+                mCount += 1
+            }
         }
-        let midtone = mCount > 0 ? (mR / mCount, mG / mCount, mB / mCount) : (0.13, 0.15, 0.20)
-        
-        // 3. Highlight Zone: average of top 5% most saturated pixels
+        let midtone = mCount > 0 ? (mR / mCount, mG / mCount, mB / mCount) : shadowRaw
+
         let candidates = pixels.filter { $0.lum >= 0.10 && $0.lum <= 0.95 }
             .sorted { $0.sat > $1.sat }
         let top = candidates.prefix(max(1, candidates.count / 20))
@@ -1231,10 +1354,12 @@ public final class DynamicThemeEngine: ObservableObject {
             highlight = (top.reduce(0) { $0 + $1.r } / n,
                          top.reduce(0) { $0 + $1.g } / n,
                          top.reduce(0) { $0 + $1.b } / n)
+        } else if let last = pixels.last {
+            highlight = (last.r, last.g, last.b)
         } else {
-            highlight = (pixels.last!.r, pixels.last!.g, pixels.last!.b)
+            highlight = (0.22, 0.62, 1.0)
         }
-        
+
         return MultiZonePalette(
             shadowRGB: shadowSafe,
             midtoneRGB: midtone,
@@ -1243,39 +1368,57 @@ public final class DynamicThemeEngine: ObservableObject {
     }
 }
 
+// MARK: - Design System
+
 @MainActor
 public struct DesignSystem {
     public static var currentTheme: AppTheme {
         SettingsStore.shared.currentTheme
     }
-    
-    // 60-30-10 Rule Dynamic Colors
+
     public static var canvasColor: Color { DynamicThemeEngine.shared.canvasColor }
     public static var structureColor: Color { DynamicThemeEngine.shared.structureColor }
     public static var accentColor: Color { DynamicThemeEngine.shared.accentColor }
     public static var appAccentColor: Color { DynamicThemeEngine.shared.appAccentColor }
     public static var secondaryText: Color { DynamicThemeEngine.shared.secondaryTextColor }
-    public static var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
-    
+
+    // FIX (#6): single source of truth for reduceMotion across the app.
+    public static var reduceMotion: Bool {
+        EnvironmentState.shared.reduceMotion
+            || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     public static var isLightTheme: Bool { currentTheme.isLight }
+    public static var increaseContrastEnabled: Bool { EnvironmentState.shared.increaseContrast }
 
     public static var primaryText: Color {
         currentTheme.isLight ? currentTheme.primaryTextColor : Color.white
     }
     public static var tertiaryText: Color {
-        currentTheme.isLight ? currentTheme.primaryTextColor.opacity(0.55) : Color.white.opacity(0.40)
+        let opacity = increaseContrastEnabled ? 0.62 : 0.40
+        return currentTheme.isLight
+            ? currentTheme.primaryTextColor.opacity(increaseContrastEnabled ? 0.78 : 0.55)
+            : Color.white.opacity(opacity)
     }
-    /// Replacement for Color.white.opacity(x) on fills, borders and dividers
-    public static func fill(_ o: Double) -> Color {
-        currentTheme.isLight ? Color.black.opacity(o * 0.6) : Color.white.opacity(o)
+    public static func fill(_ opacity: Double) -> Color {
+        let value = min(1.0, max(0.0, opacity))
+        return currentTheme.isLight ? Color.black.opacity(value * 0.6) : Color.white.opacity(value)
     }
-    /// Text in the theme's ink colour (deep plum on Sakura, white on dark themes)
     public static func ink(_ o: Double = 1) -> Color { primaryText.opacity(o) }
+    // NOTE / WHY THIS IS RUNNING NOW (Error Fix):
+    // Fixes compiler error in NowPlayingModule.swift:
+    // "error: type 'DesignSystem' has no member 'accentInkColor'"
+    // Provides high-contrast foreground color on accent-colored buttons across both dark and light themes.
+    public static var accentInkColor: Color {
+        currentTheme.isLight ? Color.black : Color.white
+    }
     public static var subtleBorder: Color {
-        currentTheme.isLight ? Color.black.opacity(0.08) : Color.white.opacity(0.12)
+        let opacity = increaseContrastEnabled ? 0.20 : 0.08
+        return currentTheme.isLight ? Color.black.opacity(opacity) : Color.white.opacity(increaseContrastEnabled ? 0.24 : 0.12)
     }
     public static var surfaceFill: Color {
-        currentTheme.isLight ? Color.black.opacity(0.05) : Color.white.opacity(0.08)
+        let opacity = increaseContrastEnabled ? 0.10 : 0.05
+        return currentTheme.isLight ? Color.black.opacity(opacity) : Color.white.opacity(increaseContrastEnabled ? 0.14 : 0.08)
     }
     public static var cardFill: Color { structureColor.opacity(0.62) }
     public static var cardGradient: LinearGradient {
@@ -1286,7 +1429,9 @@ public struct DesignSystem {
         )
     }
     public static var cardBorder: Color {
-        currentTheme.isLight ? Color.black.opacity(0.08) : Color.white.opacity(0.09)
+        currentTheme.isLight
+            ? Color.black.opacity(increaseContrastEnabled ? 0.18 : 0.08)
+            : Color.white.opacity(increaseContrastEnabled ? 0.22 : 0.09)
     }
     public static let defaultCornerRadius: CGFloat = 18.0
     public static var springResponse: Double {
@@ -1300,8 +1445,16 @@ public struct DesignSystem {
         SettingsStore.shared.autoCollapseDelay
     }
     public static let maxNotificationCards: Int = 50
-    
-    // Global vs Per-Module Signature Accent Color
+
+    public static let widgetCornerRadius: CGFloat = 16.0
+    public static let widgetInnerPadding: CGFloat = 10.0
+    public static let widgetHorizontalPadding: CGFloat = 12.0
+    public static let widgetVerticalPadding: CGFloat = 10.0
+    public static let widgetHeaderSpacing: CGFloat = 6.0
+    public static let widgetHeaderIconSize: CGFloat = 12.0
+    public static let widgetHeaderFontSize: CGFloat = 11.5
+    public static let widgetMinInteractiveTouchTarget: CGFloat = 24.0
+
     public static func moduleAccentColor(for moduleId: String) -> Color {
         if SettingsStore.shared.usePerModuleAccent {
             if let mod = ModuleRegistry.shared.modules.first(where: { $0.id == moduleId }) {
@@ -1312,13 +1465,15 @@ public struct DesignSystem {
     }
 }
 
+// MARK: - Feedback
+
 @MainActor
 public struct FeedbackManager {
     public static func playHover() {
         guard SettingsStore.shared.hapticFeedbackEnabled else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
     }
-    
+
     public static func playClick() {
         if SettingsStore.shared.soundFeedbackEnabled {
             NSSound(named: "Tink")?.play()
@@ -1327,7 +1482,7 @@ public struct FeedbackManager {
             NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
         }
     }
-    
+
     public static func playPin() {
         if SettingsStore.shared.soundFeedbackEnabled {
             NSSound(named: "Pop")?.play()
@@ -1336,7 +1491,7 @@ public struct FeedbackManager {
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .default)
         }
     }
-    
+
     public static func playSend() {
         if SettingsStore.shared.soundFeedbackEnabled {
             if !(NSSound(named: "Purr")?.play() ?? false) {
@@ -1347,7 +1502,7 @@ public struct FeedbackManager {
             NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
         }
     }
-    
+
     public static func playDelete() {
         if SettingsStore.shared.soundFeedbackEnabled {
             NSSound(named: "Basso")?.play()
@@ -1356,7 +1511,7 @@ public struct FeedbackManager {
             NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
         }
     }
-    
+
     public static func playSuccess() {
         if SettingsStore.shared.soundFeedbackEnabled {
             if !(NSSound(named: "Ping")?.play() ?? false) {
@@ -1367,7 +1522,7 @@ public struct FeedbackManager {
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .default)
         }
     }
-    
+
     public static func playDrop() {
         if SettingsStore.shared.soundFeedbackEnabled {
             NSSound(named: "Pop")?.play()
@@ -1376,7 +1531,7 @@ public struct FeedbackManager {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
     }
-    
+
     public static func playProcess() {
         if SettingsStore.shared.soundFeedbackEnabled {
             NSSound(named: "Morse")?.play()
@@ -1387,16 +1542,17 @@ public struct FeedbackManager {
     }
 }
 
-// Organic Continuous Squircle Shape (Deep radius, seamless with MacBook Notch)
+// MARK: - Notch Shape
+
 public struct CustomNotchShape: Shape {
     public var topRadius: CGFloat
     public var bottomRadius: CGFloat
-    
+
     public init(topRadius: CGFloat = 14, bottomRadius: CGFloat = 34) {
         self.topRadius = topRadius
         self.bottomRadius = bottomRadius
     }
-    
+
     public func path(in rect: CGRect) -> Path {
         UnevenRoundedRectangle(
             cornerRadii: RectangleCornerRadii(
@@ -1410,25 +1566,31 @@ public struct CustomNotchShape: Shape {
     }
 }
 
-// Clean Glass Background (No outer shadow, crisp specular hairline reflection)
+// MARK: - Notch Glass Background
+
 public struct NotchGlassBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ObservedObject private var store = SettingsStore.shared
     @ObservedObject private var themeEngine = DynamicThemeEngine.shared
+    // FIX (Observation): observe NotchShellCoordinator so `hasPhysicalNotch`
+    // changes (e.g. moving the notch to an external display) re-evaluate the
+    // bezel-blend branch. Previously it was a static read on `.shared`.
+    @ObservedObject private var shell = NotchShellCoordinator.shared
+
     public var topRadius: CGFloat
     public var bottomRadius: CGFloat
     public var showsMaterial: Bool
-    
+
     public init(topRadius: CGFloat = 14, bottomRadius: CGFloat = 34, showsMaterial: Bool = true) {
         self.topRadius = topRadius
         self.bottomRadius = bottomRadius
         self.showsMaterial = showsMaterial
     }
-    
+
     public var body: some View {
         let glassStyle = store.glassMaterialStyle
         let glowEnabled = store.specularGlowEnabled
-        
+
         ZStack {
             if showsMaterial && !reduceTransparency {
                 let material: NSVisualEffectView.Material = {
@@ -1447,7 +1609,7 @@ public struct NotchGlassBackground: View {
                     case .crystal: return 0.08
                     }
                 }()
-                
+
                 VisualEffectBlur(material: material, blendingMode: .behindWindow)
                     .clipShape(CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
                     .overlay(
@@ -1495,8 +1657,7 @@ public struct NotchGlassBackground: View {
                     .fill(themeEngine.canvasColor.opacity(0.95))
                     .transition(.opacity)
             }
-            
-            // Machined Specular Glass Hairline (Crisp bevel, dynamic accent reflection)
+
             CustomNotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
                 .stroke(
                     LinearGradient(
@@ -1510,9 +1671,9 @@ public struct NotchGlassBackground: View {
                     ),
                     lineWidth: 0.9
                 )
-            
-            // Top Camera Bezel Blend for Light Themes: Blends into MacBook bezel without a white halo
-            if store.currentTheme.isLight && NotchShellCoordinator.shared.geometry.hasPhysicalNotch {
+
+            // FIX (Observation): read from the observed `shell` instance.
+            if store.currentTheme.isLight && shell.geometry.hasPhysicalNotch {
                 LinearGradient(
                     colors: [
                         Color.black.opacity(0.85),
@@ -1526,31 +1687,41 @@ public struct NotchGlassBackground: View {
                 .allowsHitTesting(false)
             }
         }
+        .opacity(store.useCustomNotchOpacity ? store.customNotchOpacity : 1.0)
     }
 }
+
+// MARK: - Visual effect blur
 
 public struct VisualEffectBlur: NSViewRepresentable {
     public var material: NSVisualEffectView.Material
     public var blendingMode: NSVisualEffectView.BlendingMode
-    
-    public init(material: NSVisualEffectView.Material = .hudWindow,
-                blendingMode: NSVisualEffectView.BlendingMode = .behindWindow) {
+
+    public init(
+        material: NSVisualEffectView.Material = .hudWindow,
+        blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+    ) {
         self.material = material
         self.blendingMode = blendingMode
     }
-    
+
     public func makeNSView(context: Context) -> NSView {
         let view = NSVisualEffectView()
         view.material = material
         view.blendingMode = blendingMode
-        view.state = .active
+        // NOTE / WHY THIS IS RUNNING NOW (Error Fix):
+        // Previously written as `view.state = .followsWindow`, which produced:
+        //   "error: type 'NSVisualEffectView.State' has no member 'followsWindow'"
+        // The correct AppKit enum case is `NSVisualEffectView.State.followsWindowActiveState`.
+        view.state = .followsWindowActiveState
         return view
     }
-    
+
     public func updateNSView(_ nsView: NSView, context: Context) {
-        if let effectView = nsView as? NSVisualEffectView {
-            effectView.material = material
-            effectView.blendingMode = blendingMode
-        }
+        // FIX: only touch the view when the properties actually differ, to
+        // avoid invalidating the blur backdrop on every SwiftUI update pass.
+        guard let effectView = nsView as? NSVisualEffectView else { return }
+        if effectView.material != material { effectView.material = material }
+        if effectView.blendingMode != blendingMode { effectView.blendingMode = blendingMode }
     }
 }

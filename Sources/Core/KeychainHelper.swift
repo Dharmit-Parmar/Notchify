@@ -63,27 +63,50 @@ public final class KeychainHelper: KeychainManaging, @unchecked Sendable {
             return deleteSecretLocked(forKey: account)
         }
         
-        let query: [String: Any] = [
+        let secretData = Data(trimmed.utf8)
+        let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: account,
             kSecUseAuthenticationContext as String: nonInteractiveContext()
         ]
-        SecItemDelete(query as CFDictionary)
         
-        var newQuery = query
-        newQuery[kSecValueData as String] = Data(trimmed.utf8)
-        newQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let attributesToUpdate: [String: Any] = [
+            kSecValueData as String: secretData,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
         
-        let status = SecItemAdd(newQuery as CFDictionary, nil)
-        return status == errSecSuccess
+        var status = SecItemUpdate(baseQuery as CFDictionary, attributesToUpdate as CFDictionary)
+        
+        if status == errSecItemNotFound {
+            var addQuery = baseQuery
+            addQuery[kSecValueData as String] = secretData
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(addQuery as CFDictionary, nil)
+            if status == errSecDuplicateItem {
+                status = SecItemUpdate(baseQuery as CFDictionary, attributesToUpdate as CFDictionary)
+            }
+        }
+        
+        guard status == errSecSuccess else {
+            return false
+        }
+        
+        // Lock-safe read-back verification without re-entering NSLock
+        if let stored = loadSecretLocked(forKey: account), stored == trimmed {
+            return true
+        }
+        return false
     }
     
     /// Securely retrieves and decrypts a secret from the native macOS Keychain.
     public func loadSecret(forKey account: String) -> String? {
         lock.lock()
         defer { lock.unlock() }
-        
+        return loadSecretLocked(forKey: account)
+    }
+    
+    private func loadSecretLocked(forKey account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
@@ -135,6 +158,9 @@ public final class KeychainHelper: KeychainManaging, @unchecked Sendable {
     
     @discardableResult
     public func migrateLegacyVaultIfNeeded(at customURL: URL? = nil) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        
         let candidateURLs: [URL] = {
             if let custom = customURL { return [custom] }
             guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return [] }
@@ -163,13 +189,25 @@ public final class KeychainHelper: KeychainManaging, @unchecked Sendable {
             let seed = "\(uuid):\(NSUserName()):com.notch.NotchApp.vault.salt.v2.com.notch.NotchApp.secrets"
             let legacyKey = SymmetricKey(data: SHA256.hash(data: Data(seed.utf8)))
             
-            if let box = try? AES.GCM.SealedBox(combined: encryptedData),
-               let decrypted = try? AES.GCM.open(box, using: legacyKey),
-               let dict = try? JSONDecoder().decode([String: String].self, from: decrypted) {
-                for (acc, secret) in dict {
-                    _ = saveSecretLocked(secret, forKey: acc)
+            guard let box = try? AES.GCM.SealedBox(combined: encryptedData),
+                  let decrypted = try? AES.GCM.open(box, using: legacyKey),
+                  let dict = try? JSONDecoder().decode([String: String].self, from: decrypted) else {
+                // Decryption or decoding failed; preserve the legacy vault untouched
+                continue
+            }
+            
+            // All-or-nothing: ensure every credential is saved and confirmed before touching legacy file
+            var allSucceeded = true
+            for (acc, secret) in dict {
+                if !saveSecretLocked(secret, forKey: acc) {
+                    allSucceeded = false
+                    break
                 }
-                anyMigrated = true
+            }
+            
+            guard allSucceeded else {
+                // Migration incomplete or failed: preserve vault for recovery
+                continue
             }
             
             // Securely wipe file bytes before deletion to prevent ciphertext disk lingering
@@ -180,6 +218,7 @@ public final class KeychainHelper: KeychainManaging, @unchecked Sendable {
                 try? handle.close()
             }
             try? FileManager.default.removeItem(at: vaultURL)
+            anyMigrated = true
         }
         return anyMigrated
     }

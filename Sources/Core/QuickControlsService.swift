@@ -658,10 +658,16 @@ public final class QuickControlsManager: ObservableObject {
         closeGraceTask = nil
         self.isInteractingWithSlider = true
         self.state = .interacting
+        Task { @MainActor in
+            NotchShellCoordinator.shared.resetIdleTimer()
+        }
     }
     
     public func onSliderDragEnded() {
         self.isInteractingWithSlider = false
+        Task { @MainActor in
+            NotchShellCoordinator.shared.resetIdleTimer()
+        }
         if SettingsStore.shared.quickControlsPinned {
             self.state = .pinned
         } else {

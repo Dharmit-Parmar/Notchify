@@ -122,34 +122,13 @@ public enum ClockDialStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-public enum DashboardLayoutFlow: String, Codable, CaseIterable, Identifiable {
-    case adaptiveAuto = "adaptiveAuto"
-    case horizontalStrip = "horizontalStrip"
-    case bentoQuad = "bentoQuad"
-    case focusDominant = "focusDominant"
-    
-    public var id: String { rawValue }
-    public var title: String {
-        switch self {
-        case .adaptiveAuto: return "Smart Adaptive"
-        case .horizontalStrip: return "4 Side-by-Side (Strip)"
-        case .bentoQuad: return "2×2 Bento Grid"
-        case .focusDominant: return "Focus (Dominant + Companion)"
-        }
-    }
-    public var icon: String {
-        switch self {
-        case .adaptiveAuto: return "sparkles.square.filled.on.square"
-        case .horizontalStrip: return "rectangle.split.3x1"
-        case .bentoQuad: return "square.grid.2x2"
-        case .focusDominant: return "rectangle.righthalf.inset.filled"
-        }
-    }
-}
+
 
 @MainActor
 public class SettingsStore: ObservableObject {
     public static let shared = SettingsStore()
+    
+    private var isInitializing: Bool = true
     
     // Modular Dashboard Configuration (4 Slots)
     @Published public var dashboardSlots: [DashboardWidgetType?] = [.nowPlaying, .calendar, .notes, nil] {
@@ -163,14 +142,18 @@ public class SettingsStore: ObservableObject {
     @Published public var showQuickControls: Bool = true {
         didSet {
             UserDefaults.standard.set(showQuickControls, forKey: "NotchApp_ShowQuickControls")
-            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            if !isInitializing {
+                NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            }
         }
     }
     
     @Published public var quickControlsPinned: Bool = false {
         didSet {
             UserDefaults.standard.set(quickControlsPinned, forKey: "NotchApp_QuickControlsPinned")
-            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            if !isInitializing {
+                NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            }
         }
     }
     
@@ -178,7 +161,9 @@ public class SettingsStore: ObservableObject {
         didSet {
             let serialized = enabledQuickControls.map { $0.rawValue }
             UserDefaults.standard.set(serialized, forKey: "NotchApp_EnabledQuickControls")
-            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            if !isInitializing {
+                NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            }
         }
     }
     
@@ -269,7 +254,9 @@ public class SettingsStore: ObservableObject {
     @Published public var notchWidth: CGFloat = 620.0 {
         didSet {
             UserDefaults.standard.set(Double(notchWidth), forKey: "NotchApp_NotchWidth")
-            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            if !isInitializing {
+                NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            }
         }
     }
     @Published public var notchHeight: CGFloat = 330.0 {
@@ -280,34 +267,86 @@ public class SettingsStore: ObservableObject {
                 return
             }
             UserDefaults.standard.set(Double(clamped), forKey: "NotchApp_NotchHeight")
-            NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            if !isInitializing {
+                NotchShellCoordinator.shared.onQuickControlsLayoutChanged(animated: !DesignSystem.reduceMotion)
+            }
         }
     }
-    @Published public var hoverTriggerHeight: CGFloat = 34.0 {
-        didSet { UserDefaults.standard.set(Double(hoverTriggerHeight), forKey: "NotchApp_HoverTriggerHeight") }
+    @Published public var hoverTriggerHeight: CGFloat = NotchDimensionLimits.defaultHoverHeight {
+        didSet {
+            let clamped = min(NotchDimensionLimits.maxHoverHeight, max(NotchDimensionLimits.minHoverHeight, hoverTriggerHeight))
+            if hoverTriggerHeight != clamped {
+                hoverTriggerHeight = clamped
+                return
+            }
+            UserDefaults.standard.set(Double(clamped), forKey: "NotchApp_HoverTriggerHeight")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
-    @Published public var hoverTriggerWidth: CGFloat = 210.0 {
-        didSet { UserDefaults.standard.set(Double(hoverTriggerWidth), forKey: "NotchApp_HoverTriggerWidth") }
+    @Published public var hoverTriggerWidth: CGFloat = NotchDimensionLimits.defaultHoverWidth {
+        didSet {
+            let clamped = min(NotchDimensionLimits.maxHoverWidth, max(NotchDimensionLimits.minHoverWidth, hoverTriggerWidth))
+            if hoverTriggerWidth != clamped {
+                hoverTriggerWidth = clamped
+                return
+            }
+            UserDefaults.standard.set(Double(clamped), forKey: "NotchApp_HoverTriggerWidth")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     
     // Collapsed Notch Width Model & Position Architecture (Phase 1 & 2)
     @Published public var collapsedNotchMode: CollapsedNotchMode = .hideBehindNotch {
-        didSet { UserDefaults.standard.set(collapsedNotchMode.rawValue, forKey: "NotchApp_CollapsedNotchMode") }
+        didSet {
+            UserDefaults.standard.set(collapsedNotchMode.rawValue, forKey: "NotchApp_CollapsedNotchMode")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     @Published public var positionAttachment: NotchPositionAttachment = .hardwareNotch {
-        didSet { UserDefaults.standard.set(positionAttachment.rawValue, forKey: "NotchApp_PositionAttachment") }
+        didSet {
+            UserDefaults.standard.set(positionAttachment.rawValue, forKey: "NotchApp_PositionAttachment")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     @Published public var wingWidth: CGFloat = 56.0 {
-        didSet { UserDefaults.standard.set(Double(wingWidth), forKey: "NotchApp_WingWidth") }
+        didSet {
+            UserDefaults.standard.set(Double(wingWidth), forKey: "NotchApp_WingWidth")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     @Published public var collapsedNotchHeight: CGFloat = 34.0 {
-        didSet { UserDefaults.standard.set(Double(collapsedNotchHeight), forKey: "NotchApp_CollapsedNotchHeight") }
+        didSet {
+            UserDefaults.standard.set(Double(collapsedNotchHeight), forKey: "NotchApp_CollapsedNotchHeight")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     @Published public var horizontalNotchOffset: CGFloat = 0.0 {
-        didSet { UserDefaults.standard.set(Double(horizontalNotchOffset), forKey: "NotchApp_HorizontalNotchOffset") }
+        didSet {
+            UserDefaults.standard.set(Double(horizontalNotchOffset), forKey: "NotchApp_HorizontalNotchOffset")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     @Published public var verticalNotchOffset: CGFloat = 0.0 {
-        didSet { UserDefaults.standard.set(Double(verticalNotchOffset), forKey: "NotchApp_VerticalNotchOffset") }
+        didSet {
+            UserDefaults.standard.set(Double(verticalNotchOffset), forKey: "NotchApp_VerticalNotchOffset")
+            if !isInitializing {
+                NotchShellCoordinator.shared.refreshLayouts()
+            }
+        }
     }
     @Published public var displayPositionProfiles: [String: DisplayPositionProfile] = [:] {
         didSet {
@@ -334,6 +373,25 @@ public class SettingsStore: ObservableObject {
     }
     @Published public var cornerStyle: NotchCornerStyle = .continuous {
         didSet { UserDefaults.standard.set(cornerStyle.rawValue, forKey: "NotchApp_CornerStyle") }
+    }
+    // Notch Surface Custom Opacity Override
+    @Published public var useCustomNotchOpacity: Bool = false {
+        didSet {
+            UserDefaults.standard.set(useCustomNotchOpacity, forKey: "NotchApp_UseCustomNotchOpacity")
+            if !isInitializing {
+                NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+            }
+        }
+    }
+    @Published public var customNotchOpacity: Double = 1.0 {
+        didSet {
+            let clamped = min(1.0, max(0.5, customNotchOpacity))
+            if customNotchOpacity != clamped {
+                customNotchOpacity = clamped
+                return
+            }
+            UserDefaults.standard.set(clamped, forKey: "NotchApp_CustomNotchOpacity")
+        }
     }
     @Published public var motionPhysics: MotionPhysicsStyle = .appleFluid {
         didSet { UserDefaults.standard.set(motionPhysics.rawValue, forKey: "NotchApp_MotionPhysics") }
@@ -362,8 +420,10 @@ public class SettingsStore: ObservableObject {
     @Published public var dynamicVibrancy: DynamicVibrancy = .balanced {
         didSet {
             UserDefaults.standard.set(dynamicVibrancy.rawValue, forKey: "NotchApp_DynamicVibrancy")
-            DispatchQueue.main.async {
-                DynamicThemeEngine.shared.refreshColors()
+            if !isInitializing {
+                DispatchQueue.main.async {
+                    DynamicThemeEngine.shared.refreshColors()
+                }
             }
         }
     }
@@ -443,18 +503,20 @@ public class SettingsStore: ObservableObject {
         }
         if defaults.object(forKey: "NotchApp_NotchHeight") != nil {
             let rawHeight = CGFloat(defaults.double(forKey: "NotchApp_NotchHeight"))
-            let clampedHeight = min(420, max(200, rawHeight))
+            let clampedHeight = min(540, max(200, rawHeight))
             self.notchHeight = clampedHeight
             if rawHeight != clampedHeight {
-                // Migration: Persist clamped value if saved height was out of bounds (< 200 or > 420)
+                // Migration: Persist clamped value if saved height was out of bounds (< 200 or > 540)
                 defaults.set(Double(clampedHeight), forKey: "NotchApp_NotchHeight")
             }
         }
         if defaults.object(forKey: "NotchApp_HoverTriggerHeight") != nil {
-            self.hoverTriggerHeight = min(54, max(24, CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerHeight"))))
+            let raw = CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerHeight"))
+            self.hoverTriggerHeight = min(NotchDimensionLimits.maxHoverHeight, max(NotchDimensionLimits.minHoverHeight, raw))
         }
         if defaults.object(forKey: "NotchApp_HoverTriggerWidth") != nil {
-            self.hoverTriggerWidth = min(380, max(160, CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerWidth"))))
+            let raw = CGFloat(defaults.double(forKey: "NotchApp_HoverTriggerWidth"))
+            self.hoverTriggerWidth = min(NotchDimensionLimits.maxHoverWidth, max(NotchDimensionLimits.minHoverWidth, raw))
         }
         if defaults.object(forKey: "NotchApp_ContentHorizontalPadding") != nil {
             self.contentHorizontalPadding = min(32, max(12, CGFloat(defaults.double(forKey: "NotchApp_ContentHorizontalPadding"))))
@@ -476,6 +538,13 @@ public class SettingsStore: ObservableObject {
         if let savedCorner = UserDefaults.standard.string(forKey: "NotchApp_CornerStyle"),
            let corner = NotchCornerStyle(rawValue: savedCorner) {
             self.cornerStyle = corner
+        }
+        if defaults.object(forKey: "NotchApp_UseCustomNotchOpacity") != nil {
+            self.useCustomNotchOpacity = defaults.bool(forKey: "NotchApp_UseCustomNotchOpacity")
+        }
+        if defaults.object(forKey: "NotchApp_CustomNotchOpacity") != nil {
+            let rawOpacity = defaults.double(forKey: "NotchApp_CustomNotchOpacity")
+            self.customNotchOpacity = min(1.0, max(0.5, rawOpacity))
         }
         if let savedMotion = UserDefaults.standard.string(forKey: "NotchApp_MotionPhysics"),
            let motion = MotionPhysicsStyle(rawValue: savedMotion) {
@@ -575,26 +644,34 @@ public class SettingsStore: ObservableObject {
             self.aiDefaultProvider = provider
         }
         
-        // Secure Keychain Secret Retrieval & Automatic Legacy Plist Migration
+        // Secure Keychain Secret Retrieval & Automatic Validated Legacy Plist Migration
         let keychainGemini = KeychainHelper.shared.loadSecret(forKey: "gemini_api_key")
         let legacyGemini = UserDefaults.standard.string(forKey: "NotchApp_GeminiApiKey")
-        if let key = keychainGemini, !key.isEmpty {
-            self.geminiApiKey = key
-        } else if let legacy = legacyGemini, !legacy.isEmpty {
-            self.geminiApiKey = legacy
-            KeychainHelper.shared.saveSecret(legacy, forKey: "gemini_api_key")
+        if let key = keychainGemini, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.geminiApiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.removeObject(forKey: "NotchApp_GeminiApiKey")
+        } else if let legacy = legacyGemini, !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let clean = legacy.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.geminiApiKey = clean
+            let saved = KeychainHelper.shared.saveSecret(clean, forKey: "gemini_api_key")
+            if saved, let verified = KeychainHelper.shared.loadSecret(forKey: "gemini_api_key"), verified == clean {
+                UserDefaults.standard.removeObject(forKey: "NotchApp_GeminiApiKey")
+            }
         }
-        UserDefaults.standard.removeObject(forKey: "NotchApp_GeminiApiKey") // Erase unencrypted plist residue
         
         let keychainGPT = KeychainHelper.shared.loadSecret(forKey: "openai_api_key")
         let legacyGPT = UserDefaults.standard.string(forKey: "NotchApp_OpenAIApiKey")
-        if let key = keychainGPT, !key.isEmpty {
-            self.openAIApiKey = key
-        } else if let legacy = legacyGPT, !legacy.isEmpty {
-            self.openAIApiKey = legacy
-            KeychainHelper.shared.saveSecret(legacy, forKey: "openai_api_key")
+        if let key = keychainGPT, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.openAIApiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.removeObject(forKey: "NotchApp_OpenAIApiKey")
+        } else if let legacy = legacyGPT, !legacy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let clean = legacy.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.openAIApiKey = clean
+            let saved = KeychainHelper.shared.saveSecret(clean, forKey: "openai_api_key")
+            if saved, let verified = KeychainHelper.shared.loadSecret(forKey: "openai_api_key"), verified == clean {
+                UserDefaults.standard.removeObject(forKey: "NotchApp_OpenAIApiKey")
+            }
         }
-        UserDefaults.standard.removeObject(forKey: "NotchApp_OpenAIApiKey") // Erase unencrypted plist residue
         
         if let email = KeychainHelper.shared.loadSecret(forKey: "google_account_email") {
             self.connectedGoogleEmail = email
@@ -663,6 +740,7 @@ public class SettingsStore: ObservableObject {
         
         self.isAccessibilityGranted = AXIsProcessTrusted()
         self.isInputMonitoringGranted = ThockModule.checkIOHIDListenAccess()
+        self.isInitializing = false
     }
     
     // MARK: - Per-Display Position & Size Profile Helpers

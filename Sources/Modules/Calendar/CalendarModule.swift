@@ -2,24 +2,21 @@ import SwiftUI
 import EventKit
 import AppKit
 
-public enum CalendarSubsection: String, CaseIterable, Identifiable {
-    case calendar = "Calendar"
-    case schedule = "Schedule"
-    
-    public var id: String { rawValue }
-}
-
 public struct CalendarEventItem: Identifiable, Sendable {
     public let id = UUID()
     public let title: String
     public let timeString: String
     public let date: Date
+    public let endDate: Date
+    public let isAllDay: Bool
     public let colorName: String
     
-    public init(title: String, timeString: String, date: Date = Date(), colorName: String) {
+    public init(title: String, timeString: String, date: Date = Date(), endDate: Date? = nil, isAllDay: Bool = false, colorName: String) {
         self.title = title
         self.timeString = timeString
         self.date = date
+        self.endDate = endDate ?? date
+        self.isAllDay = isAllDay
         self.colorName = colorName
     }
     
@@ -49,20 +46,90 @@ public final class CalendarModule: ObservableObject {
     public let title = "Calendar"
     public let iconName = "calendar"
     
-    @Published public var activeSubsection: CalendarSubsection = .calendar
     @Published public var displayedMonthDate: Date = Date()
     @Published public var selectedDate: Date = Date()
     @Published public var upcomingEvents: [CalendarEventItem] = []
     @Published public var monthGridCells: [CalendarCellData] = []
+    @Published public var isCalendarAccessGranted: Bool = false
+    private let eventStore = EKEventStore()
+    private var activeObserver: NSObjectProtocol?
+    private var storeChangedObserver: NSObjectProtocol?
     
     public init() {
         loadEvents()
         updateGridCells()
+        
+        // Refresh when application becomes active (e.g. after user grants permission in System Settings)
+        activeObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.loadEvents()
+                self?.updateGridCells()
+            }
+        }
+        
+        // Refresh when external events or calendars change in EventKit
+        storeChangedObserver = NotificationCenter.default.addObserver(
+            forName: .EKEventStoreChanged,
+            object: eventStore,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.loadEvents()
+                self?.updateGridCells()
+            }
+        }
     }
     
     public func start() {
         loadEvents()
         updateGridCells()
+    }
+    
+    public func requestCalendarAccess() {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        
+        // Handle denied, restricted, or write-only states by directing to System Settings
+        if status == .denied || status == .restricted {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
+        if #available(macOS 14.0, *) {
+            if status == .writeOnly {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+                    NSWorkspace.shared.open(url)
+                }
+                return
+            }
+        }
+        
+        // When notDetermined, request full access via system TCC prompt
+        if #available(macOS 14.0, *) {
+            eventStore.requestFullAccessToEvents { [weak self] granted, _ in
+                Task { @MainActor in
+                    self?.isCalendarAccessGranted = granted
+                    if granted {
+                        self?.loadEvents()
+                        self?.updateGridCells()
+                    }
+                }
+            }
+        } else {
+            eventStore.requestAccess(to: .event) { [weak self] granted, _ in
+                Task { @MainActor in
+                    self?.isCalendarAccessGranted = granted
+                    if granted {
+                        self?.loadEvents()
+                        self?.updateGridCells()
+                    }
+                }
+            }
+        }
     }
     
     public func stop() {}
@@ -111,29 +178,43 @@ public final class CalendarModule: ObservableObject {
     }
     
     private func loadEvents() {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        let isAuthorized: Bool
+        if #available(macOS 14.0, *) {
+            isAuthorized = (status == .fullAccess)
+        } else {
+            isAuthorized = (status == .authorized)
+        }
+        
+        self.isCalendarAccessGranted = isAuthorized
+        guard isAuthorized else {
+            upcomingEvents = []
+            return
+        }
+        
         let calendar = Calendar.current
         let today = Date()
+        let startOfDay = calendar.startOfDay(for: today)
+        guard let endDate = calendar.date(byAdding: .day, value: 30, to: startOfDay) else { return }
         
-        let event1 = CalendarEventItem(
-            title: "Team Standup",
-            timeString: "11:00 AM",
-            date: today,
-            colorName: "blue"
-        )
-        let event2 = CalendarEventItem(
-            title: "Design Review",
-            timeString: "2:30 PM",
-            date: today,
-            colorName: "blue"
-        )
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        let event3 = CalendarEventItem(
-            title: "Project Sync",
-            timeString: "4:00 PM",
-            date: tomorrow,
-            colorName: "green"
-        )
-        upcomingEvents = [event1, event2, event3]
+        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endDate, calendars: nil)
+        let ekEvents = eventStore.events(matching: predicate)
+        
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        
+        upcomingEvents = ekEvents.map { ev in
+            let timeStr = ev.isAllDay ? "All Day" : formatter.string(from: ev.startDate)
+            return CalendarEventItem(
+                title: ev.title ?? "Event",
+                timeString: timeStr,
+                date: ev.startDate,
+                endDate: ev.endDate,
+                isAllDay: ev.isAllDay,
+                colorName: "blue"
+            )
+        }
     }
     
     public func events(for date: Date) -> [CalendarEventItem] {
@@ -501,6 +582,25 @@ public struct CalendarHomeCardView: View {
                 .padding(.vertical, 3.5)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.06)))
                 .transition(.opacity)
+            } else if !module.isCalendarAccessGranted {
+                Button(action: {
+                    module.requestCalendarAccess()
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "lock.shield")
+                            .font(.system(size: 9))
+                            .foregroundColor(.orange)
+                        Text("Calendar Access Required — Tap to Grant")
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3.5)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.orange.opacity(0.12)))
+                .transition(.opacity)
             } else {
                 HStack(spacing: 5) {
                     Image(systemName: "calendar.badge.clock")
@@ -546,9 +646,12 @@ public struct CalendarMiniGlanceView: View {
     }
     
     private var nextEvent: CalendarEventItem? {
-        let calendar = Calendar.current
+        let now = Date()
         return module.upcomingEvents.first { event in
-            calendar.isDate(event.date, inSameDayAs: todayDate) || event.date >= todayDate
+            if event.isAllDay {
+                return Calendar.current.isDate(event.date, inSameDayAs: now) || event.date >= now
+            }
+            return event.endDate >= now
         }
     }
     
@@ -613,6 +716,22 @@ public struct CalendarMiniGlanceView: View {
                         .foregroundColor(DesignSystem.secondaryText)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
+                } else if !module.isCalendarAccessGranted {
+                    Button(action: {
+                        module.requestCalendarAccess()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "lock.shield")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.orange)
+                            Text("Grant Access")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.orange)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Grant Calendar Access")
+                    Spacer()
                 } else {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 9))

@@ -346,7 +346,7 @@ public struct SettingsView: View {
                                         .frame(width: 24, height: 24)
                                     Image(systemName: category.icon)
                                         .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(isSelected ? SettingsInk.primary : category.tintColor)
+                                        .foregroundColor(isSelected ? .white : category.tintColor)
                                 }
                                 
                                 Text(category.rawValue)
@@ -359,7 +359,7 @@ public struct SettingsView: View {
                             .padding(.vertical, 7)
                             .background(
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(isSelected ? SettingsInk.tint(0.12) : Color.clear)
+                                    .fill(isSelected ? (store.currentTheme.isLight ? category.tintColor.opacity(0.14) : SettingsInk.tint(0.12)) : Color.clear)
                             )
                             .contentShape(Rectangle())
                         }
@@ -734,6 +734,138 @@ public struct SettingsView: View {
             Divider()
                 .padding(.vertical, 4)
             
+            // Notch Appearance (Custom Opacity)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "slider.horizontal.below.rectangle")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(SettingsCategory.appearance.tintColor)
+                    Text("Notch Appearance")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(SettingsInk.primary)
+                    Spacer()
+                    Button(action: {
+                        FeedbackManager.playClick()
+                        withAnimation(DesignSystem.reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                            store.useCustomNotchOpacity = false
+                            store.customNotchOpacity = 1.0
+                        }
+                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 9, weight: .medium))
+                            Text("Reset")
+                                .font(.system(size: 9.5, weight: .medium))
+                        }
+                        .foregroundColor((store.useCustomNotchOpacity || store.customNotchOpacity < 1.0) ? SettingsInk.secondary : SettingsInk.tint(0.25))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(Capsule().fill(SettingsInk.tint(0.06)))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!store.useCustomNotchOpacity && store.customNotchOpacity >= 1.0)
+                    .pointerHoverCursor()
+                    .help("Restore default appearance (disables custom opacity override)")
+                    .accessibilityLabel("Reset Notch Opacity")
+                    .accessibilityHint("Restores default theme appearance and resets opacity to 100%.")
+                }
+                
+                VStack(spacing: 10) {
+                    // Custom Opacity Toggle Row
+                    Button {
+                        store.useCustomNotchOpacity.toggle()
+                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Custom Opacity")
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundColor(SettingsInk.primary)
+                                    Text(store.useCustomNotchOpacity ? "ON" : "OFF")
+                                        .font(.system(size: 8.5, weight: .semibold))
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1.5)
+                                        .background(Capsule().fill(store.useCustomNotchOpacity ? DesignSystem.accentColor.opacity(0.25) : SettingsInk.tint(0.08)))
+                                        .foregroundColor(store.useCustomNotchOpacity ? DesignSystem.accentColor : SettingsInk.secondary)
+                                }
+                                Text(store.useCustomNotchOpacity ? "Custom surface opacity override active" : "Preserve theme-defined colors, materials, and opacities")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { store.useCustomNotchOpacity },
+                                set: { newVal in
+                                    store.useCustomNotchOpacity = newVal
+                                    NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                                }
+                            ))
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .labelsHidden()
+                            .allowsHitTesting(false)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .pointerHoverCursor()
+                    .accessibilityLabel("Custom Opacity")
+                    .accessibilityHint("Toggles user-controlled notch background opacity override.")
+                    
+                    // Opacity Slider Row & Percentage Readout
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("Surface Opacity")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(store.useCustomNotchOpacity ? SettingsInk.primary : SettingsInk.secondary)
+                            Spacer()
+                            Text("\(Int(round(store.customNotchOpacity * 100)))%")
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundColor(store.useCustomNotchOpacity ? DesignSystem.accentColor : SettingsInk.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(store.useCustomNotchOpacity ? DesignSystem.accentColor.opacity(0.12) : SettingsInk.tint(0.06)))
+                        }
+                        
+                        Slider(
+                            value: $store.customNotchOpacity,
+                            in: 0.50...1.00,
+                            step: 0.01
+                        ) { editing in
+                            if !editing {
+                                NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                            }
+                        }
+                        .tint(SettingsCategory.appearance.tintColor)
+                        .disabled(!store.useCustomNotchOpacity)
+                        .accessibilityLabel("Notch Surface Opacity")
+                        .accessibilityValue("\(Int(round(store.customNotchOpacity * 100))) percent")
+                        .accessibilityHint("Adjusts the surface opacity between 50% and 100%.")
+                        
+                        HStack {
+                            Text("50% (Translucent)")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(SettingsInk.tint(0.4))
+                            Spacer()
+                            Text("100% (Solid)")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(SettingsInk.tint(0.4))
+                        }
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(SettingsInk.tint(0.02)))
+                    .opacity(store.useCustomNotchOpacity ? 1.0 : 0.5)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(SettingsInk.tint(0.03)))
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
             // Per-Module vs Global Accent Color Switch
             Button {
                 store.usePerModuleAccent.toggle()
@@ -943,142 +1075,320 @@ public struct SettingsView: View {
     
     // MARK: - Section 2: Geometry & Sizing
     private var geometrySection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: SettingsCategory.geometry.icon)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(SettingsCategory.geometry.tintColor)
-                Text("Spatial Geometry & Sizing")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(SettingsInk.primary)
+        VStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: SettingsCategory.geometry.icon)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(SettingsCategory.geometry.tintColor)
+                    Text("Spatial Geometry & Sizing")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(SettingsInk.primary)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Expanded Notch Width: \(Int(store.notchWidth)) pt")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(SettingsInk.primary)
+                        Spacer()
+                        Text("Default: 620 pt")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(SettingsInk.secondary)
+                    }
+                    Slider(value: $store.notchWidth, in: 480...800, step: 20) { editing in
+                        if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                    }
+                    .tint(SettingsCategory.geometry.tintColor)
+                    .accessibilityLabel("Expanded Notch Width")
+                    .accessibilityHint("Adjusts the width of the expanded notch island from 480 to 800 points.")
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Expanded Notch Height: \(Int(store.notchHeight)) pt")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(SettingsInk.primary)
+                        Spacer()
+                        Text("Default: 330 pt")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(SettingsInk.secondary)
+                    }
+                    Slider(value: $store.notchHeight, in: 200...540, step: 10) { editing in
+                        if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                    }
+                    .tint(SettingsCategory.geometry.tintColor)
+                    .accessibilityLabel("Expanded Notch Height")
+                    .accessibilityHint("Adjusts the height of the expanded notch island from 200 to 540 points.")
+                }
+                
+                Divider()
+                    .padding(.vertical, 4)
+                
+                // Collapsed Advanced Geometry Section
+                AdvancedSettingsSection(
+                    sectionID: "geometry_advanced",
+                    title: "Hitbox & Inner Padding",
+                    description: "Hover sensor activation hitbox and internal content edge margins.",
+                    onReset: {
+                        store.hoverTriggerHeight = 34.0
+                        store.hoverTriggerWidth = 210.0
+                        store.contentHorizontalPadding = 16.0
+                        store.contentVerticalPadding = 12.0
+                        NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
+                    }
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Hover Trigger Height: \(Int(store.hoverTriggerHeight)) pt")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(SettingsInk.primary)
+                                Spacer()
+                                Text("Default: 34 pt")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Slider(value: $store.hoverTriggerHeight, in: NotchDimensionLimits.minHoverHeight...NotchDimensionLimits.maxHoverHeight, step: 1.0) { editing in
+                                if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                            }
+                            .tint(SettingsCategory.geometry.tintColor)
+                            .accessibilityLabel("Hover Trigger Height")
+                            .accessibilityHint("Fine-tunes the height of the activation sensor below the camera.")
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Hover Trigger Width: \(Int(store.hoverTriggerWidth)) pt")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(SettingsInk.primary)
+                                Spacer()
+                                Text("Default: \(Int(NotchDimensionLimits.defaultHoverWidth)) pt")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Slider(value: $store.hoverTriggerWidth, in: NotchDimensionLimits.minHoverWidth...NotchDimensionLimits.maxHoverWidth, step: 2.0) { editing in
+                                if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                            }
+                            .tint(SettingsCategory.geometry.tintColor)
+                            .accessibilityLabel("Hover Trigger Width")
+                            .accessibilityHint("Fine-tunes the width of the activation zone centered on the physical notch.")
+                        }
+                        
+                        Divider().background(SettingsInk.tint(0.06))
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Horizontal Content Padding: \(Int(store.contentHorizontalPadding)) pt")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(SettingsInk.primary)
+                                Spacer()
+                                Text("Default: 16 pt")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Slider(value: $store.contentHorizontalPadding, in: 12...32, step: 2)
+                            .tint(SettingsCategory.geometry.tintColor)
+                            .accessibilityLabel("Horizontal Content Padding")
+                            .accessibilityHint("Internal left and right margin spacing.")
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Vertical Content Padding: \(Int(store.contentVerticalPadding)) pt")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(SettingsInk.primary)
+                                Spacer()
+                                Text("Default: 12 pt")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Slider(value: $store.contentVerticalPadding, in: 8...24, step: 2)
+                            .tint(SettingsCategory.geometry.tintColor)
+                            .accessibilityLabel("Vertical Content Padding")
+                            .accessibilityHint("Internal top and bottom margin spacing.")
+                        }
+                    }
+                }
             }
+            .settingsCard()
             
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Expanded Notch Width: \(Int(store.notchWidth)) pt")
+            // Notch Wings & Display Alignment Card
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "rectangle.inset.topleading.filled")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(SettingsCategory.geometry.tintColor)
+                    Text("Notch Wings & Display Alignment")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(SettingsInk.primary)
+                }
+                
+                // Collapsed Notch Wings Mode
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Collapsed Island Wings Mode")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(SettingsInk.primary)
-                    Spacer()
-                    Text("Default: 620 pt")
-                        .font(.system(size: 9.5))
+                    Text("Controls whether informational wings extend from the sides of the physical camera cutout.")
+                        .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
+                    
+                    HStack(spacing: 8) {
+                        ForEach(CollapsedNotchMode.allCases) { mode in
+                            let isSelected = store.collapsedNotchMode == mode
+                            Button {
+                                FeedbackManager.playClick()
+                                withAnimation(DesignSystem.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85)) {
+                                    store.collapsedNotchMode = mode
+                                }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: mode.icon)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(isSelected ? SettingsCategory.geometry.tintColor : SettingsInk.secondary)
+                                    Text(mode.rawValue)
+                                        .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                                        .foregroundColor(isSelected ? SettingsCategory.geometry.tintColor : SettingsInk.primary)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(isSelected ? SettingsCategory.geometry.tintColor.opacity(0.12) : SettingsInk.tint(0.04))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(isSelected ? SettingsCategory.geometry.tintColor.opacity(0.5) : SettingsInk.tint(0.08), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(mode.rawValue)
+                        }
+                    }
                 }
-                Slider(value: $store.notchWidth, in: 480...800, step: 20) { editing in
-                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
+                
+                // Wing Width
+                if store.collapsedNotchMode != .hideBehindNotch {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Wing Width: \(Int(store.wingWidth)) pt")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(SettingsInk.primary)
+                            Spacer()
+                            Text("Default: 56 pt")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(SettingsInk.secondary)
+                        }
+                        Slider(value: $store.wingWidth, in: 20...120, step: 4)
+                            .tint(SettingsCategory.geometry.tintColor)
+                            .accessibilityLabel("Wing Width")
+                            .accessibilityHint("Adjusts the horizontal width of the informational wings.")
+                    }
                 }
-                .tint(SettingsCategory.geometry.tintColor)
-                .accessibilityLabel("Expanded Notch Width")
-                .accessibilityHint("Adjusts the width of the expanded notch island from 480 to 800 points.")
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Expanded Notch Height: \(Int(store.notchHeight)) pt")
+                
+                Divider()
+                    .padding(.vertical, 2)
+                
+                // Display Position Attachment
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Display Anchor Attachment")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(SettingsInk.primary)
-                    Spacer()
-                    Text("Default: 330 pt")
-                        .font(.system(size: 9.5))
+                    Text("Select whether Notchify attaches flush to the hardware camera bezel or below the menu bar on external/non-notch displays.")
+                        .font(.system(size: 10))
                         .foregroundColor(SettingsInk.secondary)
-                }
-                Slider(value: $store.notchHeight, in: 200...540, step: 10) { editing in
-                    if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
-                }
-                .tint(SettingsCategory.geometry.tintColor)
-                .accessibilityLabel("Expanded Notch Height")
-                .accessibilityHint("Adjusts the height of the expanded notch island from 200 to 420 points.")
-            }
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            // Collapsed Advanced Geometry Section
-            AdvancedSettingsSection(
-                sectionID: "geometry_advanced",
-                title: "Hitbox & Inner Padding",
-                description: "Hover sensor activation hitbox and internal content edge margins.",
-                onReset: {
-                    store.hoverTriggerHeight = 34.0
-                    store.hoverTriggerWidth = 210.0
-                    store.contentHorizontalPadding = 16.0
-                    store.contentVerticalPadding = 12.0
-                    NotchShellCoordinator.shared.triggerAppearancePropagationPreview()
-                }
-            ) {
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Hover Trigger Height: \(Int(store.hoverTriggerHeight)) pt")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(SettingsInk.primary)
-                            Spacer()
-                            Text("Default: 34 pt")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(SettingsInk.secondary)
+                    
+                    HStack(spacing: 8) {
+                        ForEach([NotchPositionAttachment.hardwareNotch, NotchPositionAttachment.belowMenuBar]) { attachment in
+                            let isSelected = store.positionAttachment == attachment
+                            Button {
+                                FeedbackManager.playClick()
+                                withAnimation(DesignSystem.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85)) {
+                                    store.positionAttachment = attachment
+                                }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Image(systemName: attachment.icon)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(isSelected ? SettingsCategory.geometry.tintColor : SettingsInk.secondary)
+                                    Text(attachment.rawValue)
+                                        .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                                        .foregroundColor(isSelected ? SettingsCategory.geometry.tintColor : SettingsInk.primary)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(isSelected ? SettingsCategory.geometry.tintColor.opacity(0.12) : SettingsInk.tint(0.04))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(isSelected ? SettingsCategory.geometry.tintColor.opacity(0.5) : SettingsInk.tint(0.08), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(attachment.rawValue)
                         }
-                        Slider(value: $store.hoverTriggerHeight, in: 24...54, step: 2) { editing in
-                            if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
-                        }
-                        .tint(SettingsCategory.geometry.tintColor)
-                        .accessibilityLabel("Hover Trigger Height")
-                        .accessibilityHint("Fine-tunes the height of the activation sensor below the camera.")
                     }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Hover Trigger Width: \(Int(store.hoverTriggerWidth)) pt")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(SettingsInk.primary)
-                            Spacer()
-                            Text("Default: 210 pt")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(SettingsInk.secondary)
-                        }
-                        Slider(value: $store.hoverTriggerWidth, in: 160...380, step: 10) { editing in
-                            if !editing { NotchShellCoordinator.shared.triggerAppearancePropagationPreview() }
-                        }
-                        .tint(SettingsCategory.geometry.tintColor)
-                        .accessibilityLabel("Hover Trigger Width")
-                        .accessibilityHint("Fine-tunes the width of the activation zone centered on the physical notch.")
+                }
+                
+                // Advanced Alignment Offsets
+                AdvancedSettingsSection(
+                    sectionID: "display_offsets",
+                    title: "Fine Alignment Offsets",
+                    description: "Subpixel horizontal and vertical shifts to calibrate camera alignment on custom monitors.",
+                    onReset: {
+                        store.horizontalNotchOffset = 0.0
+                        store.verticalNotchOffset = 0.0
+                        store.wingWidth = 56.0
+                        store.collapsedNotchMode = .hideBehindNotch
+                        store.positionAttachment = .hardwareNotch
+                        NotchShellCoordinator.shared.refreshLayouts()
                     }
-                    
-                    Divider().background(SettingsInk.tint(0.06))
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Horizontal Content Padding: \(Int(store.contentHorizontalPadding)) pt")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(SettingsInk.primary)
-                            Spacer()
-                            Text("Default: 16 pt")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(SettingsInk.secondary)
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Horizontal Offset: \(Int(store.horizontalNotchOffset)) pt")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(SettingsInk.primary)
+                                Spacer()
+                                Text("Default: 0 pt")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Slider(value: $store.horizontalNotchOffset, in: -60...60, step: 2)
+                                .tint(SettingsCategory.geometry.tintColor)
+                                .accessibilityLabel("Horizontal Offset")
+                                .accessibilityHint("Shifts the notch island horizontally.")
                         }
-                        Slider(value: $store.contentHorizontalPadding, in: 12...32, step: 2)
-                        .tint(SettingsCategory.geometry.tintColor)
-                        .accessibilityLabel("Horizontal Content Padding")
-                        .accessibilityHint("Internal left and right margin spacing.")
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Vertical Content Padding: \(Int(store.contentVerticalPadding)) pt")
-                                .font(.system(size: 11.5))
-                                .foregroundColor(SettingsInk.primary)
-                            Spacer()
-                            Text("Default: 12 pt")
-                                .font(.system(size: 9.5))
-                                .foregroundColor(SettingsInk.secondary)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Vertical Offset: \(Int(store.verticalNotchOffset)) pt")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(SettingsInk.primary)
+                                Spacer()
+                                Text("Default: 0 pt")
+                                    .font(.system(size: 9.5))
+                                    .foregroundColor(SettingsInk.secondary)
+                            }
+                            Slider(value: $store.verticalNotchOffset, in: -15...15, step: 1)
+                                .tint(SettingsCategory.geometry.tintColor)
+                                .accessibilityLabel("Vertical Offset")
+                                .accessibilityHint("Nudges the notch island vertically.")
                         }
-                        Slider(value: $store.contentVerticalPadding, in: 8...24, step: 2)
-                        .tint(SettingsCategory.geometry.tintColor)
-                        .accessibilityLabel("Vertical Content Padding")
-                        .accessibilityHint("Internal top and bottom margin spacing.")
                     }
                 }
             }
+            .settingsCard()
         }
-        .settingsCard()
     }
     
     // MARK: - Section 3: Motion & Delays
@@ -1477,7 +1787,15 @@ public struct SettingsView: View {
                             .font(.system(size: 9.5))
                             .foregroundColor(SettingsInk.secondary)
                         
-                        if let tg = registry.module(for: "telegram") as? TelegramModule {
+                        let tgModule: TelegramModule? = {
+                            if let tg = registry.module(for: "telegram") as? TelegramModule {
+                                return tg
+                            } else if let lazy = registry.module(for: "telegram") as? LazyNotchModule {
+                                return lazy.resolve() as? TelegramModule
+                            }
+                            return nil
+                        }()
+                        if let tg = tgModule {
                             TelegramSettingsBotRow(module: tg)
                         }
                     }

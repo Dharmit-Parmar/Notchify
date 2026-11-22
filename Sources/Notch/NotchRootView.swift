@@ -34,6 +34,13 @@ public struct NotchRootView: View {
         }
     }
     
+    private var currentAccentColor: Color {
+        if store.usePerModuleAccent, let activeId = registry.activeModuleId {
+            return DesignSystem.moduleAccentColor(for: activeId)
+        }
+        return DesignSystem.accentColor
+    }
+    
     public var body: some View {
         ZStack(alignment: .top) {
             // Clean Liquid Retina Glass: No drop shadow, deep continuous squircle radii
@@ -65,8 +72,8 @@ public struct NotchRootView: View {
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        DesignSystem.accentColor.opacity(0.35),
-                                        DesignSystem.accentColor.opacity(0.10),
+                                        currentAccentColor.opacity(0.35),
+                                        currentAccentColor.opacity(0.10),
                                         Color.clear
                                     ],
                                     startPoint: .leading,
@@ -78,7 +85,7 @@ public struct NotchRootView: View {
                             .padding(.bottom, 10)
                         
                         // Body: Home Dashboard (by default) OR Selected Secondary Module
-                        ResponsiveTabContent(enablesVerticalScrollFallback: false) { availableH in
+                        ResponsiveTabContent(enablesVerticalScrollFallback: !moduleHasInternalVerticalScroll) { availableH in
                             contentArea(availableHeight: availableH)
                         }
                         .padding(.horizontal, store.contentHorizontalPadding)
@@ -172,6 +179,7 @@ public struct NotchRootView: View {
             let isDashboardActive = (registry.activeModuleId == nil)
             let isDashboardPinned = registry.isDashboardPinned
             Button(action: {
+                registry.clearSuppression()
                 registry.toggleDashboardPin()
             }) {
                 HStack(spacing: 5) {
@@ -205,6 +213,8 @@ public struct NotchRootView: View {
             .onHover { hovering in
                 if hovering {
                     registry.onDashboardHover()
+                } else {
+                    registry.onDashboardHoverExit()
                 }
             }
             .onDrop(of: [.fileURL, .item, .data, .content], isTargeted: nil) { providers in
@@ -401,6 +411,11 @@ public struct NotchRootView: View {
             .help("Collapse Notch (Esc)")
             .accessibilityLabel("Collapse Notch Island")
         }
+        .onHover { hovering in
+            if !hovering {
+                registry.onNavBarHoverExit()
+            }
+        }
     }
     
     private var moduleHasInternalVerticalScroll: Bool {
@@ -482,11 +497,11 @@ public struct NotchRootView: View {
                 .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                        .fill(active.id == "airdrop" && airDropModule.isDropTargeted ? DesignSystem.accentColor.opacity(0.12) : DesignSystem.cardFill)
+                        .fill(active.id == "airdrop" && airDropModule.isDropTargeted ? currentAccentColor.opacity(0.12) : DesignSystem.cardFill)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignSystem.defaultCornerRadius, style: .continuous)
-                        .strokeBorder(active.id == "airdrop" && airDropModule.isDropTargeted ? DesignSystem.accentColor.opacity(0.8) : DesignSystem.cardBorder, lineWidth: active.id == "airdrop" && airDropModule.isDropTargeted ? 1.5 : 0.8)
+                        .strokeBorder(active.id == "airdrop" && airDropModule.isDropTargeted ? currentAccentColor.opacity(0.8) : DesignSystem.cardBorder, lineWidth: active.id == "airdrop" && airDropModule.isDropTargeted ? 1.5 : 0.8)
                 )
                 .contentShape(Rectangle())
                 .onDrop(of: [.fileURL, .url, .image, .text, .plainText, .utf8PlainText, .item, .data, .content], isTargeted: active.id == "airdrop" ? $airDropModule.isDropTargeted : .constant(false)) { providers in
@@ -557,10 +572,15 @@ public struct DraggableTabChip: View {
     let scrollProxy: ScrollViewProxy
     @StateObject private var uiState = LocalUIState()
     
-    public var body: some View {
-        let isSelected = (registry.activeModuleId == module.id)
-        let isPinned = (registry.pinnedModuleId == module.id)
-        
+    private var isSelected: Bool {
+        registry.activeModuleId == module.id
+    }
+    
+    private var isPinned: Bool {
+        registry.pinnedModuleId == module.id
+    }
+    
+    private var chipLabel: some View {
         HStack(spacing: 5) {
             Image(systemName: module.iconName)
                 .font(.system(size: 11, weight: .semibold))
@@ -580,47 +600,78 @@ public struct DraggableTabChip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(
-            Capsule()
-                .fill(uiState.isTargeted ? module.themeColor.opacity(0.25) : (isSelected ? DesignSystem.structureColor : Color.white.opacity(0.05)))
-        )
-        .overlay(
-            Capsule()
-                .strokeBorder(
-                    uiState.isTargeted ? module.themeColor : (isSelected ? module.themeColor.opacity(0.8) : Color.white.opacity(0.08)),
-                    lineWidth: uiState.isTargeted ? 1.8 : (isPinned ? 1.4 : 0.8)
-                )
-        )
-        .scaleEffect(uiState.isTargeted ? 1.08 : (uiState.isHovered ? 1.02 : 1.0))
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: uiState.isTargeted)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("\(module.title) Tab\(isPinned ? ", Pinned" : "")")
-        .contentShape(Rectangle())
-        .onTapGesture {
+    }
+    
+    private var chipBackground: some View {
+        Capsule()
+            .fill(uiState.isTargeted ? module.themeColor.opacity(0.25) : (isSelected ? DesignSystem.structureColor : Color.white.opacity(0.05)))
+    }
+    
+    private var chipBorder: some View {
+        Capsule()
+            .strokeBorder(
+                uiState.isTargeted ? module.themeColor : (isSelected ? module.themeColor.opacity(0.8) : Color.white.opacity(0.08)),
+                lineWidth: uiState.isTargeted ? 1.8 : (isPinned ? 1.4 : 0.8)
+            )
+    }
+
+    private func handleTap() {
+        registry.clearSuppression()
+        if registry.activeModuleId == module.id {
             registry.togglePin(module.id)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                scrollProxy.scrollTo(module.id, anchor: .center)
+        } else {
+            registry.selectModule(module.id)
+        }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            scrollProxy.scrollTo(module.id, anchor: .center)
+        }
+    }
+
+    private func createItemProvider() -> NSItemProvider {
+        FeedbackManager.playHover()
+        let identifier: NSString = "tab:\(module.id)" as NSString
+        return NSItemProvider(object: identifier)
+    }
+    
+    public var body: some View {
+        chipLabel
+            .background(chipBackground)
+            .overlay(chipBorder)
+            .scaleEffect(uiState.isTargeted ? 1.08 : (uiState.isHovered ? 1.02 : 1.0))
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: uiState.isTargeted)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("\(module.title) Tab\(isPinned ? ", Pinned" : "")")
+            .contentShape(Rectangle())
+            .onTapGesture {
+                handleTap()
             }
-        }
-        .onHover { hovering in
-            uiState.isHovered = hovering
-            if hovering {
-                registry.onTabHover(module.id)
+            .contextMenu {
+                Button {
+                    registry.togglePin(module.id)
+                } label: {
+                    Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
+                }
             }
-        }
-        // Draggable tab source for manual reordering
-        .onDrag {
-            FeedbackManager.playHover()
-            return NSItemProvider(object: "tab:\(module.id)" as NSString)
-        }
-        // Drop target supporting both Tab Reordering AND External File Drag-Hover!
-        .onDrop(of: [.text, .fileURL, .item, .data, .content], delegate: UniversalTabDropDelegate(
-            module: module,
-            registry: registry,
-            scrollProxy: scrollProxy,
-            isTargeted: $uiState.isTargeted
-        ))
+            .onHover { hovering in
+                uiState.isHovered = hovering
+                if hovering {
+                    registry.onTabHover(module.id)
+                } else {
+                    registry.onTabHoverExit(module.id)
+                }
+            }
+            // Draggable tab source for manual reordering
+            .onDrag {
+                createItemProvider()
+            }
+            // Drop target supporting both Tab Reordering AND External File Drag-Hover!
+            .onDrop(of: [.text, .fileURL, .item, .data, .content], delegate: UniversalTabDropDelegate(
+                module: module,
+                registry: registry,
+                scrollProxy: scrollProxy,
+                isTargeted: $uiState.isTargeted
+            ))
     }
 }
 

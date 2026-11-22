@@ -1,1 +1,0 @@
-../../Sources/Modules/LocalShare/LocalShareSettings.swift

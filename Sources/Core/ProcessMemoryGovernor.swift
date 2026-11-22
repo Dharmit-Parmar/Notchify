@@ -84,9 +84,13 @@ public final class ProcessMemoryGovernor: ObservableObject {
         guard !isSystemPanelActive else { return }
         guard !NotchShellCoordinator.shared.isMenuOrPopoverOpen else { return }
         guard !NotchShellCoordinator.shared.isFileDraggingActive else { return }
-        guard !AirDropModule.shared.isSharingSheetActive && !AirDropModule.shared.isBeaming else { return }
-        guard !LocalShareModule.shared.isTransferSheetActive else { return }
-        guard !LocalShareModule.shared.isSending && !LocalShareModule.shared.isReceiving else { return }
+        if let airdrop = ModuleRegistry.shared.loadedModule(for: "airdrop", as: AirDropModule.self) {
+            guard !airdrop.isSharingSheetActive && !airdrop.isBeaming else { return }
+        }
+        if let localShare = ModuleRegistry.shared.loadedModule(for: "localshare", as: LocalShareModule.self) {
+            guard !localShare.isTransferSheetActive else { return }
+            guard !localShare.isSending && !localShare.isReceiving else { return }
+        }
         
         let now = Date()
         let idleDuration = now.timeIntervalSince(lastUserActivity)
@@ -111,25 +115,30 @@ public final class ProcessMemoryGovernor: ObservableObject {
         MediaThumbnailProvider.shared.clearCache()
         
         // 3. Shelf In-Memory Caches:
-        // CAUTION: ShelfModule.shared.items MUST NEVER be cleared! Preserved so user never has to re-upload files.
-        ShelfModule.shared.evictCaches()
-        if ShelfModule.shared.items.isEmpty {
-            ShelfModule.shared.cleanStaleTempFiles(all: true)
+        // CAUTION: ShelfModule.items MUST NEVER be cleared! Preserved so user never has to re-upload files.
+        if let shelf = ModuleRegistry.shared.loadedModule(for: "shelf", as: ShelfModule.self) {
+            shelf.evictCaches()
+            if shelf.items.isEmpty {
+                shelf.cleanStaleTempFiles(all: true)
+            }
         }
         
         // 4. LocalShare Idle Network State:
-        // CAUTION: LocalShareModule.shared.selectedFiles MUST NEVER be cleared! Preserved so user never has to re-select files.
-        let localShare = LocalShareModule.shared
-        if localShare.selectedFiles.isEmpty && !localShare.isSending && !localShare.isReceiving {
-            localShare.stopDiscovery()
+        // CAUTION: LocalShareModule.selectedFiles MUST NEVER be cleared! Preserved so user never has to re-select files.
+        if let localShare = ModuleRegistry.shared.loadedModule(for: "localshare", as: LocalShareModule.self) {
+            if localShare.selectedFiles.isEmpty && !localShare.isSending && !localShare.isReceiving {
+                localShare.stopDiscovery()
+            }
         }
         
         // 5. AirDrop Idle State:
-        // CAUTION: AirDropModule.shared.recentFiles MUST NEVER be cleared! Preserved so user never has to re-drag files.
+        // CAUTION: AirDropModule.recentFiles MUST NEVER be cleared! Preserved so user never has to re-drag files.
         
         // 6. Mirror Camera Hardware:
-        if MirrorModule.shared.viewers == 0 {
-            MirrorModule.shared.stop()
+        if let mirror = ModuleRegistry.shared.loadedModule(for: "mirror", as: MirrorModule.self) {
+            if mirror.viewers == 0 {
+                mirror.stop()
+            }
         }
         
         // 7. NowPlaying Artwork Bitmaps:
