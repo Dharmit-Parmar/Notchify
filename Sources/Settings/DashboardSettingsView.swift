@@ -1,12 +1,28 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+@MainActor
+final class GoogleLoginState: ObservableObject {
+    @Published var emailInput: String = ""
+    @Published var tokenInput: String = ""
+    @Published var oauthError: String? = nil
+    @Published var showAdvancedSettings: Bool = false
+
+    var canSubmit: Bool {
+        !emailInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !tokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 public struct DashboardSettingsView: View {
     @ObservedObject private var store = SettingsStore.shared
+    @ObservedObject private var googleSync = GoogleSyncService.shared
+    @ObservedObject private var googleOAuth = GoogleOAuthManager.shared
+    @StateObject private var googleState = GoogleLoginState()
 
     // FIX: track which key/model field has focus so we can render a visible
     // focus ring — `.textFieldStyle(.plain)` removes the native one.
-    private enum KeyField: Hashable { case geminiKey, geminiModel, openAIKey, openAIModel }
+    private enum KeyField: Hashable { case geminiKey, geminiModel, openAIKey, openAIModel, googleEmail, googleToken }
     @FocusState private var focusedField: KeyField?
 
     public init() {}
@@ -40,6 +56,9 @@ public struct DashboardSettingsView: View {
 
             themedDivider
             notesCustomizationSection
+
+            themedDivider
+            calendarCustomizationSection
 
             themedDivider
             clockCustomizationSection
@@ -431,6 +450,393 @@ public struct DashboardSettingsView: View {
                         .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
                 )
         )
+    }
+
+    // MARK: - Calendar & Google Account Customization Section
+
+    private var calendarCustomizationSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            calendarHeaderView
+            calendarSourceSelectorView
+            googleAccountSyncContainer
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(SettingsInk.tint(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.9)
+                )
+        )
+    }
+
+    private var calendarHeaderView: some View {
+        HStack {
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.20, green: 0.60, blue: 1.00).opacity(0.18))
+                    .frame(width: 26, height: 26)
+                Image(systemName: "calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(red: 0.20, green: 0.60, blue: 1.00))
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("CALENDAR & GOOGLE SYNC")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(SettingsInk.primary)
+                Text("Toggle between native Apple Calendar and cloud-synchronized Google Calendar & Tasks")
+                    .font(.system(size: 10))
+                    .foregroundColor(SettingsInk.secondary)
+            }
+
+            Spacer()
+        }
+    }
+
+    private var calendarSourceSelectorView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("CALENDAR SOURCE")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundColor(SettingsInk.secondary)
+
+            HStack(spacing: 8) {
+                ForEach(CalendarSource.allCases) { source in
+                    let isSelected = store.calendarSource == source
+                    Button {
+                        withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+                            store.calendarSource = source
+                            CalendarModule.shared.refreshEvents()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: source.iconName)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(isSelected ? SettingsInk.primary : DesignSystem.accentColor)
+                            Text(source.title)
+                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                .foregroundColor(isSelected ? SettingsInk.primary : SettingsInk.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(isSelected ? DesignSystem.accentColor.opacity(0.85) : SettingsInk.tint(0.05))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(isSelected ? SettingsInk.tint(0.25) : SettingsInk.tint(0.08), lineWidth: 0.8)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var googleAccountSyncContainer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "g.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Unified Google Account")
+                        .font(.system(size: 11.5, weight: .bold))
+                        .foregroundColor(SettingsInk.primary)
+                    Text("Connect once to synchronize Google Calendar, Google Tasks, and Gemini AI across Notch.")
+                        .font(.system(size: 10))
+                        .foregroundColor(SettingsInk.secondary)
+                }
+
+                Spacer()
+
+                if googleSync.isSyncing {
+                    ProgressView().controlSize(.small)
+                }
+            }
+
+            if googleSync.isConnected {
+                googleConnectedView
+            } else {
+                googleDisconnectedView
+            }
+        }
+        .padding(11)
+        .background(RoundedRectangle(cornerRadius: 10).fill(SettingsInk.tint(0.04)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(SettingsInk.tint(0.08), lineWidth: 0.8)
+        )
+    }
+
+    private var googleConnectedView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 14))
+                .foregroundColor(.green)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Google Account Synced")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(SettingsInk.primary)
+                Text(store.connectedGoogleEmail.isEmpty ? "Connected via secure token" : store.connectedGoogleEmail)
+                    .font(.system(size: 10))
+                    .foregroundColor(SettingsInk.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                Task {
+                    await googleSync.syncNow()
+                    CalendarModule.shared.refreshEvents()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 9))
+                    Text("Sync Now")
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(SettingsInk.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(SettingsInk.tint(0.08)))
+            }
+            .buttonStyle(.plain)
+
+            Button("Disconnect") {
+                googleSync.disconnectAccount()
+                CalendarModule.shared.refreshEvents()
+            }
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.red.opacity(0.85))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.red.opacity(0.08)))
+            .buttonStyle(.plain)
+        }
+        .padding(9)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.green.opacity(0.08)))
+    }
+
+    private var googleDisconnectedView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            let hasClientId = !store.googleOAuthClientId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+            if !hasClientId {
+                // Setup onboarding card when no Client ID has been configured yet
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "key.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+                        Text("Google Sign-In Setup")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(SettingsInk.primary)
+
+                        Spacer()
+
+                        Button {
+                            if let url = URL(string: "https://console.cloud.google.com/apis/credentials") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Text("Open Cloud Console")
+                                Image(systemName: "arrow.up.right")
+                            }
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text("Google OAuth requires a free Desktop Client ID to connect Calendar & Tasks to your Mac:")
+                        .font(.system(size: 9.5))
+                        .foregroundColor(SettingsInk.secondary)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("1. In Google Cloud Console, click Create Credentials → OAuth client ID.")
+                        Text("2. Choose Application type: Desktop app, name it Notch, and click Create.")
+                        Text("3. Paste the generated Client ID below:")
+                    }
+                    .font(.system(size: 9))
+                    .foregroundColor(SettingsInk.secondary)
+
+                    HStack(spacing: 6) {
+                        TextField("YOUR_CLIENT_ID.apps.googleusercontent.com", text: $store.googleOAuthClientId)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(SettingsInk.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(SettingsInk.tint(0.06)))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(SettingsInk.tint(0.14), lineWidth: 1)
+                            )
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.04)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color(red: 0.26, green: 0.52, blue: 0.96).opacity(0.2), lineWidth: 0.8)
+                )
+            }
+
+            // Primary 1-Click "Sign in with Google" button
+            HStack(spacing: 12) {
+                Button {
+                    googleState.oauthError = nil
+                    Task {
+                        do {
+                            _ = try await GoogleOAuthManager.shared.signIn()
+                            CalendarModule.shared.refreshEvents()
+                        } catch {
+                            googleState.oauthError = error.localizedDescription
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "g.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+
+                        Text(googleOAuth.isAuthenticating ? "Connecting to Google…" : "Sign in with Google")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(SettingsInk.primary)
+
+                        if googleOAuth.isAuthenticating {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(SettingsInk.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(hasClientId ? SettingsInk.tint(0.10) : SettingsInk.tint(0.04))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(hasClientId ? Color(red: 0.26, green: 0.52, blue: 0.96).opacity(0.4) : SettingsInk.tint(0.12), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(googleOAuth.isAuthenticating || !hasClientId)
+                .opacity(hasClientId ? 1.0 : 0.5)
+
+                Text(hasClientId ? "One-click OAuth sign-in with your Google Account." : "Paste your Client ID above to enable Sign-in.")
+                    .font(.system(size: 9.5))
+                    .foregroundColor(SettingsInk.secondary)
+            }
+
+            if let err = googleState.oauthError ?? googleOAuth.authErrorMessage {
+                HStack(spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                    Text(err)
+                        .font(.system(size: 9.5))
+                        .foregroundColor(.red.opacity(0.9))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.red.opacity(0.08)))
+            }
+
+            // Advanced Options & Token Fallback
+            DisclosureGroup(
+                isExpanded: $googleState.showAdvancedSettings,
+                content: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if hasClientId {
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text("GOOGLE OAUTH CLIENT ID")
+                                        .font(.system(size: 8.5, weight: .bold))
+                                        .foregroundColor(SettingsInk.secondary)
+                                    Spacer()
+                                    Button("Google Cloud Console ↗") {
+                                        if let url = URL(string: "https://console.cloud.google.com/apis/credentials") {
+                                            NSWorkspace.shared.open(url)
+                                        }
+                                    }
+                                    .font(.system(size: 8.5, weight: .medium))
+                                    .foregroundColor(Color(red: 0.26, green: 0.52, blue: 0.96))
+                                    .buttonStyle(.plain)
+                                }
+
+                                TextField("YOUR_CLIENT_ID.apps.googleusercontent.com", text: $store.googleOAuthClientId)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 10.5, design: .monospaced))
+                                    .foregroundColor(SettingsInk.primary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(RoundedRectangle(cornerRadius: 6).fill(SettingsInk.tint(0.06)))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .strokeBorder(SettingsInk.tint(0.12), lineWidth: 1)
+                                    )
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("MANUAL ACCESS TOKEN (FALLBACK / OFFLINE)")
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundColor(SettingsInk.secondary)
+
+                            HStack(spacing: 6) {
+                                SecureField("Bearer token or Google Key", text: $googleState.tokenInput)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 10.5, design: .monospaced))
+                                    .foregroundColor(SettingsInk.primary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(RoundedRectangle(cornerRadius: 6).fill(SettingsInk.tint(0.06)))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .strokeBorder(focusedField == .googleToken ? DesignSystem.accentColor : SettingsInk.tint(0.12), lineWidth: 1)
+                                    )
+                                    .focused($focusedField, equals: .googleToken)
+
+                                Button("Save Token") {
+                                    googleSync.connectAccount(
+                                        email: googleState.emailInput,
+                                        token: googleState.tokenInput
+                                    )
+                                    CalendarModule.shared.refreshEvents()
+                                }
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundColor(SettingsInk.primary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(SettingsInk.tint(0.08)))
+                                .buttonStyle(.plain)
+                                .disabled(googleState.tokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            }
+                        }
+                    }
+                    .padding(.top, 6)
+                },
+                label: {
+                    Text(hasClientId ? "Edit Client ID & Advanced Options" : "Advanced Token Fallback")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(SettingsInk.secondary)
+                }
+            )
+            .accentColor(SettingsInk.secondary)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(SettingsInk.tint(0.04)))
     }
 
     // MARK: - Layout Mode Selection Section

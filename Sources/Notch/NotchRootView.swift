@@ -85,7 +85,8 @@ public struct NotchRootView: View {
                             .padding(.bottom, 10)
                         
                         // Body: Home Dashboard (by default) OR Selected Secondary Module
-                        ResponsiveTabContent(enablesVerticalScrollFallback: !moduleHasInternalVerticalScroll) { availableH in
+                        // The Home Dashboard must NEVER be wrapped in an outer vertical ScrollView so widgets remain stable and never scroll off-screen.
+                        ResponsiveTabContent(enablesVerticalScrollFallback: registry.activeModuleId != nil && !moduleHasInternalVerticalScroll) { availableH in
                             contentArea(availableHeight: availableH)
                         }
                         .padding(.horizontal, store.contentHorizontalPadding)

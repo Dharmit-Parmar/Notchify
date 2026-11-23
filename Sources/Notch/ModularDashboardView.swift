@@ -231,9 +231,9 @@ public struct ModularDashboardView: View {
                     }
                 }
             }
-            .frame(height: max(100.0, store.notchHeight - 96.0))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .transition(.opacity.combined(with: .scale(scale: 0.99)))
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88), value: store.dashboardSlots)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.88), value: store.dashboardLayoutFlow)

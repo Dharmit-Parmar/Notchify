@@ -122,6 +122,41 @@ public enum ClockDialStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Calendar Provider Source
+
+public enum CalendarSource: String, Codable, CaseIterable, Identifiable, Sendable {
+    case apple = "apple"
+    case google = "google"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .apple: return "Apple Calendar"
+        case .google: return "Google Calendar & Tasks"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .apple: return "System EventKit calendar"
+        case .google: return "Google Calendar & Tasks cloud sync"
+        }
+    }
+
+    public var iconName: String {
+        switch self {
+        case .apple: return "calendar"
+        case .google: return "g.circle.fill"
+        }
+    }
+}
+
+public extension Notification.Name {
+    static let calendarSourceDidChange = Notification.Name("NotchApp_CalendarSourceDidChange")
+    static let googleAccountDidChange = Notification.Name("NotchApp_GoogleAccountDidChange")
+}
+
 
 
 @MainActor
@@ -216,6 +251,14 @@ public class SettingsStore: ObservableObject {
     @Published public var clockShowSeconds: Bool = true {
         didSet { UserDefaults.standard.set(clockShowSeconds, forKey: "NotchApp_ClockShowSeconds") }
     }
+
+    // Calendar Provider Configuration (Apple EventKit vs. Google Calendar & Tasks)
+    @Published public var calendarSource: CalendarSource = .apple {
+        didSet {
+            UserDefaults.standard.set(calendarSource.rawValue, forKey: "NotchApp_CalendarSource")
+            NotificationCenter.default.post(name: .calendarSourceDidChange, object: nil)
+        }
+    }
     
     // Quick Notes Persistence & AI Integration
     public var quickNotesText: String {
@@ -239,6 +282,9 @@ public class SettingsStore: ObservableObject {
     }
     @Published public var connectedGoogleEmail: String = "" {
         didSet { KeychainHelper.shared.saveSecretAsync(connectedGoogleEmail, forKey: "google_account_email") }
+    }
+    @Published public var googleOAuthClientId: String = "" {
+        didSet { UserDefaults.standard.set(googleOAuthClientId, forKey: "NotchApp_GoogleOAuthClientId") }
     }
     @Published public var geminiModel: String = "gemini-1.5-flash" {
         didSet { UserDefaults.standard.set(geminiModel, forKey: "NotchApp_GeminiModel") }
@@ -615,6 +661,13 @@ public class SettingsStore: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: "NotchApp_ClockShowSeconds") != nil {
             self.clockShowSeconds = UserDefaults.standard.bool(forKey: "NotchApp_ClockShowSeconds")
+        }
+        if let rawSource = UserDefaults.standard.string(forKey: "NotchApp_CalendarSource"),
+           let source = CalendarSource(rawValue: rawSource) {
+            self.calendarSource = source
+        }
+        if let savedClientId = UserDefaults.standard.string(forKey: "NotchApp_GoogleOAuthClientId") {
+            self.googleOAuthClientId = savedClientId
         }
         if let savedFlow = UserDefaults.standard.string(forKey: "NotchApp_DashboardLayoutFlow"),
            let flow = DashboardLayoutFlow(rawValue: savedFlow) {

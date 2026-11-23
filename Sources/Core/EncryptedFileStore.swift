@@ -138,11 +138,6 @@ public final class EncryptedFileStore: @unchecked Sendable {
     
     /// Synchronous convenience accessor for symmetric key.
     public var symmetricKey: SymmetricKey {
-        lock.lock()
-        defer { lock.unlock() }
-        if let cached = cachedKey {
-            return cached
-        }
         if let key = try? getKey(for: nil) {
             return key
         }

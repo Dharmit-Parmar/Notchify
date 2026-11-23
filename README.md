@@ -133,6 +133,11 @@ Hardware-bound encrypted notes storage (`0600` POSIX) combined with multi-provid
 - **WCAG AA Contrast Guard**: Dynamic luminance clamping guaranteeing a minimum 4.5:1 text-to-background contrast ratio under any wallpaper condition.
 - **22 Curated Themes**: 4 dynamic adaptive modes (*Wallpaper*, *Active App*, *Circadian*, *Music Aura*), 16 obsidian dark palettes, and 2 light finishes (*Birch Studio* `#F7F5F0` and *Sakura Blossom* `#FDF6F7`).
 
+### 6. 📅 Google Calendar & Tasks Integration (RFC 8252 Native PKCE)
+- **Zero-Secret Native OAuth**: Secure PKCE (RFC 7636, S256) authorization via dynamic local loopback redirect (`http://127.0.0.1:<port>/oauth2callback`), eliminating bundled credentials or exposed client secrets.
+- **Hardware-Isolated Token Storage**: OAuth access and refresh credentials stored in macOS Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) with non-interactive execution guards and automatic token renewal.
+- **Offline Encrypted Cache**: Calendar and checklist items cached using hardware-bound AES-256-GCM authenticated encryption (`0600` POSIX) for instant offline access.
+
 ---
 
 <a id="performance-profile"></a>

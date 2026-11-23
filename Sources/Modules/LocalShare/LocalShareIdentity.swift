@@ -11,9 +11,6 @@ private func sys_SecKeychainGetUserInteractionAllowed(_ state: UnsafeMutablePoin
 @_silgen_name("SecKeychainSetUserInteractionAllowed")
 private func sys_SecKeychainSetUserInteractionAllowed(_ state: DarwinBoolean) -> OSStatus
 
-@_silgen_name("SecAccessCreate")
-private func sys_SecAccessCreate(_ descriptor: CFString, _ trustedlist: CFArray?, _ accessRef: UnsafeMutablePointer<SecAccess?>) -> OSStatus
-
 // MARK: - Reentrant Thread-Safe Keychain Interaction Governor
 final class KeychainInteractionGovernor: @unchecked Sendable {
     static let shared = KeychainInteractionGovernor()
@@ -357,12 +354,6 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         #endif
     }
     
-    private func createOpenAccess(descriptor: String) -> SecAccess? {
-        var access: SecAccess?
-        let status = sys_SecAccessCreate(descriptor as CFString, nil, &access)
-        return status == errSecSuccess ? access : nil
-    }
-
     @discardableResult
     private func saveKeychainData(
         _ data: Data,
@@ -381,9 +372,6 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrAccessible as String] =
             kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        if let access = createOpenAccess(descriptor: "Notch LocalShare") {
-            addQuery[kSecAttrAccess as String] = access
-        }
 
         let addStatus = SecItemAdd(
             addQuery as CFDictionary,
