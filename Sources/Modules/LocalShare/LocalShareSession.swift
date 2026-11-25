@@ -59,6 +59,7 @@ public final class LocalShareSession: @unchecked Sendable {
     public let sessionId: String
     public let peerInfo: LocalShareDeviceInfo
     public let peerIP: String
+    public let verifiedPeerFingerprint: String?
     public let isIncoming: Bool
     public let sessionDirectory: URL?
     public let filesMetadata: [String: LocalShareFileMetadata]
@@ -77,6 +78,7 @@ public final class LocalShareSession: @unchecked Sendable {
         sessionId: String,
         peerInfo: LocalShareDeviceInfo,
         peerIP: String,
+        verifiedPeerFingerprint: String? = nil,
         isIncoming: Bool,
         sessionDirectory: URL?,
         filesMetadata: [String: LocalShareFileMetadata]
@@ -84,6 +86,7 @@ public final class LocalShareSession: @unchecked Sendable {
         self.sessionId = sessionId
         self.peerInfo = peerInfo
         self.peerIP = peerIP
+        self.verifiedPeerFingerprint = verifiedPeerFingerprint
         self.isIncoming = isIncoming
         self.sessionDirectory = sessionDirectory
         self.filesMetadata = filesMetadata
@@ -380,6 +383,7 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
         sessionId: String,
         peerInfo: LocalShareDeviceInfo,
         peerIP: String,
+        verifiedPeerFingerprint: String? = nil,
         sessionDirectory: URL,
         filesMetadata: [String: LocalShareFileMetadata]
     ) throws -> LocalShareSession {
@@ -407,6 +411,7 @@ public final class LocalShareSessionCoordinator: @unchecked Sendable {
             sessionId: sessionId,
             peerInfo: peerInfo,
             peerIP: peerIP,
+            verifiedPeerFingerprint: verifiedPeerFingerprint,
             isIncoming: true,
             sessionDirectory: sessionDirectory,
             filesMetadata: filesMetadata

@@ -51,7 +51,7 @@ public final class CompanionCoordinator: ObservableObject {
     public func ensurePanelsCreated() {
         guard SettingsStore.shared.isCompanionEnabled else { return }
         guard panel == nil else { return }
-        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let p = CompanionPanel(screen: screen)
         self.panel = p
         self.clickPanel = p.clickPanel

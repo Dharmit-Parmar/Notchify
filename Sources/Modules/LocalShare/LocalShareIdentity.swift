@@ -264,8 +264,11 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
                 String(format: "%02x", $0)
             }.joined()
 
-            _ = saveKeychainData(certDER, account: certAccount)
-            _ = saveKeychainData(keyRaw, account: keyAccount)
+            let certSaved = saveKeychainData(certDER, account: certAccount)
+            let keySaved = saveKeychainData(keyRaw, account: keyAccount)
+            if !(certSaved && keySaved) {
+                logKeychain(op: "persist-generated", account: certSaved ? keyAccount : certAccount, status: errSecIO)
+            }
 
             return (certDER, identity)
         }
@@ -359,46 +362,54 @@ public final class LocalShareIdentityManager: @unchecked Sendable {
         _ data: Data,
         account: String
     ) -> Bool {
-        let query: [String: Any] = [
+        let context = nonInteractiveContext()
+        let matchQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecUseAuthenticationContext as String: context
         ]
 
-        // Delete any existing item first to ensure current binary ownership and avoid stale ACL prompts
-        SecItemDelete(query as CFDictionary)
+        let updateAttributes: [String: Any] = [
+            kSecValueData as String: data
+        ]
 
-        var addQuery = query
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] =
-            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-
-        let addStatus = SecItemAdd(
-            addQuery as CFDictionary,
-            nil
-        )
-
-        if addStatus == errSecSuccess {
-            removeFallbackData(account: account)
-            return true
+        var status = SecItemUpdate(matchQuery as CFDictionary, updateAttributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var addQuery = matchQuery
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] =
+                kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(addQuery as CFDictionary, nil)
+            if status == errSecDuplicateItem {
+                status = SecItemUpdate(matchQuery as CFDictionary, updateAttributes as CFDictionary)
+            }
         }
 
-        logKeychain(
-            op: "add",
-            account: account,
-            status: addStatus
-        )
+        guard status == errSecSuccess,
+              let readBack = loadKeychainData(account: account),
+              readBack == data else {
+            logKeychain(
+                op: "save",
+                account: account,
+                status: status
+            )
+            return false
+        }
 
-        return false
+        removeFallbackData(account: account)
+        return true
     }
 
     private func loadKeychainData(account: String) -> Data? {
+        let context = nonInteractiveContext()
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: serviceName,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context
         ]
 
         var item: CFTypeRef?

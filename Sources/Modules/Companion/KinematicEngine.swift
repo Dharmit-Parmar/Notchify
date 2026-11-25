@@ -98,7 +98,7 @@ public final class KinematicEngine: ObservableObject {
     }
     
     public func refreshScreenGeometry() {
-        let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]
+        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens.first else { return }
         screenWidth = screen.frame.width
         screenHeight = screen.frame.height
         

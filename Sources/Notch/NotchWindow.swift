@@ -11,7 +11,7 @@ public final class NotchPanel: NSPanel {
     private var localKeyMonitor: Any?
     private var globalKeyMonitor: Any?
 
-    public init(screen: NSScreen = NSScreen.main ?? NSScreen.screens[0]) {
+    public init(screen: NSScreen) {
         self.currentScreen = screen
 
         // Initial collapsed frame.

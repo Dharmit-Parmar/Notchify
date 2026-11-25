@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import LocalAuthentication
 
 // MARK: - LocalShare Transfer History Item
 public struct LocalShareHistoryItem: Identifiable, Codable, Equatable, Sendable {
@@ -184,7 +185,7 @@ public final class LocalShareSettings: ObservableObject {
         }
         
         let savedPort = defaults.integer(forKey: "NotchApp_LocalShare_Port")
-        self.tcpPort = savedPort > 0 ? UInt16(savedPort) : LocalShareConstants.defaultHttpPort
+        self.tcpPort = UInt16(exactly: savedPort).flatMap { $0 > 0 ? $0 : nil } ?? LocalShareConstants.defaultHttpPort
         
         // Load PIN from Keychain directly via Data Protection Keychain with safe fallback migration
         let loadedPin = Self.loadAndMigratePin(service: serviceName, account: pinAccount, fallbackKey: fallbackKey)
@@ -295,7 +296,13 @@ public final class LocalShareSettings: ObservableObject {
     }
     
     // MARK: - Native Keychain Persistence for PIN
-    
+
+    private static func nonInteractiveContext() -> LAContext {
+        let ctx = LAContext()
+        ctx.interactionNotAllowed = true
+        return ctx
+    }
+
     @discardableResult
     public func savePinToKeychain(_ pin: String) -> Bool {
         cachedPin = pin.isEmpty ? nil : pin
@@ -306,23 +313,45 @@ public final class LocalShareSettings: ObservableObject {
         }
         
         guard let data = pin.data(using: .utf8) else { return false }
-        
-        let searchQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecAttrAccount as String: pinAccount
-        ]
-        SecItemDelete(searchQuery as CFDictionary)
-        
-        var addQuery = searchQuery
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        if addStatus == errSecSuccess {
+
+        if Self.storePinData(data, service: serviceName, account: pinAccount) {
             UserDefaults.standard.removeObject(forKey: fallbackKey)
             return true
         }
         return false
+    }
+
+    private static func storePinData(_ data: Data, service: String, account: String) -> Bool {
+        return withUserInteractionDisabled {
+            let context = nonInteractiveContext()
+            let matchQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account,
+                kSecUseAuthenticationContext as String: context
+            ]
+            let updateAttributes: [String: Any] = [
+                kSecValueData as String: data
+            ]
+
+            var status = SecItemUpdate(matchQuery as CFDictionary, updateAttributes as CFDictionary)
+            if status == errSecItemNotFound {
+                var addQuery = matchQuery
+                addQuery[kSecValueData as String] = data
+                addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                status = SecItemAdd(addQuery as CFDictionary, nil)
+                if status == errSecDuplicateItem {
+                    status = SecItemUpdate(matchQuery as CFDictionary, updateAttributes as CFDictionary)
+                }
+            }
+
+            guard status == errSecSuccess,
+                  let expected = String(data: data, encoding: .utf8),
+                  loadPinFromKeychain(service: service, account: account) == expected else {
+                return false
+            }
+            return true
+        }
     }
     
     public func loadPinFromKeychain() -> String {
@@ -335,30 +364,35 @@ public final class LocalShareSettings: ObservableObject {
     }
     
     private static func loadAndMigratePin(service: String, account: String, fallbackKey: String) -> String {
+        return loadAndMigratePin(
+            fallbackKey: fallbackKey,
+            defaults: .standard,
+            loadKeychain: { loadPinFromKeychain(service: service, account: account) },
+            storeKeychain: { data in storePinData(data, service: service, account: account) }
+        )
+    }
+
+    static func loadAndMigratePin(
+        fallbackKey: String,
+        defaults: UserDefaults,
+        loadKeychain: () -> String,
+        storeKeychain: (Data) -> Bool
+    ) -> String {
         // 1. Try Keychain first
-        let keychainPin = loadPinFromKeychain(service: service, account: account)
+        let keychainPin = loadKeychain()
         if !keychainPin.isEmpty {
             // Keychain has the PIN: safely clean up any leftover plaintext fallback
-            if UserDefaults.standard.object(forKey: fallbackKey) != nil {
-                UserDefaults.standard.removeObject(forKey: fallbackKey)
+            if defaults.object(forKey: fallbackKey) != nil {
+                defaults.removeObject(forKey: fallbackKey)
             }
             return keychainPin
         }
         
         // 2. If Keychain was empty, recover from legacy fallback storage
-        if let fallbackPin = UserDefaults.standard.string(forKey: fallbackKey), !fallbackPin.isEmpty {
-            // 3. Migrate fallback PIN into standard Keychain
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecAttrAccount as String: account,
-                kSecValueData as String: Data(fallbackPin.utf8),
-                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            ]
-            let status = SecItemAdd(query as CFDictionary, nil)
-            if status == errSecSuccess {
-                // Delete legacy fallback only after write succeeds
-                UserDefaults.standard.removeObject(forKey: fallbackKey)
+        if let fallbackPin = defaults.string(forKey: fallbackKey), !fallbackPin.isEmpty {
+            // 3. Migrate fallback PIN into Keychain atomically and verify read-back before purging plaintext
+            if storeKeychain(Data(fallbackPin.utf8)) {
+                defaults.removeObject(forKey: fallbackKey)
             }
             return fallbackPin
         }
@@ -378,7 +412,8 @@ public final class LocalShareSettings: ObservableObject {
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: account,
                 kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecUseAuthenticationContext as String: nonInteractiveContext()
             ]
             var item: CFTypeRef?
             let status = SecItemCopyMatching(query as CFDictionary, &item)

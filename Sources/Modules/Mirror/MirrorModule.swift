@@ -1,9 +1,15 @@
 import SwiftUI
-import AVFoundation
+@preconcurrency import AVFoundation
 import AppKit
 
 public final class CameraSessionManager: @unchecked Sendable {
-    public private(set) var captureSession: AVCaptureSession?
+    private let stateLock = NSLock()
+    private var _captureSession: AVCaptureSession?
+    public var captureSession: AVCaptureSession? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return _captureSession
+    }
     private var isConfigured = false
     private let queue = DispatchQueue(label: "com.notch.camera.queue")
     
@@ -13,8 +19,10 @@ public final class CameraSessionManager: @unchecked Sendable {
         queue.async { [weak self] in
             guard let self = self else { return }
             
-            let session = self.captureSession ?? AVCaptureSession()
-            self.captureSession = session
+            self.stateLock.lock()
+            let session = self._captureSession ?? AVCaptureSession()
+            self._captureSession = session
+            self.stateLock.unlock()
             
             if !self.isConfigured {
                 session.beginConfiguration()
@@ -74,10 +82,13 @@ public final class CameraSessionManager: @unchecked Sendable {
     public func stop(completion: @escaping @MainActor @Sendable () -> Void = {}) {
         queue.async { [weak self] in
             guard let self = self else { return }
-            if let session = self.captureSession, session.isRunning {
+            self.stateLock.lock()
+            let session = self._captureSession
+            self._captureSession = nil
+            self.stateLock.unlock()
+            if let session, session.isRunning {
                 session.stopRunning()
             }
-            self.captureSession = nil
             self.isConfigured = false
             DispatchQueue.main.async {
                 completion()
@@ -88,10 +99,13 @@ public final class CameraSessionManager: @unchecked Sendable {
     public func stopSync() {
         queue.sync { [weak self] in
             guard let self = self else { return }
-            if let session = self.captureSession, session.isRunning {
+            self.stateLock.lock()
+            let session = self._captureSession
+            self._captureSession = nil
+            self.stateLock.unlock()
+            if let session, session.isRunning {
                 session.stopRunning()
             }
-            self.captureSession = nil
             self.isConfigured = false
         }
     }
@@ -179,9 +193,10 @@ public final class MirrorModule: NotchModule {
         case .authorized:
             hasPermission = true
             manager.start { [weak self] running, error in
-                self?.session = self?.manager.captureSession
-                self?.isRunning = running
-                self?.errorMessage = error
+                guard let self, self.isActive else { return }
+                self.session = self.manager.captureSession
+                self.isRunning = running
+                self.errorMessage = error
             }
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
@@ -191,9 +206,10 @@ public final class MirrorModule: NotchModule {
                     self.hasPermission = granted
                     if granted {
                         self.manager.start { [weak self] running, error in
-                            self?.session = self?.manager.captureSession
-                            self?.isRunning = running
-                            self?.errorMessage = error
+                            guard let self, self.isActive else { return }
+                            self.session = self.manager.captureSession
+                            self.isRunning = running
+                            self.errorMessage = error
                         }
                     } else {
                         self.errorMessage = "Camera access declined. Enable in System Settings > Privacy & Security > Camera."

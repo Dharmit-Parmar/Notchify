@@ -292,16 +292,14 @@ public final class LocalShareModuleState: ObservableObject, @unchecked Sendable 
             statusMessage = "Clipboard is empty"
             return
         }
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "Snippet_\(Int(Date().timeIntervalSince1970)).txt"
-        let fileURL = tempDir.appendingPathComponent(fileName)
-        do {
-            try text.write(to: fileURL, atomically: true, encoding: .utf8)
-            startSending(files: [fileURL])
-            statusMessage = "Ready to send text snippet"
-        } catch {
+        let fileName = "Snippet_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8)).txt"
+        guard let data = text.data(using: .utf8),
+              let fileURL = LocalShareModule.createSecureTempFile(named: fileName, contents: data) else {
             statusMessage = "Failed to prepare text snippet"
+            return
         }
+        startSending(files: [fileURL])
+        statusMessage = "Ready to send text snippet"
     }
     
     public func removeSelectedFile(_ url: URL) {

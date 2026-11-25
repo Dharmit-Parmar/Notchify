@@ -207,8 +207,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             throw LocalShareError.connectionFailed("Recipient took too long to respond (timed out)")
         } catch {
             let nsError = error as NSError
-            NSLog("[LocalShareClient] prepareUpload failed to %@:%d%@ Domain: %@ Code: %ld Description: %@", cleanHost, peer.port, LocalShareEndpoints.prepareUpload, nsError.domain, Int(nsError.code), nsError.localizedDescription)
             let scrubbed = LocalShareSecurity.scrubSecrets(from: error.localizedDescription)
+            NSLog("[LocalShareClient] prepareUpload failed to %@:%d%@ Domain: %@ Code: %ld Description: %@", cleanHost, peer.port, LocalShareEndpoints.prepareUpload, nsError.domain, Int(nsError.code), scrubbed)
             throw LocalShareError.connectionFailed(scrubbed)
         }
         
@@ -286,9 +286,36 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
         let urlSession = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { urlSession.finishTasksAndInvalidate() }
         
-        var uploadTask: URLSessionUploadTask?
+        final class UploadTaskBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var task: URLSessionUploadTask?
+            private var isCancelled = false
+
+            func set(_ task: URLSessionUploadTask) -> Bool {
+                lock.lock()
+                defer { lock.unlock() }
+                self.task = task
+                return isCancelled
+            }
+
+            func cancel() {
+                lock.lock()
+                isCancelled = true
+                let t = task
+                lock.unlock()
+                t?.cancel()
+            }
+
+            func take() -> URLSessionUploadTask? {
+                lock.lock()
+                defer { lock.unlock() }
+                return task
+            }
+        }
+
+        let taskBox = UploadTaskBox()
         defer {
-            if let t = uploadTask {
+            if let t = taskBox.take() {
                 session.removeActiveTask(t)
             }
         }
@@ -299,7 +326,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
                     let task = urlSession.uploadTask(with: request, fromFile: fileURL) { data, response, error in
                         if let error = error {
                             let nsError = error as NSError
-                            NSLog("[LocalShareClient] uploadFile failed for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), nsError.localizedDescription)
+                            let scrubbed = LocalShareSecurity.scrubSecrets(from: nsError.localizedDescription)
+                            NSLog("[LocalShareClient] uploadFile failed for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), scrubbed)
                             continuation.resume(throwing: error)
                         } else if let data = data, let response = response {
                             continuation.resume(returning: (data, response))
@@ -307,12 +335,16 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
                             continuation.resume(throwing: LocalShareError.connectionFailed("No HTTP response"))
                         }
                     }
-                    uploadTask = task
+                    let cancelledBeforeStart = taskBox.set(task)
                     session.addActiveTask(task)
-                    task.resume()
+                    if cancelledBeforeStart {
+                        task.cancel()
+                    } else {
+                        task.resume()
+                    }
                 }
             } onCancel: {
-                uploadTask?.cancel()
+                taskBox.cancel()
             }
         } catch is CancellationError {
             throw LocalShareError.sessionCancelled
@@ -320,7 +352,8 @@ public final class LocalShareClient: NSObject, @unchecked Sendable {
             throw LocalShareError.sessionCancelled
         } catch {
             let nsError = error as NSError
-            NSLog("[LocalShareClient] uploadFile caught error for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), nsError.localizedDescription)
+            let scrubbed = LocalShareSecurity.scrubSecrets(from: nsError.localizedDescription)
+            NSLog("[LocalShareClient] uploadFile caught error for file %@ Domain: %@ Code: %ld Description: %@", fileId, nsError.domain, Int(nsError.code), scrubbed)
             throw error
         }
         

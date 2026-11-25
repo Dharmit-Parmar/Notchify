@@ -72,9 +72,9 @@ public struct CreatureRigView: View {
                 guard !isDormant, coordinator.state != .inDen else { return }
                 let deltaTime = date.timeIntervalSince(previousDate)
                 
-                let screen = CompanionPanel.shared?.screen ?? NSScreen.main ?? NSScreen.screens[0]
+                let screen = CompanionPanel.shared?.screen ?? NSScreen.main ?? NSScreen.screens.first
                 let cursorScreenPos: CGPoint
-                if coordinator.state == .thinking || coordinator.state == .curious {
+                if let screen, (coordinator.state == .thinking || coordinator.state == .curious) {
                     let mouseScreen = NSEvent.mouseLocation
                     cursorScreenPos = CGPoint(x: mouseScreen.x - screen.frame.origin.x, y: screen.frame.maxY - mouseScreen.y)
                 } else {

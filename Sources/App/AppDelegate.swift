@@ -190,7 +190,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     
     private func setupNotchPanel() {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let panel = NotchPanel(screen: screen)
         
         let hostingView = NotchHostingView(rootView: NotchRootView())

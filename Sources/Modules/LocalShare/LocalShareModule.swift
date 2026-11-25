@@ -492,36 +492,28 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
            let tiffData = image.tiffRepresentation,
            let rep = NSBitmapImageRep(data: tiffData),
            let pngData = rep.representation(using: .png, properties: [:]) {
-            let tempDir = FileManager.default.temporaryDirectory
-            let fileName = "Pasted_Image_\(Int(Date().timeIntervalSince1970)).png"
-            let fileURL = tempDir.appendingPathComponent(fileName)
-            do {
-                try pngData.write(to: fileURL)
+            let fileName = "Pasted_Image_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8)).png"
+            if let fileURL = Self.createSecureTempFile(named: fileName, contents: pngData) {
                 startSending(files: [fileURL])
                 statusMessage = "Pasted image from clipboard"
                 FeedbackManager.playSuccess()
                 return
-            } catch {
-                // fall through to text
             }
         }
         
         // 3. Plain Text / Message
         if let text = pasteboard.string(forType: .string),
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let tempDir = FileManager.default.temporaryDirectory
-            let fileName = "Snippet_\(Int(Date().timeIntervalSince1970)).txt"
-            let fileURL = tempDir.appendingPathComponent(fileName)
-            do {
-                try text.write(to: fileURL, atomically: true, encoding: .utf8)
+            let fileName = "Snippet_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8)).txt"
+            if let data = text.data(using: .utf8),
+               let fileURL = Self.createSecureTempFile(named: fileName, contents: data) {
                 startSending(files: [fileURL])
                 statusMessage = "Pasted text message from clipboard"
                 FeedbackManager.playSuccess()
                 return
-            } catch {
-                statusMessage = "Failed to prepare text snippet"
-                return
             }
+            statusMessage = "Failed to prepare text snippet"
+            return
         }
         
         statusMessage = "Clipboard is empty or unsupported"
@@ -530,16 +522,34 @@ public final class LocalShareModule: NSObject, NotchModule, UNUserNotificationCe
     public func stageTextMessage(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "Message_\(Int(Date().timeIntervalSince1970)).txt"
-        let fileURL = tempDir.appendingPathComponent(fileName)
+        let fileName = "Message_\(Int(Date().timeIntervalSince1970))_\(UUID().uuidString.prefix(8)).txt"
+        guard let data = trimmed.data(using: .utf8),
+              let fileURL = Self.createSecureTempFile(named: fileName, contents: data) else {
+            statusMessage = "Failed to stage message"
+            return
+        }
+        startSending(files: [fileURL])
+        statusMessage = "Message ready to send (\(trimmed.count) chars)"
+        FeedbackManager.playSuccess()
+    }
+
+    static func createSecureTempFile(named fileName: String, contents: Data) -> URL? {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("NotchLocalShareStaging", isDirectory: true)
         do {
-            try trimmed.write(to: fileURL, atomically: true, encoding: .utf8)
-            startSending(files: [fileURL])
-            statusMessage = "Message ready to send (\(trimmed.count) chars)"
-            FeedbackManager.playSuccess()
+            try FileManager.default.createDirectory(
+                at: dir,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path)
+            let safeName = LocalShareSecurity.sanitizeFilename(fileName)
+            let fileURL = dir.appendingPathComponent(safeName, isDirectory: false)
+            try contents.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            return fileURL
         } catch {
-            statusMessage = "Failed to stage message: \(error.localizedDescription)"
+            return nil
         }
     }
     

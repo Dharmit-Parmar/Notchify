@@ -36,6 +36,20 @@ public struct GoogleTaskItem: Decodable, Sendable {
     public let status: String?     // "needsAction" or "completed"
 }
 
+// MARK: - Redirect-Blocking Delegate for Sync API Calls
+
+private final class GoogleSyncNoRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 // MARK: - Google Sync Service
 
 @MainActor
@@ -47,6 +61,16 @@ public final class GoogleSyncService: ObservableObject {
     public static let accountEmailKey = "google_account_email"
     public static let calendarFeedUrlKey = "google_calendar_feed_url"
 
+    private nonisolated static let noRedirectDelegate = GoogleSyncNoRedirectDelegate()
+    private nonisolated static let apiSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        return URLSession(configuration: config, delegate: noRedirectDelegate, delegateQueue: nil)
+    }()
+
     // MARK: Published State
 
     @Published public private(set) var isSyncing: Bool = false
@@ -55,8 +79,24 @@ public final class GoogleSyncService: ObservableObject {
     @Published public private(set) var cachedEvents: [CalendarEventItem] = []
 
     private let cacheStorageKey = "NotchApp_GoogleCalendarCachedEvents"
+    private let customCacheFileURL: URL?
+    private let fileStore: EncryptedFileStore
+    private let userDefaults: UserDefaults
+
+    typealias HTTPExecutor = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    typealias TokenProvider = @MainActor () async -> String?
+    typealias TokenRefresher = @MainActor (String?) async -> String?
+
+    private let httpExecutor: HTTPExecutor
+    private let tokenProvider: TokenProvider
+    private let tokenRefresher: TokenRefresher
+    private let connectionChecker: (@MainActor () -> Bool)?
+    private var syncGeneration: UInt64 = 0
 
     public var isConnected: Bool {
+        if let connectionChecker {
+            return connectionChecker()
+        }
         let email = SettingsStore.shared.connectedGoogleEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = KeychainHelper.shared.loadSecret(forKey: Self.oauthTokenKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -68,14 +108,56 @@ public final class GoogleSyncService: ObservableObject {
     }
 
     private init() {
+        self.customCacheFileURL = nil
+        self.fileStore = .shared
+        self.userDefaults = .standard
+        self.httpExecutor = { request in
+            try await GoogleSyncService.apiSession.data(for: request)
+        }
+        self.tokenProvider = {
+            await GoogleOAuthManager.shared.validAccessToken()
+        }
+        self.tokenRefresher = { failingToken in
+            await GoogleOAuthManager.shared.refreshAccessTokenIfNeeded(failingToken: failingToken)
+        }
+        self.connectionChecker = nil
+        loadCachedEvents()
+    }
+
+    /// Internal initializer for isolated cache/migration and sync/refresh unit tests.
+    init(
+        customCacheFileURL: URL,
+        fileStore: EncryptedFileStore = .shared,
+        userDefaults: UserDefaults = .standard,
+        httpExecutor: HTTPExecutor? = nil,
+        tokenProvider: TokenProvider? = nil,
+        tokenRefresher: TokenRefresher? = nil,
+        connectionChecker: (@MainActor () -> Bool)? = nil
+    ) {
+        self.customCacheFileURL = customCacheFileURL
+        self.fileStore = fileStore
+        self.userDefaults = userDefaults
+        self.httpExecutor = httpExecutor ?? { request in
+            try await GoogleSyncService.apiSession.data(for: request)
+        }
+        self.tokenProvider = tokenProvider ?? {
+            await GoogleOAuthManager.shared.validAccessToken()
+        }
+        self.tokenRefresher = tokenRefresher ?? { failingToken in
+            await GoogleOAuthManager.shared.refreshAccessTokenIfNeeded(failingToken: failingToken)
+        }
+        self.connectionChecker = connectionChecker
         loadCachedEvents()
     }
 
     // MARK: - Account Connection Management (Single Google Login across Notch)
 
     public func connectAccount(email: String, token: String) {
+        syncGeneration &+= 1
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
 
         if !cleanEmail.isEmpty {
             SettingsStore.shared.connectedGoogleEmail = cleanEmail
@@ -98,25 +180,52 @@ public final class GoogleSyncService: ObservableObject {
     }
 
     public func disconnectAccount() {
+        syncGeneration &+= 1
+        GoogleOAuthManager.shared.invalidateAuthSession()
+
         SettingsStore.shared.connectedGoogleEmail = ""
         KeychainHelper.shared.deleteSecret(forKey: Self.oauthTokenKey)
         KeychainHelper.shared.deleteSecret(forKey: Self.accountEmailKey)
         KeychainHelper.shared.deleteSecret(forKey: Self.calendarFeedUrlKey)
         KeychainHelper.shared.deleteSecret(forKey: GoogleOAuthManager.refreshTokenKey)
+        KeychainHelper.shared.deleteSecret(forKey: GoogleOAuthManager.tokenExpiryKey)
 
-        cachedEvents = []
-        lastSyncDate = nil
-        syncErrorMessage = nil
-        UserDefaults.standard.removeObject(forKey: cacheStorageKey)
+        clearCachedEventsOnDisk()
+        isSyncing = false
 
         FeedbackManager.playDelete()
         NotificationCenter.default.post(name: .googleAccountDidChange, object: nil)
+    }
+
+    func invalidateForDisconnectInTests() {
+        syncGeneration &+= 1
+        GoogleOAuthManager.shared.invalidateAuthSession()
+        clearCachedEventsOnDisk()
+        isSyncing = false
+    }
+
+    func clearCachedEventsOnDisk() {
+        cachedEvents = []
+        lastSyncDate = nil
+        syncErrorMessage = nil
+        userDefaults.removeObject(forKey: cacheStorageKey)
+        try? FileManager.default.removeItem(at: cacheFileURL)
     }
 
     // MARK: - Synchronize Calendar Events & Tasks
 
     public func syncNow() async {
         guard isConnected else { return }
+        let startGeneration = syncGeneration
+        guard let token = await tokenProvider()?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty else {
+            return
+        }
+        guard startGeneration == syncGeneration, isConnected else {
+            return
+        }
+
         isSyncing = true
         syncErrorMessage = nil
 
@@ -125,12 +234,17 @@ public final class GoogleSyncService: ObservableObject {
         let start = calendar.date(byAdding: .month, value: -1, to: now) ?? now
         let end = calendar.date(byAdding: .month, value: 2, to: now) ?? now
 
-        let items = await fetchEventsAndTasks(start: start, end: end)
+        let items = await fetchEventsAndTasks(start: start, end: end, preloadedToken: token)
 
-        if !items.isEmpty || syncErrorMessage == nil {
+        guard startGeneration == syncGeneration, isConnected else {
+            isSyncing = false
+            return
+        }
+
+        if syncErrorMessage == nil {
             self.cachedEvents = items
             self.lastSyncDate = Date()
-            persistCachedEvents(items)
+            _ = persistCachedEvents(items)
         }
 
         self.isSyncing = false
@@ -139,33 +253,102 @@ public final class GoogleSyncService: ObservableObject {
     // MARK: - Fetch Google Calendar & Tasks Data
 
     public func fetchEventsAndTasks(start: Date, end: Date) async -> [CalendarEventItem] {
-        guard let token = KeychainHelper.shared.loadSecret(forKey: Self.oauthTokenKey),
-              !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return await fetchEventsAndTasks(start: start, end: end, preloadedToken: nil)
+    }
+
+    private func fetchEventsAndTasks(start: Date, end: Date, preloadedToken: String?) async -> [CalendarEventItem] {
+        let startGeneration = syncGeneration
+        let resolvedToken: String?
+        if let preloadedToken {
+            resolvedToken = preloadedToken
+        } else {
+            resolvedToken = await tokenProvider()
+        }
+        guard startGeneration == syncGeneration,
+              let token = resolvedToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty,
+              !token.contains("\r"),
+              !token.contains("\n") else {
             // If user only provided email or no token yet, return cached events if available
             return cachedEvents
         }
 
-        let cleanToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
-
         do {
             // Concurrent execution via async let (Swift 6 structured concurrency)
-            async let calendarEvents = fetchGoogleCalendarEvents(token: cleanToken, start: start, end: end)
-            async let taskEvents = fetchGoogleTasks(token: cleanToken, start: start, end: end)
+            async let calendarEvents = fetchGoogleCalendarEvents(token: token, start: start, end: end, startGeneration: startGeneration)
+            async let taskEvents = fetchGoogleTasks(token: token, start: start, end: end, startGeneration: startGeneration)
 
             let (calResults, taskResults) = try await (calendarEvents, taskEvents)
+            guard startGeneration == syncGeneration, isConnected else {
+                return cachedEvents
+            }
             let combined = (calResults + taskResults).sorted { $0.date < $1.date }
 
             self.syncErrorMessage = nil
             return combined
         } catch {
+            guard startGeneration == syncGeneration, isConnected else {
+                return cachedEvents
+            }
             self.syncErrorMessage = error.localizedDescription
             return cachedEvents
         }
     }
 
+    // MARK: - Unified Authorized GET with Single 401 Refresh & Retry
+
+    private func performAuthorizedGET(
+        url: URL,
+        token: String,
+        startGeneration: UInt64
+    ) async throws -> (Data, HTTPURLResponse) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15.0
+
+        let (data, response) = try await httpExecutor(request)
+        guard startGeneration == syncGeneration else {
+            throw NSError(domain: "GoogleSync", code: NSUserCancelledError, userInfo: [NSLocalizedDescriptionKey: "Google account disconnected during sync."])
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "GoogleSync", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from Google."])
+        }
+
+        if httpResponse.statusCode != 401 {
+            return (data, httpResponse)
+        }
+
+        // Single coalesced refresh attempt + at most one retry
+        guard let refreshedToken = await tokenRefresher(token)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !refreshedToken.isEmpty,
+              !refreshedToken.contains("\r"),
+              !refreshedToken.contains("\n"),
+              startGeneration == syncGeneration else {
+            throw NSError(domain: "GoogleSync", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google session expired. Please sign in again in Settings."])
+        }
+
+        var retryRequest = request
+        retryRequest.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
+        let (retryData, retryResponse) = try await httpExecutor(retryRequest)
+        guard startGeneration == syncGeneration else {
+            throw NSError(domain: "GoogleSync", code: NSUserCancelledError, userInfo: [NSLocalizedDescriptionKey: "Google account disconnected during sync."])
+        }
+        guard let retryHTTP = retryResponse as? HTTPURLResponse else {
+            throw NSError(domain: "GoogleSync", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from Google."])
+        }
+        if retryHTTP.statusCode == 401 {
+            throw NSError(domain: "GoogleSync", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google session expired. Please sign in again in Settings."])
+        }
+        return (retryData, retryHTTP)
+    }
+
     // MARK: - Google Calendar API v3
 
-    private func fetchGoogleCalendarEvents(token: String, start: Date, end: Date) async throws -> [CalendarEventItem] {
+    private func fetchGoogleCalendarEvents(token: String, start: Date, end: Date, startGeneration: UInt64) async throws -> [CalendarEventItem] {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
         let startStr = isoFormatter.string(from: start)
@@ -177,34 +360,9 @@ public final class GoogleSyncService: ObservableObject {
             return []
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 15.0
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            return []
-        }
-
+        let (data, httpResponse) = try await performAuthorizedGET(url: url, token: token, startGeneration: startGeneration)
         guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                // Attempt automatic background refresh using secure refresh_token
-                if let refreshedToken = await GoogleOAuthManager.shared.refreshAccessTokenIfNeeded() {
-                    var retryRequest = request
-                    retryRequest.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
-                    if let (retryData, retryResponse) = try? await URLSession.shared.data(for: retryRequest),
-                       (retryResponse as? HTTPURLResponse)?.statusCode == 200,
-                       let list = try? JSONDecoder().decode(GoogleCalendarListResponse.self, from: retryData),
-                       let items = list.items {
-                        return items.compactMap { self.convertGoogleEventToItem($0) }
-                    }
-                }
-                throw NSError(domain: "GoogleSync", code: 401, userInfo: [NSLocalizedDescriptionKey: "Google session expired. Please sign in again in Settings."])
-            }
-            return []
+            throw NSError(domain: "GoogleSync", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Google Calendar sync failed (HTTP \(httpResponse.statusCode))."])
         }
 
         let list = try JSONDecoder().decode(GoogleCalendarListResponse.self, from: data)
@@ -217,21 +375,14 @@ public final class GoogleSyncService: ObservableObject {
 
     // MARK: - Google Tasks API v1
 
-    private func fetchGoogleTasks(token: String, start: Date, end: Date) async throws -> [CalendarEventItem] {
+    private func fetchGoogleTasks(token: String, start: Date, end: Date, startGeneration: UInt64) async throws -> [CalendarEventItem] {
         guard let url = URL(string: "https://tasks.googleapis.com/tasks/v1/users/@me/lists/@default/tasks?showCompleted=false&maxResults=100") else {
             return []
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 15.0
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            // Tasks API might not be enabled or return empty; gracefully return empty list without failing calendar
+        let (data, httpResponse) = try await performAuthorizedGET(url: url, token: token, startGeneration: startGeneration)
+        guard httpResponse.statusCode == 200 else {
+            // Tasks API might not be enabled (e.g. 403/404); gracefully return empty list without failing calendar, while 401 still fails consistently above
             return []
         }
 
@@ -341,6 +492,9 @@ public final class GoogleSyncService: ObservableObject {
     }
 
     private var cacheFileURL: URL {
+        if let customCacheFileURL {
+            return customCacheFileURL
+        }
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("NotchApp", isDirectory: true)
         if !FileManager.default.fileExists(atPath: dir.path) {
@@ -349,7 +503,8 @@ public final class GoogleSyncService: ObservableObject {
         return dir.appendingPathComponent("calendar_cache.enc")
     }
 
-    private func persistCachedEvents(_ items: [CalendarEventItem]) {
+    @discardableResult
+    func persistCachedEvents(_ items: [CalendarEventItem]) -> Bool {
         let dtos = items.map {
             CachedEventDTO(
                 title: $0.title,
@@ -360,15 +515,32 @@ public final class GoogleSyncService: ObservableObject {
                 colorName: $0.colorName
             )
         }
-        if let data = try? JSONEncoder().encode(dtos) {
-            try? EncryptedFileStore.shared.write(data: data, to: cacheFileURL)
+        guard let data = try? JSONEncoder().encode(dtos) else {
+            return false
+        }
+        let target = cacheFileURL
+        let stagingURL = target.deletingLastPathComponent()
+            .appendingPathComponent(".\(target.lastPathComponent).stage_\(UUID().uuidString).tmp")
+        do {
+            try fileStore.write(data: data, to: stagingURL)
+            guard let verifyData = try fileStore.read(from: stagingURL),
+                  let verified = try? JSONDecoder().decode([CachedEventDTO].self, from: verifyData),
+                  verified.count == dtos.count else {
+                try? FileManager.default.removeItem(at: stagingURL)
+                return false
+            }
+            _ = try FileManager.default.replaceItemAt(target, withItemAt: stagingURL, backupItemName: nil, options: [])
+            return true
+        } catch {
+            try? FileManager.default.removeItem(at: stagingURL)
+            return false
         }
     }
 
     private func loadCachedEvents() {
-        // 1. Try hardware-backed encrypted cache first
+        // 1. Try AES-256-GCM encrypted cache first
         if FileManager.default.fileExists(atPath: cacheFileURL.path),
-           let data = try? EncryptedFileStore.shared.read(from: cacheFileURL),
+           let data = try? fileStore.read(from: cacheFileURL),
            let dtos = try? JSONDecoder().decode([CachedEventDTO].self, from: data) {
             self.cachedEvents = dtos.map {
                 CalendarEventItem(
@@ -381,12 +553,12 @@ public final class GoogleSyncService: ObservableObject {
                     id: UUID()
                 )
             }
-            UserDefaults.standard.removeObject(forKey: cacheStorageKey)
+            userDefaults.removeObject(forKey: cacheStorageKey)
             return
         }
 
-        // 2. Legacy unencrypted fallback: migrate to AES-256-GCM and purge plaintext
-        if let data = UserDefaults.standard.data(forKey: cacheStorageKey),
+        // 2. Legacy unencrypted fallback: migrate to AES-256-GCM and purge plaintext only after read-back verification
+        if let data = userDefaults.data(forKey: cacheStorageKey),
            let dtos = try? JSONDecoder().decode([CachedEventDTO].self, from: data) {
             self.cachedEvents = dtos.map {
                 CalendarEventItem(
@@ -399,8 +571,9 @@ public final class GoogleSyncService: ObservableObject {
                     id: UUID()
                 )
             }
-            persistCachedEvents(self.cachedEvents)
-            UserDefaults.standard.removeObject(forKey: cacheStorageKey)
+            if persistCachedEvents(self.cachedEvents) {
+                userDefaults.removeObject(forKey: cacheStorageKey)
+            }
         }
     }
 }

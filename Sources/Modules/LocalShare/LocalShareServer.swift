@@ -399,7 +399,14 @@ public final class LocalShareServer: @unchecked Sendable {
         return true
     }
 
-    private func constantTimePINCompare(_ lhs: String, _ rhs: String) -> Bool {
+    static func generateSessionId() -> String {
+        let key = SymmetricKey(size: .bits256)
+        return key.withUnsafeBytes { raw in
+            raw.map { String(format: "%02x", $0) }.joined()
+        }
+    }
+
+    private func constantTimeStringCompare(_ lhs: String, _ rhs: String) -> Bool {
         let leftDigest = SHA256.hash(data: Data(lhs.utf8))
         let rightDigest = SHA256.hash(data: Data(rhs.utf8))
         var difference: UInt8 = 0
@@ -407,6 +414,10 @@ public final class LocalShareServer: @unchecked Sendable {
             difference |= l ^ r
         }
         return difference == 0
+    }
+
+    private func constantTimePINCompare(_ lhs: String, _ rhs: String) -> Bool {
+        constantTimeStringCompare(lhs, rhs)
     }
 
     private func htmlEscaped(_ value: String) -> String {
@@ -1115,7 +1126,16 @@ public final class LocalShareServer: @unchecked Sendable {
         if case .hostPort(let host, _) = connection.endpoint {
             remoteHost = LocalShareSecurity.normalizeIP("\(host)")
         }
-        let peerPort = UInt16(registerDto.port ?? Int(LocalShareConstants.defaultHttpPort))
+        let rawPort = registerDto.port ?? Int(LocalShareConstants.defaultHttpPort)
+        guard let peerPort = UInt16(exactly: rawPort), peerPort > 0 else {
+            sendRawResponse(connection: connection, statusCode: 400, reason: "Invalid Port", body: nil)
+            return
+        }
+        let scheme = (registerDto.`protocol` ?? "https").lowercased()
+        guard scheme == "https" || scheme == "http" else {
+            sendRawResponse(connection: connection, statusCode: 400, reason: "Invalid Protocol", body: nil)
+            return
+        }
 
         if request.verifiedPeerFingerprint == nil,
            !registerDto.fingerprint.isEmpty {
@@ -1132,7 +1152,7 @@ public final class LocalShareServer: @unchecked Sendable {
             fingerprint: request.verifiedPeerFingerprint ?? "",
             host: remoteHost,
             port: peerPort,
-            protocol: registerDto.`protocol` ?? "https",
+            protocol: scheme,
             download: registerDto.download ?? false,
             lastSeen: Date()
         )
@@ -1188,7 +1208,7 @@ public final class LocalShareServer: @unchecked Sendable {
             return
         }
 
-        let sessionId = UUID().uuidString
+        let sessionId = Self.generateSessionId()
         let sessionDir: URL
         do {
             sessionDir = try LocalShareFileManager.shared.createSessionDirectory(sessionId: sessionId)
@@ -1203,6 +1223,7 @@ public final class LocalShareServer: @unchecked Sendable {
                 sessionId: sessionId,
                 peerInfo: prepareReq.info,
                 peerIP: request.remoteIP,
+                verifiedPeerFingerprint: request.verifiedPeerFingerprint,
                 sessionDirectory: sessionDir,
                 filesMetadata: prepareReq.files
             )
@@ -1619,10 +1640,53 @@ public final class LocalShareServer: @unchecked Sendable {
     }
 
     private func handleCancelRoute(connection: NWConnection, request: LocalShareHTTPRequest) {
-        if let sessionId = request.queryParams["sessionId"] {
-            LocalShareSessionCoordinator.shared.cancelSession(sessionId: sessionId, reason: "Peer cancelled")
+        let outcome = authorizeAndCancelSession(
+            sessionId: request.queryParams["sessionId"],
+            remoteIP: request.remoteIP,
+            verifiedPeerFingerprint: request.verifiedPeerFingerprint,
+            coordinator: .shared
+        )
+        sendRawResponse(connection: connection, statusCode: outcome.statusCode, reason: outcome.reason, body: nil)
+    }
+
+    func authorizeAndCancelSession(
+        sessionId: String?,
+        remoteIP: String,
+        verifiedPeerFingerprint: String?,
+        coordinator: LocalShareSessionCoordinator = .shared
+    ) -> (statusCode: Int, reason: String) {
+        guard let sessionId, !sessionId.isEmpty else {
+            return (400, "Missing Session ID")
         }
-        sendRawResponse(connection: connection, statusCode: 200, reason: "OK", body: nil)
+        guard let session = coordinator.getActiveSession(sessionId: sessionId),
+              constantTimeStringCompare(session.sessionId, sessionId) else {
+            return (404, "Session Not Found")
+        }
+
+        // Reject cancellation of completed/terminal sessions so promoted files/directories are never purged
+        guard session.currentState.isActive else {
+            return (409, "Session Already Terminated")
+        }
+
+        let callerIP = LocalShareSecurity.normalizeIP(remoteIP)
+        let sessionPeerIP = LocalShareSecurity.normalizeIP(session.peerIP)
+        let bothLoopback = LocalShareSecurity.isLoopbackAddress(callerIP)
+            && LocalShareSecurity.isLoopbackAddress(sessionPeerIP)
+        guard !callerIP.isEmpty, callerIP == sessionPeerIP || bothLoopback else {
+            return (403, "Forbidden")
+        }
+
+        // If the session was bound to a verified mTLS client cert on /prepare-upload, enforce strict match (no nil downgrade)
+        if let boundFingerprint = session.verifiedPeerFingerprint,
+           !boundFingerprint.isEmpty {
+            guard let presented = verifiedPeerFingerprint,
+                  presented.caseInsensitiveCompare(boundFingerprint) == .orderedSame else {
+                return (403, "Forbidden")
+            }
+        }
+
+        coordinator.cancelSession(sessionId: sessionId, reason: "Peer cancelled")
+        return (200, "OK")
     }
 
     private func handleInfoRoute(connection: NWConnection, request: LocalShareHTTPRequest) {

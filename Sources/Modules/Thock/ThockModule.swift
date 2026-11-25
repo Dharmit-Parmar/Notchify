@@ -772,7 +772,7 @@ public final class ThockModule: NotchModule {
             volume = v
             keyVolumeText = "\(Int(v.rounded()))"
         }
-        if let p = s.pack, !p.isEmpty { currentPack = p }
+        if let p = s.pack, !p.isEmpty, Self.isValidPackName(p) { currentPack = p }
         if let a = s.asmrVolume {
             asmrVolume = a
             asmrVolumeText = "\(Int(a.rounded()))"
@@ -1078,12 +1078,17 @@ public final class ThockModule: NotchModule {
                 // Never mark an engine active unless its process identity can
                 // be recorded. Stop only through the retained Process handle;
                 // no raw PID or process-group signal is allowed here.
-                spawnedPID = childPid > 1 ? childPid : nil
-                processPID = childPid > 1 ? childPid : nil
-                spawnedProcessStartTime = nil
-                isRunning = false
-                isStartingEngine = false
-                statusSubtitle = "Engine Identity Could Not Be Verified"
+                outP.fileHandleForReading.readabilityHandler = nil
+                self.inPipe = nil
+                self.outPipe = nil
+                self.process = nil
+                self.spawnedProcess = nil
+                self.spawnedPID = nil
+                self.processPID = nil
+                self.spawnedProcessStartTime = nil
+                self.isRunning = false
+                self.isStartingEngine = false
+                self.statusSubtitle = "Engine Identity Could Not Be Verified"
                 if proc.isRunning {
                     proc.terminate()
                 }

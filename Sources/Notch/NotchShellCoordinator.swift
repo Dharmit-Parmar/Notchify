@@ -44,7 +44,7 @@ public final class NotchShellCoordinator: ObservableObject {
     public weak var panel: NotchPanel?
     
     public var currentCollapsedLayout: CollapsedLayout {
-        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens.first
         let geom = NotchGeometry.current(for: screen)
         let store = SettingsStore.shared
         return NotchGeometry.collapsedLayout(
@@ -115,7 +115,7 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public var currentExpandedLayout: ExpandedLayout {
-        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        let screen = panel?.currentScreen ?? NSScreen.main ?? NSScreen.screens.first
         let geom = NotchGeometry.current(for: screen)
         let store = SettingsStore.shared
         return NotchGeometry.expandedLayout(
@@ -136,7 +136,7 @@ public final class NotchShellCoordinator: ObservableObject {
     }
     
     public func refreshLayouts() {
-        let screen = panel?.refreshScreenReference() ?? NSScreen.main ?? NSScreen.screens[0]
+        let screen = panel?.refreshScreenReference() ?? NSScreen.main ?? NSScreen.screens.first
         self.geometry = NotchGeometry.current(for: screen)
         self.panel?.updateFrame(for: self.state, animated: false)
     }

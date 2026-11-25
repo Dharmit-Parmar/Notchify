@@ -15,6 +15,7 @@ public final class DividerUIState: ObservableObject {
     @Published public var isDragging: Bool = false
     @Published public var previewRatio: CGFloat? = nil
     @Published public var lastHapticSnap: CGFloat? = nil
+    public var isCursorPushed: Bool = false
 }
 
 public struct DottedDividerView: View {
@@ -57,9 +58,17 @@ public struct DottedDividerView: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 uiState.isHovered = hovering
             }
-            if hovering {
+            if hovering && !uiState.isCursorPushed {
+                uiState.isCursorPushed = true
                 NSCursor.resizeLeftRight.push()
-            } else {
+            } else if !hovering && uiState.isCursorPushed {
+                uiState.isCursorPushed = false
+                NSCursor.pop()
+            }
+        }
+        .onDisappear {
+            if uiState.isCursorPushed {
+                uiState.isCursorPushed = false
                 NSCursor.pop()
             }
         }

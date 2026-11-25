@@ -175,11 +175,20 @@ public final class LocalShareDiscovery: @unchecked Sendable {
         
         let myFingerprint = LocalShareIdentityManager.shared.certificateFingerprint
         // 1. Self-announcement suppression: discard messages from own device
-        guard info.fingerprint.caseInsensitiveCompare(myFingerprint) != .orderedSame else {
+        guard LocalShareSecurity.isValidFingerprint(info.fingerprint),
+              info.fingerprint.caseInsensitiveCompare(myFingerprint) != .orderedSame else {
             return
         }
         
-        let peerPort = UInt16(info.port ?? Int(LocalShareConstants.defaultHttpPort))
+        let rawPort = info.port ?? Int(LocalShareConstants.defaultHttpPort)
+        guard let peerPort = UInt16(exactly: rawPort), peerPort > 0 else {
+            return
+        }
+        let scheme = (info.`protocol` ?? "https").lowercased()
+        guard scheme == "https" || scheme == "http" else {
+            return
+        }
+
         let peer = LocalShareDiscoveredPeer(
             alias: LocalShareSecurity.sanitizeAlias(info.alias),
             deviceModel: info.deviceModel,
@@ -187,7 +196,7 @@ public final class LocalShareDiscovery: @unchecked Sendable {
             fingerprint: info.fingerprint,
             host: fromHost,
             port: peerPort,
-            protocol: info.`protocol` ?? "https",
+            protocol: scheme,
             download: info.download ?? false,
             lastSeen: Date()
         )
@@ -218,8 +227,10 @@ public final class LocalShareDiscovery: @unchecked Sendable {
     // MARK: - Direct Unicast Register Reply
     
     public func sendDirectRegisterReply(to peer: LocalShareDiscoveredPeer) {
+        let scheme = peer.`protocol`.lowercased()
+        guard scheme == "https" || scheme == "http" else { return }
         let cleanHost = LocalShareSecurity.formatHostForURL(peer.host)
-        guard let url = URL(string: "\(peer.`protocol`)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.register)") else {
+        guard let url = URL(string: "\(scheme)://\(cleanHost):\(peer.port)\(LocalShareEndpoints.register)") else {
             return
         }
         
@@ -293,14 +304,26 @@ public final class LocalShareDiscovery: @unchecked Sendable {
             }
         }
         
+        let rawPort = peerDto.port ?? Int(port)
+        guard let peerPort = UInt16(exactly: rawPort), peerPort > 0 else {
+            throw LocalShareError.serverError("Peer returned invalid port")
+        }
+        let scheme = (peerDto.`protocol` ?? "https").lowercased()
+        guard scheme == "https" || scheme == "http" else {
+            throw LocalShareError.serverError("Peer returned unsupported protocol")
+        }
+        guard !peerDto.fingerprint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw LocalShareError.serverError("Peer returned empty fingerprint")
+        }
+
         let peer = LocalShareDiscoveredPeer(
             alias: LocalShareSecurity.sanitizeAlias(peerDto.alias),
             deviceModel: peerDto.deviceModel,
             deviceType: peerDto.deviceType ?? .desktop,
             fingerprint: peerDto.fingerprint,
             host: host,
-            port: UInt16(peerDto.port ?? Int(port)),
-            protocol: peerDto.`protocol` ?? "https",
+            port: peerPort,
+            protocol: scheme,
             download: peerDto.download ?? false,
             lastSeen: Date()
         )

@@ -16,6 +16,11 @@ let package = Package(
             linkerSettings: [
                 .unsafeFlags(["-Xlinker", "-w"])
             ]
+        ),
+        .testTarget(
+            name: "NotchAppTests",
+            dependencies: ["NotchApp"],
+            path: "Tests/NotchAppTests"
         )
     ]
 )

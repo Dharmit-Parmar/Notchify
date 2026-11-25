@@ -8,7 +8,7 @@ public final class CompanionPanel: NSPanel {
     public private(set) var clickPanel: CompanionClickPanel?
     private var screenObserver: NSObjectProtocol?
     
-    public init(screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
+    public init(screen: NSScreen) {
         let width = screen.frame.width
         let height: CGFloat = 160.0
         
@@ -64,7 +64,8 @@ public final class CompanionPanel: NSPanel {
         }
     }
     
-    public func updateFramePosition(for screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
+    public func updateFramePosition(for screen: NSScreen? = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens.first) {
+        guard let screen else { return }
         let width = screen.frame.width
         let height: CGFloat = 160.0
         let targetRect = NSRect(
@@ -129,7 +130,8 @@ public final class CompanionClickPanel: NSPanel {
         self.contentView = clickHost
     }
     
-    public func updatePosition(pose: SkeletonPose, screen: NSScreen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens[0]) {
+    public func updatePosition(pose: SkeletonPose, screen: NSScreen? = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens.first) {
+        guard let screen else { return }
         guard CompanionCoordinator.shared.state != .inDen else {
             if self.isVisible {
                 self.orderOut(nil)

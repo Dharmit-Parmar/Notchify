@@ -311,7 +311,18 @@ public struct NotchGeometry: Sendable {
     }
     
 #if canImport(AppKit)
-    public static func current(for screen: NSScreen = NSScreen.main ?? NSScreen.screens[0]) -> NotchGeometry {
+    public static func current(for screen: NSScreen? = NSScreen.main ?? NSScreen.screens.first) -> NotchGeometry {
+        guard let screen else {
+            let fallbackFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+            return NotchGeometry(
+                hasPhysicalNotch: false,
+                screenFrame: fallbackFrame,
+                topInset: 32.0,
+                physicalNotchWidth: 160.0,
+                physicalNotchHeight: 32.0,
+                notchCenterX: fallbackFrame.midX
+            )
+        }
         let frame = screen.frame
         let safeArea = screen.safeAreaInsets
         let hasNotch = safeArea.top > 0

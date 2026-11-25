@@ -64,6 +64,20 @@ public struct GoogleUserInfo: Decodable, Sendable {
     public let picture: String?
 }
 
+// MARK: - Redirect-Blocking Delegate (RFC 8252 / Security Hardening)
+
+private final class GoogleOAuthNoRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 // MARK: - Google OAuth Manager (RFC 8252 Public Native Client PKCE)
 
 @MainActor
@@ -72,11 +86,53 @@ public final class GoogleOAuthManager: ObservableObject {
     public static let shared = GoogleOAuthManager()
 
     public static let refreshTokenKey = "google_oauth_refresh_token"
+    public static let tokenExpiryKey = "google_oauth_token_expires_at"
 
     @Published public private(set) var isAuthenticating: Bool = false
     @Published public private(set) var authErrorMessage: String?
 
-    private init() {}
+    private var refreshTask: Task<String?, Never>?
+    public private(set) var authGeneration: UInt64 = 0
+
+    private final class LoopbackCancelBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cancelled = false
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            lock.unlock()
+        }
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+    }
+
+    private nonisolated static let noRedirectDelegate = GoogleOAuthNoRedirectDelegate()
+    private nonisolated static let oauthSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        return URLSession(configuration: config, delegate: noRedirectDelegate, delegateQueue: nil)
+    }()
+
+    init() {}
+
+    // MARK: - Form URL Encoding (RFC 3986 Unreserved Set)
+
+    public nonisolated static func formURLEncodedString(_ params: [(String, String)]) -> String {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        return params.map { key, value in
+            let encodedKey = key.addingPercentEncoding(withAllowedCharacters: allowed) ?? key
+            let encodedValue = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+            return "\(encodedKey)=\(encodedValue)"
+        }.joined(separator: "&")
+    }
 
     // MARK: - PKCE Helpers (RFC 7636)
 
@@ -103,6 +159,10 @@ public final class GoogleOAuthManager: ObservableObject {
     // MARK: - Interactive Google Sign-In (RFC 8252 Native App Flow)
 
     public func signIn(clientID customClientID: String? = nil) async throws -> GoogleUserInfo {
+        guard !isAuthenticating else {
+            throw GoogleOAuthError.loopbackFailed("A Google sign-in is already in progress.")
+        }
+
         let rawID = (customClientID ?? SettingsStore.shared.googleOAuthClientId)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -117,6 +177,7 @@ public final class GoogleOAuthManager: ObservableObject {
         isAuthenticating = true
         authErrorMessage = nil
         defer { isAuthenticating = false }
+        let startGeneration = authGeneration
 
         // 1. Generate PKCE verifier and S256 challenge (RFC 7636)
         let verifier = Self.generateCodeVerifier()
@@ -159,26 +220,32 @@ public final class GoogleOAuthManager: ObservableObject {
         }
 
         // 5. Open user's default browser and await loopback callback
+        let cancelBox = LoopbackCancelBox()
         let authCode: String
         do {
-            authCode = try await withCheckedThrowingContinuation { continuation in
-                Task.detached {
-                    do {
-                        let code = try Self.runLoopbackListener(
-                            serverSocket: serverSocket,
-                            port: boundPort,
-                            expectedState: state,
-                            timeoutSeconds: 120
-                        )
-                        continuation.resume(returning: code)
-                    } catch {
-                        continuation.resume(throwing: error)
+            authCode = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    Task.detached {
+                        do {
+                            let code = try Self.runLoopbackListener(
+                                serverSocket: serverSocket,
+                                port: boundPort,
+                                expectedState: state,
+                                timeoutSeconds: 120,
+                                cancelBox: cancelBox
+                            )
+                            continuation.resume(returning: code)
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    }
+
+                    DispatchQueue.main.async {
+                        NSWorkspace.shared.open(authURL)
                     }
                 }
-
-                DispatchQueue.main.async {
-                    NSWorkspace.shared.open(authURL)
-                }
+            } onCancel: {
+                cancelBox.cancel()
             }
         } catch {
             authErrorMessage = error.localizedDescription
@@ -193,17 +260,39 @@ public final class GoogleOAuthManager: ObservableObject {
             redirectURI: redirectURI
         )
 
-        // 7. Store Access & Refresh Tokens securely in Keychain (Axiom Security)
-        KeychainHelper.shared.saveSecret(tokens.accessToken, forKey: GoogleSyncService.oauthTokenKey)
-        if let refreshToken = tokens.refreshToken, !refreshToken.isEmpty {
-            KeychainHelper.shared.saveSecret(refreshToken, forKey: Self.refreshTokenKey)
+        let cleanAccessToken = tokens.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanAccessToken.isEmpty,
+              !cleanAccessToken.contains("\r"),
+              !cleanAccessToken.contains("\n") else {
+            let err = GoogleOAuthError.tokenExchangeFailed("Google returned an invalid access token.")
+            authErrorMessage = err.localizedDescription
+            throw err
         }
 
-        // 8. Retrieve User Profile from Google UserInfo endpoint
-        let userInfo = try await fetchUserInfo(accessToken: tokens.accessToken)
-        if let email = userInfo.email {
+        // 7. Retrieve User Profile BEFORE persisting credentials so failed fetches never leave partial state
+        let userInfo = try await fetchUserInfo(accessToken: cleanAccessToken)
+
+        guard !Task.isCancelled, startGeneration == authGeneration else {
+            throw GoogleOAuthError.userCancelled
+        }
+
+        // 8. Store Access, Refresh Tokens, and Expiry in Keychain
+        guard KeychainHelper.shared.saveSecret(cleanAccessToken, forKey: GoogleSyncService.oauthTokenKey) else {
+            let err = GoogleOAuthError.tokenExchangeFailed("Unable to store Google access token in Keychain.")
+            authErrorMessage = err.localizedDescription
+            throw err
+        }
+        if let refreshToken = tokens.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !refreshToken.isEmpty {
+            _ = KeychainHelper.shared.saveSecret(refreshToken, forKey: Self.refreshTokenKey)
+        }
+        if let expiresIn = tokens.expiresIn, expiresIn > 0 {
+            let expiryEpoch = String(Date().addingTimeInterval(TimeInterval(expiresIn)).timeIntervalSince1970)
+            _ = KeychainHelper.shared.saveSecret(expiryEpoch, forKey: Self.tokenExpiryKey)
+        }
+        if let email = userInfo.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
             SettingsStore.shared.connectedGoogleEmail = email
-            KeychainHelper.shared.saveSecret(email, forKey: GoogleSyncService.accountEmailKey)
+            _ = KeychainHelper.shared.saveSecret(email, forKey: GoogleSyncService.accountEmailKey)
         }
 
         // 9. Play Success Feedback & Broadcast Account Change
@@ -251,71 +340,133 @@ public final class GoogleOAuthManager: ObservableObject {
         throw GoogleOAuthError.loopbackFailed("Unable to bind local loopback listener.")
     }
 
+    public enum LoopbackParseOutcome: Equatable, Sendable {
+        case authorizationCode(String)
+        case ignoreNonCallback
+        case failed(message: String, userCancelled: Bool)
+    }
+
+    public nonisolated static func parseCallbackHTTPRequest(
+        _ reqString: String,
+        port: UInt16,
+        expectedState: String
+    ) -> LoopbackParseOutcome {
+        guard let firstLine = reqString.components(separatedBy: "\r\n").first else {
+            return .failed(message: "Invalid request received.", userCancelled: false)
+        }
+        let parts = firstLine.components(separatedBy: " ")
+        guard parts.count == 3,
+              parts[0] == "GET",
+              parts[1].hasPrefix("/"),
+              !parts[1].hasPrefix("//"),
+              parts[2].hasPrefix("HTTP/1."),
+              let url = URL(string: "http://127.0.0.1:\(port)" + parts[1]),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+              components.host == "127.0.0.1",
+              components.port == Int(port) else {
+            return .failed(message: "Invalid request received.", userCancelled: false)
+        }
+
+        if components.path != "/oauth2callback" {
+            return .ignoreNonCallback
+        }
+
+        let queryItems = components.queryItems ?? []
+
+        // Strict CSRF verification: state parameter MUST be present AND match expectedState
+        guard let state = queryItems.first(where: { $0.name == "state" })?.value,
+              !state.isEmpty,
+              state == expectedState else {
+            return .failed(message: "CSRF state verification failed.", userCancelled: false)
+        }
+
+        if let errorParam = queryItems.first(where: { $0.name == "error" })?.value {
+            if errorParam == "access_denied" {
+                return .failed(message: "Sign-in cancelled.", userCancelled: true)
+            }
+            return .failed(message: errorParam, userCancelled: false)
+        }
+
+        guard let code = queryItems.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
+            return .failed(message: "No authorization code returned.", userCancelled: false)
+        }
+
+        return .authorizationCode(code)
+    }
+
     private nonisolated static func runLoopbackListener(
         serverSocket: Int32,
         port: UInt16,
         expectedState: String,
-        timeoutSeconds: Int = 120
+        timeoutSeconds: Int = 120,
+        cancelBox: LoopbackCancelBox
     ) throws -> String {
         defer { close(serverSocket) }
 
-        // Socket timeout for accept to avoid hanging indefinitely if browser closed
-        var tv = timeval(tv_sec: timeoutSeconds, tv_usec: 0)
-        setsockopt(serverSocket, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
 
-        var clientAddr = sockaddr_in()
-        var clientLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-        let clientSocket = withUnsafeMutablePointer(to: &clientAddr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                accept(serverSocket, $0, &clientLen)
-            }
-        }
-
-        guard clientSocket >= 0 else {
-            if errno == EAGAIN || errno == EWOULDBLOCK {
+        while true {
+            if cancelBox.isCancelled {
                 throw GoogleOAuthError.userCancelled
             }
-            throw GoogleOAuthError.loopbackFailed("Connection accept failed (errno \(errno))")
-        }
-
-        defer { close(clientSocket) }
-
-        // Read HTTP request from browser redirect
-        var buffer = [UInt8](repeating: 0, count: 4096)
-        let bytesRead = read(clientSocket, &buffer, buffer.count)
-        let reqString = String(decoding: buffer[..<max(0, bytesRead)], as: UTF8.self)
-
-        guard let firstLine = reqString.components(separatedBy: "\r\n").first,
-              let path = firstLine.components(separatedBy: " ").dropFirst().first,
-              let url = URL(string: "http://127.0.0.1:\(port)" + path),
-              let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: true)?.queryItems else {
-            sendResponse(to: clientSocket, isSuccess: false, message: "Invalid request received.")
-            throw GoogleOAuthError.missingAuthorizationCode
-        }
-
-        // Verify state parameter against CSRF attacks
-        if let state = queryItems.first(where: { $0.name == "state" })?.value,
-           state != expectedState {
-            sendResponse(to: clientSocket, isSuccess: false, message: "CSRF state verification failed.")
-            throw GoogleOAuthError.tokenExchangeFailed("State parameter mismatch")
-        }
-
-        if let errorParam = queryItems.first(where: { $0.name == "error" })?.value {
-            sendResponse(to: clientSocket, isSuccess: false, message: "Sign-in cancelled.")
-            if errorParam == "access_denied" {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else {
                 throw GoogleOAuthError.userCancelled
             }
-            throw GoogleOAuthError.tokenExchangeFailed(errorParam)
-        }
 
-        guard let code = queryItems.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
-            sendResponse(to: clientSocket, isSuccess: false, message: "No authorization code returned.")
-            throw GoogleOAuthError.missingAuthorizationCode
-        }
+            var pfd = pollfd(fd: serverSocket, events: Int16(POLLIN), revents: 0)
+            let sliceSeconds = min(remaining, 0.25)
+            let timeoutMs = Int32(min(Int.max, max(1, Int(ceil(sliceSeconds * 1000.0)))))
+            let ready = poll(&pfd, 1, timeoutMs)
+            if ready == 0 {
+                continue
+            }
+            if ready < 0 {
+                if errno == EINTR { continue }
+                throw GoogleOAuthError.loopbackFailed("Loopback poll failed (errno \(errno))")
+            }
 
-        // Send successful response page
-        sendResponse(to: clientSocket, isSuccess: true, message: "Your Google Account is connected. Return to Notch.")
-        return code
+            var clientAddr = sockaddr_in()
+            var clientLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let clientSocket = withUnsafeMutablePointer(to: &clientAddr) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    accept(serverSocket, $0, &clientLen)
+                }
+            }
+
+            guard clientSocket >= 0 else {
+                if errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK { continue }
+                throw GoogleOAuthError.loopbackFailed("Connection accept failed (errno \(errno))")
+            }
+
+            defer { close(clientSocket) }
+
+            var buffer = [UInt8](repeating: 0, count: 8192)
+            let bytesRead = read(clientSocket, &buffer, buffer.count)
+            guard bytesRead > 0 else {
+                continue
+            }
+            let reqString = String(decoding: buffer[..<bytesRead], as: UTF8.self)
+
+            switch parseCallbackHTTPRequest(reqString, port: port, expectedState: expectedState) {
+            case .ignoreNonCallback:
+                let noContent = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n"
+                _ = noContent.withCString { send(clientSocket, $0, strlen($0), 0) }
+                continue
+            case .failed(let message, let userCancelled):
+                sendResponse(to: clientSocket, isSuccess: false, message: userCancelled ? "Sign-in cancelled." : message)
+                if userCancelled {
+                    throw GoogleOAuthError.userCancelled
+                }
+                if message == "No authorization code returned." || message == "Invalid request received." {
+                    throw GoogleOAuthError.missingAuthorizationCode
+                }
+                throw GoogleOAuthError.tokenExchangeFailed(message)
+            case .authorizationCode(let code):
+                sendResponse(to: clientSocket, isSuccess: true, message: "Your Google Account is connected. Return to Notch.")
+                return code
+            }
+        }
     }
 
     private nonisolated static func sendResponse(to socket: Int32, isSuccess: Bool, message: String) {
@@ -372,31 +523,32 @@ public final class GoogleOAuthManager: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15.0
 
-        let bodyParams = [
-            "client_id": clientID,
-            "code": code,
-            "code_verifier": verifier,
-            "redirect_uri": redirectURI,
-            "grant_type": "authorization_code"
+        let bodyParams: [(String, String)] = [
+            ("client_id", clientID),
+            ("code", code),
+            ("code_verifier", verifier),
+            ("redirect_uri", redirectURI),
+            ("grant_type", "authorization_code")
         ]
 
-        let bodyString = bodyParams.map { key, value in
-            let escapedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-            let escapedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
-            return "\(escapedKey)=\(escapedValue)"
-        }.joined(separator: "&")
+        request.httpBody = Self.formURLEncodedString(bodyParams).data(using: .utf8)
 
-        request.httpBody = bodyString.data(using: .utf8)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await Self.oauthSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GoogleOAuthError.tokenExchangeFailed("No HTTP response received")
         }
 
         guard httpResponse.statusCode == 200 else {
-            let errorBody = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
-            throw GoogleOAuthError.tokenExchangeFailed(errorBody)
+            var reason = "HTTP \(httpResponse.statusCode)"
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let desc = json["error_description"] as? String, !desc.isEmpty {
+                    reason = desc
+                } else if let errCode = json["error"] as? String, !errCode.isEmpty {
+                    reason = errCode
+                }
+            }
+            throw GoogleOAuthError.tokenExchangeFailed(reason)
         }
 
         return try JSONDecoder().decode(GoogleTokenResponse.self, from: data)
@@ -415,7 +567,7 @@ public final class GoogleOAuthManager: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 10.0
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await Self.oauthSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw GoogleOAuthError.userInfoFailed("Failed to fetch Google profile info")
@@ -424,17 +576,111 @@ public final class GoogleOAuthManager: ObservableObject {
         return try JSONDecoder().decode(GoogleUserInfo.self, from: data)
     }
 
-    // MARK: - Automatic Access Token Refresh (Preserves Refresh Token)
+    // MARK: - Automatic Access Token Refresh (Coalesced, Disconnect-Safe, Preserves Refresh Token)
 
-    public func refreshAccessTokenIfNeeded() async -> String? {
-        guard let refreshToken = KeychainHelper.shared.loadSecret(forKey: Self.refreshTokenKey),
+    public func invalidateAuthSession() {
+        authGeneration &+= 1
+        refreshTask?.cancel()
+        refreshTask = nil
+    }
+
+    public func validAccessToken(minimumLifetimeSeconds: TimeInterval = 60) async -> String? {
+        guard let storedToken = KeychainHelper.shared.loadSecret(forKey: GoogleSyncService.oauthTokenKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !storedToken.isEmpty else {
+            return await refreshAccessTokenIfNeeded()
+        }
+
+        if let expiryStr = KeychainHelper.shared.loadSecret(forKey: Self.tokenExpiryKey),
+           let expiryEpoch = Double(expiryStr),
+           Date(timeIntervalSince1970: expiryEpoch) <= Date().addingTimeInterval(minimumLifetimeSeconds) {
+            if let refreshed = await refreshAccessTokenIfNeeded(failingToken: storedToken) {
+                return refreshed
+            }
+        }
+        return storedToken
+    }
+
+    public func refreshAccessTokenIfNeeded(failingToken: String? = nil) async -> String? {
+        guard let refreshToken = KeychainHelper.shared.loadSecret(forKey: Self.refreshTokenKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
               !refreshToken.isEmpty else {
             return nil
         }
-
         let rawID = SettingsStore.shared.googleOAuthClientId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawID.isEmpty else { return nil }
 
+        return await refreshAccessTokenIfNeeded(
+            failingToken: failingToken,
+            clientID: rawID,
+            refreshToken: refreshToken,
+            loadCurrentAccessToken: {
+                KeychainHelper.shared.loadSecret(forKey: GoogleSyncService.oauthTokenKey)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            },
+            executor: { request in
+                try await Self.oauthSession.data(for: request)
+            },
+            persistTokens: { access, newRefresh, expiryEpoch in
+                guard KeychainHelper.shared.saveSecret(access, forKey: GoogleSyncService.oauthTokenKey) else {
+                    return false
+                }
+                if let newRefresh, !newRefresh.isEmpty {
+                    _ = KeychainHelper.shared.saveSecret(newRefresh, forKey: Self.refreshTokenKey)
+                }
+                if let expiryEpoch {
+                    _ = KeychainHelper.shared.saveSecret(expiryEpoch, forKey: Self.tokenExpiryKey)
+                }
+                return true
+            }
+        )
+    }
+
+    func refreshAccessTokenIfNeeded(
+        failingToken: String? = nil,
+        clientID: String,
+        refreshToken: String,
+        loadCurrentAccessToken: () -> String?,
+        executor: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        persistTokens: @escaping @MainActor (String, String?, String?) -> Bool
+    ) async -> String? {
+        if let failingToken,
+           let currentToken = loadCurrentAccessToken(),
+           !currentToken.isEmpty,
+           currentToken != failingToken {
+            return currentToken
+        }
+
+        if let inFlight = refreshTask {
+            return await inFlight.value
+        }
+
+        let startGeneration = authGeneration
+        let task = Task<String?, Never> { @MainActor [weak self] in
+            guard let self = self else { return nil }
+            defer { self.refreshTask = nil }
+            return await self.performTokenRefresh(
+                expectedGeneration: startGeneration,
+                clientID: clientID,
+                refreshToken: refreshToken,
+                executor: executor,
+                persistTokens: persistTokens
+            )
+        }
+        self.refreshTask = task
+        return await task.value
+    }
+
+    private func performTokenRefresh(
+        expectedGeneration: UInt64,
+        clientID: String,
+        refreshToken: String,
+        executor: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        persistTokens: @escaping @MainActor (String, String?, String?) -> Bool
+    ) async -> String? {
+        guard !Task.isCancelled, expectedGeneration == authGeneration else {
+            return nil
+        }
         guard let tokenURL = URL(string: "https://oauth2.googleapis.com/token") else {
             return nil
         }
@@ -442,33 +688,42 @@ public final class GoogleOAuthManager: ObservableObject {
         var request = URLRequest(url: tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15.0
 
-        let params = [
-            "client_id": rawID,
-            "refresh_token": refreshToken,
-            "grant_type": "refresh_token"
+        let params: [(String, String)] = [
+            ("client_id", clientID),
+            ("refresh_token", refreshToken),
+            ("grant_type", "refresh_token")
         ]
 
-        let bodyString = params.map { key, value in
-            let escapedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-            let escapedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
-            return "\(escapedKey)=\(escapedValue)"
-        }.joined(separator: "&")
-
-        request.httpBody = bodyString.data(using: .utf8)
+        request.httpBody = Self.formURLEncodedString(params).data(using: .utf8)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await executor(request)
+            guard !Task.isCancelled, expectedGeneration == authGeneration else {
+                return nil
+            }
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return nil
             }
             let tokenResponse = try JSONDecoder().decode(GoogleTokenResponse.self, from: data)
-            KeychainHelper.shared.saveSecret(tokenResponse.accessToken, forKey: GoogleSyncService.oauthTokenKey)
-            if let newRefresh = tokenResponse.refreshToken, !newRefresh.isEmpty {
-                KeychainHelper.shared.saveSecret(newRefresh, forKey: Self.refreshTokenKey)
+            let cleanAccess = tokenResponse.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleanAccess.isEmpty,
+                  !cleanAccess.contains("\r"),
+                  !cleanAccess.contains("\n") else { return nil }
+
+            let cleanRefresh = tokenResponse.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let expiryEpoch: String? = {
+                guard let expiresIn = tokenResponse.expiresIn, expiresIn > 0 else { return nil }
+                return String(Date().addingTimeInterval(TimeInterval(expiresIn)).timeIntervalSince1970)
+            }()
+
+            guard !Task.isCancelled, expectedGeneration == authGeneration,
+                  persistTokens(cleanAccess, (cleanRefresh?.isEmpty == false) ? cleanRefresh : nil, expiryEpoch) else {
+                return nil
             }
-            return tokenResponse.accessToken
+            return cleanAccess
         } catch {
             return nil
         }
